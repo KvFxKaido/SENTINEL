@@ -5,6 +5,7 @@ from typing import Callable, Literal
 
 from .base import LLMClient, Message, ToolCall, ToolResult
 from .lmstudio import LMStudioClient
+from .ollama import OllamaClient
 from .cli_wrapper import GeminiCLI, CodexCLI, CLIWrapperClient
 
 __all__ = [
@@ -13,6 +14,7 @@ __all__ = [
     "ToolCall",
     "ToolResult",
     "LMStudioClient",
+    "OllamaClient",
     "GeminiCLI",
     "CodexCLI",
     "CLIWrapperClient",
@@ -120,16 +122,17 @@ class MockLLMClient(LLMClient):
 # Backend Detection and Factory
 # -----------------------------------------------------------------------------
 
-BackendType = Literal["lmstudio", "claude", "openrouter", "gemini", "codex", "auto"]
+BackendType = Literal["lmstudio", "ollama", "claude", "openrouter", "gemini", "codex", "auto"]
 
 
 def detect_backend(
     lmstudio_url: str = "http://localhost:1234/v1",
+    ollama_url: str = "http://localhost:11434/v1",
 ) -> tuple[str, LLMClient] | tuple[None, None]:
     """
     Auto-detect available LLM backend.
 
-    Preference order: LM Studio > Claude > OpenRouter > Gemini CLI > Codex CLI
+    Preference order: LM Studio > Ollama > Claude > OpenRouter > Gemini CLI > Codex CLI
 
     Returns:
         Tuple of (backend_name, client) or (None, None) if nothing available.
@@ -139,6 +142,14 @@ def detect_backend(
         client = LMStudioClient(base_url=lmstudio_url)
         if client.is_available():
             return ("lmstudio", client)
+    except Exception:
+        pass
+
+    # Try Ollama (free, local)
+    try:
+        client = OllamaClient(base_url=ollama_url)
+        if client.is_available():
+            return ("ollama", client)
     except Exception:
         pass
 
@@ -181,6 +192,7 @@ def detect_backend(
 def create_llm_client(
     backend: BackendType = "auto",
     lmstudio_url: str = "http://localhost:1234/v1",
+    ollama_url: str = "http://localhost:11434/v1",
     claude_model: str = "claude-sonnet-4-20250514",
     openrouter_model: str = "claude-3.5-sonnet",
 ) -> tuple[str, LLMClient | None]:
@@ -190,6 +202,7 @@ def create_llm_client(
     Args:
         backend: Backend to use ("auto" for auto-detection)
         lmstudio_url: URL for LM Studio server
+        ollama_url: URL for Ollama server
         claude_model: Model name for Claude API
         openrouter_model: Model name for OpenRouter
 
@@ -197,7 +210,7 @@ def create_llm_client(
         Tuple of (backend_name, client). Client may be None if unavailable.
     """
     if backend == "auto":
-        name, client = detect_backend(lmstudio_url)
+        name, client = detect_backend(lmstudio_url, ollama_url)
         return (name or "none", client)
 
     if backend == "lmstudio":
@@ -207,6 +220,14 @@ def create_llm_client(
         except Exception as e:
             print(f"LM Studio error: {e}")
             return ("lmstudio", None)
+
+    if backend == "ollama":
+        try:
+            from .ollama import create_ollama_client
+            return ("ollama", create_ollama_client(base_url=ollama_url))
+        except Exception as e:
+            print(f"Ollama error: {e}")
+            return ("ollama", None)
 
     if backend == "claude":
         if ClaudeClient is None:

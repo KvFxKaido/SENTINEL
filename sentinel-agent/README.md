@@ -24,6 +24,12 @@ The agent supports multiple backends:
 3. Start the local server (Server tab)
 4. Run the CLI — it auto-detects LM Studio at localhost:1234
 
+### Ollama (Alternative local option)
+1. Install [Ollama](https://ollama.ai/)
+2. Pull a model: `ollama pull llama3.2`
+3. Ollama runs automatically after install
+4. Run the CLI — it auto-detects Ollama at localhost:11434
+
 ### Claude API (Optional)
 ```bash
 pip install -e ".[claude]"
@@ -31,7 +37,7 @@ export ANTHROPIC_API_KEY=your-key
 python -m src.interface.cli
 ```
 
-The agent auto-detects available backends, preferring LM Studio (free) over Claude.
+The agent auto-detects available backends, preferring local (LM Studio > Ollama) over API.
 
 ## Architecture
 

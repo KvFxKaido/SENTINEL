@@ -76,13 +76,14 @@ SENTINEL/
 
 | Backend | Setup |
 |---------|-------|
-| **LM Studio** | Download app, load model, start server |
+| **LM Studio** | Download app, load model, start server (port 1234) |
+| **Ollama** | `ollama pull llama3.2` — runs automatically (port 11434) |
 | **Claude** | `pip install -e ".[claude]"` + API key |
 | **OpenRouter** | Set `OPENROUTER_API_KEY` |
 | **Gemini CLI** | Install `gemini` command |
 | **Codex CLI** | Install `codex` command |
 
-The agent auto-detects available backends.
+The agent auto-detects available backends (prefers local: LM Studio > Ollama).
 
 ## Development
 
