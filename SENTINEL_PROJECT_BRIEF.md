@@ -1,6 +1,6 @@
 # SENTINEL Project Brief
 
-*Last updated: January 2025*
+*Last updated: January 2026*
 
 ## What This Is
 
@@ -34,7 +34,9 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 - **NPC memory triggers** — NPCs react to tagged events (e.g., faction shifts)
 - **Context meter** — visual indicator of conversation depth
 - **Faction MCP server** — external faction lore + campaign tracking
-- **Multi-backend LLM** — LM Studio, Claude, OpenRouter, Gemini CLI, Codex CLI
+- **Multi-backend LLM** — LM Studio, Ollama, Claude, OpenRouter, Gemini CLI, Codex CLI
+- **Test suite** — 77 tests covering core mechanics
+- **CI/CD** — GitHub Actions (Python 3.10, 3.11, 3.12)
 
 ### Not Yet Built
 - Enhancement leverage system (faction callbacks)
@@ -60,10 +62,14 @@ SENTINEL/
 │   │   ├── agent.py              # LLM orchestration + tool handlers + council
 │   │   ├── state/
 │   │   │   ├── schema.py         # Pydantic models (source of truth)
-│   │   │   └── manager.py        # Campaign CRUD
+│   │   │   ├── manager.py        # Campaign CRUD
+│   │   │   └── store.py          # Abstract storage interface
+│   │   ├── rules/
+│   │   │   └── npc.py            # Pure functions for NPC behavior
 │   │   ├── llm/
 │   │   │   ├── base.py           # Abstract LLM client
 │   │   │   ├── lmstudio.py       # Local LLM (OpenAI-compatible)
+│   │   │   ├── ollama.py         # Ollama (OpenAI-compatible)
 │   │   │   ├── claude.py         # Anthropic API
 │   │   │   ├── openrouter.py     # OpenRouter API
 │   │   │   └── cli_wrapper.py    # Gemini/Codex CLI wrappers
@@ -97,6 +103,7 @@ SENTINEL/
 - Lore retrieval uses lightweight keyword matching (no heavy deps)
 - Tools return dicts for API serialization
 - NPCs have agendas (wants, fears, leverage, owes, **lie_to_self**)
+- NPC behavior logic extracted to pure functions (`rules/npc.py`) for testability
 
 ---
 
@@ -309,8 +316,11 @@ Applied throughout CLI: banners, panels, status displays, choice blocks.
 - **Pydantic** — State validation
 - **Rich** — Terminal UI with theming
 - **prompt-toolkit** — Command autocomplete
-- **LM Studio** — Local LLM (free, OpenAI-compatible API)
+- **LM Studio** — Local LLM (free, OpenAI-compatible API at port 1234)
+- **Ollama** — Local LLM alternative (OpenAI-compatible API at port 11434)
 - **Anthropic SDK** — Claude API (optional)
+- **pytest** — Test framework with 77 tests
+- **GitHub Actions** — CI/CD pipeline
 
 No heavy ML dependencies — lore retrieval uses keyword matching.
 
