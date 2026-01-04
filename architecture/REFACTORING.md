@@ -74,6 +74,30 @@ SentinelAgent(
 
 ---
 
+### Focused Test Suite
+**Date:** 2026-01-04
+
+Added comprehensive test coverage for core game mechanics:
+
+| Test File | Tests | Coverage |
+|-----------|-------|----------|
+| `test_memory_triggers.py` | 10 | Trigger firing, one-shot, disposition shifts |
+| `test_faction_shifts.py` | 10 | Standing model, manager ops, cross-faction |
+| `test_chronicle.py` | 11 | History logging, hinge moments, session end |
+| `test_disposition.py` | 10 | Modifier access, content, progression |
+| `test_social_energy.py` | 20 | Bands, boundaries, hints, manager ops |
+
+**Total:** 61 tests passing
+
+**Fixtures (conftest.py):**
+- `MemoryCampaignStore` — In-memory persistence
+- `MockLLMClient` — Recorded responses
+- Sample NPCs with triggers and modifiers
+
+**Bug fixed:** `log_hinge_moment` was creating dict instead of `HingeMoment` model.
+
+---
+
 ## Remaining Priorities
 
 ### 1. Extract NPC Rules to Pure Functions
@@ -134,83 +158,6 @@ class NPC(BaseModel):
 
 ---
 
-### 2. Add Focused Test Coverage
-
-**Priority:** High
-**Effort:** 3-4 hours
-**Source:** Both consultants agreed
-
-**Problem:** No tests for critical game mechanics.
-
-**Test priorities:**
-
-| Area | Test Cases |
-|------|------------|
-| Memory triggers | Trigger fires once, disposition shifts correctly, tags match |
-| Faction shifts | Standing changes logged, cross-faction effects |
-| Chronicle logging | Hinge moments logged, history filters work |
-| Disposition modifiers | Correct modifier for each level, tells/reveals accurate |
-| Social energy | Bands transition correctly, state names match |
-
-**Example tests:**
-```python
-# tests/test_memory_triggers.py
-def test_trigger_fires_once():
-    npc = NPC(
-        name="Test",
-        memory_triggers=[
-            MemoryTrigger(
-                condition="helped_ember",
-                effect="becomes wary",
-                disposition_shift=-1,
-                one_shot=True
-            )
-        ]
-    )
-
-    # First trigger
-    messages = check_triggers(npc, ["helped_ember"])
-    assert len(messages) == 1
-    assert npc.disposition == Disposition.WARY
-
-    # Second trigger - should not fire
-    messages = check_triggers(npc, ["helped_ember"])
-    assert len(messages) == 0
-
-# tests/test_chronicle.py
-def test_hinge_moment_logged():
-    store = MemoryCampaignStore()
-    manager = CampaignManager(store)
-    manager.create_campaign("Test")
-
-    manager.log_hinge_moment(
-        situation="Player decided to...",
-        choice="Betrayed the contact",
-        reasoning="Survival over loyalty"
-    )
-
-    history = manager.current.history
-    assert len(history) == 1
-    assert history[0].type == HistoryType.HINGE_MOMENT
-```
-
-**Implementation steps:**
-1. Set up pytest configuration
-2. ~~Implement `MemoryCampaignStore`~~ ✅ Done
-3. ~~Implement `MockLLMClient`~~ ✅ Done
-4. Write tests for each area
-5. Add to CI (when set up)
-
-**Files to create:**
-- `tests/conftest.py` (fixtures)
-- `tests/test_memory_triggers.py`
-- `tests/test_faction_shifts.py`
-- `tests/test_chronicle.py`
-- `tests/test_disposition.py`
-- `tests/test_social_energy.py`
-
----
-
 ## Implementation Order
 
 Recommended sequence (dependencies noted):
@@ -222,10 +169,10 @@ Recommended sequence (dependencies noted):
 2. Inject LLMClient ✅ DONE
    └── Enables: MockLLMClient for testing
 
-3. Add focused tests (#2)
-   └── Uses: MemoryCampaignStore, MockLLMClient
+3. Add focused tests ✅ DONE
+   └── Uses: MemoryCampaignStore, MockLLMClient (61 tests)
 
-4. Extract NPC rules (#1)
+4. Extract NPC rules (next)
    └── Tests already in place, safe refactor
 ```
 
