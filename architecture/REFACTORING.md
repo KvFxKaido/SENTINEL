@@ -46,57 +46,37 @@ Separated persistence from domain logic in `manager.py`:
 
 ---
 
-## Remaining Priorities
+### LLMClient Injection
+**Date:** 2026-01-04
 
-### 1. Inject LLMClient into SentinelAgent
+Added dependency injection for LLM clients:
 
-**Priority:** High
-**Effort:** 1-2 hours
-**Source:** Both consultants agreed
+| Component | Purpose |
+|-----------|---------|
+| `create_llm_client()` | Factory function for backend creation |
+| `detect_backend()` | Auto-detection logic (extracted from agent) |
+| `MockLLMClient` | Test double with configurable responses |
 
-**Problem:** `SentinelAgent` creates its own LLM clients internally, making testing difficult.
-
-**Current state:**
+**New SentinelAgent signature:**
 ```python
-class SentinelAgent:
-    def __init__(self, manager, prompts_dir, lore_dir, backend="auto"):
-        # Creates LLM client internally
-        self._init_backend(backend)
+SentinelAgent(
+    manager,
+    prompts_dir,
+    client=mock_client,  # NEW: optional injected client
+    backend="auto",      # Falls back to factory if no client
+)
 ```
 
-**Target state:**
-```python
-# Abstract LLM interface (already exists in llm/base.py)
-class LLMClient(Protocol):
-    def chat(self, messages: list[Message]) -> str: ...
-
-# Agent accepts client
-class SentinelAgent:
-    def __init__(self, manager, client: LLMClient, prompts_dir, lore_dir):
-        self.client = client
-
-# CLI handles backend selection
-def main():
-    client = create_llm_client(backend="auto")
-    agent = SentinelAgent(manager, client, ...)
-```
-
-**Implementation steps:**
-1. Add factory function `create_llm_client(backend: str) -> LLMClient`
-2. Update `SentinelAgent.__init__` to accept client
-3. Update CLI to create client and inject
-4. Create `MockLLMClient` for testing
-5. Add agent tests with mock client
-
-**Files affected:**
-- `src/llm/__init__.py` (add factory)
-- `src/agent.py` (refactor init)
-- `src/interface/cli.py` (update)
-- `tests/test_agent.py` (new)
+**Benefits:**
+- Tests can use `MockLLMClient` — no API calls
+- Call recording for assertions (`mock.calls`)
+- Backwards compatible: `backend` param still works
 
 ---
 
-### 2. Extract NPC Rules to Pure Functions
+## Remaining Priorities
+
+### 1. Extract NPC Rules to Pure Functions
 
 **Priority:** Medium
 **Effort:** 1-2 hours
@@ -154,7 +134,7 @@ class NPC(BaseModel):
 
 ---
 
-### 3. Add Focused Test Coverage
+### 2. Add Focused Test Coverage
 
 **Priority:** High
 **Effort:** 3-4 hours
@@ -217,7 +197,7 @@ def test_hinge_moment_logged():
 **Implementation steps:**
 1. Set up pytest configuration
 2. ~~Implement `MemoryCampaignStore`~~ ✅ Done
-3. Implement `MockLLMClient` (from #1)
+3. ~~Implement `MockLLMClient`~~ ✅ Done
 4. Write tests for each area
 5. Add to CI (when set up)
 
@@ -239,13 +219,13 @@ Recommended sequence (dependencies noted):
 1. Extract CampaignStore ✅ DONE
    └── Enables: MemoryCampaignStore for testing
 
-2. Inject LLMClient (#1)
+2. Inject LLMClient ✅ DONE
    └── Enables: MockLLMClient for testing
 
-3. Add focused tests (#3)
+3. Add focused tests (#2)
    └── Uses: MemoryCampaignStore, MockLLMClient
 
-4. Extract NPC rules (#2)
+4. Extract NPC rules (#1)
    └── Tests already in place, safe refactor
 ```
 
