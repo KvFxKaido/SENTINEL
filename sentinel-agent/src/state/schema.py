@@ -272,29 +272,21 @@ class NPC(BaseModel):
     memory_triggers: list[MemoryTrigger] = Field(default_factory=list)
 
     def get_current_modifier(self) -> DispositionModifier | None:
-        """Get behavior modifier for current disposition."""
-        return self.disposition_modifiers.get(self.disposition.value)
+        """Get behavior modifier for current disposition.
+
+        Delegates to rules.npc.get_disposition_modifier().
+        """
+        from ..rules.npc import get_disposition_modifier
+        return get_disposition_modifier(self)
 
     def check_triggers(self, tags: list[str]) -> list[MemoryTrigger]:
-        """Check which triggers fire for given tags. Returns fired triggers."""
-        fired = []
-        for trigger in self.memory_triggers:
-            if trigger.triggered and trigger.one_shot:
-                continue
-            if trigger.condition in tags:
-                trigger.triggered = True
-                fired.append(trigger)
-                # Apply disposition shift
-                if trigger.disposition_shift != 0:
-                    self._apply_disposition_shift(trigger.disposition_shift)
-        return fired
+        """Check which triggers fire for given tags.
 
-    def _apply_disposition_shift(self, delta: int) -> None:
-        """Shift disposition by delta steps."""
-        dispositions = list(Disposition)
-        current_idx = dispositions.index(self.disposition)
-        new_idx = max(0, min(len(dispositions) - 1, current_idx + delta))
-        self.disposition = dispositions[new_idx]
+        Delegates to rules.npc.check_triggers().
+        Returns fired triggers.
+        """
+        from ..rules.npc import check_triggers
+        return check_triggers(self, tags)
 
 
 class FactionStanding(BaseModel):

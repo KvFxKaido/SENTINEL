@@ -98,69 +98,33 @@ Added comprehensive test coverage for core game mechanics:
 
 ---
 
-## Remaining Priorities
+### NPC Rules Extraction
+**Date:** 2026-01-04
 
-### 1. Extract NPC Rules to Pure Functions
+Extracted NPC behavior logic to pure functions:
 
-**Priority:** Medium
-**Effort:** 1-2 hours
-**Source:** Codex recommendation
+| File | Purpose |
+|------|---------|
+| `src/rules/__init__.py` | Module exports |
+| `src/rules/npc.py` | Pure functions for NPC behavior |
 
-**Problem:** NPC behavior logic embedded in Pydantic models makes testing harder.
+**Functions extracted:**
+- `get_disposition_modifier(npc)` — Get modifier for current disposition
+- `apply_disposition_shift(npc, delta)` — Shift disposition by steps
+- `check_triggers(npc, tags)` — Check and fire memory triggers
 
-**Current state:**
-```python
-class NPC(BaseModel):
-    def check_triggers(self, tags: list[str]) -> list[str]:
-        # Logic embedded in model
-        ...
+**Approach:** NPC methods delegate to pure functions for backward compatibility.
+Callers can use either `npc.check_triggers()` or `check_triggers(npc, ...)`.
 
-    def get_current_modifier(self) -> DispositionModifier | None:
-        # Logic embedded in model
-        ...
-```
+**Tests added:** 16 new tests in `test_npc_rules.py`
 
-**Target state:**
-```python
-# src/rules/npc.py - Pure functions
-def check_triggers(npc: NPC, tags: list[str]) -> list[str]:
-    """Check and fire memory triggers, return messages."""
-    ...
-
-def get_disposition_modifier(npc: NPC) -> DispositionModifier | None:
-    """Get current disposition modifier for NPC."""
-    ...
-
-def shift_disposition(npc: NPC, delta: int) -> NPC:
-    """Return new NPC with shifted disposition."""
-    ...
-
-# Model becomes pure data
-class NPC(BaseModel):
-    name: str
-    faction: FactionName | None
-    disposition: Disposition
-    # ... no methods
-```
-
-**Implementation steps:**
-1. Create `src/rules/npc.py` with pure functions
-2. Move logic from `NPC` methods to functions
-3. Update callers (agent, manager) to use functions
-4. Test functions in isolation
-
-**Files affected:**
-- `src/rules/npc.py` (new)
-- `src/state/schema.py` (simplify NPC)
-- `src/agent.py` (update calls)
-- `src/state/manager.py` (update calls)
-- `tests/test_npc_rules.py` (new)
+**Total test count:** 77 tests passing
 
 ---
 
 ## Implementation Order
 
-Recommended sequence (dependencies noted):
+All priorities from the council review are now complete:
 
 ```
 1. Extract CampaignStore ✅ DONE
@@ -172,8 +136,8 @@ Recommended sequence (dependencies noted):
 3. Add focused tests ✅ DONE
    └── Uses: MemoryCampaignStore, MockLLMClient (61 tests)
 
-4. Extract NPC rules (next)
-   └── Tests already in place, safe refactor
+4. Extract NPC rules ✅ DONE
+   └── 16 additional tests (77 total)
 ```
 
 ---
