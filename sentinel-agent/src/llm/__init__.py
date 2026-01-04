@@ -1,5 +1,8 @@
 """LLM backend clients for SENTINEL agent."""
 
+import os
+from typing import Callable, Literal
+
 from .base import LLMClient, Message, ToolCall, ToolResult
 from .lmstudio import LMStudioClient
 from .cli_wrapper import GeminiCLI, CodexCLI, CLIWrapperClient
@@ -13,6 +16,9 @@ __all__ = [
     "GeminiCLI",
     "CodexCLI",
     "CLIWrapperClient",
+    "MockLLMClient",
+    "create_llm_client",
+    "detect_backend",
 ]
 
 # Optional Claude client
@@ -20,11 +26,229 @@ try:
     from .claude import ClaudeClient
     __all__.append("ClaudeClient")
 except ImportError:
-    pass
+    ClaudeClient = None
 
 # Optional OpenRouter client
 try:
     from .openrouter import OpenRouterClient
     __all__.append("OpenRouterClient")
 except ImportError:
-    pass
+    OpenRouterClient = None
+
+
+# -----------------------------------------------------------------------------
+# Mock Client for Testing
+# -----------------------------------------------------------------------------
+
+class MockLLMClient(LLMClient):
+    """
+    Mock LLM client for testing.
+
+    Allows configuring responses without actual API calls.
+    """
+
+    def __init__(
+        self,
+        responses: list[str] | None = None,
+        model_name: str = "mock-model",
+    ):
+        """
+        Initialize mock client.
+
+        Args:
+            responses: List of responses to return in order.
+                       Cycles through if more calls than responses.
+            model_name: Name to report as model_name property.
+        """
+        self._responses = responses or ["Mock response"]
+        self._call_count = 0
+        self._model_name = model_name
+        self.calls: list[dict] = []  # Record of all calls made
+
+    @property
+    def model_name(self) -> str:
+        return self._model_name
+
+    @property
+    def supports_tools(self) -> bool:
+        return True
+
+    def is_available(self) -> bool:
+        return True
+
+    def chat(self, messages: list[Message], system: str | None = None) -> str:
+        """Return next mock response."""
+        self.calls.append({
+            "method": "chat",
+            "messages": messages,
+            "system": system,
+        })
+        response = self._responses[self._call_count % len(self._responses)]
+        self._call_count += 1
+        return response
+
+    def chat_with_tools(
+        self,
+        messages: list[Message],
+        system: str | None = None,
+        tools: list[dict] | None = None,
+        tool_executor: Callable[[str, dict], dict] | None = None,
+    ) -> str:
+        """Return next mock response (no tool execution)."""
+        self.calls.append({
+            "method": "chat_with_tools",
+            "messages": messages,
+            "system": system,
+            "tools": tools,
+        })
+        response = self._responses[self._call_count % len(self._responses)]
+        self._call_count += 1
+        return response
+
+    def set_responses(self, responses: list[str]) -> None:
+        """Update the list of responses."""
+        self._responses = responses
+        self._call_count = 0
+
+    def reset(self) -> None:
+        """Reset call count and recorded calls."""
+        self._call_count = 0
+        self.calls.clear()
+
+
+# -----------------------------------------------------------------------------
+# Backend Detection and Factory
+# -----------------------------------------------------------------------------
+
+BackendType = Literal["lmstudio", "claude", "openrouter", "gemini", "codex", "auto"]
+
+
+def detect_backend(
+    lmstudio_url: str = "http://localhost:1234/v1",
+) -> tuple[str, LLMClient] | tuple[None, None]:
+    """
+    Auto-detect available LLM backend.
+
+    Preference order: LM Studio > Claude > OpenRouter > Gemini CLI > Codex CLI
+
+    Returns:
+        Tuple of (backend_name, client) or (None, None) if nothing available.
+    """
+    # Try LM Studio first (free, local)
+    try:
+        client = LMStudioClient(base_url=lmstudio_url)
+        if client.is_available():
+            return ("lmstudio", client)
+    except Exception:
+        pass
+
+    # Try Claude API
+    if ClaudeClient is not None:
+        try:
+            client = ClaudeClient()
+            return ("claude", client)
+        except Exception:
+            pass
+
+    # Try OpenRouter
+    if OpenRouterClient is not None and os.environ.get("OPENROUTER_API_KEY"):
+        try:
+            client = OpenRouterClient()
+            if client.is_available():
+                return ("openrouter", client)
+        except Exception:
+            pass
+
+    # Try Gemini CLI
+    try:
+        client = GeminiCLI()
+        if client.is_available:
+            return ("gemini", client)
+    except Exception:
+        pass
+
+    # Try Codex CLI
+    try:
+        client = CodexCLI()
+        if client.is_available:
+            return ("codex", client)
+    except Exception:
+        pass
+
+    return (None, None)
+
+
+def create_llm_client(
+    backend: BackendType = "auto",
+    lmstudio_url: str = "http://localhost:1234/v1",
+    claude_model: str = "claude-sonnet-4-20250514",
+    openrouter_model: str = "claude-3.5-sonnet",
+) -> tuple[str, LLMClient | None]:
+    """
+    Create an LLM client for the specified backend.
+
+    Args:
+        backend: Backend to use ("auto" for auto-detection)
+        lmstudio_url: URL for LM Studio server
+        claude_model: Model name for Claude API
+        openrouter_model: Model name for OpenRouter
+
+    Returns:
+        Tuple of (backend_name, client). Client may be None if unavailable.
+    """
+    if backend == "auto":
+        name, client = detect_backend(lmstudio_url)
+        return (name or "none", client)
+
+    if backend == "lmstudio":
+        try:
+            from .lmstudio import create_lmstudio_client
+            return ("lmstudio", create_lmstudio_client(base_url=lmstudio_url))
+        except Exception as e:
+            print(f"LM Studio error: {e}")
+            return ("lmstudio", None)
+
+    if backend == "claude":
+        if ClaudeClient is None:
+            print("Claude client not available (install anthropic package)")
+            return ("claude", None)
+        try:
+            return ("claude", ClaudeClient(model=claude_model))
+        except Exception as e:
+            print(f"Claude error: {e}")
+            return ("claude", None)
+
+    if backend == "openrouter":
+        if OpenRouterClient is None:
+            print("OpenRouter client not available")
+            return ("openrouter", None)
+        try:
+            return ("openrouter", OpenRouterClient(model=openrouter_model))
+        except Exception as e:
+            print(f"OpenRouter error: {e}")
+            return ("openrouter", None)
+
+    if backend == "gemini":
+        try:
+            client = GeminiCLI()
+            if client.is_available:
+                return ("gemini", client)
+            print("Gemini CLI not found")
+            return ("gemini", None)
+        except Exception as e:
+            print(f"Gemini error: {e}")
+            return ("gemini", None)
+
+    if backend == "codex":
+        try:
+            client = CodexCLI()
+            if client.is_available:
+                return ("codex", client)
+            print("Codex CLI not found")
+            return ("codex", None)
+        except Exception as e:
+            print(f"Codex error: {e}")
+            return ("codex", None)
+
+    print(f"Unknown backend: {backend}")
+    return (backend, None)

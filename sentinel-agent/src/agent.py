@@ -16,6 +16,7 @@ from .state.schema import FactionName, HistoryType
 from .tools.dice import roll_check, tactical_reset, TOOL_SCHEMAS
 from .tools.hinge_detector import detect_hinge, get_hinge_context
 from .llm.base import LLMClient, Message
+from .llm import create_llm_client
 from .lore import LoreRetriever
 
 
@@ -156,7 +157,10 @@ class SentinelAgent:
     The SENTINEL Game Master agent.
 
     Coordinates LLM backend, game state, and tool execution.
-    Supports multiple backends: lmstudio, claude.
+
+    Can be initialized with:
+    - An explicit LLMClient (for testing or custom backends)
+    - A backend name for auto-creation via create_llm_client()
     """
 
     # Supported backends
@@ -167,11 +171,25 @@ class SentinelAgent:
         campaign_manager: CampaignManager,
         prompts_dir: Path | str = "prompts",
         lore_dir: Path | str | None = None,
+        client: LLMClient | None = None,
         backend: str = "auto",
         lmstudio_url: str = "http://localhost:1234/v1",
         claude_model: str = "claude-sonnet-4-20250514",
         openrouter_model: str = "claude-3.5-sonnet",
     ):
+        """
+        Initialize the SENTINEL agent.
+
+        Args:
+            campaign_manager: Manager for campaign state
+            prompts_dir: Directory containing prompt modules
+            lore_dir: Directory containing lore documents (optional)
+            client: Pre-configured LLM client (overrides backend param)
+            backend: Backend to use if no client provided ("auto" for detection)
+            lmstudio_url: URL for LM Studio server
+            claude_model: Model name for Claude API
+            openrouter_model: Model name for OpenRouter
+        """
         self.manager = campaign_manager
         self.prompt_loader = PromptLoader(prompts_dir)
 
@@ -201,130 +219,19 @@ class SentinelAgent:
             "queue_dormant_thread": self._handle_queue_thread,
         }
 
-        # Initialize client based on backend
-        self.client: LLMClient | None = None
-        self.backend = backend
-
-        if backend == "auto":
-            self.client = self._auto_detect_backend()
-        elif backend == "lmstudio":
-            self.client = self._init_lmstudio(lmstudio_url)
-        elif backend == "claude":
-            self.client = self._init_claude(claude_model)
-        elif backend == "openrouter":
-            self.client = self._init_openrouter(openrouter_model)
-        elif backend == "gemini":
-            self.client = self._init_gemini()
-        elif backend == "codex":
-            self.client = self._init_codex()
-
-    def _auto_detect_backend(self) -> LLMClient | None:
-        """Auto-detect available backend. Preference order: LM Studio > Claude > OpenRouter > CLI tools."""
-        # Try LM Studio first (free, local)
-        try:
-            from .llm.lmstudio import LMStudioClient
-            client = LMStudioClient(base_url=self._config["lmstudio_url"])
-            if client.is_available():
-                self.backend = "lmstudio"
-                return client
-        except Exception:
-            pass
-
-        # Try Claude API
-        try:
-            from .llm.claude import ClaudeClient
-            client = ClaudeClient(model=self._config["claude_model"])
-            self.backend = "claude"
-            return client
-        except Exception:
-            pass
-
-        # Try OpenRouter
-        try:
-            from .llm.openrouter import OpenRouterClient
-            import os
-            if os.environ.get("OPENROUTER_API_KEY"):
-                client = OpenRouterClient(model=self._config["openrouter_model"])
-                if client.is_available():
-                    self.backend = "openrouter"
-                    return client
-        except Exception:
-            pass
-
-        # Try Gemini CLI
-        try:
-            from .llm.cli_wrapper import GeminiCLI
-            client = GeminiCLI()
-            if client.is_available:
-                self.backend = "gemini"
-                return client
-        except Exception:
-            pass
-
-        # Try Codex CLI
-        try:
-            from .llm.cli_wrapper import CodexCLI
-            client = CodexCLI()
-            if client.is_available:
-                self.backend = "codex"
-                return client
-        except Exception:
-            pass
-
-        return None
-
-    def _init_lmstudio(self, url: str) -> LLMClient | None:
-        """Initialize LM Studio client."""
-        try:
-            from .llm.lmstudio import create_lmstudio_client
-            return create_lmstudio_client(base_url=url)
-        except Exception as e:
-            print(f"LM Studio error: {e}")
-            return None
-
-    def _init_claude(self, model: str) -> LLMClient | None:
-        """Initialize Claude client."""
-        try:
-            from .llm.claude import ClaudeClient
-            return ClaudeClient(model=model)
-        except Exception as e:
-            print(f"Claude error: {e}")
-            return None
-
-    def _init_openrouter(self, model: str) -> LLMClient | None:
-        """Initialize OpenRouter client."""
-        try:
-            from .llm.openrouter import OpenRouterClient
-            return OpenRouterClient(model=model)
-        except Exception as e:
-            print(f"OpenRouter error: {e}")
-            return None
-
-    def _init_gemini(self) -> LLMClient | None:
-        """Initialize Gemini CLI client."""
-        try:
-            from .llm.cli_wrapper import GeminiCLI
-            client = GeminiCLI()
-            if client.is_available:
-                return client
-            print("Gemini CLI not found")
-            return None
-        except Exception as e:
-            print(f"Gemini error: {e}")
-            return None
-
-    def _init_codex(self) -> LLMClient | None:
-        """Initialize Codex CLI client."""
-        try:
-            from .llm.cli_wrapper import CodexCLI
-            client = CodexCLI()
-            if client.is_available:
-                return client
-            print("Codex CLI not found")
-            return None
-        except Exception as e:
-            print(f"Codex error: {e}")
-            return None
+        # Initialize client
+        if client is not None:
+            # Use injected client directly
+            self.client = client
+            self.backend = backend if backend != "auto" else "injected"
+        else:
+            # Create client via factory
+            self.backend, self.client = create_llm_client(
+                backend=backend,
+                lmstudio_url=lmstudio_url,
+                claude_model=claude_model,
+                openrouter_model=openrouter_model,
+            )
 
     @property
     def is_available(self) -> bool:
