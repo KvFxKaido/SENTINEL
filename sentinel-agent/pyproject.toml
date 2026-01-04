@@ -19,6 +19,8 @@ claude = [
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.1.0",
 ]
 all = [
     "anthropic>=0.40.0",
