@@ -1,265 +1,265 @@
-# Contributing to SENTINEL
+Contributing to SENTINEL
 
-Welcome to SENTINEL. We're building something that respects player agency, embraces moral complexity, and prioritizes narrative integrity. This document outlines how you can contribute to our vision.
+Thank you for your interest in contributing to SENTINEL.
 
-## Our Design Philosophy
+SENTINEL is a tactical tabletop RPG with an AI Game Master, focused on player agency, ethical ambiguity, and long-term consequence in a fractured post‑collapse world. Contributions are welcome, but this is a values‑driven project. Technical quality matters, and so does philosophical alignment.
 
-SENTINEL is built on three core pillars:
+This document exists to help you decide how to contribute and whether a contribution is a good fit.
 
-### Player Agency
-We believe players should make meaningful choices with real consequences. Every decision point should offer genuine alternatives that affect the narrative trajectory, character relationships, and world state. Agency means players aren't following a predetermined path—they're authoring their own story within our framework.
-
-### Ethical Ambiguity
-The world doesn't operate in binaries. We reject simplistic good-vs-evil narratives. Characters have conflicting motivations. Factions have valid points and fatal flaws. Moral choices should feel weighty precisely because reasonable people could disagree on the right answer. We explore the grey spaces where ethics get complicated.
-
-### Narrative Integrity
-Story coherence matters. Every quest, dialogue, and environmental detail should reinforce the world's internal logic. Contradictions must be intentional. Character arcs should earn their emotional beats. We prioritize meaningful storytelling over spectacle, and depth over breadth.
 
 ---
 
-## Contribution Tiers
+Design Philosophy (Read First)
 
-We recognize contributions at multiple levels. All tiers are valued and necessary for SENTINEL's success.
+SENTINEL prioritizes:
 
-### Tier 1: Community Member
-**Getting started with feedback and ideas**
+Player agency over optimization
 
-- Playtesting and bug reporting
-- Suggesting narrative improvements or world-building ideas
-- Participating in design discussions
-- Creating issues that document problems or opportunities
-- No technical setup required
+Ethical tradeoffs over binary morality
 
-### Tier 2: Active Contributor
-**Taking on defined tasks**
+Consequences over spectacle
 
-- Writing dialogue, quest text, or item descriptions
-- Creating or refining environmental narratives
-- Contributing code fixes for documented issues
-- Improving documentation and guides
-- Requires forking and opening pull requests
+Clarity over cleverness
 
-### Tier 3: Specialist Contributor
-**Deep expertise in specific domains**
+Narrative integrity over mechanical efficiency
 
-- Leading narrative arcs or character development
-- Designing complex quest systems or branching logic
-- Architecting major code systems or refactors
-- Mentoring other contributors in their specialty
-- Requires demonstrated expertise and sustained contributions
 
-### Tier 4: Maintainer
-**Strategic stewardship of the project**
+Contributions that do any of the following will not be accepted, even if they are technically impressive:
 
-- Merging pull requests and managing releases
-- Setting long-term vision alongside the core team
-- Resolving design conflicts and architectural decisions
-- Onboarding new high-level contributors
-- By invitation only, after significant sustained contributions
+Reduce meaningful player choice
+
+Imply or enforce a "correct" moral outcome
+
+Optimize away uncertainty, discomfort, or ambiguity
+
+Turn NPCs into puzzles, rewards, or obstacles to be solved
+
+Steer players toward preferred decisions or outcomes
+
+
+If you are unsure whether a change aligns with these principles, open an issue for discussion before submitting a pull request.
+
 
 ---
 
-## What Will NOT Be Accepted
+Code of Conduct
 
-Before you start, understand these hard boundaries:
+This project and everyone participating in it are governed by the repository’s Code of Conduct. By participating, you agree to uphold it. Please report unacceptable behavior to the project maintainers.
 
-### Narrative & Design
-- **Grimdark edgeliness for its own sake** — Dark themes are fine; nihilistic "nothing matters" messaging isn't aligned with our philosophy
-- **Exploitative content involving minors** — This is non-negotiable. No exceptions
-- **Crude stereotypes or reductive representation** — Complex, nuanced characterization of all groups required
-- **Plots that undermine player agency** — "Gotcha" moments where players are forced into paths aren't allowed
-- **Narratively inconsistent retcons** — Changes to established lore must make logical sense in-world
-- **Generic fantasy/sci-fi clichés without a twist** — We push genre conventions, not reinforce them
-- **Contradictions to established design pillars** — New content must support player agency, ethical complexity, and narrative integrity
-
-### Code
-- **Spaghetti code without documentation** — All code must be readable and maintainable
-- **External dependencies without justification** — Minimize bloat; justify what you add
-- **Code that breaks existing tests** — New submissions must pass all tests
-- **Hardcoded values instead of configurable systems** — Use data-driven design
-- **Security vulnerabilities** — Any known exploits, input validation issues, or authentication bypasses are rejected
-
-### Community
-- **Discrimination, harassment, or hate speech** — We maintain a respectful environment
-- **Commercial content disguised as contributions** — This is a creative collaboration, not an advertising platform
-- **Contributions violating open-source licenses** — Respect intellectual property
 
 ---
 
-## Getting Started
+Ways to Contribute
 
-### Step 1: Explore the Project
-- Read this guide thoroughly
-- Review our **Code of Conduct** and **Design Pillars** documentation
-- Play the game or read existing content to understand tone and world
-- Check the issue tracker for areas marked "good first contribution"
+Good First Contributions
 
-### Step 2: Set Up Your Environment
-```bash
-# Clone the repository
-git clone https://github.com/KvFxKaido/SENTINEL.git
-cd SENTINEL
+These are high‑impact, low‑risk ways to get involved:
 
-# Create your feature branch
-git checkout -b your-feature-name
+Documentation improvements and clarifications
 
-# Install dependencies (varies by component)
-# See SETUP.md for detailed instructions
-```
+Bug fixes
 
-### Step 3: Make Your Changes
-- Keep commits focused and atomic
-- Write clear commit messages explaining the *why*, not just the *what*
-- Test your changes thoroughly (see Code Style Guide below)
-- Reference relevant issues: "Fixes #123" or "Related to #456"
+Test coverage and regression tests
 
-### Step 4: Open a Pull Request
-- Fill out the PR template completely
-- Link to any related issues
-- Provide context: what problem does this solve? why this approach?
-- Be prepared for thoughtful feedback
+UX and CLI polish that does not alter decision structure
 
----
+Refactoring for readability and maintainability
 
-## Code Style Guide
+New LLM backend adapters that follow existing abstractions
 
-### General Principles
-- **Clarity over cleverness** — Code is read more than written
-- **Self-documenting code** — Names should reveal intent
-- **Single Responsibility** — Functions do one thing well
-- **DRY (Don't Repeat Yourself)** — Extract common patterns
 
-### Specific Standards
-```
-[Include your language-specific standards here]
+Medium‑Scope Contributions
 
-Examples:
-- Naming: snake_case for functions/variables, CamelCase for classes
-- Line length: Maximum 100 characters
-- Indentation: 4 spaces (never tabs)
-- Comments: Explain *why*, not *what*
-- Testing: Aim for >80% coverage on new code
-```
+Prompt tuning and narrative framing improvements
 
-### Documentation
-- Comment non-obvious logic
-- Document function signatures with purpose and parameters
-- Include examples for complex functionality
-- Update relevant documentation files when changing behavior
+AI GM behavior refinements that improve clarity or neutrality
+
+Additional tooling or developer ergonomics
+
+Performance or reliability improvements
+
+
+Major Contributions (Proposal Required)
+
+The following require prior discussion via an issue or proposal:
+
+Changes to core mechanics
+
+New or altered factions
+
+Canon or lore modifications
+
+Structural changes to the agent architecture
+
+New enhancement systems or leverage mechanics
+
+
+Do not submit a pull request for these without prior alignment.
+
 
 ---
 
-## Narrative Style Guide
+Development Setup
 
-### Dialogue
-- **Voice consistency** — Characters should sound distinct and consistent with their background
-- **Subtext** — What characters don't say is as important as what they do
-- **Avoid exposition dumps** — Weave worldbuilding naturally into conversation
-- **Player agency in dialogue** — Dialogue options should represent genuine choices, not cosmetic variants
+1. Fork the repository on GitHub
 
-### Quest Design
-- **Meaningful consequences** — Different choices should lead to different outcomes
-- **Multiple valid approaches** — Quests should be solvable in 2+ ways
-- **Ethical complexity** — At least one quest outcome involves genuine moral tension
-- **Narrative payoff** — Quests should affect character relationships or world state, not just inventory
 
-### World-Building
-- **Internal consistency** — Lore must align with established world rules
-- **Show, don't tell** — Let environments and characters reveal the world
-- **Texture and detail** — Rich sensory description, but purposeful (no padding)
-- **Cultural specificity** — Avoid generic "fantasy medieval" when designing cultures/factions
+2. Clone your fork locally
 
-### Example Standards
-```
-GOOD: "The merchant's eyes dart to the side. She knows something."
-WEAK: "The merchant is nervous because she is hiding secrets."
 
-GOOD: Give the player three quest solutions with different moral implications.
-WEAK: Make all paths lead to the same outcome; just change the flavor text.
-```
+3. Create a feature branch for your work
+
+
+4. Make your changes
+
+
+5. Test thoroughly
+
+
+6. Submit a pull request
+
+
+
+Follow existing coding standards and conventions. Keep commits focused and atomic, and use clear, descriptive commit messages.
+
 
 ---
 
-## Review Process
+Code & Quality Standards
 
-### What Happens After You Open a PR
+Code Style
 
-1. **Automated Checks** (within hours)
-   - Tests must pass
-   - Code style validation
-   - Linting checks
+Follow existing project style and conventions
 
-2. **Community Review** (24-72 hours)
-   - Design feedback on narrative/gameplay changes
-   - Code review for technical contributions
-   - Constructive suggestions for improvement
+Write clear, readable code with meaningful names
 
-3. **Maintainer Review** (2-5 business days)
-   - Final approval or detailed feedback
-   - Merge decision or request for revisions
+Keep functions focused and modular
 
-### Providing Feedback
-- **Be specific** — "This doesn't work" is unhelpful. "This breaks agency because the player can't choose X" is useful
-- **Offer alternatives** — If you critique, suggest solutions
-- **Assume good faith** — We're all here to make SENTINEL better
-- **Focus on the work, not the person** — Critique ideas, not contributors
+Comment complex or non‑obvious logic
 
-### Revising Your PR
-- Respond to feedback directly in the conversation
-- Update your code/content based on suggestions
-- Push new commits (don't force-push; let the history show revision)
-- Re-request review once ready
 
-### When to Close Without Merging
-- The contribution doesn't align with design pillars
-- Security vulnerabilities aren't addressed
-- Code quality or narrative consistency issues can't be resolved
-- Contributor unresponsive after 30 days (with warning)
+Testing
+
+New features should include tests when practical
+
+Bug fixes must include regression coverage
+
+All existing tests must pass
+
+Exploratory or experimental work may omit tests if clearly marked
+
+
+CI must pass for a pull request to be considered.
+
 
 ---
 
-## Recognition Guidelines
+Reporting Bugs
 
-Contributors are recognized based on impact and commitment:
+When reporting a bug, please include:
 
-### In-Game Credits
-- Tier 2+ contributors on content are credited in the game itself
-- Format: [Contributor Name] — [Role/Contribution]
-- Example: "Jane Smith — Quest Design, Dialogue"
+Title: Clear and descriptive
 
-### In Documentation
-- All contributors listed in CONTRIBUTORS.md with their specialization
-- Linked to GitHub profiles for discoverability
+Description: What is happening
 
-### Special Recognition
-- Major features or arcs named after lead contributors (with permission)
-- Shoutouts in release notes for significant contributions
-- Invitation to core team socials/retrospectives
+Steps to Reproduce: Minimal, repeatable steps
 
-### Compensation
-- SENTINEL is a passion project; currently, contributions are volunteer
-- If commercialization happens, early contributors will be consulted on fair models
+Expected Behavior
+
+Actual Behavior
+
+Environment: OS, Python version, relevant setup details
+
+Logs or Screenshots: If applicable
+
+
 
 ---
 
-## Questions?
+Suggesting Enhancements
 
-- **General questions:** Open a Discussion in the repository
-- **Specific issues:** Comment on the relevant issue thread
-- **Design philosophy:** Start a Discussion tagged with "design-debate"
-- **Direct contact:** Reach out to maintainers via GitHub (response within 5 business days)
+Enhancement suggestions are welcome. Please include:
+
+A clear description of the current behavior
+
+The proposed change
+
+Concrete examples
+
+Why this improves player agency, clarity, or consequence
+
+
+Avoid suggestions framed primarily around optimization, balance for efficiency, or power scaling.
+
 
 ---
 
-## Final Thoughts
+Pull Request Process
 
-Contributing to SENTINEL means helping build a game that respects its players. We're creating a space where difficult choices matter, where morality isn't simple, and where every narrative moment serves the story. 
+1. Create a feature branch from main
 
-Whether you're writing a single piece of dialogue, fixing a critical bug, or designing an entire faction, you're part of something meaningful.
 
-Thank you for being here.
+2. Implement your changes
+
+
+3. Ensure tests pass locally
+
+
+4. Push your branch to your fork
+
+
+5. Open a pull request
+
+
+
+Your PR description should include:
+
+A clear summary of changes
+
+References to related issues (if any)
+
+Testing performed
+
+Notes on any breaking changes
+
+
+Be responsive to review feedback. Discussion is part of the process.
+
 
 ---
 
-*Last updated: 2026-01-04*
-*Maintained by: KvFxKaido*
+Pull Request Checklist
+
+[ ] Code follows project style guidelines
+
+[ ] Relevant documentation updated
+
+[ ] Tests added or updated where appropriate
+
+[ ] All tests pass locally
+
+[ ] No reduction in player agency or narrative integrity
+
+[ ] Commit messages are clear and descriptive
+
+
+
+---
+
+License
+
+By contributing to SENTINEL, you agree that your contributions will be licensed under the project’s existing license.
+
+
+---
+
+Questions
+
+If you’re unsure where a contribution fits or want feedback before building:
+
+Open an issue for discussion
+
+Review existing issues and discussions
+
+
+Thoughtful questions are welcome. Careless changes are not.
