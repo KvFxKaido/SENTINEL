@@ -5,10 +5,8 @@ Adapted from Sovwren's session_manager pattern.
 Handles create, resume, list, save, delete operations.
 """
 
-import json
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional
 
 from .schema import (
     Campaign,
@@ -23,23 +21,38 @@ from .schema import (
     SessionReflection,
     MissionOutcome,
 )
+from .store import CampaignStore, JsonCampaignStore
 
 
 class CampaignManager:
     """
-    Manages campaign lifecycle and persistence.
+    Manages campaign lifecycle and domain operations.
+
+    Storage is delegated to a CampaignStore implementation:
+    - JsonCampaignStore for production (file-based)
+    - MemoryCampaignStore for testing (in-memory)
 
     Pattern adapted from Sovwren's SessionManager:
     - create_campaign() -> new campaign
     - load_campaign(id) -> resume existing
     - list_campaigns() -> show available
-    - save_campaign() -> persist to disk
+    - save_campaign() -> persist
     - delete_campaign(id) -> remove
     """
 
-    def __init__(self, campaigns_dir: Path | str = "campaigns"):
-        self.campaigns_dir = Path(campaigns_dir)
-        self.campaigns_dir.mkdir(parents=True, exist_ok=True)
+    def __init__(self, store: CampaignStore | Path | str = "campaigns"):
+        """
+        Initialize with a store.
+
+        Args:
+            store: CampaignStore instance, or path for JsonCampaignStore
+        """
+        if isinstance(store, (Path, str)):
+            # Backwards compatible: path creates JsonCampaignStore
+            self.store = JsonCampaignStore(store)
+        else:
+            self.store = store
+
         self.current: Campaign | None = None
         self._cache: dict[str, Campaign] = {}
 
@@ -78,18 +91,9 @@ class CampaignManager:
             if 0 <= idx < len(campaigns):
                 campaign_id = campaigns[idx]["id"]
 
-        # Load from disk
-        campaign_file = self.campaigns_dir / f"{campaign_id}.json"
-        if not campaign_file.exists():
-            # Try partial match
-            for f in self.campaigns_dir.glob("*.json"):
-                if f.stem.startswith(campaign_id):
-                    campaign_file = f
-                    break
-
-        if campaign_file.exists():
-            data = json.loads(campaign_file.read_text())
-            campaign = Campaign.model_validate(data)
+        # Load from store
+        campaign = self.store.load(campaign_id)
+        if campaign:
             self.current = campaign
             self._cache[campaign.meta.id] = campaign
             return campaign
@@ -97,24 +101,11 @@ class CampaignManager:
         return None
 
     def save_campaign(self) -> bool:
-        """Save current campaign to disk."""
+        """Save current campaign to store."""
         if not self.current:
             return False
 
-        self.current.save_checkpoint()
-
-        campaign_file = self.campaigns_dir / f"{self.current.meta.id}.json"
-
-        # Backup previous save
-        if campaign_file.exists():
-            backup = campaign_file.with_suffix(".json.bak")
-            backup.write_text(campaign_file.read_text())
-
-        # Write new save
-        campaign_file.write_text(
-            self.current.model_dump_json(indent=2)
-        )
-
+        self.store.save(self.current)
         return True
 
     def delete_campaign(self, campaign_id: str) -> str | None:
@@ -126,11 +117,7 @@ class CampaignManager:
             if 0 <= idx < len(campaigns):
                 campaign_id = campaigns[idx]["id"]
 
-        campaign_file = self.campaigns_dir / f"{campaign_id}.json"
-
-        if campaign_file.exists():
-            campaign_file.unlink()
-
+        if self.store.delete(campaign_id):
             # Clear from cache
             if campaign_id in self._cache:
                 del self._cache[campaign_id]
@@ -149,26 +136,13 @@ class CampaignManager:
 
         Returns list of dicts with: id, name, session_count, phase, updated_at, display_time
         """
-        campaigns = []
+        campaigns = self.store.list_all()
 
-        for f in sorted(self.campaigns_dir.glob("*.json"),
-                       key=lambda x: x.stat().st_mtime, reverse=True):
-            try:
-                data = json.loads(f.read_text())
-                meta = data.get("meta", {})
-
-                updated = datetime.fromisoformat(meta.get("updated_at", "2000-01-01"))
-
-                campaigns.append({
-                    "id": meta.get("id", f.stem),
-                    "name": meta.get("name", "Unnamed"),
-                    "session_count": meta.get("session_count", 0),
-                    "phase": meta.get("phase", 1),
-                    "updated_at": updated,
-                    "display_time": self._format_relative_time(updated),
-                })
-            except (json.JSONDecodeError, KeyError):
-                continue
+        # Add display_time for each campaign
+        for campaign in campaigns:
+            campaign["display_time"] = self._format_relative_time(
+                campaign["updated_at"]
+            )
 
         return campaigns
 

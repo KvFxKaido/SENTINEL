@@ -19,8 +19,10 @@ from .schema import (
     MissionPhase,
 )
 from .manager import CampaignManager
+from .store import CampaignStore, JsonCampaignStore, MemoryCampaignStore
 
 __all__ = [
+    # Schema
     "Campaign",
     "Character",
     "NPC",
@@ -37,5 +39,10 @@ __all__ = [
     "FactionName",
     "MissionType",
     "MissionPhase",
+    # Manager
     "CampaignManager",
+    # Store
+    "CampaignStore",
+    "JsonCampaignStore",
+    "MemoryCampaignStore",
 ]
