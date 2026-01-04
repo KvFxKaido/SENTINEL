@@ -1,0 +1,122 @@
+# SENTINEL
+
+[![CI](https://github.com/KvFxKaido/SENTINEL/actions/workflows/ci.yml/badge.svg)](https://github.com/KvFxKaido/SENTINEL/actions/workflows/ci.yml)
+
+A tactical tabletop RPG with an AI Game Master. Navigate political tension, ethical tradeoffs, and survival in a post-collapse world where 11 factions compete for influence.
+
+**Core loop:** Investigation → Interpretation → Choice → Consequence
+
+## Quick Start
+
+```bash
+cd sentinel-agent
+pip install -e .
+python -m src.interface.cli
+```
+
+Then: `/new` → `/char` → `/start` → play
+
+## Project Structure
+
+```
+SENTINEL/
+├── sentinel-agent/     # AI Game Master
+├── sentinel-mcp/       # Faction MCP Server
+├── core/               # Game rules document
+├── lore/               # Novellas and world-building
+└── architecture/       # Design documents
+```
+
+| Component | Description |
+|-----------|-------------|
+| [sentinel-agent](sentinel-agent/) | Python CLI that runs the AI GM |
+| [sentinel-mcp](sentinel-mcp/) | MCP server providing faction knowledge |
+| [Core Rules](core/) | Complete game rules |
+| [Lore](lore/) | Canon novellas for RAG retrieval |
+
+## The Eleven Factions
+
+| Faction | Philosophy |
+|---------|------------|
+| **Nexus** | The network that watches |
+| **Ember Colonies** | We survived. We endure. |
+| **Lattice** | We keep the lights on |
+| **Convergence** | Become what you were meant to be |
+| **Covenant** | We hold the line |
+| **Wanderers** | The road remembers |
+| **Cultivators** | From the soil, we rise |
+| **Steel Syndicate** | Everything has a price |
+| **Witnesses** | We remember so you don't have to lie |
+| **Architects** | We built this world |
+| **Ghost Networks** | We were never here |
+
+## Key Features
+
+### AI Game Master
+- Multiple LLM backends (LM Studio, Claude, OpenRouter)
+- Hot-reloadable prompts
+- Lore retrieval from novellas
+
+### NPC System
+- Agendas: wants, fears, leverage, owes, lie_to_self
+- Memory triggers react to player actions
+- Disposition modifiers change behavior
+
+### Consequence Engine
+- Hinge moments (irreversible choices)
+- Dormant threads (delayed consequences)
+- Faction standing affects NPC behavior
+
+### Social Energy
+- Tracks emotional bandwidth (0-100%)
+- Personalized restorers and drains
+- Affects social roll modifiers
+
+## LLM Backends
+
+| Backend | Setup |
+|---------|-------|
+| **LM Studio** | Download app, load model, start server |
+| **Claude** | `pip install -e ".[claude]"` + API key |
+| **OpenRouter** | Set `OPENROUTER_API_KEY` |
+| **Gemini CLI** | Install `gemini` command |
+| **Codex CLI** | Install `codex` command |
+
+The agent auto-detects available backends.
+
+## Development
+
+```bash
+cd sentinel-agent
+pip install -e ".[dev]"
+pytest
+```
+
+**77 tests** covering:
+- Memory triggers and disposition shifts
+- Faction standing operations
+- Chronicle logging and hinge moments
+- Social energy mechanics
+
+## Design Philosophy
+
+> "The agent is a storyteller who knows the rules, not a rules engine that tells stories."
+
+- NPCs are people, not obstacles
+- Consequences bloom over time
+- Honor player choices — no "right answers"
+- Every faction is right about something
+
+## Documentation
+
+| Document | Purpose |
+|----------|---------|
+| [Project Brief](SENTINEL_PROJECT_BRIEF.md) | Full project overview |
+| [Agent Architecture](architecture/AGENT_ARCHITECTURE.md) | Technical design |
+| [MCP Design](architecture/MCP_FACTIONS.md) | Faction server design |
+| [Refactoring Roadmap](architecture/REFACTORING.md) | Development progress |
+| [Agent Dev Guide](sentinel-agent/CLAUDE.md) | Contributor guide |
+
+## License
+
+CC BY-NC 4.0
