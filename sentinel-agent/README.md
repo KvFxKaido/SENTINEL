@@ -1,5 +1,7 @@
 # SENTINEL Agent
 
+[![CI](https://github.com/KvFxKaido/SENTINEL/actions/workflows/ci.yml/badge.svg)](https://github.com/KvFxKaido/SENTINEL/actions/workflows/ci.yml)
+
 AI Game Master for [SENTINEL](../core/SENTINEL%20Playbook%20—%20Core%20Rules.md), a tactical TTRPG about navigating political tension, ethical tradeoffs, and survival under fractured systems.
 
 ## Quick Start
@@ -110,14 +112,17 @@ pytest
 - [x] Prompt loader with hot-reload
 - [x] 50-line mechanical reference
 - [x] CLI interface
+- [x] NPC memory triggers and disposition modifiers
+- [x] Test suite (77 tests)
+- [x] CI/CD with GitHub Actions
 - [ ] One complete mission playable end-to-end
 - [ ] 3 golden transcripts for regression
 
 ### Phase 2: Campaign Continuity
-- [ ] Full tool suite (chronicle, dormant threads, leverage)
-- [ ] Save/load with migration support
-- [ ] NPC memory across sessions
-- [ ] Dormant thread triggering
+- [x] Full tool suite (chronicle, dormant threads, leverage)
+- [x] Save/load with migration support
+- [x] NPC memory across sessions
+- [x] Dormant thread triggering
 - [ ] Between-missions phase
 - [ ] 10 golden transcripts
 - [ ] Boundary test suite
