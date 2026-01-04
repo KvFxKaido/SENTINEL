@@ -24,69 +24,31 @@ Split `cli.py` (1160 lines) into focused modules:
 
 ---
 
-## Remaining Priorities
+### CampaignStore Extraction
+**Date:** 2026-01-04
 
-### 1. Extract CampaignStore from manager.py
+Separated persistence from domain logic in `manager.py`:
 
-**Priority:** High
-**Effort:** 2-3 hours
-**Source:** Both Gemini and Codex agreed
+| File | Responsibility |
+|------|----------------|
+| `store.py` | Storage abstraction (CampaignStore protocol) |
+| `manager.py` | Domain operations (create, load, NPC management, etc.) |
 
-**Problem:** `CampaignManager` mixes domain logic with file I/O.
+**New classes:**
+- `CampaignStore` — Protocol defining storage interface
+- `JsonCampaignStore` — File-based persistence (production)
+- `MemoryCampaignStore` — In-memory storage (testing)
 
-**Current state:**
-```python
-class CampaignManager:
-    def __init__(self, campaigns_dir: Path):
-        self.campaigns_dir = campaigns_dir
-        # File operations mixed with campaign logic
-
-    def save_campaign(self):
-        # Directly writes to disk
-        path.write_text(self.current.model_dump_json())
-```
-
-**Target state:**
-```python
-# Abstract storage interface
-class CampaignStore(Protocol):
-    def load(self, campaign_id: str) -> Campaign: ...
-    def save(self, campaign: Campaign) -> None: ...
-    def list_all(self) -> list[CampaignSummary]: ...
-    def delete(self, campaign_id: str) -> None: ...
-
-# JSON file implementation
-class JsonCampaignStore(CampaignStore):
-    def __init__(self, campaigns_dir: Path): ...
-
-# In-memory implementation for tests
-class MemoryCampaignStore(CampaignStore):
-    def __init__(self):
-        self.campaigns: dict[str, Campaign] = {}
-
-# Manager uses injected store
-class CampaignManager:
-    def __init__(self, store: CampaignStore):
-        self.store = store
-```
-
-**Implementation steps:**
-1. Create `src/state/store.py` with `CampaignStore` protocol
-2. Implement `JsonCampaignStore` (extract from current manager)
-3. Implement `MemoryCampaignStore` for testing
-4. Update `CampaignManager.__init__` to accept store
-5. Update CLI to inject `JsonCampaignStore`
-6. Add tests using `MemoryCampaignStore`
-
-**Files affected:**
-- `src/state/store.py` (new)
-- `src/state/manager.py` (refactor)
-- `src/interface/cli.py` (update init)
-- `tests/test_manager.py` (new)
+**Benefits:**
+- Tests can use `MemoryCampaignStore` — no file I/O
+- Storage strategy is pluggable (could add SQLite later)
+- Backwards compatible: `CampaignManager("path")` still works
 
 ---
 
-### 2. Inject LLMClient into SentinelAgent
+## Remaining Priorities
+
+### 1. Inject LLMClient into SentinelAgent
 
 **Priority:** High
 **Effort:** 1-2 hours
@@ -134,7 +96,7 @@ def main():
 
 ---
 
-### 3. Extract NPC Rules to Pure Functions
+### 2. Extract NPC Rules to Pure Functions
 
 **Priority:** Medium
 **Effort:** 1-2 hours
@@ -192,7 +154,7 @@ class NPC(BaseModel):
 
 ---
 
-### 4. Add Focused Test Coverage
+### 3. Add Focused Test Coverage
 
 **Priority:** High
 **Effort:** 3-4 hours
@@ -254,8 +216,8 @@ def test_hinge_moment_logged():
 
 **Implementation steps:**
 1. Set up pytest configuration
-2. Implement `MemoryCampaignStore` (from #1)
-3. Implement `MockLLMClient` (from #2)
+2. ~~Implement `MemoryCampaignStore`~~ ✅ Done
+3. Implement `MockLLMClient` (from #1)
 4. Write tests for each area
 5. Add to CI (when set up)
 
@@ -274,16 +236,16 @@ def test_hinge_moment_logged():
 Recommended sequence (dependencies noted):
 
 ```
-1. Extract CampaignStore (#1)
+1. Extract CampaignStore ✅ DONE
    └── Enables: MemoryCampaignStore for testing
 
-2. Inject LLMClient (#2)
+2. Inject LLMClient (#1)
    └── Enables: MockLLMClient for testing
 
-3. Add focused tests (#4)
+3. Add focused tests (#3)
    └── Uses: MemoryCampaignStore, MockLLMClient
 
-4. Extract NPC rules (#3)
+4. Extract NPC rules (#2)
    └── Tests already in place, safe refactor
 ```
 
