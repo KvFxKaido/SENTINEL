@@ -165,11 +165,12 @@ class OllamaClient(LLMClient):
                 })
 
         # Build request
+        # Note: Ollama's OpenAI-compatible API has issues with max_tokens
+        # causing empty responses on some models, so we omit it
         request_data = {
             "model": self.model_name,
             "messages": api_messages,
             "temperature": temperature,
-            "max_tokens": max_tokens,
         }
 
         # Add tools if supported
