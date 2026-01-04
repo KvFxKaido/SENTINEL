@@ -14,6 +14,7 @@ from .schema import (
     Character,
     HistoryEntry,
     HistoryType,
+    HingeMoment,
     DormantThread,
     NPC,
     FactionName,
@@ -444,15 +445,21 @@ class CampaignManager:
         reasoning: str,
     ) -> HistoryEntry:
         """Log an irreversible hinge moment."""
+        if not self.current:
+            raise ValueError("No campaign loaded")
+
+        hinge = HingeMoment(
+            session=self.current.meta.session_count,
+            situation=situation,
+            choice=choice,
+            reasoning=reasoning,
+        )
+
         return self.log_history(
             type=HistoryType.HINGE,
             summary=f"HINGE: {choice}",
             is_permanent=True,
-            hinge={
-                "situation": situation,
-                "choice": choice,
-                "reasoning": reasoning,
-            },
+            hinge=hinge,
         )
 
     # -------------------------------------------------------------------------
