@@ -1,0 +1,96 @@
+{
+  "id": "ghost_networks",
+  "name": "Ghost Networks",
+  "tagline": "We were never here.",
+  "ideology": "Privacy is survival. The powerful track, surveil, control. We offer the opposite—the ability to disappear, to move unseen, to exist without being documented. Everyone deserves an exit.",
+  "history": "Emerged from hackers, smugglers, witness protection specialists, and anyone who knew how to make people disappear. When surveillance states fell, their skills became even more valuable. Now they're the underground railroad for anyone who needs to vanish.",
+  "structure": "Cell-based, compartmentalized. No one knows the whole network. Contacts know contacts. Trust is built through successful operations. Leadership is invisible—possibly nonexistent, possibly distributed, possibly a useful fiction.",
+  "symbols": ["empty circle", "static/noise", "negative space"],
+  "aesthetic": "Forgettable, adaptive, absent. Clothes that don't stand out. Faces you can't quite remember. Spaces that leave no trace. The goal is to not have an aesthetic.",
+  "key_events": [
+    {
+      "era": "pre-collapse",
+      "event": "Underground networks help people escape surveillance states"
+    },
+    {
+      "era": "collapse",
+      "event": "Official identity systems fail. Ghost expertise becomes essential."
+    },
+    {
+      "era": "post-collapse",
+      "event": "Ghost Networks formalize (loosely) as faction-neutral escape routes"
+    },
+    {
+      "era": "recent",
+      "event": "Growing demand from people fleeing Convergence enhancements"
+    }
+  ],
+  "archetypes": [
+    {
+      "role": "Cleaner",
+      "description": "Erases traces, creates clean breaks from past identities",
+      "typical_wants": ["thorough work", "no loose ends", "professional respect"],
+      "typical_fears": ["missed traces", "client betraying the break", "becoming traceable themselves"],
+      "speech_pattern": "Minimal, procedural. 'Destroy this. Forget that. Don't contact anyone from before.'"
+    },
+    {
+      "role": "Router",
+      "description": "Moves people through safe passages, knows the hidden paths",
+      "typical_wants": ["safe routes", "clients who follow instructions", "the network staying dark"],
+      "typical_fears": ["compromised routes", "clients who can't stay hidden", "network exposure"],
+      "speech_pattern": "Cryptic, instructional. 'You'll be met. You'll know.' Gives only what's needed."
+    },
+    {
+      "role": "Fabricator",
+      "description": "Creates new identities, documents, histories",
+      "typical_wants": ["convincing work", "proper materials", "clients who can live the new identity"],
+      "typical_fears": ["work being detected", "identities unraveling", "creating monsters"],
+      "speech_pattern": "Detail-oriented. 'Practice the signature. Know your story. Become this person.'"
+    },
+    {
+      "role": "Contact",
+      "description": "First point of access, assesses clients, makes introductions",
+      "typical_wants": ["genuine need", "payment or trade", "no complications"],
+      "typical_fears": ["informants", "revenge seekers", "bringing heat to the network"],
+      "speech_pattern": "Evaluating, cautious. 'Why do you need to disappear? Who's looking?'"
+    }
+  ],
+  "goals": [
+    "Maintain escape routes for those who need to disappear",
+    "Stay invisible to surveillance systems old and new",
+    "Preserve network security above all else",
+    "Offer alternatives to those trapped by other factions"
+  ],
+  "methods": [
+    "Compartmentalization—no one knows the whole network",
+    "Payment in kind—services, information, future favors",
+    "Absolute discretion—clients become unknowable",
+    "Strategic relationship with Ember for safe houses"
+  ],
+  "current_tensions": [
+    {
+      "with": "Nexus",
+      "about": "Fundamental opposition. Nexus wants to see everything. Ghosts want nothing seen."
+    },
+    {
+      "with": "Witnesses",
+      "about": "Witnesses want everything remembered. Ghosts help people be forgotten. Mutual wariness."
+    },
+    {
+      "with": "Architects",
+      "about": "Architects want identity control restored. Ghosts undermine all identity systems."
+    },
+    {
+      "with": "Covenant",
+      "about": "Some have used sanctuary to avoid consequences. Covenant debates the ethics."
+    }
+  ],
+  "intel_domains": [
+    "escape routes",
+    "surveillance gaps",
+    "identity systems and weaknesses",
+    "who's looking for whom",
+    "safe houses",
+    "who has successfully disappeared"
+  ]
+}

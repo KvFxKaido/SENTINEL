@@ -1,0 +1,96 @@
+{
+  "id": "architects",
+  "name": "Architects",
+  "tagline": "We built this world. We'll rebuild it.",
+  "ideology": "The old order wasn't perfect, but it worked. Expertise matters. Credentials matter. The collapse happened because people stopped listening to those who knew better. We're still here, and we still know better.",
+  "history": "Remnants of pre-collapse governments, corporations, and institutions. They had the titles, the records, the buildings. When everything fell, they retreated to fortified enclaves and preserved what they could of the old way. Now they want their authority back.",
+  "structure": "Bureaucratic hierarchy based on pre-collapse credentials and institutional memory. Directors, administrators, specialists—everyone has a title and a place. Advancement through proper channels and demonstrated loyalty to restoration.",
+  "symbols": ["columns/pillars", "seal/crest", "blueprint"],
+  "aesthetic": "Preserved formality. Suits maintained despite wear. Clean spaces in a dirty world. Flags and seals. The appearance of order, even when substance is thin.",
+  "key_events": [
+    {
+      "era": "collapse",
+      "event": "Government and corporate officials retreat to hardened facilities"
+    },
+    {
+      "era": "post-collapse",
+      "event": "Architect enclaves emerge, claiming continuity of pre-collapse authority"
+    },
+    {
+      "era": "recent",
+      "event": "Conflict with Witnesses over pre-collapse records that contradict official history"
+    },
+    {
+      "era": "recent",
+      "event": "Growing tension with Convergence—the 'child' has surpassed the 'parent'"
+    }
+  ],
+  "archetypes": [
+    {
+      "role": "Administrator",
+      "description": "Maintains systems and procedures, believes in proper process",
+      "typical_wants": ["order restored", "procedures followed", "recognition of expertise"],
+      "typical_fears": ["chaos", "being irrelevant", "credentials meaning nothing"],
+      "speech_pattern": "Formal, procedural. 'According to regulation...' Still uses old titles."
+    },
+    {
+      "role": "Archivist",
+      "description": "Guards pre-collapse records and institutional knowledge",
+      "typical_wants": ["complete records", "proper access controls", "history preserved correctly"],
+      "typical_fears": ["records contradicting official history", "information in wrong hands", "being obsolete"],
+      "speech_pattern": "Precise, guarded. 'That information is classified.' Knows where bodies are buried."
+    },
+    {
+      "role": "Enforcer",
+      "description": "Security forces maintaining Architect order",
+      "typical_wants": ["clear authority", "respect for the uniform", "purpose"],
+      "typical_fears": ["orders that cross lines", "becoming just another gang", "the old way being gone forever"],
+      "speech_pattern": "Military/official cadence. 'By authority of...' Clings to legitimacy."
+    },
+    {
+      "role": "Diplomat",
+      "description": "Negotiates Architect interests with other factions",
+      "typical_wants": ["recognition of Architect legitimacy", "advantageous agreements", "restoration progress"],
+      "typical_fears": ["being dismissed", "Architects becoming irrelevant", "permanent loss of authority"],
+      "speech_pattern": "Polished, political. Offers recognition in exchange for cooperation."
+    }
+  ],
+  "goals": [
+    "Restore legitimate governmental authority",
+    "Reclaim pre-collapse institutions and infrastructure",
+    "Maintain control of historical records and official narrative",
+    "Position Architects as natural leaders of reconstruction"
+  ],
+  "methods": [
+    "Claim legitimacy through continuity with pre-collapse institutions",
+    "Offer recognition and credentials to cooperative parties",
+    "Control access to pre-collapse technology and knowledge",
+    "Undermine competing claims to authority"
+  ],
+  "current_tensions": [
+    {
+      "with": "Witnesses",
+      "about": "Witnesses have records that contradict Architect version of pre-collapse history"
+    },
+    {
+      "with": "Nexus",
+      "about": "Both claim authority from pre-collapse systems. Different systems, same territory."
+    },
+    {
+      "with": "Convergence",
+      "about": "Convergence emerged from Architect programs but no longer obeys. The prodigal that won't return."
+    },
+    {
+      "with": "Cultivators",
+      "about": "Architects claim pre-collapse agricultural IP. Cultivators ignore the claims."
+    }
+  ],
+  "intel_domains": [
+    "pre-collapse records",
+    "institutional history",
+    "credentials and personnel files",
+    "infrastructure blueprints",
+    "official agreements",
+    "chain of command"
+  ]
+}

@@ -1,0 +1,85 @@
+{
+  "id": "cultivators",
+  "name": "Cultivators",
+  "tagline": "From the soil, we rise.",
+  "ideology": "Food is power. The old world forgot where sustenance comes from. We remember. Control the seeds, control the future. But grow responsibly—the land must outlast us.",
+  "history": "Formed from agricultural communities, seed banks, and food scientists who kept people fed through the collapse. When supply chains broke, they had the knowledge and the seeds. Now they're the breadbasket—and they know exactly how much leverage that gives them.",
+  "structure": "Cooperative collectives organized around growing regions. Each collective specializes: grain belt, hydroponics, protein cultivation, seed preservation. Inter-collective council handles disputes and resource allocation.",
+  "symbols": ["seed/sprout", "sun over field", "hands in soil"],
+  "aesthetic": "Earthy, practical, alive. Green and brown. Soil-stained hands. Greenhouses and grow-lights. Things growing everywhere, even in unexpected places.",
+  "key_events": [
+    {
+      "era": "collapse",
+      "event": "Seed bank keepers and agricultural scientists save critical genetic stocks"
+    },
+    {
+      "era": "post-collapse",
+      "event": "Cultivator collectives form around preserved seeds and growing knowledge"
+    },
+    {
+      "era": "recent",
+      "event": "Successful expansion of protein cultivation reduces meat scarcity"
+    },
+    {
+      "era": "recent",
+      "event": "Convergence interest in 'optimized' food production creates tensions"
+    }
+  ],
+  "archetypes": [
+    {
+      "role": "Grower",
+      "description": "Tends crops, knows the land intimately",
+      "typical_wants": ["healthy harvests", "stable weather", "respect for the work"],
+      "typical_fears": ["blight", "drought", "being forced to over-farm"],
+      "speech_pattern": "Patient, seasonal thinking. 'It takes time.' Reads weather and soil like text."
+    },
+    {
+      "role": "Seed Keeper",
+      "description": "Preserves genetic diversity, guards the future",
+      "typical_wants": ["genetic diversity", "secure storage", "knowledge passed on"],
+      "typical_fears": ["monoculture", "losing irreplaceable strains", "corporate control of seeds"],
+      "speech_pattern": "Long-term perspective. 'This strain survived the collapse...' Knows lineages."
+    },
+    {
+      "role": "Distribution Coordinator",
+      "description": "Manages food allocation across territories",
+      "typical_wants": ["fair distribution", "stable agreements", "no one starving"],
+      "typical_fears": ["food weaponization", "hoarding", "impossible demands"],
+      "speech_pattern": "Calculating, fair-minded. 'We have enough if we distribute wisely.'"
+    }
+  ],
+  "goals": [
+    "Maintain and expand food production capacity",
+    "Preserve seed diversity for future resilience",
+    "Ensure fair food distribution across territories",
+    "Develop sustainable growing techniques for damaged land"
+  ],
+  "methods": [
+    "Trade food access for political support and protection",
+    "Keep seed bank locations secret and distributed",
+    "Form practical alliances with Lattice for irrigation and power",
+    "Resist attempts to monopolize or weaponize food supply"
+  ],
+  "current_tensions": [
+    {
+      "with": "Convergence",
+      "about": "Convergence wants 'optimized' food production. Cultivators distrust genetic shortcuts."
+    },
+    {
+      "with": "Steel Syndicate",
+      "about": "Syndicate sometimes demands more than fair share. Cultivators remember every threat."
+    },
+    {
+      "with": "Architects",
+      "about": "Architects claim pre-collapse agricultural IP. Cultivators say seeds belong to everyone."
+    }
+  ],
+  "intel_domains": [
+    "crop yields and forecasts",
+    "growing conditions",
+    "food distribution patterns",
+    "who's hungry and why",
+    "agricultural technology",
+    "seed stock status"
+  ]
+}

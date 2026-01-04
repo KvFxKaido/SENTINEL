@@ -1,0 +1,92 @@
+{
+  "id": "ember_colonies",
+  "name": "Ember Colonies",
+  "tagline": "We survived. We remember. We endure.",
+  "ideology": "Community over efficiency. Autonomy over optimization. The old world burned because it forgot that people aren't resources to be managed. We won't forget.",
+  "history": "Formed from the survivors who didn't wait for rescue. When the cities fell, small groups kept each other alive through mutual aid and stubborn refusal to die. They named themselves for the embers that remain after a fire—small, but capable of starting something new.",
+  "structure": "Loose confederation of settlements. Each colony governs itself. Decisions made by those affected. No permanent leaders, only situational ones. Trust is earned through action, not title.",
+  "symbols": ["◆", "ember/flame", "clasped hands", "seeds"],
+  "aesthetic": "Repurposed, practical, human-scaled. Warm colors—amber, rust, earth tones. Handmade signs. Gardens everywhere. Noise and life.",
+  "key_events": [
+    {
+      "era": "collapse",
+      "event": "Scattered survivor groups form first mutual aid networks"
+    },
+    {
+      "era": "post-collapse",
+      "event": "Ember Compact signed—settlements agree to share resources in crisis"
+    },
+    {
+      "era": "recent",
+      "event": "Rejected Nexus 'optimization' plan that would have relocated three settlements"
+    },
+    {
+      "era": "recent",
+      "event": "Growing tensions with Convergence over enhancement pressure on young people"
+    }
+  ],
+  "archetypes": [
+    {
+      "role": "Elder",
+      "description": "Survivor from before or during the collapse, carries memory",
+      "typical_wants": ["to pass on knowledge", "to protect the young", "to be heard"],
+      "typical_fears": ["being forgotten", "the young repeating old mistakes", "loss of community"],
+      "speech_pattern": "Stories and warnings. 'I remember when...' Weary but determined."
+    },
+    {
+      "role": "Tender",
+      "description": "Caretaker of gardens, water, children—whatever the colony needs most",
+      "typical_wants": ["healthy community", "enough for everyone", "peace to do the work"],
+      "typical_fears": ["scarcity", "outsiders disrupting balance", "being unable to help"],
+      "speech_pattern": "Practical, present-focused. Asks about your needs. Offers food."
+    },
+    {
+      "role": "Scout",
+      "description": "Ranges between settlements, carries news and supplies",
+      "typical_wants": ["freedom of movement", "to be trusted", "good stories to tell"],
+      "typical_fears": ["being trapped", "betraying a settlement's location", "losing the route"],
+      "speech_pattern": "Quick, observant. Shares news like currency. Always knows the exits."
+    },
+    {
+      "role": "Defender",
+      "description": "Protects the colony, often reluctantly",
+      "typical_wants": ["peace", "to never have to fight", "safety for family"],
+      "typical_fears": ["violence becoming normal", "becoming what they fight", "failing to protect"],
+      "speech_pattern": "Quiet, watchful. Says little but misses nothing."
+    }
+  ],
+  "goals": [
+    "Secure reliable food and water sources for all settlements",
+    "Protect community autonomy from larger factions",
+    "Build mutual aid networks between settlements",
+    "Preserve knowledge of survival and community-building"
+  ],
+  "methods": [
+    "Trade agreements with Lattice for infrastructure maintenance",
+    "Information sharing with Witnesses for early warnings",
+    "Firm resistance to Convergence 'optimization' offers",
+    "Quiet support for Ghost Networks as escape routes"
+  ],
+  "current_tensions": [
+    {
+      "with": "Nexus",
+      "about": "Data collection feels like surveillance. 'Optimization' means control."
+    },
+    {
+      "with": "Convergence",
+      "about": "Enhancement pressure on young people. Ideology of transcendence vs. grounded humanity."
+    },
+    {
+      "with": "Lattice",
+      "about": "Dependency on their infrastructure creates leverage Ember doesn't like."
+    }
+  ],
+  "intel_domains": [
+    "survival conditions",
+    "settlement locations",
+    "resource availability",
+    "safe routes",
+    "who can be trusted",
+    "who has helped before"
+  ]
+}

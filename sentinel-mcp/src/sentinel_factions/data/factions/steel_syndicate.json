@@ -1,0 +1,92 @@
+{
+  "id": "steel_syndicate",
+  "name": "Steel Syndicate",
+  "tagline": "Everything has a price.",
+  "ideology": "The strong survive. Resources flow to those who can take and hold them. Morality is a luxury. We're honest about what the world is—a market where everything is for sale.",
+  "history": "Emerged from organized crime, private security, and resource extraction operations that thrived in the chaos. When law collapsed, they filled the vacuum with their own order—brutal, but predictable. Pay up, and they protect. Cross them, and pay differently.",
+  "structure": "Hierarchical organization built on strength and profit. Bosses control territories, captains run operations, soldiers do the work. Advancement through results. Loyalty rewarded, betrayal punished absolutely.",
+  "symbols": ["clenched fist", "chain links", "balance scale (ironic)"],
+  "aesthetic": "Hard, utilitarian, intimidating. Black and gunmetal. Visible weapons. Scarred and confident. Everything is armor, even the smiles.",
+  "key_events": [
+    {
+      "era": "collapse",
+      "event": "Criminal organizations and private security firms seize resource stockpiles"
+    },
+    {
+      "era": "post-collapse",
+      "event": "Syndicate consolidates from rival groups, establishes 'protection' economy"
+    },
+    {
+      "era": "recent",
+      "event": "Expansion into raw material extraction creates leverage over Lattice"
+    },
+    {
+      "era": "recent",
+      "event": "Some Syndicate elements pushing for legitimacy; others prefer the old ways"
+    }
+  ],
+  "archetypes": [
+    {
+      "role": "Enforcer",
+      "description": "Muscle that backs up Syndicate agreements",
+      "typical_wants": ["clear orders", "respect", "their share"],
+      "typical_fears": ["being disposable", "unclear loyalties", "fighting for nothing"],
+      "speech_pattern": "Direct, minimal. Presence speaks louder than words. 'You understand.'"
+    },
+    {
+      "role": "Broker",
+      "description": "Arranges deals, knows prices and pressure points",
+      "typical_wants": ["profitable deals", "repeat customers", "leverage"],
+      "typical_fears": ["bad debts", "losing reputation", "deals going sideways"],
+      "speech_pattern": "Smooth, calculating. 'Let's talk numbers.' Always working an angle."
+    },
+    {
+      "role": "Captain",
+      "description": "Runs operations, manages territory",
+      "typical_wants": ["productive territory", "loyal crew", "boss's approval"],
+      "typical_fears": ["losing territory", "crew disloyalty", "being replaced"],
+      "speech_pattern": "Authoritative, business-minded. 'This is how it's going to work.'"
+    },
+    {
+      "role": "Fixer",
+      "description": "Solves problems, makes inconvenient things disappear",
+      "typical_wants": ["clean solutions", "discretion appreciated", "proper payment"],
+      "typical_fears": ["witnesses", "loose ends", "problems becoming personal"],
+      "speech_pattern": "Quiet, competent. 'Consider it handled.' Doesn't explain methods."
+    }
+  ],
+  "goals": [
+    "Control valuable resource extraction and trade routes",
+    "Maintain reputation for keeping deals (and punishing breaks)",
+    "Expand influence through economic leverage rather than open warfare",
+    "Some elements: achieve legitimacy; others: maintain criminal flexibility"
+  ],
+  "methods": [
+    "Protection arrangements with settlements and operations",
+    "Control of raw material supply to create dependencies",
+    "Enforcement of contracts through guaranteed consequences",
+    "Strategic violence—enough to maintain fear, not enough to unite enemies"
+  ],
+  "current_tensions": [
+    {
+      "with": "Covenant",
+      "about": "Past sanctuary violations. Trust is gone. Some want to rebuild it, others don't care."
+    },
+    {
+      "with": "Lattice",
+      "about": "Syndicate controls materials Lattice needs. Prices keep rising."
+    },
+    {
+      "with": "Ember Colonies",
+      "about": "Syndicate 'protection' offers feel like threats. Ember remembers who helped and who took."
+    }
+  ],
+  "intel_domains": [
+    "resource locations",
+    "who owes what to whom",
+    "protection arrangements",
+    "smuggling routes",
+    "leverage and blackmail material",
+    "who can be bought"
+  ]
+}

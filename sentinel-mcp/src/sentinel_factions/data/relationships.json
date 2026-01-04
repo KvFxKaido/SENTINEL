@@ -1,0 +1,79 @@
+{
+  "relationships": [
+    {
+      "factions": ["nexus", "lattice"],
+      "status": "cooperative",
+      "basis": "Mutual dependency. Nexus needs infrastructure data, Lattice needs coordination. Neither fully trusts the other."
+    },
+    {
+      "factions": ["nexus", "ember_colonies"],
+      "status": "tense",
+      "basis": "Nexus sees Ember as inefficient. Ember sees Nexus as controlling. Data collection is the friction point."
+    },
+    {
+      "factions": ["nexus", "architects"],
+      "status": "competitive",
+      "basis": "Both claim authority from pre-collapse systems. Architects had the titles, Nexus had the networks."
+    },
+    {
+      "factions": ["nexus", "ghost_networks"],
+      "status": "hostile",
+      "basis": "Nexus wants total visibility. Ghosts exist to be invisible. Fundamental opposition."
+    },
+    {
+      "factions": ["ember_colonies", "convergence"],
+      "status": "hostile",
+      "basis": "Ideological war. Ember values grounded humanity, Convergence values transcendence. Enhancement is the battleground."
+    },
+    {
+      "factions": ["ember_colonies", "lattice"],
+      "status": "dependent",
+      "basis": "Ember needs Lattice infrastructure. Lattice provides it, but the dependency creates uncomfortable leverage."
+    },
+    {
+      "factions": ["ember_colonies", "witnesses"],
+      "status": "friendly",
+      "basis": "Witnesses record Ember survival stories. Ember trusts them more than most. Information flows both ways."
+    },
+    {
+      "factions": ["witnesses", "architects"],
+      "status": "hostile",
+      "basis": "Witnesses have pre-collapse records that contradict Architect claims. Architects want them destroyed or 'returned.'"
+    },
+    {
+      "factions": ["witnesses", "ghost_networks"],
+      "status": "tense",
+      "basis": "Ghosts want things forgotten. Witnesses refuse to forget. They respect each other's skills but have opposed purposes."
+    },
+    {
+      "factions": ["lattice", "cultivators"],
+      "status": "cooperative",
+      "basis": "Lattice handles infrastructure, Cultivators handle food production. Clear division, mutual benefit."
+    },
+    {
+      "factions": ["convergence", "architects"],
+      "status": "uneasy",
+      "basis": "Convergence emerged from Architect research programs. The child has outgrown the parent. Both remember."
+    },
+    {
+      "factions": ["ghost_networks", "ember_colonies"],
+      "status": "friendly",
+      "basis": "Ghosts provide escape routes. Ember provides safe houses. Both value freedom from larger factions."
+    },
+    {
+      "factions": ["steel_syndicate", "lattice"],
+      "status": "transactional",
+      "basis": "Syndicate provides raw materials and muscle. Lattice provides infrastructure access. Pure business."
+    },
+    {
+      "factions": ["wanderers", "witnesses"],
+      "status": "friendly",
+      "basis": "Wanderers carry stories between territories. Witnesses record them. Natural information partners."
+    }
+  ],
+  "notes": [
+    "Relationships are not symmetric—Faction A's view of B may differ from B's view of A",
+    "Campaign events can shift any of these relationships",
+    "Individual NPCs may differ from faction baseline"
+  ]
+}

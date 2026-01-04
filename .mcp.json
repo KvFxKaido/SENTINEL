@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "sentinel-factions": {
+      "command": "python",
+      "args": ["-m", "sentinel_factions.server"],
+      "cwd": "C:\\dev\\SENTINEL\\sentinel-mcp\\src"
+    }
+  }
+}

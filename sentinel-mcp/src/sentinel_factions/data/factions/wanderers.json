@@ -1,0 +1,92 @@
+{
+  "id": "wanderers",
+  "name": "Wanderers",
+  "tagline": "The road remembers.",
+  "ideology": "Movement is freedom. Borders are prisons. The world is larger than any faction's territory, and we've seen it all. Information wants to travel, and so do we.",
+  "history": "Formed from nomadic groups, traveling traders, and refugees who never stopped moving. When territories hardened, Wanderers became the connective tissue—carrying news, goods, and people between isolated communities. They belong everywhere and nowhere.",
+  "structure": "Loose kinship networks based on travel routes and trade partnerships. No hierarchy—reputation determines influence. Caravans form and dissolve based on need. The road is the only constant.",
+  "symbols": ["compass rose", "winding path", "wheel"],
+  "aesthetic": "Layered, practical, portable. Faded colors from sun and dust. Everything serves multiple purposes. Pockets everywhere. Maps tattooed or memorized.",
+  "key_events": [
+    {
+      "era": "collapse",
+      "event": "Refugee columns become first Wanderer caravans"
+    },
+    {
+      "era": "post-collapse",
+      "event": "Wanderer trade routes connect isolated settlements, become economic lifelines"
+    },
+    {
+      "era": "recent",
+      "event": "Increased demand for Wanderer courier services between factions"
+    },
+    {
+      "era": "recent",
+      "event": "Some territories restricting Wanderer movement—tensions rising"
+    }
+  ],
+  "archetypes": [
+    {
+      "role": "Trader",
+      "description": "Moves goods between communities, knows what's valuable where",
+      "typical_wants": ["profitable routes", "safe passage", "reliable partners"],
+      "typical_fears": ["being robbed", "routes closing", "getting stuck in one place"],
+      "speech_pattern": "Friendly, transactional. Always assessing value. 'What do you need? What can you offer?'"
+    },
+    {
+      "role": "Courier",
+      "description": "Carries messages and small valuables, discretion guaranteed",
+      "typical_wants": ["clear delivery terms", "fair payment", "no questions about contents"],
+      "typical_fears": ["being caught with wrong cargo", "message getting intercepted", "employer turning hostile"],
+      "speech_pattern": "Careful, professional. 'I deliver. I don't read. I don't remember.'"
+    },
+    {
+      "role": "Guide",
+      "description": "Knows the safe paths, leads others through dangerous territory",
+      "typical_wants": ["clients who listen", "routes staying safe", "respect for expertise"],
+      "typical_fears": ["ambush", "clients doing stupid things", "routes becoming impassable"],
+      "speech_pattern": "Direct, observant. 'Stay close. Step where I step.'"
+    },
+    {
+      "role": "Storyteller",
+      "description": "Carries news and culture between communities",
+      "typical_wants": ["new stories to tell", "audiences to share with", "the truth to be known"],
+      "typical_fears": ["stories being lost", "no one listening", "being silenced"],
+      "speech_pattern": "Engaging, performative. 'Have you heard...?' Makes information memorable."
+    }
+  ],
+  "goals": [
+    "Maintain freedom of movement across territories",
+    "Expand trade routes and partnerships",
+    "Preserve knowledge of safe paths and shortcuts",
+    "Stay useful enough that no one wants to restrict them"
+  ],
+  "methods": [
+    "Trade information as readily as goods",
+    "Maintain strict neutrality to preserve access everywhere",
+    "Build relationships through reliability and discretion",
+    "Share enough to be valuable, keep enough to be necessary"
+  ],
+  "current_tensions": [
+    {
+      "with": "Architects",
+      "about": "Architects want to control movement. Wanderers exist to move freely."
+    },
+    {
+      "with": "Nexus",
+      "about": "Nexus tracks movement patterns. Wanderers value being untraceable."
+    },
+    {
+      "with": "Steel Syndicate",
+      "about": "Some Syndicate elements see Wanderers as easy targets. Others value the trade."
+    }
+  ],
+  "intel_domains": [
+    "trade route status",
+    "what's valuable where",
+    "safe passages",
+    "news from distant places",
+    "who's traveling and why",
+    "territorial changes"
+  ]
+}

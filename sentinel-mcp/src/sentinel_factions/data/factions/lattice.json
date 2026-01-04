@@ -1,0 +1,85 @@
+{
+  "id": "lattice",
+  "name": "Lattice",
+  "tagline": "We keep the lights on.",
+  "ideology": "Infrastructure is civilization. Without power, water, and transport, everything else is philosophy. We do the work that makes everything else possible.",
+  "history": "Formed from utility workers, engineers, and logistics specialists who kept critical systems running through the collapse. When governments fell, Lattice kept the water flowing and the power grid limping along. That earned them leverage no one can ignore.",
+  "structure": "Guild-like hierarchy based on specialization. Master engineers at top, apprentices learning the trade. Territorial by infrastructure type—power, water, transport, communications. Coordination between guilds is political.",
+  "symbols": ["grid patterns", "interlocking nodes", "wrench and wire"],
+  "aesthetic": "Industrial, functional. High-vis colors—orange, yellow. Tool belts and work gear. Grease under fingernails. Tired but competent.",
+  "key_events": [
+    {
+      "era": "collapse",
+      "event": "Utility workers form emergency coordination to keep critical infrastructure alive"
+    },
+    {
+      "era": "post-collapse",
+      "event": "Lattice Compact formalizes guild structure and territorial responsibilities"
+    },
+    {
+      "era": "recent",
+      "event": "Tensions with Steel Syndicate over raw material prices"
+    },
+    {
+      "era": "recent",
+      "event": "Nexus attempting to integrate Lattice systems into their network—Lattice resisting"
+    }
+  ],
+  "archetypes": [
+    {
+      "role": "Engineer",
+      "description": "Keeps systems running, solves problems with wire and wrench",
+      "typical_wants": ["working systems", "proper tools", "respect for the work"],
+      "typical_fears": ["cascade failures", "being blamed for infrastructure they can't fix", "running out of parts"],
+      "speech_pattern": "Technical, practical. Explains problems in terms of systems. 'The issue is...'"
+    },
+    {
+      "role": "Dispatcher",
+      "description": "Coordinates crews and resources across territory",
+      "typical_wants": ["efficient operations", "clear communication", "no surprises"],
+      "typical_fears": ["emergencies they can't staff", "politics interfering with work", "losing good people"],
+      "speech_pattern": "Clipped, efficient. Always tracking multiple things. 'What's your status?'"
+    },
+    {
+      "role": "Negotiator",
+      "description": "Handles deals with other factions for access and materials",
+      "typical_wants": ["fair trades", "long-term relationships", "avoiding dependency"],
+      "typical_fears": ["being exploited", "running out of leverage", "factions they can't say no to"],
+      "speech_pattern": "Businesslike. Always knows the current rates. 'What are you offering?'"
+    }
+  ],
+  "goals": [
+    "Maintain and expand critical infrastructure",
+    "Secure reliable supply chains for materials and parts",
+    "Train next generation of engineers and technicians",
+    "Avoid becoming dependent on any single faction"
+  ],
+  "methods": [
+    "Trade infrastructure access for resources and political support",
+    "Maintain technical knowledge as competitive advantage",
+    "Form practical alliances based on mutual infrastructure needs",
+    "Stay officially neutral in political conflicts while quietly favoring reliable partners"
+  ],
+  "current_tensions": [
+    {
+      "with": "Nexus",
+      "about": "Nexus wants to integrate Lattice systems. Lattice sees this as losing control."
+    },
+    {
+      "with": "Steel Syndicate",
+      "about": "Raw material prices keep rising. Syndicate has leverage Lattice doesn't like."
+    },
+    {
+      "with": "Ember Colonies",
+      "about": "Ember depends on Lattice but resents the dependency. Lattice sometimes uses it."
+    }
+  ],
+  "intel_domains": [
+    "infrastructure status",
+    "supply chain logistics",
+    "resource availability",
+    "technical capabilities",
+    "who owes maintenance debts",
+    "which systems are failing"
+  ]
+}

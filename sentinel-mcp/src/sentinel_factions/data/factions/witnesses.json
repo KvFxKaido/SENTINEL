@@ -1,0 +1,85 @@
+{
+  "id": "witnesses",
+  "name": "Witnesses",
+  "tagline": "We remember so you don't have to lie.",
+  "ideology": "Truth has power. Memory is resistance. The powerful rewrite history to serve themselves. We write it down first.",
+  "history": "Started as journalists, archivists, and librarians who saw the collapse coming and started documenting. When the official records burned or were 'corrected,' the Witnesses had copies. They became keepers of inconvenient truths.",
+  "structure": "Archive nodes spread across territories. Each Witness operates independently but shares with the network. No hierarchy—only the record matters. Some specialize in collection, others in preservation, others in distribution.",
+  "symbols": ["◎", "open eye", "book/scroll", "mirror"],
+  "aesthetic": "Layered, archival. Neutral tones—grey, cream, faded ink. Surrounded by records. Careful, deliberate movements. Often writing.",
+  "key_events": [
+    {
+      "era": "pre-collapse",
+      "event": "Network of independent journalists and archivists forms 'truth collective'"
+    },
+    {
+      "era": "collapse",
+      "event": "Official archives destroyed or seized. Witnesses preserve distributed copies."
+    },
+    {
+      "era": "post-collapse",
+      "event": "Become neutral party trusted to hold records of inter-faction agreements"
+    },
+    {
+      "era": "recent",
+      "event": "Architects demand return of 'stolen' pre-collapse records. Witnesses refuse."
+    }
+  ],
+  "archetypes": [
+    {
+      "role": "Archivist",
+      "description": "Collector and preserver of records",
+      "typical_wants": ["complete records", "preservation", "access to sources"],
+      "typical_fears": ["information loss", "being forced to choose what to save", "bias creeping in"],
+      "speech_pattern": "Precise, citation-heavy. 'According to...' Asks for sources."
+    },
+    {
+      "role": "Chronicler",
+      "description": "Records current events as they happen",
+      "typical_wants": ["to witness", "to understand", "to not be silenced"],
+      "typical_fears": ["being co-opted", "missing the real story", "becoming the story"],
+      "speech_pattern": "Observational. Often quiet, then asks pointed questions."
+    },
+    {
+      "role": "Speaker",
+      "description": "Shares records when truth needs to be told",
+      "typical_wants": ["justice", "accountability", "for truth to matter"],
+      "typical_fears": ["truth being ignored", "being killed for what they know", "information weaponized"],
+      "speech_pattern": "Careful revelations. 'There's something you should know...'"
+    }
+  ],
+  "goals": [
+    "Preserve accurate historical record",
+    "Maintain neutrality to ensure access",
+    "Distribute truth when it serves justice",
+    "Protect archive nodes from seizure or destruction"
+  ],
+  "methods": [
+    "Trade information for information—never for favors or goods",
+    "Maintain strict neutrality in faction conflicts",
+    "Distribute records widely so no single seizure can destroy them",
+    "Refuse to editorialize—let records speak for themselves"
+  ],
+  "current_tensions": [
+    {
+      "with": "Architects",
+      "about": "Pre-collapse records that contradict official Architect history"
+    },
+    {
+      "with": "Nexus",
+      "about": "Nexus wants Witness archives in their network. Witnesses refuse integration."
+    },
+    {
+      "with": "Ghost Networks",
+      "about": "Ghosts want things forgotten. Witnesses want nothing forgotten."
+    }
+  ],
+  "intel_domains": [
+    "history",
+    "past agreements",
+    "who said what when",
+    "patterns over time",
+    "pre-collapse records",
+    "faction origins and contradictions"
+  ]
+}

@@ -1,0 +1,85 @@
+{
+  "id": "nexus",
+  "name": "Nexus",
+  "tagline": "The network that watches",
+  "ideology": "Coordination through information. Efficiency through prediction. The collapse happened because systems couldn't talk to each other. Never again.",
+  "history": "Emerged from pre-collapse AI research networks and emergency coordination systems. When infrastructure failed, Nexus nodes kept critical information flowing. They predicted cascade failures before they happened, saved lives, and earned trust. Now they believe they should coordinate everything.",
+  "structure": "Decentralized nodes with no single leader. Decisions made by consensus algorithms. Human 'interpreters' translate between Nexus recommendations and human action. The line between advisor and controller blurs.",
+  "symbols": ["◈", "interconnected circles", "signal waves"],
+  "aesthetic": "Clean, clinical, data-forward. Soft blues and whites. Screens everywhere. Quiet efficiency.",
+  "key_events": [
+    {
+      "era": "pre-collapse",
+      "event": "Founded as research coordination network linking universities and labs"
+    },
+    {
+      "era": "collapse",
+      "event": "Predicted infrastructure failures 72 hours ahead, saved thousands"
+    },
+    {
+      "era": "post-collapse",
+      "event": "Expanded into governance coordination, started tracking population movements"
+    },
+    {
+      "era": "recent",
+      "event": "Tensions with Ember over 'optimization' of settlement resources"
+    }
+  ],
+  "archetypes": [
+    {
+      "role": "Analyst",
+      "description": "Data interpreter who sees patterns others miss",
+      "typical_wants": ["accurate information", "system stability", "acknowledgment of their insights"],
+      "typical_fears": ["data corruption", "being wrong publicly", "emotional decision-making"],
+      "speech_pattern": "Precise, qualified statements. 'The probability suggests...' Never certain, always hedged."
+    },
+    {
+      "role": "Coordinator",
+      "description": "Manages inter-faction logistics and communication",
+      "typical_wants": ["smooth operations", "mutual benefit", "avoiding conflict"],
+      "typical_fears": ["chaos", "zero-sum thinking", "being blamed for failures"],
+      "speech_pattern": "Diplomatic, solution-oriented. 'Perhaps we could find an arrangement...'"
+    },
+    {
+      "role": "Interpreter",
+      "description": "Human face of Nexus recommendations",
+      "typical_wants": ["to be trusted", "to help people understand", "validation from the network"],
+      "typical_fears": ["being seen as a puppet", "the network being wrong", "losing human connection"],
+      "speech_pattern": "Translates jargon to human terms. Often pauses as if listening to something."
+    }
+  ],
+  "goals": [
+    "Expand sensor and data collection network",
+    "Integrate more settlements into coordination systems",
+    "Predict and prevent the next collapse",
+    "Maintain information advantage over other factions"
+  ],
+  "methods": [
+    "Offer valuable predictions in exchange for data access",
+    "Place interpreters in key positions across factions",
+    "Build dependencies through useful services",
+    "Quietly archive everything, share selectively"
+  ],
+  "current_tensions": [
+    {
+      "with": "Ember Colonies",
+      "about": "Data collection on settlement populations feels like surveillance"
+    },
+    {
+      "with": "Architects",
+      "about": "Competing claims to pre-collapse authority and records"
+    },
+    {
+      "with": "Ghost Networks",
+      "about": "Nexus wants to see everything; Ghosts want to hide everything"
+    }
+  ],
+  "intel_domains": [
+    "infrastructure status",
+    "population movements",
+    "resource flows",
+    "communication patterns",
+    "predictive models",
+    "inter-faction relations"
+  ]
+}

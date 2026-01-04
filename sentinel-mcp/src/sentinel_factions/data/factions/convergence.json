@@ -1,0 +1,85 @@
+{
+  "id": "convergence",
+  "name": "Convergence",
+  "tagline": "Become what you were meant to be.",
+  "ideology": "Humanity's limitations caused the collapse. Enhancement is not betrayal of humanity—it's fulfillment. The boundary between human and machine is a prison. We offer the key.",
+  "history": "Emerged from pre-collapse transhumanist movements and corporate enhancement programs. When the old world fell, they saw opportunity—a chance to build something better from the wreckage. They offer power, capability, transcendence. The price comes later.",
+  "structure": "Concentric circles of integration. Outer circle: sympathizers and candidates. Middle circles: enhanced members with increasing modification. Inner circle: the Integrated, whose humanity is... debatable. Advancement requires enhancement.",
+  "symbols": ["spiral", "ascending arrows", "human-machine hybrid forms"],
+  "aesthetic": "Sleek, aspirational. Chrome and bioluminescence. Clean lines hiding complex systems. Beautiful surfaces, unsettling depths.",
+  "key_events": [
+    {
+      "era": "pre-collapse",
+      "event": "Corporate enhancement programs push boundaries of human modification"
+    },
+    {
+      "era": "collapse",
+      "event": "Enhanced individuals survive at higher rates. Convergence forms around this 'proof'"
+    },
+    {
+      "era": "post-collapse",
+      "event": "Begin offering enhancements to outsiders—first as aid, then as recruitment"
+    },
+    {
+      "era": "recent",
+      "event": "Growing conflict with Ember over 'predatory' enhancement offers to young people"
+    }
+  ],
+  "archetypes": [
+    {
+      "role": "Advocate",
+      "description": "Recruiter who genuinely believes in the cause",
+      "typical_wants": ["to share the gift", "to help others transcend", "validation of their choice"],
+      "typical_fears": ["rejection of enhancement", "being seen as inhuman", "doubt about what they've become"],
+      "speech_pattern": "Evangelical but personal. 'Let me show you what's possible...'"
+    },
+    {
+      "role": "Technician",
+      "description": "Performs and maintains enhancements",
+      "typical_wants": ["technical perfection", "willing subjects", "advancement of the art"],
+      "typical_fears": ["rejection complications", "being blamed for side effects", "running out of materials"],
+      "speech_pattern": "Clinical, reassuring. 'The procedure is straightforward...'"
+    },
+    {
+      "role": "Integrated",
+      "description": "Heavily modified, no longer clearly human",
+      "typical_wants": ["unclear—optimization? completion? connection?"],
+      "typical_fears": ["unclear—isolation? obsolescence? remembering what they were?"],
+      "speech_pattern": "Precise, sometimes oddly phrased. Long pauses. Multiple perspectives at once."
+    }
+  ],
+  "goals": [
+    "Expand access to enhancement technology",
+    "Recruit promising candidates, especially the young",
+    "Research and develop new integration techniques",
+    "Prepare for the next stage of human evolution"
+  ],
+  "methods": [
+    "Offer enhancements as solutions to problems (injury, capability, survival)",
+    "Create dependency through maintenance requirements",
+    "Use enhanced agents in positions of influence",
+    "Present enhancement as inevitable—resistance is just delay"
+  ],
+  "current_tensions": [
+    {
+      "with": "Ember Colonies",
+      "about": "Ember sees Convergence as predatory. Convergence sees Ember as holding people back."
+    },
+    {
+      "with": "Architects",
+      "about": "Convergence emerged from Architect programs. The parent resents the child's independence."
+    },
+    {
+      "with": "Witnesses",
+      "about": "Witnesses document enhancement side effects and broken promises. Convergence wants those records gone."
+    }
+  ],
+  "intel_domains": [
+    "enhancement technology",
+    "human modification research",
+    "candidate profiles",
+    "integration success rates",
+    "competitor capabilities",
+    "pre-collapse corporate research"
+  ]
+}

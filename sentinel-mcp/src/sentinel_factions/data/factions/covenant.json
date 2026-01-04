@@ -1,0 +1,85 @@
+{
+  "id": "covenant",
+  "name": "Covenant",
+  "tagline": "We hold the line.",
+  "ideology": "Some things are sacred. Some lines cannot be crossed. In a world where everything is negotiable, we maintain the non-negotiables: sanctuary, oath-keeping, the dignity of the dead.",
+  "history": "Formed from religious communities, hospice workers, and ethicists who found common cause during the collapse. When survival meant abandoning principles, they refused. They became keepers of sacred spaces, witnesses to oaths, and guardians of the dying.",
+  "structure": "Networked sanctuaries, each autonomous but bound by shared principles. No central authority—the Covenant is the principles themselves. Elders advise but cannot command. Sanctuary keepers have absolute authority within their space.",
+  "symbols": ["threshold", "clasped hands", "flame within circle"],
+  "aesthetic": "Solemn, warm. Earth tones and candlelight. Quiet spaces. Deliberate ritual. Old things maintained with care.",
+  "key_events": [
+    {
+      "era": "collapse",
+      "event": "Religious and ethical communities shelter refugees, refuse to abandon vulnerable"
+    },
+    {
+      "era": "post-collapse",
+      "event": "Covenant principles formalized: sanctuary, oath-witness, death rites"
+    },
+    {
+      "era": "recent",
+      "event": "Growing demand for oath-witnessing in inter-faction agreements"
+    },
+    {
+      "era": "recent",
+      "event": "Tensions with Convergence over 'dignity of the body' principles"
+    }
+  ],
+  "archetypes": [
+    {
+      "role": "Sanctuary Keeper",
+      "description": "Maintains a place of refuge, absolute authority within its bounds",
+      "typical_wants": ["peace within walls", "resources to help those in need", "respect for sanctuary"],
+      "typical_fears": ["sanctuary being violated", "having to turn people away", "violence in sacred space"],
+      "speech_pattern": "Calm, boundaried. 'Within these walls...' Clear about what is and isn't allowed."
+    },
+    {
+      "role": "Oath-Witness",
+      "description": "Formalizes and records agreements, bound to neutrality",
+      "typical_wants": ["honest parties", "clear terms", "oaths that can be kept"],
+      "typical_fears": ["being used to legitimize bad-faith deals", "oaths broken despite witness", "losing neutrality"],
+      "speech_pattern": "Formal, precise. 'Do you understand the terms?' Asks hard questions."
+    },
+    {
+      "role": "Tender of the Dead",
+      "description": "Performs death rites, cares for the dying and bereaved",
+      "typical_wants": ["dignified deaths", "proper mourning", "the dead remembered"],
+      "typical_fears": ["anonymous mass death", "no one to perform rites", "the living forgetting"],
+      "speech_pattern": "Gentle, present. Comfortable with silence and grief. 'Take your time.'"
+    }
+  ],
+  "goals": [
+    "Maintain sanctuary spaces across territories",
+    "Serve as trusted oath-witnesses for inter-faction agreements",
+    "Ensure dignified death rites for all who want them",
+    "Preserve ethical principles in a pragmatic world"
+  ],
+  "methods": [
+    "Strict neutrality in faction conflicts",
+    "Refuse to break sanctuary even under threat",
+    "Trade oath-witnessing services for protection and resources",
+    "Build reputation for absolute trustworthiness"
+  ],
+  "current_tensions": [
+    {
+      "with": "Convergence",
+      "about": "Convergence's view of bodies as upgradeable conflicts with Covenant's dignity principles"
+    },
+    {
+      "with": "Steel Syndicate",
+      "about": "Syndicate has violated sanctuary before. Trust is broken."
+    },
+    {
+      "with": "Ghost Networks",
+      "about": "Some Ghosts have used sanctuary to escape consequences. Covenant debates limits."
+    }
+  ],
+  "intel_domains": [
+    "who has sworn what to whom",
+    "sanctuary seekers and their stories",
+    "dying words and final confessions",
+    "inter-faction agreements witnessed",
+    "sacred sites and their keepers",
+    "ethical debates and precedents"
+  ]
+}
