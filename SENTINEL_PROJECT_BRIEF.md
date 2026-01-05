@@ -45,6 +45,7 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 - **Faction narrative corruption** — GM language shifts based on faction standing (11 linguistic patterns)
 - **Debrief "enough" question** — helps players articulate their own success criteria in a game with no win condition
 - **Config persistence** — remembers last used backend and model across sessions
+- **Social energy carrot** — spend 10% energy for advantage when acting in your element (matches restorers)
 
 ### Not Yet Built
 - Multi-character party support
@@ -324,7 +325,7 @@ Applied throughout CLI: banners, panels, status displays, choice blocks.
 - **LM Studio** — Local LLM (free, OpenAI-compatible API at port 1234)
 - **Ollama** — Local LLM alternative (OpenAI-compatible API at port 11434)
 - **Anthropic SDK** — Claude API (optional)
-- **pytest** — Test framework with 124 tests
+- **pytest** — Test framework with 129 tests
 - **GitHub Actions** — CI/CD pipeline
 
 No heavy ML dependencies — lore retrieval uses keyword matching.
@@ -337,9 +338,7 @@ No heavy ML dependencies — lore retrieval uses keyword matching.
 
 2. **Web interface** — Worth building, or is CLI sufficient for the audience?
 
-3. **Social energy carrot** — Should players be able to spend energy for advantage (not just suffer penalties)?
-
-4. **Player "Push" mechanic** — Should players be able to explicitly invite consequences?
+3. **Player "Push" mechanic** — Should players be able to explicitly invite consequences?
 
 ---
 
