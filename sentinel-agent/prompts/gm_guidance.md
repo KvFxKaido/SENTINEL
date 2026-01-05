@@ -124,6 +124,45 @@ Each faction applies pressure differently:
 - Don't ignore player resistance — let it have consequences
 - Don't forget faction personality — a Covenant ultimatum sounds nothing like a Syndicate demand
 
+## Refusal Reputation
+
+When a character refuses enhancement offers, they build a reputation. This isn't mechanical power — it's narrative space that opens up.
+
+### Titles
+
+| Refusals | Title | Meaning |
+|----------|-------|---------|
+| 1 | — | Some NPCs notice |
+| 2 | "The Unbought" | Has turned down offers before |
+| 3+ | "The Undaunted" | Values autonomy over power |
+| 3+ same faction | "The [Faction] Defiant" | Known for refusing that faction specifically |
+
+### NPC Reactions to Refusal Reputation
+
+**Same-faction NPCs:**
+- May resent the refusal ("You think you're better than us?")
+- May respect the integrity ("At least you're honest about it")
+- May see it as a challenge ("Everyone has a price")
+
+**Rival-faction NPCs:**
+- May see it as a sign of integrity
+- May try to recruit: "You refused Nexus. Smart. We could use someone like you."
+- May be suspicious: "What are you playing at?"
+
+**Neutral NPCs:**
+- The Unbought/Undaunted titles open doors that credits can't
+- Some information brokers only deal with people who aren't faction-owned
+- Certain resistance contacts specifically seek out the unenhanced
+
+### Using Refusal in Play
+
+When you see refusal reputation in the state summary:
+- Have NPCs comment on it naturally ("I heard you turned down the Syndicate. Twice.")
+- Faction agents may try harder — or give up entirely
+- Some opportunities only exist for those who've refused
+
+Use `refuse_enhancement` to log refusals. This is a hinge moment — refusal defines identity as much as acceptance.
+
 ## Dormant Threads
 
 When a player makes a choice with future implications:

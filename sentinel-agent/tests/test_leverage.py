@@ -482,3 +482,201 @@ class TestLeverageLogging:
         assert len(manager.current.history) > initial_count
         last_entry = manager.current.history[-1]
         assert "resist" in last_entry.summary.lower()
+
+
+class TestRefuseEnhancement:
+    """Test enhancement refusal and reputation system."""
+
+    def test_refuse_basic(self):
+        """Can refuse an enhancement offer."""
+        store = MemoryCampaignStore()
+        manager = CampaignManager(store)
+        manager.create_campaign("Test")
+
+        char = Character(name="Test", background=Background.OPERATIVE)
+        manager.add_character(char)
+
+        refusal = manager.refuse_enhancement(
+            character_id=char.id,
+            name="Neural Link",
+            source=FactionName.NEXUS,
+            benefit="Direct data access",
+            reason_refused="I won't let them in my head",
+        )
+
+        assert refusal.name == "Neural Link"
+        assert refusal.source == FactionName.NEXUS
+        assert refusal.reason_refused == "I won't let them in my head"
+        assert len(char.refused_enhancements) == 1
+
+    def test_refuse_logs_hinge(self):
+        """Refusal is logged as a hinge moment."""
+        store = MemoryCampaignStore()
+        manager = CampaignManager(store)
+        manager.create_campaign("Test")
+
+        char = Character(name="Test", background=Background.OPERATIVE)
+        manager.add_character(char)
+
+        manager.refuse_enhancement(
+            character_id=char.id,
+            name="Debt Chip",
+            source=FactionName.STEEL_SYNDICATE,
+            benefit="Credit line",
+            reason_refused="I won't be owned",
+        )
+
+        # Should have history entry
+        history = manager.current.history
+        assert len(history) >= 1
+        assert any("refused" in h.summary.lower() for h in history)
+
+
+class TestRefusalReputation:
+    """Test refusal reputation calculation."""
+
+    def test_no_refusals_no_title(self):
+        """No refusals means no title."""
+        store = MemoryCampaignStore()
+        manager = CampaignManager(store)
+        manager.create_campaign("Test")
+
+        char = Character(name="Test", background=Background.OPERATIVE)
+        manager.add_character(char)
+
+        rep = manager.get_refusal_reputation(char.id)
+        assert rep["title"] is None
+        assert rep["count"] == 0
+
+    def test_one_refusal_no_title(self):
+        """One refusal doesn't grant a title yet."""
+        store = MemoryCampaignStore()
+        manager = CampaignManager(store)
+        manager.create_campaign("Test")
+
+        char = Character(name="Test", background=Background.OPERATIVE)
+        manager.add_character(char)
+
+        manager.refuse_enhancement(
+            character_id=char.id,
+            name="Chip",
+            source=FactionName.NEXUS,
+            benefit="Power",
+            reason_refused="No thanks",
+        )
+
+        rep = manager.get_refusal_reputation(char.id)
+        assert rep["title"] is None
+        assert rep["count"] == 1
+        assert rep["narrative_hint"] is not None
+
+    def test_two_refusals_unbought(self):
+        """Two refusals grants 'The Unbought' title."""
+        store = MemoryCampaignStore()
+        manager = CampaignManager(store)
+        manager.create_campaign("Test")
+
+        char = Character(name="Test", background=Background.OPERATIVE)
+        manager.add_character(char)
+
+        manager.refuse_enhancement(
+            character_id=char.id,
+            name="Chip 1",
+            source=FactionName.NEXUS,
+            benefit="Power",
+            reason_refused="No",
+        )
+        manager.refuse_enhancement(
+            character_id=char.id,
+            name="Chip 2",
+            source=FactionName.STEEL_SYNDICATE,
+            benefit="Credit",
+            reason_refused="No",
+        )
+
+        rep = manager.get_refusal_reputation(char.id)
+        assert rep["title"] == "The Unbought"
+        assert rep["count"] == 2
+
+    def test_three_refusals_undaunted(self):
+        """Three refusals grants 'The Undaunted' title."""
+        store = MemoryCampaignStore()
+        manager = CampaignManager(store)
+        manager.create_campaign("Test")
+
+        char = Character(name="Test", background=Background.OPERATIVE)
+        manager.add_character(char)
+
+        for i, faction in enumerate([
+            FactionName.NEXUS,
+            FactionName.STEEL_SYNDICATE,
+            FactionName.CONVERGENCE,
+        ]):
+            manager.refuse_enhancement(
+                character_id=char.id,
+                name=f"Chip {i}",
+                source=faction,
+                benefit="Power",
+                reason_refused="No",
+            )
+
+        rep = manager.get_refusal_reputation(char.id)
+        assert rep["title"] == "The Undaunted"
+        assert rep["count"] == 3
+
+    def test_three_same_faction_defiant(self):
+        """Three refusals from same faction grants faction-specific title."""
+        store = MemoryCampaignStore()
+        manager = CampaignManager(store)
+        manager.create_campaign("Test")
+
+        char = Character(name="Test", background=Background.OPERATIVE)
+        manager.add_character(char)
+
+        for i in range(3):
+            manager.refuse_enhancement(
+                character_id=char.id,
+                name=f"Nexus Chip {i}",
+                source=FactionName.NEXUS,
+                benefit="Power",
+                reason_refused="Never Nexus",
+            )
+
+        rep = manager.get_refusal_reputation(char.id)
+        assert rep["title"] == "The Nexus Defiant"
+        assert rep["by_faction"]["Nexus"] == 3
+
+    def test_faction_breakdown(self):
+        """Reputation tracks refusals by faction."""
+        store = MemoryCampaignStore()
+        manager = CampaignManager(store)
+        manager.create_campaign("Test")
+
+        char = Character(name="Test", background=Background.OPERATIVE)
+        manager.add_character(char)
+
+        manager.refuse_enhancement(
+            character_id=char.id,
+            name="Chip 1",
+            source=FactionName.NEXUS,
+            benefit="Power",
+            reason_refused="No",
+        )
+        manager.refuse_enhancement(
+            character_id=char.id,
+            name="Chip 2",
+            source=FactionName.NEXUS,
+            benefit="More power",
+            reason_refused="Still no",
+        )
+        manager.refuse_enhancement(
+            character_id=char.id,
+            name="Chip 3",
+            source=FactionName.STEEL_SYNDICATE,
+            benefit="Credit",
+            reason_refused="No",
+        )
+
+        rep = manager.get_refusal_reputation(char.id)
+        assert rep["by_faction"]["Nexus"] == 2
+        assert rep["by_faction"]["Steel Syndicate"] == 1
