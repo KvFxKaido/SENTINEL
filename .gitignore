@@ -46,6 +46,10 @@ simulations/
 assets/
 *.json.bak
 
+# WIP / scratch files
+WARP.md
+sentinel-agent/scripts/generate_braille_portraits.py
+
 # Environment
 .env
 .env.local
