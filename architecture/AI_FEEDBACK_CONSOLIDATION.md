@@ -235,9 +235,9 @@ WebSocket frontend as migration path is a practical suggestion if we ever go web
 
 2. ~~How does faction corruption manifest in prompts?~~ → **Answered:** 11 faction linguistic patterns in gm_guidance.md
 
-3. Should "Push" be a player-initiated command, or GM-offered choice?
+3. ~~Should "Push" be a player-initiated command, or GM-offered choice?~~ → **Answered:** Player-initiated via `declare_push` tool. Player explicitly invites consequence for advantage.
 
-4. What does "tactical" mean for SENTINEL? (Social maneuvering? Resource positioning? Consequence management?)
+4. ~~What does "tactical" mean for SENTINEL?~~ → **Answered:** Resource positioning (social energy, faction standing, information) and consequence management (dormant threads, leverage). Combat is incidental; tactics are in relationship navigation.
 
 5. ~~What should players feel guilty about when a campaign ends?~~ → **Addressed:** Debrief now asks "What would enough look like?" — flips guilt into player-defined purpose
 
