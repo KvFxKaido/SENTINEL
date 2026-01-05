@@ -148,7 +148,7 @@ The agent auto-detects available backends (prefers local: LM Studio > Ollama).
 | Model | VRAM | Notes |
 |-------|------|-------|
 | **Gemma 3** | ~12GB (27B) | Good balance of size and quality |
-| **Qwen 2.5** | ~8GB (14B) | Excellent tool calling |
+| **Qwen 3** | ~8GB (14B) | Excellent tool calling |
 | **Llama 3.2** | ~5GB (8B) | Lightweight, decent roleplay |
 | **Ministral 3** | ~8GB (14B) | Strong instruction following |
 | **Claude Sonnet** | API | Best quality, requires API key |
