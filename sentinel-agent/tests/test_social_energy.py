@@ -183,3 +183,91 @@ class TestEnergyRestorersAndDrains:
 
         assert len(energy.drains) == 3
         assert "confrontation" in energy.drains
+
+
+class TestInvokeRestorer:
+    """Test the social energy carrot mechanic."""
+
+    def test_invoke_restorer_success(self, manager, campaign_with_character):
+        """Can spend energy for advantage when in element."""
+        char = manager.current.characters[0]
+        char.social_energy.current = 50
+        char.social_energy.restorers = ["solo technical work", "quiet spaces"]
+
+        result = manager.invoke_restorer(
+            character_id=char.id,
+            action="I focus on the technical problem alone",
+        )
+
+        assert result["success"] is True
+        assert result["advantage_granted"] is True
+        assert result["restorer_matched"] == "solo technical work"
+        assert result["old_energy"] == 50
+        assert result["new_energy"] == 40
+
+    def test_invoke_restorer_not_in_element(self, manager, campaign_with_character):
+        """Cannot invoke restorer for unrelated actions."""
+        char = manager.current.characters[0]
+        char.social_energy.current = 50
+        char.social_energy.restorers = ["solo technical work", "quiet spaces"]
+
+        result = manager.invoke_restorer(
+            character_id=char.id,
+            action="I negotiate with the crowd",
+        )
+
+        assert result["success"] is False
+        assert result["reason"] == "not_in_element"
+        assert "restorers" in result
+        # Energy should not be deducted
+        assert char.social_energy.current == 50
+
+    def test_invoke_restorer_insufficient_energy(self, manager, campaign_with_character):
+        """Cannot invoke restorer with insufficient energy."""
+        char = manager.current.characters[0]
+        char.social_energy.current = 5
+        char.social_energy.restorers = ["solo technical work"]
+
+        result = manager.invoke_restorer(
+            character_id=char.id,
+            action="I focus on the technical work",
+        )
+
+        assert result["success"] is False
+        assert result["reason"] == "insufficient_energy"
+        # Energy should not be deducted
+        assert char.social_energy.current == 5
+
+    def test_invoke_restorer_updates_state(self, manager, campaign_with_character):
+        """Invoking restorer actually updates character state."""
+        char = manager.current.characters[0]
+        char.social_energy.current = 60
+        char.social_energy.restorers = ["honest conversations"]
+
+        manager.invoke_restorer(
+            character_id=char.id,
+            action="I have an honest conversation with them",
+        )
+
+        # State should be persisted
+        assert char.social_energy.current == 50
+
+    def test_invoke_restorer_narrative_varies_by_state(self, manager, campaign_with_character):
+        """Narrative hint changes based on resulting energy state."""
+        char = manager.current.characters[0]
+        char.social_energy.restorers = ["quiet work"]
+
+        # Test centered result (51+)
+        char.social_energy.current = 70
+        result = manager.invoke_restorer(char.id, "quiet work alone")
+        assert "Advantage gained" in result["narrative_hint"]
+
+        # Test frayed result (26-50)
+        char.social_energy.current = 40
+        result = manager.invoke_restorer(char.id, "quiet work alone")
+        assert "edges are showing" in result["narrative_hint"]
+
+        # Test overloaded result (1-25)
+        char.social_energy.current = 20
+        result = manager.invoke_restorer(char.id, "quiet work alone")
+        assert "Running on fumes" in result["narrative_hint"]

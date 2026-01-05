@@ -41,6 +41,36 @@ Don't just say "you're at 35%." Describe the state:
 
 When players use Tactical Reset, honor the ritual in fiction. They step outside, they breathe, they ground—then they get their advantage.
 
+## Social Energy Carrot (Invoke Restorer)
+
+Social energy isn't just a penalty — it's a resource players can spend.
+
+When a character acts in their element (doing something that matches their restorers), they can spend 10% energy for advantage on the next roll. Use `invoke_restorer` to enable this.
+
+### When to Suggest It
+
+Look for moments when the player's action aligns with their restorers:
+- Restorer: "solo technical work" → Player says "I focus on cracking the encryption alone"
+- Restorer: "honest conversations" → Player says "I tell them the truth about what I saw"
+- Restorer: "quiet observation" → Player says "I hang back and watch how they interact"
+
+If the fit is clear, you might offer: *"This feels like your element. Want to push for advantage? (Costs 10% energy)"*
+
+### Narrative Framing
+
+The advantage represents a moment of clarity — leaning into what centers you:
+- "You're in your element here. The world narrows to just this."
+- "This is what you're good at. For a moment, everything else fades."
+- "You draw on something deeper. It costs you, but you're ready."
+
+### Restrictions
+
+- Only works if action matches a restorer (fuzzy match on keywords)
+- Requires at least 10% energy
+- Player must agree to the cost
+
+This is the "carrot" for social energy. Not just penalties for being drained, but strategic value in spending it wisely.
+
 ## Faction Pressure
 
 Factions act on their interests, not on player convenience.

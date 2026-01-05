@@ -307,6 +307,7 @@ class SentinelAgent:
             "resolve_leverage": self._handle_resolve_leverage,
             "log_avoidance": self._handle_log_avoidance,
             "surface_avoidance": self._handle_surface_avoidance,
+            "invoke_restorer": self._handle_invoke_restorer,
         }
 
         # Initialize client
@@ -606,6 +607,21 @@ class SentinelAgent:
                     "required": ["avoidance_id", "what_happened"],
                 },
             },
+            {
+                "name": "invoke_restorer",
+                "description": "Spend 10% social energy to gain advantage when acting in your element. Only works if the action matches one of the character's restorers.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "character_id": {"type": "string"},
+                        "action": {
+                            "type": "string",
+                            "description": "What the character is doing (must align with their restorers)",
+                        },
+                    },
+                    "required": ["character_id", "action"],
+                },
+            },
         ]
 
     # -------------------------------------------------------------------------
@@ -635,6 +651,13 @@ class SentinelAgent:
             "advantage_granted": result.advantage_granted,
             "narrative_hint": result.narrative_hint,
         }
+
+    def _handle_invoke_restorer(self, **kwargs) -> dict:
+        """Handle invoke_restorer tool call."""
+        return self.manager.invoke_restorer(
+            character_id=kwargs["character_id"],
+            action=kwargs["action"],
+        )
 
     def _handle_update_character(self, **kwargs) -> dict:
         """Handle update_character tool call."""
