@@ -253,32 +253,37 @@ Features:
 
 ---
 
-## Not Implemented
+### 17. Leverage Escalation UI ✅
+**Implemented:** `src/state/schema.py` → `LeverageDemand`, `src/state/manager.py`
 
-### 17. Leverage Escalation UI
-**Priority:** Medium
-**Effort:** 2-3 hours
-**Source:** `config.py` (council_gate)
-
-When factions call in enhancement debt:
+Rich demand modeling for when factions call in enhancement debt:
 
 ```python
 class LeverageDemand(BaseModel):
     faction: FactionName
-    enhancement: str           # Which enhancement grants them leverage
+    enhancement_id: str
+    enhancement_name: str      # Denormalized for display
     demand: str                # What they're asking
-    what_they_know: list[str]  # Info they have on player
-    deadline: str | None       # "Before the convoy leaves"
-    consequences: str          # What happens if refused
-
-def check_pending_leverage(campaign: Campaign) -> LeverageDemand | None:
-    """Check if any faction is calling in leverage."""
-    ...
+    threat_basis: list[str]    # Why leverage works (info OR functional)
+    deadline: str | None       # Human-facing ("Before the convoy leaves")
+    deadline_session: int | None  # Authoritative for overdue calc
+    consequences: list[str]    # What happens if ignored
+    weight: LeverageWeight
 ```
 
-**Use case:** Player accepted Nexus enhancement. Nexus calls in the debt: "We need you to delay the Ember shipment. We know about the Sector 7 incident."
+Features:
+- ✅ `get_pending_demands()` returns demands sorted by urgency (critical > urgent > pending)
+- ✅ `check_demand_deadlines()` returns overdue/urgent demands for GM attention
+- ✅ `escalate_demand()` with three escalation types: queue_consequence, increase_weight, faction_action
+- ✅ `[DEMAND DEADLINE ALERT]` injection in agent context
+- ✅ State summary shows pending demands with urgency markers
+- ✅ GM guidance in `prompts/gm_guidance.md`
+
+**Use case:** "We need you to delay the Ember shipment. We know about Sector 7. You have until the convoy leaves."
 
 ---
+
+## Not Implemented
 
 ### 18. Phase-Based GM Guidance
 **Priority:** Low
@@ -351,7 +356,7 @@ sovwren/                          sentinel-agent/
 2. ~~**NPC Memory Triggers** (#14)~~ ✅ Complete
 3. ~~**Faction MCP Server** (#15)~~ ✅ Complete
 4. ~~**Chronicle Logging Integration** (#16)~~ ✅ Complete
-5. **Leverage Escalation UI** (#17) - Makes enhancements consequential
+5. ~~**Leverage Escalation UI** (#17)~~ ✅ Complete
 6. **Phase-Based GM Guidance** (#18) - Polish
 7. **RAG for Campaign History** (#19) - Phase 3
 
