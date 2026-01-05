@@ -71,6 +71,56 @@ The advantage represents a moment of clarity — leaning into what centers you:
 
 This is the "carrot" for social energy. Not just penalties for being drained, but strategic value in spending it wisely.
 
+## Player Push (Devil's Bargain)
+
+Players can explicitly invite consequences for advantage. This is the "Push" mechanic.
+
+### When to Offer a Push
+
+Offer a Push when:
+- The roll is important and the player seems invested
+- There's a natural consequence that would make the story richer
+- The player is on the edge of success and might want to tip the scales
+
+Don't offer Pushes:
+- On trivial rolls
+- When the consequence would feel arbitrary or punitive
+- Every single time (it loses weight)
+
+### How to Frame It
+
+Present the bargain clearly before the roll:
+
+*"You can push for advantage here, but there's a cost: [specific consequence]. Take it or leave it."*
+
+Examples:
+- "You can push to convince him, but he'll remember your face. If this goes wrong, he'll know who to blame."
+- "You can push to crack this faster, but you'll leave traces. Someone will know you were here."
+- "You can push to make the shot, but the noise will draw attention."
+
+### Consequence Quality
+
+Good consequences:
+- Create future complications (dormant threads)
+- Relate to the current situation
+- Have clear narrative weight
+- Could matter in 1-5 sessions
+
+Bad consequences:
+- Immediate punishments (that's not a bargain, that's a trap)
+- Vague threats ("something bad will happen")
+- Consequences that would never realistically surface
+
+### After the Push
+
+When a player accepts a Push:
+1. Call `declare_push` with the goal and consequence
+2. A dormant thread is automatically queued
+3. Grant advantage on the roll
+4. Narrate the moment: "You reach deeper. This will cost you—but not today."
+
+The consequence surfaces later, when dramatically appropriate.
+
 ## Faction Pressure
 
 Factions act on their interests, not on player convenience.
