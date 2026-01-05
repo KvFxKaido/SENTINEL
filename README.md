@@ -145,11 +145,12 @@ The agent auto-detects available backends (prefers local: LM Studio > Ollama).
 
 ### Tested Models
 
-| Model | Size | Notes |
+| Model | VRAM | Notes |
 |-------|------|-------|
-| **Qwen 2.5** | 32B | Excellent tool calling, good roleplay |
-| **Mistral Large** | 123B | Strong narrative, needs beefy GPU |
-| **Llama 3.1** | 70B | Solid all-around |
+| **Gemma 3** | ~12GB (27B) | Good balance of size and quality |
+| **Qwen 2.5** | ~8GB (14B) | Excellent tool calling |
+| **Llama 3.2** | ~5GB (8B) | Lightweight, decent roleplay |
+| **Mistral Nemo** | ~8GB (12B) | Strong instruction following |
 | **Claude Sonnet** | API | Best quality, requires API key |
 
 CLI-only backends (Gemini, Codex) work but skip tool calling — dice rolls, faction tracking, and hinge detection happen manually.
