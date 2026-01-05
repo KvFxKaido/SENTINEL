@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from .schema import (
+    AvoidedSituation,
     Campaign,
     CampaignMeta,
     Character,
@@ -21,6 +22,7 @@ from .schema import (
     SessionState,
     SessionReflection,
     MissionOutcome,
+    ThreadSeverity,
 )
 from .store import CampaignStore, JsonCampaignStore
 from ..lore.chunker import extract_keywords
@@ -561,6 +563,114 @@ class CampaignManager:
         matches.sort(key=lambda m: (-m["score"], severity_order.get(m["severity"], 99)))
 
         return matches
+
+    # -------------------------------------------------------------------------
+    # Non-Action / Avoidance Tracking
+    # -------------------------------------------------------------------------
+
+    def log_avoidance(
+        self,
+        situation: str,
+        what_was_at_stake: str,
+        potential_consequence: str,
+        severity: str = "moderate",
+    ) -> AvoidedSituation:
+        """
+        Log when a player chooses not to engage with a significant situation.
+
+        Avoidance is content. The world doesn't wait.
+
+        Args:
+            situation: What was presented that they avoided
+            what_was_at_stake: What they were avoiding (confrontation, decision, etc.)
+            potential_consequence: What may happen because they didn't act
+            severity: minor/moderate/major
+        """
+        if not self.current:
+            raise ValueError("No campaign loaded")
+
+        avoided = AvoidedSituation(
+            situation=situation,
+            what_was_at_stake=what_was_at_stake,
+            potential_consequence=potential_consequence,
+            severity=ThreadSeverity(severity),
+            created_session=self.current.meta.session_count,
+        )
+
+        self.current.avoided_situations.append(avoided)
+
+        # Log to history as a hinge (non-action is a choice)
+        self.log_history(
+            type=HistoryType.HINGE,
+            summary=f"AVOIDED: {situation}",
+            is_permanent=False,  # Not permanent until consequences surface
+        )
+
+        self.save_campaign()
+        return avoided
+
+    def surface_avoidance(
+        self,
+        avoidance_id: str,
+        what_happened: str,
+    ) -> AvoidedSituation | None:
+        """
+        Mark an avoidance as surfaced when its consequences come due.
+
+        Args:
+            avoidance_id: ID of the avoided situation
+            what_happened: Description of how the consequence manifested
+        """
+        if not self.current:
+            return None
+
+        for avoided in self.current.avoided_situations:
+            if avoided.id == avoidance_id and not avoided.surfaced:
+                avoided.surfaced = True
+                avoided.surfaced_session = self.current.meta.session_count
+
+                # Log the consequence
+                self.log_history(
+                    type=HistoryType.CONSEQUENCE,
+                    summary=f"AVOIDANCE CONSEQUENCE: {what_happened}",
+                    is_permanent=avoided.severity == ThreadSeverity.MAJOR,
+                )
+
+                self.save_campaign()
+                return avoided
+
+        return None
+
+    def get_pending_avoidances(self) -> list[dict]:
+        """
+        Get all unsurfaced avoided situations for GM context.
+
+        Returns avoidances sorted by severity and age.
+        """
+        if not self.current:
+            return []
+
+        pending = []
+        current_session = self.current.meta.session_count
+
+        for avoided in self.current.avoided_situations:
+            if not avoided.surfaced:
+                age = current_session - avoided.created_session
+                pending.append({
+                    "id": avoided.id,
+                    "situation": avoided.situation,
+                    "what_was_at_stake": avoided.what_was_at_stake,
+                    "potential_consequence": avoided.potential_consequence,
+                    "severity": avoided.severity.value,
+                    "age_sessions": age,
+                    "overdue": age >= 3,  # Hint that it's been a while
+                })
+
+        # Sort by severity (major first) then age (oldest first)
+        severity_order = {"major": 0, "moderate": 1, "minor": 2}
+        pending.sort(key=lambda a: (severity_order.get(a["severity"], 99), -a["age_sessions"]))
+
+        return pending
 
     # -------------------------------------------------------------------------
     # Enhancement Leverage

@@ -328,6 +328,22 @@ class DormantThread(BaseModel):
     trigger_keywords: list[str] = Field(default_factory=list)  # Extracted for matching
 
 
+class AvoidedSituation(BaseModel):
+    """
+    Non-action as hinge — what they chose NOT to engage with.
+
+    Avoidance is content. The world doesn't wait.
+    """
+    id: str = Field(default_factory=generate_id)
+    situation: str  # What was presented that they avoided
+    what_was_at_stake: str  # What they were avoiding (confrontation, decision, etc.)
+    potential_consequence: str  # What may happen because they didn't act
+    severity: ThreadSeverity = ThreadSeverity.MODERATE
+    created_session: int = 0
+    surfaced: bool = False  # Has the consequence already happened?
+    surfaced_session: int | None = None  # When it came back
+
+
 class MissionBriefing(BaseModel):
     """Mission setup with explicit dilemma framing."""
     situation: str
@@ -498,6 +514,7 @@ class Campaign(BaseModel):
     npcs: NPCRegistry = Field(default_factory=NPCRegistry)
     history: list[HistoryEntry] = Field(default_factory=list)
     dormant_threads: list[DormantThread] = Field(default_factory=list)
+    avoided_situations: list[AvoidedSituation] = Field(default_factory=list)
     session: SessionState | None = None
 
     def save_checkpoint(self) -> None:
