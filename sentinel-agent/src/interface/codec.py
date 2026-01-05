@@ -3,11 +3,20 @@ MGS-style codec frame renderer for NPC portraits.
 
 Displays character portraits in a bordered frame with faction styling,
 disposition indicators, and optional visual effects.
+
+Supports both ASCII art (simple, universal) and Braille art (high-res, requires Pillow).
 """
 
 from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
+
+# Try to import braille support
+try:
+    from src.interface.braille import generate_portrait as generate_braille_portrait
+    BRAILLE_AVAILABLE = True
+except ImportError:
+    BRAILLE_AVAILABLE = False
 
 
 class Disposition(Enum):
@@ -79,6 +88,15 @@ DISPOSITION_ICONS = {
     Disposition.NEUTRAL: "●",
     Disposition.WARM: "♦",
     Disposition.LOYAL: "★",
+}
+
+# Map disposition to braille expression
+DISPOSITION_TO_EXPRESSION = {
+    Disposition.HOSTILE: "hostile",
+    Disposition.WARY: "wary",
+    Disposition.NEUTRAL: "neutral",
+    Disposition.WARM: "friendly",
+    Disposition.LOYAL: "friendly",
 }
 
 
@@ -176,6 +194,7 @@ def render_codec_frame(
     npc: NPCDisplay,
     scanlines: bool = True,
     width: int = 32,
+    use_braille: bool = False,
 ) -> str:
     """
     Render an MGS-style codec frame for an NPC.
@@ -184,13 +203,22 @@ def render_codec_frame(
         npc: The NPC to display
         scanlines: Whether to add scanline effect
         width: Frame width
+        use_braille: Use high-res braille portraits (requires Pillow)
 
     Returns:
         Rendered frame as a string
     """
     faction_color = get_faction_color(npc.faction)
     disp_color, disp_icon = get_disposition_display(npc.disposition)
-    portrait = PORTRAITS.get(npc.archetype, PORTRAITS["default"])
+
+    # Get portrait - braille or ASCII
+    if use_braille and BRAILLE_AVAILABLE:
+        expression = DISPOSITION_TO_EXPRESSION.get(npc.disposition, "neutral")
+        portrait_width = width - 6  # Leave room for borders and padding
+        braille_art = generate_braille_portrait(npc.archetype, expression, portrait_width)
+        portrait = braille_art.split('\n')
+    else:
+        portrait = PORTRAITS.get(npc.archetype, PORTRAITS["default"])
 
     lines = []
     reset = Colors.RESET
@@ -212,17 +240,20 @@ def render_codec_frame(
     lines.append(f"{faction_color}╟{'─' * (width - 2)}╢{reset}")
 
     # Portrait area
-    portrait_width = 13  # Width of portrait art
-    portrait_padding = (width - 2 - portrait_width) // 2
-
     for i, portrait_line in enumerate(portrait):
+        # Calculate actual width of this line (handle variable-width braille)
+        line_len = len(portrait_line)
+        total_padding = width - 2 - line_len
+        left_pad = max(0, total_padding // 2)
+        right_pad = max(0, total_padding - left_pad)
+
         # Add scanline effect on alternating lines
         if scanlines and i % 2 == 1:
             styled_portrait = f"{Colors.SCANLINE}{portrait_line}{reset}"
         else:
             styled_portrait = f"{faction_color}{portrait_line}{reset}"
 
-        line = f"{faction_color}║{reset}{' ' * portrait_padding}{styled_portrait}{' ' * portrait_padding}{faction_color}║{reset}"
+        line = f"{faction_color}║{reset}{' ' * left_pad}{styled_portrait}{' ' * right_pad}{faction_color}║{reset}"
         lines.append(line)
 
     # Separator
@@ -271,7 +302,11 @@ def demo():
     if sys.platform == "win32":
         sys.stdout.reconfigure(encoding='utf-8')
 
-    # Show calling animation
+    print("\n" + "=" * 50)
+    print("  SENTINEL CODEC - NPC Portrait Demo")
+    print("=" * 50)
+
+    # Sample NPC
     npc = NPCDisplay(
         name="Kira",
         faction="ember_colonies",
@@ -280,49 +315,57 @@ def demo():
         title="Ember Scout, Eastern Sector",
     )
 
-    print("\n" + "=" * 40)
-    print("  SENTINEL CODEC - NPC Portrait Demo")
-    print("=" * 40 + "\n")
+    # ASCII version
+    print("\n--- ASCII Mode ---\n")
+    print(render_codec_frame(npc, width=32, use_braille=False))
 
-    # Show the codec frame
-    print(render_codec_frame(npc))
-    print()
+    # Braille version (if available)
+    if BRAILLE_AVAILABLE:
+        print("\n--- Braille Mode ---\n")
+        print(render_codec_frame(npc, width=36, use_braille=True))
+    else:
+        print("\n(Braille mode requires Pillow: pip install Pillow)")
 
     # Show different dispositions
     print("\n--- Disposition Examples ---\n")
 
     for disposition in Disposition:
-        test_npc = NPCDisplay(
-            name="Test",
-            faction="nexus",
-            disposition=disposition,
-            archetype="default",
-        )
         disp_color, disp_icon = get_disposition_display(disposition)
         print(f"{disp_color}[{disposition.value.upper():^8}] {disp_icon}{Colors.RESET}")
 
-    # Show different archetypes
-    print("\n--- Archetype Portraits ---\n")
+    # Show different archetypes (ASCII)
+    print("\n--- Faction Examples (ASCII) ---\n")
 
     archetypes = [
-        ("Kira", "ember", "scout", "Scout"),
-        ("Marcus", "steel_syndicate", "merchant", "Fence"),
-        ("The Oracle", "nexus", "mystic", "Seer"),
-        ("Vex", "ghost_networks", "hacker", "Infiltrator"),
-        ("Commander Thresh", "covenant", "soldier", "Enforcer"),
-        ("Elder Moss", "cultivators", "elder", "Grove Keeper"),
+        ("Kira", "ember", "scout", "Scout", Disposition.WARM),
+        ("Marcus", "steel_syndicate", "merchant", "Fence", Disposition.WARY),
+        ("Vex", "ghost_networks", "hacker", "Infiltrator", Disposition.NEUTRAL),
     ]
 
-    for name, faction, archetype, title in archetypes:
+    for name, faction, archetype, title, disp in archetypes:
         test_npc = NPCDisplay(
             name=name,
             faction=faction,
-            disposition=Disposition.NEUTRAL,
+            disposition=disp,
             archetype=archetype,
             title=title,
         )
         print(render_codec_frame(test_npc, width=32))
         print()
+
+    # Show braille archetypes if available
+    if BRAILLE_AVAILABLE:
+        print("\n--- Faction Examples (Braille) ---\n")
+        for name, faction, archetype, title, disp in archetypes:
+            test_npc = NPCDisplay(
+                name=name,
+                faction=faction,
+                disposition=disp,
+                archetype=archetype,
+                title=title,
+            )
+            print(render_codec_frame(test_npc, width=36, use_braille=True))
+            print()
 
 
 if __name__ == "__main__":
