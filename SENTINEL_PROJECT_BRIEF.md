@@ -35,7 +35,7 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 - **Context meter** — visual indicator of conversation depth
 - **Faction MCP server** — external faction lore + campaign tracking
 - **Multi-backend LLM** — LM Studio, Ollama, Claude, OpenRouter, Gemini CLI, Codex CLI
-- **Test suite** — 124 tests covering core mechanics
+- **Test suite** — 164 tests covering core mechanics
 - **CI/CD** — GitHub Actions (Python 3.10, 3.11, 3.12)
 - **Dormant thread surfacing** — keyword matching alerts GM when threads may trigger
 - **Enhancement leverage** — factions call in favors with weight escalation (light/medium/heavy)
@@ -47,6 +47,9 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 - **Config persistence** — remembers last used backend and model across sessions
 - **Social energy carrot** — spend 10% energy for advantage when acting in your element (matches restorers)
 - **Player Push mechanic** — explicitly invite consequences for advantage (Devil's Bargain), queues dormant thread
+- **Campaign history search** — MCP tools for searching history, NPC timelines, session summaries
+- **Banner UX toggle** — `/banner` command to enable/disable startup animation (persists)
+- **Lore faction filtering** — `/lore <faction>` filters by perspective, shows source bias
 
 ### Not Yet Built
 - Multi-character party support
@@ -96,11 +99,11 @@ SENTINEL/
 │   │   ├── gm_guidance.md        # Narrative style + choice generation
 │   │   └── advisors/             # Council faction perspectives
 │   └── campaigns/                # JSON save files
-└── sentinel-mcp/                 # Faction MCP Server
-    └── src/sentinel_factions/
+└── sentinel-campaign/            # Campaign MCP Server
+    └── src/sentinel_campaign/
         ├── server.py             # MCP entry point
-        ├── resources/            # Lore, NPCs, operations
-        ├── tools/                # Standing, interactions, intel
+        ├── resources/            # Lore, NPCs, operations, history
+        ├── tools/                # Standing, interactions, intel, history search
         └── data/factions/        # 11 faction JSON files
 ```
 
@@ -125,7 +128,8 @@ SENTINEL/
 | `/consult <q>` | Ask faction advisors for competing perspectives |
 | `/debrief` | End session with reflection prompts |
 | `/model` | List/switch LM Studio models |
-| `/lore` | Show lore status, test retrieval |
+| `/banner` | Toggle banner animation on startup |
+| `/lore [faction]` | Show lore status, filter by faction perspective |
 | `/roll <skill> <dc>` | Roll a skill check |
 | `/save` | Save current campaign |
 | `/load` | Load an existing campaign |
@@ -265,15 +269,15 @@ Includes:
 - Cipher case file (example timeline)
 - RESET mission module (template)
 
-Test with: `/lore sentinel` or `/lore awakening`
+Test with: `/lore sentinel` or `/lore lattice infrastructure` (filters by Lattice perspective)
 
 ---
 
-## Faction MCP Server
+## Campaign MCP Server
 
-External MCP server providing faction knowledge and campaign tracking:
+External MCP server providing faction knowledge, campaign tracking, and history search:
 
-### Resources
+### Faction Resources
 | URI | Returns |
 |-----|---------|
 | `faction://{id}/lore` | History, ideology, structure |
@@ -281,7 +285,14 @@ External MCP server providing faction knowledge and campaign tracking:
 | `faction://{id}/operations` | Goals, methods, tensions |
 | `faction://relationships` | Inter-faction dynamics |
 
-### Tools
+### Campaign History Resources
+| URI | Returns |
+|-----|---------|
+| `campaign://{id}/sessions` | Session summaries grouped by session |
+| `campaign://{id}/hinges` | All hinge moments in chronological order |
+| `campaign://{id}/npc/{name}` | All history related to a specific NPC |
+
+### Faction Tools
 | Tool | Purpose |
 |------|---------|
 | `get_faction_standing` | Player's standing + history |
@@ -289,6 +300,13 @@ External MCP server providing faction knowledge and campaign tracking:
 | `log_faction_event` | Record faction-related event |
 | `get_faction_intel` | What does faction know about topic? |
 | `query_faction_npcs` | NPCs by faction in campaign |
+
+### History Tools
+| Tool | Purpose |
+|------|---------|
+| `search_history` | Keyword search with filters (NPC, faction, type, session) |
+| `get_npc_timeline` | Chronological events involving an NPC |
+| `get_session_summary` | Condensed summary of a specific session |
 
 ### Intel Domains
 Each faction knows different things:
@@ -326,7 +344,7 @@ Applied throughout CLI: banners, panels, status displays, choice blocks.
 - **LM Studio** — Local LLM (free, OpenAI-compatible API at port 1234)
 - **Ollama** — Local LLM alternative (OpenAI-compatible API at port 11434)
 - **Anthropic SDK** — Claude API (optional)
-- **pytest** — Test framework with 133 tests
+- **pytest** — Test framework with 164 tests
 - **GitHub Actions** — CI/CD pipeline
 
 No heavy ML dependencies — lore retrieval uses keyword matching.
@@ -372,7 +390,7 @@ No heavy ML dependencies — lore retrieval uses keyword matching.
 - Architecture doc: `architecture/AGENT_ARCHITECTURE.md`
 - MCP design: `architecture/MCP_FACTIONS.md`
 - Dev guide: `sentinel-agent/CLAUDE.md`
-- MCP server: `sentinel-mcp/README.md`
+- MCP server: `sentinel-campaign/README.md`
 
 ---
 
