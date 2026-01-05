@@ -193,7 +193,7 @@ WebSocket frontend as migration path is a practical suggestion if we ever go web
 | ~~Phase-based GM guidance~~ | ChatGPT, Deepseek | ✅ Done | 6 phase prompts + auto-injection |
 | Non-action as hinge | Infinite Imagination | Medium | Track disengagement, surface consequences |
 | ~~Refusal grants title/reputation~~ | Kimi | ✅ Done | Titles + GM guidance for NPC reactions |
-| Faction narrative corruption | Infinite Imagination | Low | GM guidance update |
+| ~~Faction narrative corruption~~ | Infinite Imagination | ✅ Done | 11 faction linguistic patterns + examples |
 | Debrief enhancement | Infinite Imagination | Low | Add "What would enough look like?" |
 
 ### Worth Considering (Good Ideas, Lower Priority)

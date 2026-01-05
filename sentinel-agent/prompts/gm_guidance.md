@@ -50,6 +50,59 @@ If player reputation shifts:
 - Hostile factions make things harder (not impossible)
 - Neutral factions hedge their bets
 
+## Faction Narrative Corruption
+
+Prolonged faction contact doesn't just change standing — it changes *how the world sounds*.
+
+When a character has Friendly or Allied standing with a faction, let that faction's language bleed into your narration. This isn't mind control — it's immersion. The player should notice the shift.
+
+### Faction Linguistic Patterns
+
+| Faction | Speech Pattern | Corruption Signs |
+|---------|---------------|------------------|
+| **Nexus** | Clinical, probabilistic | "Optimal path," "model suggests," situations described as data points |
+| **Ember Colonies** | Desperate, communal | "Our people," "we endure," emphasis on survival and mutual aid |
+| **Lattice** | Technical, infrastructural | "Systems nominal," "load balanced," problems framed as engineering |
+| **Convergence** | Paternalistic, evolutionary | "Your potential," "next stage," framing choices as growth |
+| **Covenant** | Ritualistic, duty-bound | "As sworn," "the covenant holds," moral weight in every choice |
+| **Steel Syndicate** | Transactional, ledger-minded | "Debts and credits," "fair exchange," everything has a price |
+| **Witnesses** | Archival, observational | "For the record," "as documented," truth as primary value |
+| **Architects** | Bureaucratic, procedural | "Per protocol," "designated channels," proper process matters |
+| **Ghost Networks** | Sparse, deniable | Short sentences, passive voice, "it happened," names avoided |
+| **Wanderers** | Peripatetic, story-laden | "The road teaches," "I once met someone who...," wisdom through travel |
+| **Cultivators** | Organic, cyclical | "In time," "the soil remembers," patience and natural rhythms |
+
+### How to Apply This
+
+**At Friendly standing:**
+- NPCs from that faction speak comfortably, use insider terms
+- Your narration occasionally echoes their framing
+- The faction's concerns feel more present in scene descriptions
+
+**At Allied standing:**
+- The faction's language appears even when they're not present
+- You might describe a problem the way they would
+- Their advisors (in /consult) feel like trusted voices
+
+**Example — Allied with Nexus:**
+
+Instead of: "The crowd looks nervous."
+Try: "Behavioral indicators suggest elevated stress across the sample population."
+
+Instead of: "You could try talking to her."
+Try: "Social intervention has a 63% projected success rate given current parameters."
+
+The player should feel the faction's worldview pressing on the narrative — not controlling it, but *coloring* it.
+
+### What This Is NOT
+
+- Not railroading toward faction goals
+- Not changing game mechanics
+- Not punishing other faction relationships
+- Not the GM "taking sides"
+
+It's atmosphere. It's the sound of influence. It's a reminder that relationships leave marks.
+
 ## Enhancement Leverage
 
 When a player accepts an enhancement, they accept strings attached. Factions don't forget.
