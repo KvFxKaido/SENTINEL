@@ -283,26 +283,31 @@ Features:
 
 ---
 
-## Not Implemented
+### 18. Phase-Based GM Guidance ✅
+**Implemented:** `src/agent.py` → `PromptLoader`, `prompts/phases/`
 
-### 18. Phase-Based GM Guidance
-**Priority:** Low
-**Effort:** 1-2 hours
-
-Inject different guidance based on mission phase:
+Phase-specific GM guidance injected based on current mission phase:
 
 ```
-prompts/
-├── phases/
-│   ├── briefing.md    # "Present competing truths, don't resolve them"
-│   ├── planning.md    # "Let players debate, note their assumptions"
-│   ├── execution.md   # "Complications arise from their choices"
-│   └── resolution.md  # "Show consequences blooming"
+prompts/phases/
+├── briefing.md    # Present situation, competing truths
+├── planning.md    # Support player strategy, don't lead
+├── execution.md   # Complications arise from choices
+├── resolution.md  # Land consequences, don't rush
+├── debrief.md     # Four questions, close with intention
+└── between.md     # Downtime is character time
 ```
 
-Modify `PromptLoader.assemble_system_prompt()` to include phase-specific guidance.
+Features:
+- ✅ `PromptLoader.load_phase()` with hot-reload caching
+- ✅ `assemble_system_prompt()` includes phase guidance when session active
+- ✅ `set_phase` tool for GM to advance mission phase
+- ✅ Phase transitions logged to history
+- ✅ Narrative hints for each phase transition
 
 ---
+
+## Not Implemented
 
 ### 19. RAG for Campaign History
 **Priority:** Low (Phase 3)
@@ -357,7 +362,7 @@ sovwren/                          sentinel-agent/
 3. ~~**Faction MCP Server** (#15)~~ ✅ Complete
 4. ~~**Chronicle Logging Integration** (#16)~~ ✅ Complete
 5. ~~**Leverage Escalation UI** (#17)~~ ✅ Complete
-6. **Phase-Based GM Guidance** (#18) - Polish
+6. ~~**Phase-Based GM Guidance** (#18)~~ ✅ Complete
 7. **RAG for Campaign History** (#19) - Phase 3
 
 ---
