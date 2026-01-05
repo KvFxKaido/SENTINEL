@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions & Discussion
+    url: https://github.com/KvFxKaido/SENTINEL/discussions
+    about: Ask questions or start a discussion (requires Discussions enabled)
+  - name: Documentation
+    url: https://github.com/KvFxKaido/SENTINEL#readme
+    about: Check the README and docs before filing an issue
