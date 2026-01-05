@@ -46,6 +46,7 @@ COMMAND_META = {
     "/status": "Show status",
     "/backend": "Switch LLM backend",
     "/model": "Switch model",
+    "/banner": "Toggle banner animation",
     "/lore": "Search lore",
     "/roll": "Roll dice",
     "/help": "Show help",
@@ -75,21 +76,26 @@ def main():
     )
     args = parser.parse_args()
 
-    # Show banner (with or without animation)
-    show_banner(animate=not args.no_animate)
-
-    # Initialize
+    # Initialize paths
     base_dir = Path(__file__).parent.parent.parent.parent  # SENTINEL root
     prompts_dir = Path(__file__).parent.parent.parent / "prompts"
     campaigns_dir = Path("campaigns")
     lore_dir = base_dir / "lore"
 
-    manager = CampaignManager(campaigns_dir)
-
-    # Load saved config (backend, model)
+    # Load saved config (backend, model, banner preference)
     config = load_config(campaigns_dir)
     saved_backend = config.get("backend", "auto")
     saved_model = config.get("model")
+    animate_banner = config.get("animate_banner", True)
+
+    # Command line --no-animate overrides config
+    if args.no_animate:
+        animate_banner = False
+
+    # Show banner
+    show_banner(animate=animate_banner)
+
+    manager = CampaignManager(campaigns_dir)
 
     agent = SentinelAgent(
         manager,
