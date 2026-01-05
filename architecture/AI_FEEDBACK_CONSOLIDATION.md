@@ -15,7 +15,7 @@ Before evaluating suggestions, here's what SENTINEL already has:
 | Hinge detection | ✅ Built | Pattern matching in player input, logging |
 | NPC memory triggers | ✅ Built | Tag-based reactions, disposition shifts |
 | Council system | ✅ Built | Parallel advisor queries with faction voices |
-| Test coverage | ✅ 149 tests | Core mechanics covered |
+| Test coverage | ✅ 164 tests | Core mechanics covered |
 
 ---
 
@@ -204,7 +204,7 @@ WebSocket frontend as migration path is a practical suggestion if we ever go web
 | ~~Player "Push" mechanic~~ | ChatGPT | ✅ Done | `declare_push` tool + GM guidance for Devil's Bargain |
 | ~~Banner UX toggle~~ | Kimi | ✅ Done | `/banner` command + persistent config |
 | ~~Lore faction filtering~~ | Kimi | ✅ Done | `/lore <faction>` filters + shows "Perspective:" labels |
-| Council hallucination test | Kimi | Low | Assert advisors don't give identical answers |
+| ~~Council hallucination test~~ | Kimi | ✅ Done | 15 tests in `test_council.py` + diversity utilities |
 
 ### Rejected or Deferred
 
