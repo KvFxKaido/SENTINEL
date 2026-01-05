@@ -35,12 +35,12 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 - **Context meter** — visual indicator of conversation depth
 - **Faction MCP server** — external faction lore + campaign tracking
 - **Multi-backend LLM** — LM Studio, Ollama, Claude, OpenRouter, Gemini CLI, Codex CLI
-- **Test suite** — 88 tests covering core mechanics
+- **Test suite** — 107 tests covering core mechanics
 - **CI/CD** — GitHub Actions (Python 3.10, 3.11, 3.12)
 - **Dormant thread surfacing** — keyword matching alerts GM when threads may trigger
+- **Enhancement leverage** — factions call in favors with weight escalation (light/medium/heavy)
 
 ### Not Yet Built
-- Enhancement leverage system (faction callbacks)
 - Phase-based GM guidance (different prompts per mission phase)
 - Multi-character party support
 - Web/mobile interface
@@ -319,7 +319,7 @@ Applied throughout CLI: banners, panels, status displays, choice blocks.
 - **LM Studio** — Local LLM (free, OpenAI-compatible API at port 1234)
 - **Ollama** — Local LLM alternative (OpenAI-compatible API at port 11434)
 - **Anthropic SDK** — Claude API (optional)
-- **pytest** — Test framework with 77 tests
+- **pytest** — Test framework with 107 tests
 - **GitHub Actions** — CI/CD pipeline
 
 No heavy ML dependencies — lore retrieval uses keyword matching.
@@ -328,13 +328,11 @@ No heavy ML dependencies — lore retrieval uses keyword matching.
 
 ## Open Questions / Areas for Feedback
 
-1. **Enhancement leverage** — When should factions call in favors? Random? Story-triggered? Player-initiated?
+1. **Multiplayer** — How would multiple players work? Turn-based? Simultaneous input?
 
-2. **Dormant thread surfacing** — Threads are queued but never triggered. How should the GM know when to surface them?
+2. **Web interface** — Worth building, or is CLI sufficient for the audience?
 
-3. **Multiplayer** — How would multiple players work? Turn-based? Simultaneous input?
-
-4. **Web interface** — Worth building, or is CLI sufficient for the audience?
+3. **Phase-based prompts** — Should the GM get different guidance during briefing vs execution vs debrief?
 
 ---
 

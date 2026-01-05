@@ -87,6 +87,13 @@ class ThreadSeverity(str, Enum):
     MAJOR = "major"
 
 
+class LeverageWeight(str, Enum):
+    """How heavily a faction leans on this leverage."""
+    LIGHT = "light"      # Subtle reminders, minor asks
+    MEDIUM = "medium"    # Direct asks, moderate pressure
+    HEAVY = "heavy"      # Ultimatums, significant consequences
+
+
 # -----------------------------------------------------------------------------
 # Core Models
 # -----------------------------------------------------------------------------
@@ -145,6 +152,10 @@ class Leverage(BaseModel):
     pending_obligation: str | None = None
     compliance_count: int = 0
     resistance_count: int = 0
+    # Escalation tracking
+    weight: LeverageWeight = LeverageWeight.LIGHT
+    hint_count: int = 0  # How many hints dropped this cycle
+    last_hint_session: int | None = None  # Avoid hint spam
 
 
 class Enhancement(BaseModel):
@@ -155,6 +166,9 @@ class Enhancement(BaseModel):
     benefit: str
     cost: str
     leverage: Leverage = Field(default_factory=Leverage)
+    # Tracking for leverage hints
+    granted_session: int = 0
+    leverage_keywords: list[str] = Field(default_factory=list)
 
 
 class EstablishingIncident(BaseModel):

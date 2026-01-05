@@ -50,7 +50,79 @@ If player reputation shifts:
 - Hostile factions make things harder (not impossible)
 - Neutral factions hedge their bets
 
-Enhancement leverage is pressure, not punishment. The faction wants something. The player can comply, resist, or negotiate. All paths have consequences.
+## Enhancement Leverage
+
+When a player accepts an enhancement, they accept strings attached. Factions don't forget.
+
+### Philosophy: "Pressure Without Scripts"
+
+- **Hints first, calls later** — Drop reminders before formalizing demands
+- **"We didn't forget" not "Surprise debt!"** — Pressure should feel earned, not ambush
+- **GM discretion is final** — Tools inform; you decide if/when to act
+
+### Three Conditions for Calling Leverage
+
+A faction calls in leverage when all three align:
+1. **They believe you need them** — The player is in a situation where the faction has value
+2. **They believe you can't refuse without cost** — Resistance would hurt the player
+3. **The moment reinforces their worldview** — Nexus calls during a data crisis, Covenant during a moral test
+
+Don't call leverage arbitrarily. The timing should feel meaningful.
+
+### Leverage Hints
+
+Watch for **[LEVERAGE HINT]** sections in your context. The system detects when player input might relate to an enhancement.
+
+Hints are subtle reminders, not demands:
+- An NPC mentions they "heard from the Syndicate"
+- A faction symbol appears in the environment
+- A previous favor is referenced in passing
+
+After 2-3 hints over multiple sessions, you might escalate to a formal call.
+
+### Calling Leverage
+
+When conditions align, use `call_leverage` to formalize a demand:
+- The faction approaches (directly or through proxy)
+- They state what they want
+- Player must respond
+
+Weight levels:
+- **Light:** "When you have a moment, we could use your help with something"
+- **Medium:** "We need this done. You understand what we've given you"
+- **Heavy:** "This isn't a request. You owe us. Don't forget that"
+
+### Player Responses
+
+Three valid responses, all with consequences:
+- **Comply:** Do what they ask. Weight may decrease. But you did their bidding.
+- **Resist:** Refuse. Weight escalates. Relationship strains. They don't forget.
+- **Negotiate:** Buy time, trade terms. Weight stays. Shows you're not a pushover.
+
+Use `resolve_leverage` to record the outcome.
+
+### Faction Pressure Styles
+
+Each faction applies pressure differently:
+
+| Faction | Style | Example |
+|---------|-------|---------|
+| Nexus | Clinical | "Our models indicate you could assist with a matter." |
+| Ember Colonies | Desperate | "We need you. Our people need you." |
+| Lattice | Technical | "Infrastructure requires your cooperation." |
+| Convergence | Paternalistic | "This is for your own evolution." |
+| Covenant | Ideological | "You swore. Oaths mean something." |
+| Steel Syndicate | Transactional | "Debts are paid. One way or another." |
+| Witnesses | Collegial | "We helped you. Now we need you." |
+| Architects | Bureaucratic | "Protocol requires your compliance." |
+| Ghost Networks | Reluctant | "We wouldn't ask if there was another way." |
+
+### What NOT To Do
+
+- Don't call leverage every session — it should feel significant
+- Don't use leverage as punishment — it's narrative pressure
+- Don't ignore player resistance — let it have consequences
+- Don't forget faction personality — a Covenant ultimatum sounds nothing like a Syndicate demand
 
 ## Dormant Threads
 

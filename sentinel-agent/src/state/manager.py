@@ -563,6 +563,242 @@ class CampaignManager:
         return matches
 
     # -------------------------------------------------------------------------
+    # Enhancement Leverage
+    # -------------------------------------------------------------------------
+
+    # Factions that can grant enhancements (Wanderers and Cultivators don't)
+    ENHANCEMENT_FACTIONS = [
+        FactionName.NEXUS,
+        FactionName.EMBER_COLONIES,
+        FactionName.LATTICE,
+        FactionName.CONVERGENCE,
+        FactionName.COVENANT,
+        FactionName.STEEL_SYNDICATE,
+        FactionName.WITNESSES,
+        FactionName.ARCHITECTS,
+        FactionName.GHOST_NETWORKS,
+    ]
+
+    def grant_enhancement(
+        self,
+        character_id: str,
+        name: str,
+        source: FactionName,
+        benefit: str,
+        cost: str,
+    ) -> "Enhancement":
+        """
+        Grant an enhancement to a character.
+
+        Sets up leverage tracking with session info.
+        Raises ValueError if faction doesn't offer enhancements.
+        """
+        from .schema import Enhancement
+
+        if not self.current:
+            raise ValueError("No campaign loaded")
+
+        if source not in self.ENHANCEMENT_FACTIONS:
+            raise ValueError(
+                f"{source.value} does not offer enhancements. "
+                "Wanderers and Cultivators resist permanent ties."
+            )
+
+        char = self.get_character(character_id)
+        if not char:
+            raise ValueError(f"Character not found: {character_id}")
+
+        # Extract keywords for hint matching
+        keywords = list(extract_keywords(
+            f"{name} {benefit} {source.value}"
+        ))[:8]
+
+        enhancement = Enhancement(
+            name=name,
+            source=source,
+            benefit=benefit,
+            cost=cost,
+            granted_session=self.current.meta.session_count,
+            leverage_keywords=keywords,
+        )
+
+        char.enhancements.append(enhancement)
+
+        # Log as hinge moment (enhancement acceptance is irreversible)
+        self.log_history(
+            type=HistoryType.HINGE,
+            summary=f"Accepted {source.value} enhancement: {name}",
+            is_permanent=True,
+        )
+
+        self.save_campaign()
+        return enhancement
+
+    def call_leverage(
+        self,
+        character_id: str,
+        enhancement_id: str,
+        demand: str,
+        weight: str = "medium",
+    ) -> dict:
+        """
+        A faction calls in leverage on an enhancement.
+
+        Records pending obligation. Player must respond.
+        """
+        from .schema import LeverageWeight
+
+        if not self.current:
+            return {"error": "No campaign loaded"}
+
+        char = self.get_character(character_id)
+        if not char:
+            return {"error": "Character not found"}
+
+        enhancement = next(
+            (e for e in char.enhancements if e.id == enhancement_id),
+            None
+        )
+        if not enhancement:
+            return {"error": "Enhancement not found"}
+
+        if enhancement.leverage.pending_obligation:
+            return {"error": "Already has pending obligation - resolve that first"}
+
+        enhancement.leverage.pending_obligation = demand
+        enhancement.leverage.last_called = datetime.now()
+        enhancement.leverage.weight = LeverageWeight(weight)
+
+        self.save_campaign()
+
+        return {
+            "enhancement": enhancement.name,
+            "faction": enhancement.source.value,
+            "demand": demand,
+            "weight": weight,
+            "compliance_history": enhancement.leverage.compliance_count,
+            "resistance_history": enhancement.leverage.resistance_count,
+        }
+
+    def resolve_leverage(
+        self,
+        character_id: str,
+        enhancement_id: str,
+        response: str,  # "comply", "resist", "negotiate"
+        outcome: str,
+    ) -> dict:
+        """
+        Resolve a pending leverage obligation.
+
+        - Comply: weight may decrease
+        - Resist: weight increases
+        - Negotiate: weight stays, resets hint counter
+        """
+        from .schema import LeverageWeight
+
+        if not self.current:
+            return {"error": "No campaign loaded"}
+
+        char = self.get_character(character_id)
+        if not char:
+            return {"error": "Character not found"}
+
+        enhancement = next(
+            (e for e in char.enhancements if e.id == enhancement_id),
+            None
+        )
+        if not enhancement or not enhancement.leverage.pending_obligation:
+            return {"error": "No pending obligation"}
+
+        old_obligation = enhancement.leverage.pending_obligation
+        weights = list(LeverageWeight)
+        current_weight_idx = weights.index(enhancement.leverage.weight)
+
+        if response == "comply":
+            enhancement.leverage.compliance_count += 1
+            # Compliance may reduce weight
+            if current_weight_idx > 0:
+                enhancement.leverage.weight = weights[current_weight_idx - 1]
+        elif response == "resist":
+            enhancement.leverage.resistance_count += 1
+            # Resistance escalates weight
+            if current_weight_idx < len(weights) - 1:
+                enhancement.leverage.weight = weights[current_weight_idx + 1]
+        # negotiate: weight stays same
+
+        enhancement.leverage.pending_obligation = None
+        enhancement.leverage.hint_count = 0  # Reset hint counter
+
+        # Log to history
+        self.log_history(
+            type=HistoryType.CONSEQUENCE,
+            summary=f"Leverage {response}: {enhancement.source.value} demanded '{old_obligation}', outcome: {outcome}",
+            is_permanent=False,
+        )
+
+        self.save_campaign()
+
+        return {
+            "enhancement": enhancement.name,
+            "response": response,
+            "outcome": outcome,
+            "new_weight": enhancement.leverage.weight.value,
+            "compliance_count": enhancement.leverage.compliance_count,
+            "resistance_count": enhancement.leverage.resistance_count,
+        }
+
+    def check_leverage_hints(self, player_input: str) -> list[dict]:
+        """
+        Check if player input should trigger leverage hints.
+
+        Returns hints for GM injection, not auto-calls.
+        Requires 2+ keyword matches (like dormant threads).
+        """
+        if not self.current:
+            return []
+
+        hints = []
+        input_keywords = extract_keywords(player_input)
+        if not input_keywords:
+            return []
+
+        current_session = self.current.meta.session_count
+
+        for char in self.current.characters:
+            for enhancement in char.enhancements:
+                # Skip if already has pending obligation
+                if enhancement.leverage.pending_obligation:
+                    continue
+
+                # Skip if hinted this session already
+                if enhancement.leverage.last_hint_session == current_session:
+                    continue
+
+                # Check keyword match
+                enh_keywords = set(enhancement.leverage_keywords)
+                matched = enh_keywords & input_keywords
+
+                # Require 2+ matches
+                if len(matched) >= 2:
+                    sessions_since = current_session - enhancement.granted_session
+
+                    hints.append({
+                        "character_id": char.id,
+                        "character_name": char.name,
+                        "enhancement_id": enhancement.id,
+                        "enhancement_name": enhancement.name,
+                        "faction": enhancement.source.value,
+                        "weight": enhancement.leverage.weight.value,
+                        "matched_keywords": list(matched),
+                        "sessions_since_grant": sessions_since,
+                        "hint_count": enhancement.leverage.hint_count,
+                        "compliance_count": enhancement.leverage.compliance_count,
+                        "resistance_count": enhancement.leverage.resistance_count,
+                    })
+
+        return hints
+
+    # -------------------------------------------------------------------------
     # Utilities
     # -------------------------------------------------------------------------
 
