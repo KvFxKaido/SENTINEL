@@ -28,6 +28,20 @@ from .schema import (
     ThreadSeverity,
 )
 from .store import CampaignStore, JsonCampaignStore
+
+
+def _version_tuple(version: str) -> tuple[int, ...]:
+    """Convert version string to tuple for proper numeric comparison.
+
+    Fixes lexicographic comparison bug where "1.10.0" < "1.2.0" would be True.
+    """
+    try:
+        return tuple(int(x) for x in version.split("."))
+    except ValueError:
+        # Fallback for malformed versions
+        return (0, 0, 0)
+
+
 from ..lore.chunker import extract_keywords
 
 
@@ -120,7 +134,7 @@ class CampaignManager:
         migrated = False
 
         # v1.0.0 -> v1.1.0: Migrate pending_obligation to pending_demand
-        if campaign.schema_version < "1.1.0":
+        if _version_tuple(campaign.schema_version) < _version_tuple("1.1.0"):
             for char in campaign.characters:
                 for enh in char.enhancements:
                     # If legacy field set but new field not set, migrate

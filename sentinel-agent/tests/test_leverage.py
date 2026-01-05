@@ -1433,3 +1433,35 @@ class TestLeverageDemandMigration:
 
         assert char.enhancements[0].leverage.pending_demand is None
         assert char.enhancements[0].leverage.pending_obligation is None
+
+
+class TestVersionComparison:
+    """Test version string comparison helper."""
+
+    def test_simple_comparison(self):
+        """Basic version comparison works."""
+        from src.state.manager import _version_tuple
+
+        assert _version_tuple("1.0.0") < _version_tuple("1.1.0")
+        assert _version_tuple("1.1.0") > _version_tuple("1.0.0")
+        assert _version_tuple("1.1.0") == _version_tuple("1.1.0")
+
+    def test_double_digit_versions(self):
+        """Handles double-digit version numbers correctly.
+
+        This is the bug that lexicographic comparison fails:
+        "1.10.0" < "1.2.0" would be True with strings, but should be False.
+        """
+        from src.state.manager import _version_tuple
+
+        # The critical test case - "1.10.0" should be GREATER than "1.2.0"
+        assert _version_tuple("1.10.0") > _version_tuple("1.2.0")
+        assert _version_tuple("1.9.0") < _version_tuple("1.10.0")
+        assert _version_tuple("2.0.0") > _version_tuple("1.99.99")
+
+    def test_malformed_version_fallback(self):
+        """Malformed versions fall back to (0, 0, 0)."""
+        from src.state.manager import _version_tuple
+
+        assert _version_tuple("invalid") == (0, 0, 0)
+        assert _version_tuple("1.x.0") == (0, 0, 0)
