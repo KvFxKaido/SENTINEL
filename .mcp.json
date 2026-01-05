@@ -1,9 +1,9 @@
 {
   "mcpServers": {
-    "sentinel-factions": {
+    "sentinel-campaign": {
       "command": "python",
-      "args": ["-m", "sentinel_factions.server"],
-      "cwd": "C:\\dev\\SENTINEL\\sentinel-mcp\\src"
+      "args": ["-m", "sentinel_campaign.server"],
+      "cwd": "C:\\dev\\SENTINEL\\sentinel-campaign\\src"
     }
   }
 }

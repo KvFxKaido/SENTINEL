@@ -265,10 +265,10 @@ Get NPCs affiliated with a faction in this campaign.
 ## File Structure
 
 ```
-sentinel-mcp/
+sentinel-campaign/
 ├── pyproject.toml
 ├── src/
-│   └── sentinel_factions/
+│   └── sentinel_campaign/
 │       ├── __init__.py
 │       ├── server.py          # MCP server entry point
 │       ├── resources/
@@ -310,7 +310,7 @@ Recommend **Option 1** for simplicity. MCP server gets `campaigns_dir` as config
 
 ### With Lore Files
 Static lore can live in:
-- `sentinel-mcp/src/sentinel_factions/data/factions/*.json`
+- `sentinel-campaign/src/sentinel_campaign/data/factions/*.json`
 - Or reference existing `lore/` directory
 
 ### With GM Agent
@@ -347,11 +347,13 @@ This lets factions "do things" between sessions, creating a living world.
 
 ---
 
-## Next Steps
+## Implementation Status
 
-1. Create `sentinel-mcp/` package structure
-2. Implement resource handlers for faction lore
-3. Implement tool handlers for campaign queries
-4. Write faction data files (or generate from existing lore)
-5. Test with Claude Code as client
-6. Integrate with GM agent
+All core features implemented in `sentinel-campaign/`:
+
+1. ✅ Created package structure
+2. ✅ Implemented resource handlers for faction lore
+3. ✅ Implemented tool handlers for campaign queries
+4. ✅ Wrote faction data files for all 11 factions
+
+**Future:** Add campaign history features (search_history, get_npc_timeline)

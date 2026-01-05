@@ -1,7 +1,7 @@
 """
-SENTINEL Faction MCP Server.
+SENTINEL Campaign MCP Server.
 
-Exposes faction lore, NPC archetypes, and campaign-specific faction state
+Exposes faction lore, NPC archetypes, campaign history, and state
 via the Model Context Protocol.
 """
 
@@ -28,10 +28,10 @@ from .tools import (
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("sentinel-factions")
+logger = logging.getLogger("sentinel-campaign")
 
 # Initialize server
-server = Server("sentinel-factions")
+server = Server("sentinel-campaign")
 
 # Configuration
 DATA_DIR = Path(__file__).parent / "data"

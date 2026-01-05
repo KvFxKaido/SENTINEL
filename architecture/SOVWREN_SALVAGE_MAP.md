@@ -215,7 +215,7 @@ Features:
 ---
 
 ### 15. Faction MCP Server ✅
-**Implemented:** `sentinel-mcp/` package
+**Implemented:** `sentinel-campaign/` package
 
 External MCP server providing faction lore, NPC archetypes, and campaign tracking.
 
