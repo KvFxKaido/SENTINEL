@@ -15,7 +15,7 @@ Before evaluating suggestions, here's what SENTINEL already has:
 | Hinge detection | ✅ Built | Pattern matching in player input, logging |
 | NPC memory triggers | ✅ Built | Tag-based reactions, disposition shifts |
 | Council system | ✅ Built | Parallel advisor queries with faction voices |
-| Test coverage | ✅ 107 tests | Core mechanics covered |
+| Test coverage | ✅ 149 tests | Core mechanics covered |
 
 ---
 
