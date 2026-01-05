@@ -48,6 +48,7 @@ campaigns/
 .env
 .env.local
 *.local.json
+.mcp.json
 
 # OS
 .DS_Store
