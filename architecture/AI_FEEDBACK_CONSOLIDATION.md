@@ -202,7 +202,7 @@ WebSocket frontend as migration path is a practical suggestion if we ever go web
 | Idea | Source | Effort | Notes |
 |------|--------|--------|-------|
 | ~~Player "Push" mechanic~~ | ChatGPT | ✅ Done | `declare_push` tool + GM guidance for Devil's Bargain |
-| Banner UX toggle | Kimi | Low | `/quiet-banner` or cache after first load |
+| ~~Banner UX toggle~~ | Kimi | ✅ Done | `/banner` command + persistent config |
 | Lore faction filtering | Kimi | Low | `/lore lattice` shows bias explicitly |
 | Council hallucination test | Kimi | Low | Assert advisors don't give identical answers |
 
