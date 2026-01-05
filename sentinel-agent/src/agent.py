@@ -61,7 +61,11 @@ class PromptLoader:
 
         return content
 
-    def assemble_system_prompt(self, campaign: Campaign | None = None) -> str:
+    def assemble_system_prompt(
+        self,
+        campaign: Campaign | None = None,
+        manager: "CampaignManager | None" = None,
+    ) -> str:
         """Assemble the full system prompt from modules."""
         parts = [
             self.load("core"),
@@ -77,7 +81,7 @@ class PromptLoader:
 
         # Add campaign state if available
         if campaign:
-            parts.append(self._format_state_summary(campaign))
+            parts.append(self._format_state_summary(campaign, manager))
 
         return "\n\n---\n\n".join(filter(None, parts))
 
@@ -107,7 +111,9 @@ class PromptLoader:
 
         return content
 
-    def _format_state_summary(self, campaign: Campaign) -> str:
+    def _format_state_summary(
+        self, campaign: Campaign, manager: "CampaignManager | None" = None
+    ) -> str:
         """Format current campaign state for injection."""
         lines = [
             "# Current State",
@@ -145,8 +151,8 @@ class PromptLoader:
                         lines.append(f"  → Enhancement: {enh.name} ({', '.join(status_parts)})")
 
                 # Show refusal reputation if any
-                if char.refused_enhancements:
-                    rep = self.manager.get_refusal_reputation(char.id)
+                if char.refused_enhancements and manager:
+                    rep = manager.get_refusal_reputation(char.id)
                     if rep and rep["count"] > 0:
                         if rep["title"]:
                             lines.append(f"  → Reputation: \"{rep['title']}\" ({rep['count']} refusals)")
@@ -229,7 +235,7 @@ class PromptLoader:
                 lines.append(f"    → If surfaced: {avoided.potential_consequence}")
 
         # Pending leverage demands (using get_pending_demands from manager)
-        pending_demands = self.manager.get_pending_demands()
+        pending_demands = manager.get_pending_demands() if manager else []
         if pending_demands:
             lines.append("\n**Pending Leverage Demands:**")
             for demand in pending_demands:
@@ -1143,7 +1149,8 @@ class SentinelAgent:
 
         # Get system prompt with current state
         system_prompt = self.prompt_loader.assemble_system_prompt(
-            self.manager.current
+            self.manager.current,
+            self.manager,
         )
 
         # Detect hinge moments in player input
