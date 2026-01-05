@@ -35,12 +35,12 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 - **Context meter** — visual indicator of conversation depth
 - **Faction MCP server** — external faction lore + campaign tracking
 - **Multi-backend LLM** — LM Studio, Ollama, Claude, OpenRouter, Gemini CLI, Codex CLI
-- **Test suite** — 77 tests covering core mechanics
+- **Test suite** — 88 tests covering core mechanics
 - **CI/CD** — GitHub Actions (Python 3.10, 3.11, 3.12)
+- **Dormant thread surfacing** — keyword matching alerts GM when threads may trigger
 
 ### Not Yet Built
 - Enhancement leverage system (faction callbacks)
-- Dormant thread surfacing (queued but not triggered yet)
 - Phase-based GM guidance (different prompts per mission phase)
 - Multi-character party support
 - Web/mobile interface
