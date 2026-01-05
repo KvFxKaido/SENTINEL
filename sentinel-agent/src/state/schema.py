@@ -311,6 +311,7 @@ class DormantThread(BaseModel):
     consequence: str  # What happens
     severity: ThreadSeverity = ThreadSeverity.MODERATE
     created_session: int = 0
+    trigger_keywords: list[str] = Field(default_factory=list)  # Extracted for matching
 
 
 class MissionBriefing(BaseModel):

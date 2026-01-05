@@ -23,6 +23,7 @@ from .schema import (
     MissionOutcome,
 )
 from .store import CampaignStore, JsonCampaignStore
+from ..lore.chunker import extract_keywords
 
 
 class CampaignManager:
@@ -477,12 +478,16 @@ class CampaignManager:
         if not self.current:
             raise ValueError("No campaign loaded")
 
+        # Extract keywords from trigger condition for matching
+        keywords = list(extract_keywords(trigger_condition))[:10]
+
         thread = DormantThread(
             origin=origin,
             trigger_condition=trigger_condition,
             consequence=consequence,
             severity=severity,
             created_session=self.current.meta.session_count,
+            trigger_keywords=keywords,
         )
 
         self.current.dormant_threads.append(thread)
@@ -513,6 +518,49 @@ class CampaignManager:
                 return activated
 
         return None
+
+    def check_thread_triggers(self, player_input: str) -> list[dict]:
+        """
+        Check which dormant threads might be triggered by player input.
+
+        Uses keyword matching to find relevant threads. Requires 2+ keyword
+        matches to reduce false positives.
+
+        Returns threads with match info, sorted by relevance.
+        Does NOT auto-surface - returns hints for GM judgment.
+        """
+        if not self.current or not self.current.dormant_threads:
+            return []
+
+        input_keywords = extract_keywords(player_input)
+        if not input_keywords:
+            return []
+
+        matches = []
+        for thread in self.current.dormant_threads:
+            thread_keywords = set(thread.trigger_keywords)
+            matched = thread_keywords & input_keywords
+
+            # Require 2+ matches to reduce false positives
+            if len(matched) >= 2:
+                score = len(matched) / max(len(thread_keywords), 1)
+                age = self.current.meta.session_count - thread.created_session
+                matches.append({
+                    "thread_id": thread.id,
+                    "trigger_condition": thread.trigger_condition,
+                    "consequence": thread.consequence,
+                    "severity": thread.severity.value,
+                    "matched_keywords": list(matched),
+                    "score": score,
+                    "origin": thread.origin,
+                    "age_sessions": age,
+                })
+
+        # Sort by score descending, then severity (major first)
+        severity_order = {"major": 0, "moderate": 1, "minor": 2}
+        matches.sort(key=lambda m: (-m["score"], severity_order.get(m["severity"], 99)))
+
+        return matches
 
     # -------------------------------------------------------------------------
     # Utilities

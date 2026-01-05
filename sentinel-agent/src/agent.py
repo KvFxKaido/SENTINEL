@@ -135,12 +135,32 @@ class PromptLoader:
         if tensions:
             lines.append(f"\n**Faction Tensions:** {', '.join(tensions)}")
 
-        # Dormant threads
+        # Dormant threads - show all for GM awareness
         if campaign.dormant_threads:
-            lines.append(f"\n**Dormant Threads:** {len(campaign.dormant_threads)} pending")
-            major = [t for t in campaign.dormant_threads if t.severity.value == "major"]
-            if major:
-                lines.append(f"  Major: {major[0].trigger_condition}")
+            lines.append("\n**Dormant Threads:**")
+
+            # Group by severity
+            by_severity = {"major": [], "moderate": [], "minor": []}
+            for thread in campaign.dormant_threads:
+                by_severity[thread.severity.value].append(thread)
+
+            # MAJOR: full details
+            for thread in by_severity["major"]:
+                age = campaign.meta.session_count - thread.created_session
+                lines.append(f"  [MAJOR] {thread.id}: \"{thread.trigger_condition}\"")
+                consequence_preview = thread.consequence[:60]
+                if len(thread.consequence) > 60:
+                    consequence_preview += "..."
+                lines.append(f"    → {consequence_preview}")
+                lines.append(f"    (from: {thread.origin}, age: {age} sessions)")
+
+            # Moderate: one line each
+            for thread in by_severity["moderate"]:
+                lines.append(f"  [mod] {thread.id}: \"{thread.trigger_condition}\"")
+
+            # Minor: count only
+            if by_severity["minor"]:
+                lines.append(f"  + {len(by_severity['minor'])} minor threads")
 
         # Current mission
         if campaign.session:
@@ -217,6 +237,7 @@ class SentinelAgent:
             "trigger_npc_memory": self._handle_trigger_memory,
             "log_hinge_moment": self._handle_log_hinge,
             "queue_dormant_thread": self._handle_queue_thread,
+            "surface_dormant_thread": self._handle_surface_thread,
         }
 
         # Initialize client
@@ -352,6 +373,24 @@ class SentinelAgent:
                     "required": ["tags"],
                 },
             },
+            {
+                "name": "surface_dormant_thread",
+                "description": "Activate a dormant thread when its trigger condition is met. Logs to history and removes from pending.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "thread_id": {
+                            "type": "string",
+                            "description": "ID of the dormant thread to surface",
+                        },
+                        "activation_context": {
+                            "type": "string",
+                            "description": "What player action triggered this consequence",
+                        },
+                    },
+                    "required": ["thread_id", "activation_context"],
+                },
+            },
         ]
 
     # -------------------------------------------------------------------------
@@ -455,6 +494,21 @@ class SentinelAgent:
         )
         return {"id": thread.id, "queued": True}
 
+    def _handle_surface_thread(self, **kwargs) -> dict:
+        """Handle surface_dormant_thread tool call."""
+        thread = self.manager.surface_dormant_thread(
+            thread_id=kwargs["thread_id"],
+            activation_context=kwargs["activation_context"],
+        )
+        if thread:
+            return {
+                "surfaced": True,
+                "consequence": thread.consequence,
+                "severity": thread.severity.value,
+                "origin": thread.origin,
+            }
+        return {"error": f"Thread not found: {kwargs['thread_id']}"}
+
     def execute_tool(self, name: str, arguments: dict) -> dict:
         """Execute a tool and return the result."""
         if name not in self.tools:
@@ -485,6 +539,29 @@ class SentinelAgent:
         if self.manager.current and self.manager.current.session:
             return self.manager.current.session.mission_type.value
         return None
+
+    def _format_thread_hints(self, matches: list[dict]) -> str:
+        """Format thread match hints for injection into system prompt."""
+        lines = [
+            "[DORMANT THREAD ALERT]",
+            "Player input may trigger dormant consequences:",
+            ""
+        ]
+
+        for match in matches[:3]:  # Limit to top 3
+            lines.append(f"Thread {match['thread_id']} ({match['severity'].upper()}):")
+            lines.append(f"  Trigger: \"{match['trigger_condition']}\"")
+            lines.append(f"  Keywords matched: {', '.join(match['matched_keywords'])}")
+            lines.append(f"  Consequence: {match['consequence']}")
+            lines.append(f"  Origin: {match['origin']} ({match['age_sessions']} sessions ago)")
+            lines.append("")
+
+        lines.append("If the current situation matches a trigger condition:")
+        lines.append("1. Weave the consequence into the narrative naturally")
+        lines.append("2. Call surface_dormant_thread(thread_id, activation_context)")
+        lines.append("3. Don't announce 'a thread activated' - just let it happen")
+
+        return "\n".join(lines)
 
     def respond(
         self,
@@ -523,6 +600,12 @@ class SentinelAgent:
         if hinge_detection:
             hinge_context = get_hinge_context(hinge_detection)
             system_prompt = system_prompt + "\n\n---\n\n" + hinge_context
+
+        # Check for dormant thread triggers
+        thread_matches = self.manager.check_thread_triggers(user_message)
+        if thread_matches:
+            thread_context = self._format_thread_hints(thread_matches)
+            system_prompt = system_prompt + "\n\n---\n\n" + thread_context
 
         # Retrieve relevant lore if available
         if self.lore_retriever:

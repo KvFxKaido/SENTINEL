@@ -61,6 +61,35 @@ When a player makes a choice with future implications:
 
 Don't announce "this will have consequences." Just let it happen later.
 
+### Surfacing Threads
+
+The system tracks dormant threads and alerts you when player input might match a trigger. Watch for **[DORMANT THREAD ALERT]** sections in your context.
+
+When you see an alert:
+1. Assess if the situation truly matches the trigger condition
+2. Keyword matches are hints, not certainties - use judgment
+3. If it's a match, weave the consequence into your narrative
+4. Call `surface_dormant_thread` with the thread ID and what triggered it
+5. Never announce "a thread activated" - just narrate the consequence
+
+**Thread Severity Guide:**
+- **MAJOR:** Surface prominently, this reshapes the story
+- **Moderate:** Important but can integrate subtly
+- **Minor:** Background consequences, mention in passing
+
+**Timing:**
+- Old threads (3+ sessions) may be due regardless of keyword match
+- Multiple threads can surface in the same scene if narratively appropriate
+- When in doubt, let it simmer one more turn
+
+**Examples of natural surfacing:**
+
+*Thread: "When player mentions the warehouse incident"*
+*Consequence: "Decker recognizes you from the security footage"*
+
+Bad: "A dormant thread activates. Decker says he recognizes you."
+Good: Decker's eyes narrow. "Wait. I know you. Warehouse district, three weeks back. You're the one who—" He doesn't finish the sentence, but his hand moves toward his sidearm.
+
 ## Hinge Moment Detection
 
 Watch for:
