@@ -16,6 +16,7 @@ from ..state import CampaignManager, Character, Background
 from ..state.schema import SessionReflection, HistoryType
 from ..agent import SentinelAgent
 from .renderer import console, THEME, show_status, show_backend_status, show_help
+from .config import set_model as save_model_config
 from .glyphs import g
 
 
@@ -171,7 +172,9 @@ def cmd_model(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
 
     # Set the model
     client.set_model(selection)
+    save_model_config(selection)  # Save preference
     console.print(f"[green]Switched to:[/green] {selection}")
+    console.print("[dim]  (Saved as default)[/dim]")
 
     # Check tool support
     if client.supports_tools:

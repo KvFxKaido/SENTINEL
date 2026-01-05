@@ -22,6 +22,7 @@ from .renderer import (
     console, THEME, pt_style,
     show_banner, show_backend_status, show_status, show_choices,
 )
+from .config import load_config, set_backend
 from .glyphs import (
     g, format_context_meter, context_warning, estimate_conversation_tokens,
     CONTEXT_LIMITS,
@@ -84,12 +85,26 @@ def main():
     lore_dir = base_dir / "lore"
 
     manager = CampaignManager(campaigns_dir)
+
+    # Load saved config (backend, model)
+    config = load_config(campaigns_dir)
+    saved_backend = config.get("backend", "auto")
+    saved_model = config.get("model")
+
     agent = SentinelAgent(
         manager,
         prompts_dir=prompts_dir,
         lore_dir=lore_dir if lore_dir.exists() else None,
-        backend="auto",
+        backend=saved_backend,
     )
+
+    # Restore saved model if using LM Studio/Ollama
+    if saved_model and agent.backend in ("lmstudio", "ollama"):
+        if hasattr(agent.client, "set_model"):
+            try:
+                agent.client.set_model(saved_model)
+            except Exception:
+                pass  # Model might not be available anymore
 
     # Show backend status
     show_backend_status(agent)
@@ -159,6 +174,7 @@ def main():
                     # Handle backend switch
                     if cmd == "/backend" and result:
                         console.print(f"[dim]Switching to {result}...[/dim]")
+                        set_backend(result, campaigns_dir)  # Save preference
                         agent = SentinelAgent(
                             manager,
                             prompts_dir=prompts_dir,
