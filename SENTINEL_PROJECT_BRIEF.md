@@ -44,6 +44,7 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 - **Non-action as hinge** — avoidance is content; tracks when players disengage and surfaces consequences later
 - **Faction narrative corruption** — GM language shifts based on faction standing (11 linguistic patterns)
 - **Debrief "enough" question** — helps players articulate their own success criteria in a game with no win condition
+- **Config persistence** — remembers last used backend and model across sessions
 
 ### Not Yet Built
 - Multi-character party support
