@@ -35,6 +35,8 @@ sentinel-campaign
 
 ## Resources
 
+### Faction Resources
+
 Static faction information exposed as MCP resources:
 
 | URI | Description |
@@ -46,9 +48,19 @@ Static faction information exposed as MCP resources:
 
 **Available factions:** nexus, ember_colonies, lattice, convergence, covenant, wanderers, cultivators, steel_syndicate, witnesses, architects, ghost_networks
 
+### Campaign History Resources
+
+Campaign-specific history data:
+
+| URI | Description |
+|-----|-------------|
+| `campaign://{id}/sessions` | Session summaries grouped by session |
+| `campaign://{id}/hinges` | All hinge moments in chronological order |
+| `campaign://{id}/npc/{name}` | All history related to a specific NPC |
+
 ## Tools
 
-Campaign-specific operations:
+### Faction Tools
 
 | Tool | Description |
 |------|-------------|
@@ -57,6 +69,14 @@ Campaign-specific operations:
 | `log_faction_event` | Record faction-related event |
 | `get_faction_intel` | What faction knows about topic |
 | `query_faction_npcs` | NPCs by faction in campaign |
+
+### Campaign History Tools
+
+| Tool | Description |
+|------|-------------|
+| `search_history` | Keyword search with filters (NPC, faction, type, session range) |
+| `get_npc_timeline` | Chronological timeline of events involving an NPC |
+| `get_session_summary` | Condensed summary of a specific session |
 
 ## Data Files
 
@@ -95,12 +115,3 @@ Create a JSON file in `data/factions/` with:
 }
 ```
 
-## Future: Campaign History
-
-The design supports adding:
-
-- `search_history(query, filters)` - Search campaign history
-- `get_npc_timeline(npc_name)` - Chronological NPC events
-- `get_session_summary(session)` - Condensed session recap
-
-See `architecture/MCP_FACTIONS.md` for the full design.
