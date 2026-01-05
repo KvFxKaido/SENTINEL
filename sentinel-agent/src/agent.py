@@ -12,7 +12,7 @@ from typing import Callable, Literal
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from .state import CampaignManager, Campaign
-from .state.schema import FactionName, HistoryType
+from .state.schema import FactionName, HistoryType, LeverageWeight
 from .tools.dice import roll_check, tactical_reset, TOOL_SCHEMAS
 from .tools.hinge_detector import detect_hinge, get_hinge_context
 from .llm.base import LLMClient, Message
@@ -101,6 +101,20 @@ class PromptLoader:
                     f"- {char.name} ({char.background.value}): "
                     f"{char.credits}cr, {energy.name} {energy.current}%{warning}"
                 )
+
+                # Show enhancements with leverage status
+                if char.enhancements:
+                    for enh in char.enhancements:
+                        lev = enh.leverage
+                        status_parts = [f"{enh.source.value}"]
+                        status_parts.append(f"weight: {lev.weight.value}")
+                        if lev.pending_obligation:
+                            status_parts.append(f"PENDING: \"{lev.pending_obligation}\"")
+                        if lev.compliance_count or lev.resistance_count:
+                            status_parts.append(
+                                f"history: {lev.compliance_count}C/{lev.resistance_count}R"
+                            )
+                        lines.append(f"  → Enhancement: {enh.name} ({', '.join(status_parts)})")
 
         # Active NPCs
         if campaign.npcs.active:
@@ -238,6 +252,9 @@ class SentinelAgent:
             "log_hinge_moment": self._handle_log_hinge,
             "queue_dormant_thread": self._handle_queue_thread,
             "surface_dormant_thread": self._handle_surface_thread,
+            "grant_enhancement": self._handle_grant_enhancement,
+            "call_leverage": self._handle_call_leverage,
+            "resolve_leverage": self._handle_resolve_leverage,
         }
 
         # Initialize client
@@ -391,6 +408,79 @@ class SentinelAgent:
                     "required": ["thread_id", "activation_context"],
                 },
             },
+            {
+                "name": "grant_enhancement",
+                "description": "Grant a faction enhancement to a character. Creates leverage tracking. Wanderers and Cultivators don't offer enhancements.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "character_id": {"type": "string"},
+                        "name": {
+                            "type": "string",
+                            "description": "Enhancement name (e.g., 'Neural Interface', 'Syndicate Debt Chip')",
+                        },
+                        "source": {
+                            "type": "string",
+                            "enum": [f.value for f in FactionName if f not in (
+                                FactionName.WANDERERS, FactionName.CULTIVATORS
+                            )],
+                            "description": "Faction granting the enhancement",
+                        },
+                        "benefit": {
+                            "type": "string",
+                            "description": "What the enhancement provides",
+                        },
+                        "cost": {
+                            "type": "string",
+                            "description": "The strings attached",
+                        },
+                    },
+                    "required": ["character_id", "name", "source", "benefit", "cost"],
+                },
+            },
+            {
+                "name": "call_leverage",
+                "description": "A faction calls in leverage on an enhancement they granted. Creates a pending obligation the player must respond to.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "character_id": {"type": "string"},
+                        "enhancement_id": {"type": "string"},
+                        "demand": {
+                            "type": "string",
+                            "description": "What the faction is demanding",
+                        },
+                        "weight": {
+                            "type": "string",
+                            "enum": ["light", "medium", "heavy"],
+                            "default": "medium",
+                            "description": "Pressure level: light (subtle), medium (direct), heavy (ultimatum)",
+                        },
+                    },
+                    "required": ["character_id", "enhancement_id", "demand"],
+                },
+            },
+            {
+                "name": "resolve_leverage",
+                "description": "Record player's response to a leverage call. Comply reduces future pressure, resist escalates it.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "character_id": {"type": "string"},
+                        "enhancement_id": {"type": "string"},
+                        "response": {
+                            "type": "string",
+                            "enum": ["comply", "resist", "negotiate"],
+                            "description": "How the player responded",
+                        },
+                        "outcome": {
+                            "type": "string",
+                            "description": "Narrative description of what happened",
+                        },
+                    },
+                    "required": ["character_id", "enhancement_id", "response", "outcome"],
+                },
+            },
         ]
 
     # -------------------------------------------------------------------------
@@ -509,6 +599,47 @@ class SentinelAgent:
             }
         return {"error": f"Thread not found: {kwargs['thread_id']}"}
 
+    def _handle_grant_enhancement(self, **kwargs) -> dict:
+        """Handle grant_enhancement tool call."""
+        try:
+            source = FactionName(kwargs["source"])
+            enhancement = self.manager.grant_enhancement(
+                character_id=kwargs["character_id"],
+                name=kwargs["name"],
+                source=source,
+                benefit=kwargs["benefit"],
+                cost=kwargs["cost"],
+            )
+            return {
+                "id": enhancement.id,
+                "name": enhancement.name,
+                "source": enhancement.source.value,
+                "benefit": enhancement.benefit,
+                "cost": enhancement.cost,
+                "granted": True,
+                "narrative_hint": f"Accepted {source.value} enhancement. They won't forget.",
+            }
+        except ValueError as e:
+            return {"error": str(e)}
+
+    def _handle_call_leverage(self, **kwargs) -> dict:
+        """Handle call_leverage tool call."""
+        return self.manager.call_leverage(
+            character_id=kwargs["character_id"],
+            enhancement_id=kwargs["enhancement_id"],
+            demand=kwargs["demand"],
+            weight=kwargs.get("weight", "medium"),
+        )
+
+    def _handle_resolve_leverage(self, **kwargs) -> dict:
+        """Handle resolve_leverage tool call."""
+        return self.manager.resolve_leverage(
+            character_id=kwargs["character_id"],
+            enhancement_id=kwargs["enhancement_id"],
+            response=kwargs["response"],
+            outcome=kwargs["outcome"],
+        )
+
     def execute_tool(self, name: str, arguments: dict) -> dict:
         """Execute a tool and return the result."""
         if name not in self.tools:
@@ -563,6 +694,54 @@ class SentinelAgent:
 
         return "\n".join(lines)
 
+    # Faction pressure styles for leverage hints
+    FACTION_PRESSURE_STYLES = {
+        FactionName.NEXUS: ("clinical", "Our models indicate you could assist with a matter."),
+        FactionName.EMBER_COLONIES: ("desperate", "We need you. Our people need you."),
+        FactionName.LATTICE: ("technical", "Infrastructure requires your cooperation."),
+        FactionName.CONVERGENCE: ("paternalistic", "This is for your own evolution."),
+        FactionName.COVENANT: ("ideological", "You swore. Oaths mean something."),
+        FactionName.STEEL_SYNDICATE: ("transactional", "Debts are paid. One way or another."),
+        FactionName.WITNESSES: ("collegial", "We helped you. Now we need you."),
+        FactionName.ARCHITECTS: ("bureaucratic", "Protocol requires your compliance."),
+        FactionName.GHOST_NETWORKS: ("reluctant", "We wouldn't ask if there was another way."),
+    }
+
+    def _format_leverage_hints(self, hints: list[dict]) -> str:
+        """Format leverage hints for injection into system prompt."""
+        lines = [
+            "[LEVERAGE HINT]",
+            "Faction leverage may be relevant to current context:",
+            ""
+        ]
+
+        for hint in hints[:2]:  # Limit to top 2
+            faction = FactionName(hint["faction"])
+            style, example = self.FACTION_PRESSURE_STYLES.get(
+                faction, ("neutral", "We have a matter to discuss.")
+            )
+
+            lines.append(f"Enhancement: {hint['enhancement_name']} ({hint['faction']})")
+            lines.append(f"  Character: {hint['character_name']}")
+            lines.append(f"  Weight: {hint['weight']} | Hints so far: {hint['hint_count']}")
+            lines.append(f"  Sessions since grant: {hint['sessions_since_grant']}")
+            lines.append(f"  Compliance history: {hint['compliance_count']} | Resistance: {hint['resistance_count']}")
+            lines.append(f"  Style: {style}")
+            lines.append(f"  Example tone: \"{example}\"")
+            lines.append("")
+
+        lines.append("Consider whether to:")
+        lines.append("1. Drop a subtle hint (NPC mentions the faction, reminder of the debt)")
+        lines.append("2. Have faction contact appear with a 'request'")
+        lines.append("3. If conditions align, call_leverage() to formalize the demand")
+        lines.append("")
+        lines.append("Three conditions for calling leverage:")
+        lines.append("- Faction believes player needs them")
+        lines.append("- Faction believes player can't refuse without cost")
+        lines.append("- The moment reinforces the faction's worldview")
+
+        return "\n".join(lines)
+
     def respond(
         self,
         user_message: str,
@@ -606,6 +785,12 @@ class SentinelAgent:
         if thread_matches:
             thread_context = self._format_thread_hints(thread_matches)
             system_prompt = system_prompt + "\n\n---\n\n" + thread_context
+
+        # Check for leverage hints
+        leverage_hints = self.manager.check_leverage_hints(user_message)
+        if leverage_hints:
+            leverage_context = self._format_leverage_hints(leverage_hints)
+            system_prompt = system_prompt + "\n\n---\n\n" + leverage_context
 
         # Retrieve relevant lore if available
         if self.lore_retriever:

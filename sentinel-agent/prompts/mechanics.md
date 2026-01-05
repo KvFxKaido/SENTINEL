@@ -112,12 +112,31 @@ Faction-granted power with strings attached.
 - Wanderers (philosophy resists permanent ties)
 - Cultivators (see augmentation as part of the problem)
 
-When a faction calls in leverage:
-- Player sees the demand
-- Must respond: comply, resist, or negotiate
-- Both compliance and resistance have consequences
+### Leverage
 
-Track: compliance count, resistance count, pending obligations.
+When you accept an enhancement, the faction gains leverage. They will eventually call it in.
+
+**Leverage Weight:**
+| Weight | Tone | Example |
+|--------|------|---------|
+| Light | Subtle reminder | "When you have a moment..." |
+| Medium | Direct ask | "We need this done." |
+| Heavy | Ultimatum | "This isn't a request." |
+
+**Player Responses:**
+| Response | Effect |
+|----------|--------|
+| Comply | Weight may decrease. You did their bidding. |
+| Resist | Weight increases. Relationship strains. |
+| Negotiate | Weight stays. Buy time or trade terms. |
+
+**Tracking:**
+- `compliance_count` — Times you've complied
+- `resistance_count` — Times you've resisted
+- `pending_obligation` — Current outstanding demand
+- `weight` — Current pressure level (light/medium/heavy)
+
+Compliance history affects future leverage calls. Repeated resistance escalates. Repeated compliance may reduce pressure — or make them think you're easy to push.
 
 ## Mission Flow
 
