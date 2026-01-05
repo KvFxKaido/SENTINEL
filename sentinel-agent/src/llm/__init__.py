@@ -3,13 +3,14 @@
 import os
 from typing import Callable, Literal
 
-from .base import LLMClient, Message, ToolCall, ToolResult
+from .base import LLMClient, LLMResponse, Message, ToolCall, ToolResult
 from .lmstudio import LMStudioClient
 from .ollama import OllamaClient
 from .cli_wrapper import GeminiCLI, CodexCLI, CLIWrapperClient
 
 __all__ = [
     "LLMClient",
+    "LLMResponse",
     "Message",
     "ToolCall",
     "ToolResult",
@@ -78,16 +79,24 @@ class MockLLMClient(LLMClient):
     def is_available(self) -> bool:
         return True
 
-    def chat(self, messages: list[Message], system: str | None = None) -> str:
+    def chat(
+        self,
+        messages: list[Message],
+        system: str | None = None,
+        tools: list[dict] | None = None,
+        temperature: float = 0.7,
+        max_tokens: int = 2048,
+    ) -> LLMResponse:
         """Return next mock response."""
         self.calls.append({
             "method": "chat",
             "messages": messages,
             "system": system,
+            "tools": tools,
         })
-        response = self._responses[self._call_count % len(self._responses)]
+        response_text = self._responses[self._call_count % len(self._responses)]
         self._call_count += 1
-        return response
+        return LLMResponse(content=response_text)
 
     def chat_with_tools(
         self,
