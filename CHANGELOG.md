@@ -15,7 +15,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - CODE_OF_CONDUCT.md (Contributor Covenant 2.1)
 - SECURITY.md with vulnerability reporting guidelines
 - LICENSE file (CC BY-NC 4.0)
-- License badge in README
+- CHANGELOG.md (Keep a Changelog format)
+- CONTRIBUTORS.md (maintainers and AI assistants)
+- CODEOWNERS for auto-review assignment
+- FUNDING.yml for GitHub Sponsors
+- Dependabot config for automated dependency updates
+- Issue template config with discussion links
+- License and sponsor badges in README
 
 ### Fixed
 
