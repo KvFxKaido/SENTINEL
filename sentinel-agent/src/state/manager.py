@@ -27,7 +27,7 @@ from .schema import (
     MissionOutcome,
     ThreadSeverity,
 )
-from .store import CampaignStore, JsonCampaignStore
+from .store import CampaignStore, JsonCampaignStore, EventQueueStore
 
 
 def _version_tuple(version: str) -> tuple[int, ...]:
@@ -61,18 +61,27 @@ class CampaignManager:
     - delete_campaign(id) -> remove
     """
 
-    def __init__(self, store: CampaignStore | Path | str = "campaigns"):
+    def __init__(
+        self,
+        store: CampaignStore | Path | str = "campaigns",
+        event_queue: EventQueueStore | None = None,
+    ):
         """
         Initialize with a store.
 
         Args:
             store: CampaignStore instance, or path for JsonCampaignStore
+            event_queue: Optional EventQueueStore for MCP event processing
         """
         if isinstance(store, (Path, str)):
             # Backwards compatible: path creates JsonCampaignStore
-            self.store = JsonCampaignStore(store)
+            campaigns_path = Path(store)
+            self.store = JsonCampaignStore(campaigns_path)
+            # Auto-create event queue store with same path
+            self.event_queue = event_queue or EventQueueStore(campaigns_path)
         else:
             self.store = store
+            self.event_queue = event_queue
 
         self.current: Campaign | None = None
         self._cache: dict[str, Campaign] = {}
@@ -117,10 +126,17 @@ class CampaignManager:
         if campaign:
             # Run migrations if needed
             migrated = self._migrate_campaign(campaign)
+
+            # Process pending events from MCP
+            events_processed = self._process_pending_events(campaign)
+
             self.current = campaign
             self._cache[campaign.meta.id] = campaign
-            if migrated:
-                self.save_campaign()  # Persist migration
+
+            # Persist if migrations or events were processed
+            if migrated or events_processed > 0:
+                self.save_campaign()
+
             return campaign
 
         return None
@@ -155,6 +171,60 @@ class CampaignManager:
             migrated = True
 
         return migrated
+
+    def _process_pending_events(self, campaign: Campaign) -> int:
+        """
+        Process pending events from the MCP event queue.
+
+        This is called automatically when loading a campaign.
+        Returns the number of events processed.
+        """
+        if not self.event_queue:
+            return 0
+
+        events = self.event_queue.get_pending_events(campaign.meta.id)
+        processed = 0
+
+        for event in events:
+            try:
+                self._process_single_event(campaign, event)
+                self.event_queue.mark_processed(event.id)
+                processed += 1
+            except Exception as e:
+                # Log error but continue processing other events
+                # In production, this would use proper logging
+                print(f"[Warning] Failed to process event {event.id}: {e}")
+
+        # Clean up processed events
+        if processed > 0:
+            self.event_queue.clear_processed()
+
+        return processed
+
+    def _process_single_event(self, campaign: Campaign, event) -> None:
+        """Process a single event from the queue."""
+        from .schema import HistoryEntry, HistoryType
+
+        if event.event_type == "faction_event":
+            payload = event.payload
+            faction = payload.get("faction", "unknown")
+            event_type = payload.get("event_type", "contact")
+            summary = payload.get("summary", "")
+            session = payload.get("session", campaign.meta.session_count)
+            is_permanent = payload.get("is_permanent", False)
+
+            # Create history entry (what log_faction_event used to do directly)
+            entry = HistoryEntry(
+                session=session,
+                type=HistoryType.FACTION_SHIFT,
+                summary=f"[{faction.replace('_', ' ').title()}] {summary}",
+                is_permanent=is_permanent,
+            )
+            campaign.history.append(entry)
+
+        # Future: handle other event types here
+        # elif event.event_type == "npc_update":
+        #     ...
 
     def save_campaign(self) -> bool:
         """Save current campaign to store."""

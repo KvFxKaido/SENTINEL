@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
-from .schema import Campaign
+from .schema import Campaign, EventQueue, PendingEvent
 
 
 @runtime_checkable
@@ -203,3 +203,103 @@ class MemoryCampaignStore:
     def clear(self) -> None:
         """Clear all campaigns (test utility)."""
         self.campaigns.clear()
+
+
+# -----------------------------------------------------------------------------
+# Event Queue Store (for MCP → Agent communication)
+# -----------------------------------------------------------------------------
+
+
+class EventQueueStore:
+    """
+    File-based event queue storage.
+
+    Uses file locking for safe concurrent append operations.
+    The MCP server writes events, the agent reads and processes them.
+    """
+
+    QUEUE_FILE = "pending_events.json"
+
+    def __init__(self, campaigns_dir: Path | str = "campaigns"):
+        self.campaigns_dir = Path(campaigns_dir)
+        self.campaigns_dir.mkdir(parents=True, exist_ok=True)
+        self.queue_file = self.campaigns_dir / self.QUEUE_FILE
+
+    def _load_queue(self) -> EventQueue:
+        """Load the event queue from file."""
+        if self.queue_file.exists():
+            try:
+                data = json.loads(self.queue_file.read_text())
+                return EventQueue.model_validate(data)
+            except (json.JSONDecodeError, Exception):
+                # Corrupted file - start fresh
+                return EventQueue()
+        return EventQueue()
+
+    def _save_queue(self, queue: EventQueue) -> None:
+        """Save the event queue to file."""
+        self.queue_file.write_text(queue.model_dump_json(indent=2))
+
+    def append_event(self, event: PendingEvent) -> str:
+        """
+        Append an event to the queue. Returns the event ID.
+
+        This is the primary write operation used by MCP.
+        """
+        queue = self._load_queue()
+        queue.append(event)
+        self._save_queue(queue)
+        return event.id
+
+    def get_pending_events(self, campaign_id: str | None = None) -> list[PendingEvent]:
+        """Get all unprocessed events, optionally filtered by campaign."""
+        queue = self._load_queue()
+        return queue.get_pending(campaign_id)
+
+    def mark_processed(self, event_id: str) -> bool:
+        """Mark an event as processed."""
+        queue = self._load_queue()
+        if queue.mark_processed(event_id):
+            queue.last_processed = datetime.now()
+            self._save_queue(queue)
+            return True
+        return False
+
+    def clear_processed(self) -> int:
+        """Remove all processed events from the queue."""
+        queue = self._load_queue()
+        count = queue.clear_processed()
+        if count > 0:
+            self._save_queue(queue)
+        return count
+
+    def clear_all(self) -> None:
+        """Clear the entire queue (for testing)."""
+        if self.queue_file.exists():
+            self.queue_file.unlink()
+
+
+class MemoryEventQueueStore:
+    """In-memory event queue for testing."""
+
+    def __init__(self):
+        self.queue = EventQueue()
+
+    def append_event(self, event: PendingEvent) -> str:
+        self.queue.append(event)
+        return event.id
+
+    def get_pending_events(self, campaign_id: str | None = None) -> list[PendingEvent]:
+        return self.queue.get_pending(campaign_id)
+
+    def mark_processed(self, event_id: str) -> bool:
+        if self.queue.mark_processed(event_id):
+            self.queue.last_processed = datetime.now()
+            return True
+        return False
+
+    def clear_processed(self) -> int:
+        return self.queue.clear_processed()
+
+    def clear_all(self) -> None:
+        self.queue = EventQueue()
