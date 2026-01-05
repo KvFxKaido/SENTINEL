@@ -19,6 +19,7 @@ from .schema import (
     DormantThread,
     LeverageDemand,
     LeverageWeight,
+    MissionPhase,
     NPC,
     FactionName,
     SessionState,
@@ -253,6 +254,55 @@ class CampaignManager:
         self.current.session = None
         self.save_campaign()
         return entry
+
+    def set_phase(self, phase: str) -> dict:
+        """
+        Set the current mission phase.
+
+        Phases: briefing, planning, execution, resolution, debrief, between
+        """
+        if not self.current:
+            return {"error": "No campaign loaded"}
+
+        if not self.current.session:
+            return {"error": "No active session"}
+
+        # Validate phase
+        try:
+            new_phase = MissionPhase(phase.lower())
+        except ValueError:
+            valid = [p.value for p in MissionPhase]
+            return {"error": f"Invalid phase. Valid phases: {', '.join(valid)}"}
+
+        old_phase = self.current.session.phase
+        self.current.session.phase = new_phase
+
+        # Log phase transition
+        self.log_history(
+            type=HistoryType.PHASE_CHANGE,
+            summary=f"Phase: {old_phase.value} → {new_phase.value}",
+            is_permanent=False,
+        )
+
+        self.save_campaign()
+
+        return {
+            "old_phase": old_phase.value,
+            "new_phase": new_phase.value,
+            "narrative_hint": self._get_phase_hint(new_phase),
+        }
+
+    def _get_phase_hint(self, phase: MissionPhase) -> str:
+        """Return a brief narrative hint for the phase transition."""
+        hints = {
+            MissionPhase.BRIEFING: "Time to present the situation. Keep it tight.",
+            MissionPhase.PLANNING: "Let the players strategize. Support, don't lead.",
+            MissionPhase.EXECUTION: "This is where play happens. Complications arise from choices.",
+            MissionPhase.RESOLUTION: "Land the consequences. Don't rush past the ending.",
+            MissionPhase.DEBRIEF: "Close with intention. Ask the four questions.",
+            MissionPhase.BETWEEN: "Downtime is character time. The world keeps moving.",
+        }
+        return hints.get(phase, "Phase changed.")
 
     # -------------------------------------------------------------------------
     # Character Management

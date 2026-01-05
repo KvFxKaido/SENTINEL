@@ -334,6 +334,7 @@ class SentinelAgent:
             "surface_avoidance": self._handle_surface_avoidance,
             "invoke_restorer": self._handle_invoke_restorer,
             "declare_push": self._handle_declare_push,
+            "set_phase": self._handle_set_phase,
         }
 
         # Initialize client
@@ -711,6 +712,21 @@ class SentinelAgent:
                     "required": ["character_id", "goal", "consequence"],
                 },
             },
+            {
+                "name": "set_phase",
+                "description": "Advance the mission phase. Each phase changes GM guidance: briefing (present situation), planning (support strategy), execution (complications arise), resolution (land consequences), debrief (four questions), between (downtime).",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "phase": {
+                            "type": "string",
+                            "enum": ["briefing", "planning", "execution", "resolution", "debrief", "between"],
+                            "description": "The phase to transition to",
+                        },
+                    },
+                    "required": ["phase"],
+                },
+            },
         ]
 
     # -------------------------------------------------------------------------
@@ -756,6 +772,10 @@ class SentinelAgent:
             consequence=kwargs["consequence"],
             severity=kwargs.get("severity", "moderate"),
         )
+
+    def _handle_set_phase(self, **kwargs) -> dict:
+        """Handle set_phase tool call."""
+        return self.manager.set_phase(phase=kwargs["phase"])
 
     def _handle_update_character(self, **kwargs) -> dict:
         """Handle update_character tool call."""
