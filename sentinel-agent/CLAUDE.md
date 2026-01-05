@@ -210,6 +210,4 @@ Use `/backend <name>` in the CLI to switch manually. Note: CLI backends (Gemini,
 - `../core/SENTINEL Playbook — Core Rules.md` — The full game rules
 - `../lore/` — Canon bible, characters, session logs (indexed by lore retriever)
 - `../architecture/AGENT_ARCHITECTURE.md` — Design document
-- `../architecture/SOVWREN_SALVAGE_MAP.md` — Components adapted from Sovwren (with status)
-- `../architecture/MCP_FACTIONS.md` — Faction MCP server design
-- `../sentinel-campaign/` — Campaign MCP server (factions, history)
+- `../sentinel-campaign/README.md` — Campaign MCP server (factions, history, tools)

@@ -9,9 +9,7 @@ SENTINEL/
 ├── core/                    # Game design documents
 │   └── SENTINEL Playbook — Core Rules.md
 ├── architecture/            # Technical design
-│   ├── AGENT_ARCHITECTURE.md
-│   ├── SOVWREN_SALVAGE_MAP.md
-│   └── MCP_FACTIONS.md      # Faction MCP server design
+│   └── AGENT_ARCHITECTURE.md
 ├── sentinel-agent/          # The AI GM implementation
 │   ├── CLAUDE.md            # Detailed dev context
 │   ├── src/                 # Python source
@@ -37,10 +35,8 @@ SENTINEL is a tactical tabletop RPG about navigating political tension, ethical 
 |----------|---------|
 | `core/SENTINEL Playbook — Core Rules.md` | The complete game rules |
 | `architecture/AGENT_ARCHITECTURE.md` | Agent design, state schema, tools |
-| `architecture/SOVWREN_SALVAGE_MAP.md` | Components adapted from Sovwren (with status) |
-| `architecture/MCP_FACTIONS.md` | Faction MCP server design |
 | `sentinel-agent/CLAUDE.md` | Dev guide for the agent codebase |
-| `sentinel-campaign/README.md` | MCP server installation and usage |
+| `sentinel-campaign/README.md` | Campaign MCP server (factions, history, tools) |
 
 ## Game Philosophy
 

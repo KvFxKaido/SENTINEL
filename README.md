@@ -158,9 +158,7 @@ pytest
 
 | [Agent Architecture](architecture/AGENT_ARCHITECTURE.md) | Technical design |
 
-| [MCP Design](architecture/MCP_FACTIONS.md) | Faction server design |
-
-| [Refactoring Roadmap](architecture/REFACTORING.md) | Development progress |
+| [Campaign MCP Server](sentinel-campaign/README.md) | Faction server design |
 
 | [Agent Dev Guide](sentinel-agent/CLAUDE.md) | Contributor guide |
 
