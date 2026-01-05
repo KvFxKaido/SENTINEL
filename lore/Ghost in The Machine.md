@@ -8,14 +8,8 @@
 
 ---
 
-**System State:** DEGRADED  
-**Mission Thread:** Project BRIDGE  
-**Chronology:** Awakening — +2 hours
-
----
-
-**System State:** DEGRADED  
-**Mission Thread:** Project BRIDGE  
+**System State:** DEGRADED
+**Mission Thread:** Project BRIDGE
 **Chronology:** Awakening — +2 hours
 
 ---
