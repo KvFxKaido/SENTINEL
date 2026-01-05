@@ -35,7 +35,8 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 - **Context meter** — visual indicator of conversation depth
 - **Faction MCP server** — external faction lore + campaign tracking
 - **Multi-backend LLM** — LM Studio, Ollama, Claude, OpenRouter, Gemini CLI, Codex CLI
-- **Test suite** — 164 tests covering core mechanics
+- **Test suite** — 181 tests covering core mechanics
+- **Event queue** — MCP → Agent state sync via append-only queue (solves concurrency)
 - **CI/CD** — GitHub Actions (Python 3.10, 3.11, 3.12)
 - **Dormant thread surfacing** — keyword matching alerts GM when threads may trigger
 - **Leverage escalation** — factions call in favors with threat basis, deadlines, consequences; three escalation types (queue_consequence, increase_weight, faction_action); `[DEMAND DEADLINE ALERT]` injection
@@ -114,6 +115,7 @@ SENTINEL/
 - Tools return dicts for API serialization
 - NPCs have agendas (wants, fears, leverage, owes, **lie_to_self**)
 - NPC behavior logic extracted to pure functions (`rules/npc.py`) for testability
+- **Event queue for concurrency** — MCP appends events to `pending_events.json`, Agent processes on load (single writer pattern)
 
 ---
 
@@ -344,7 +346,7 @@ Applied throughout CLI: banners, panels, status displays, choice blocks.
 - **LM Studio** — Local LLM (free, OpenAI-compatible API at port 1234)
 - **Ollama** — Local LLM alternative (OpenAI-compatible API at port 11434)
 - **Anthropic SDK** — Claude API (optional)
-- **pytest** — Test framework with 164 tests
+- **pytest** — Test framework with 181 tests
 - **GitHub Actions** — CI/CD pipeline
 
 No heavy ML dependencies — lore retrieval uses keyword matching.
