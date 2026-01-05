@@ -146,10 +146,32 @@ class SocialEnergy(BaseModel):
         return hints.get(self.state, "")
 
 
+class LeverageDemand(BaseModel):
+    """
+    A faction's formal demand using leverage from an enhancement.
+
+    Represents active pressure from a faction calling in a favor.
+    The threat_basis covers both informational leverage ("we know about Sector 7")
+    and functional leverage ("we can disable your neural interface").
+    """
+    id: str = Field(default_factory=generate_id)
+    faction: FactionName
+    enhancement_id: str
+    enhancement_name: str  # Denormalized for display
+    demand: str  # What they're asking
+    threat_basis: list[str] = Field(default_factory=list)  # Why leverage works
+    deadline: str | None = None  # Human-facing ("Before the convoy leaves")
+    deadline_session: int | None = None  # Authoritative for overdue calc
+    consequences: list[str] = Field(default_factory=list)  # What happens if ignored
+    created_session: int = 0
+    weight: LeverageWeight = LeverageWeight.MEDIUM
+
+
 class Leverage(BaseModel):
     """Tracks faction leverage from enhancements."""
     last_called: datetime | None = None
-    pending_obligation: str | None = None
+    pending_obligation: str | None = None  # Legacy field, migrated to pending_demand
+    pending_demand: LeverageDemand | None = None  # Rich demand object
     compliance_count: int = 0
     resistance_count: int = 0
     # Escalation tracking
@@ -505,7 +527,7 @@ class Campaign(BaseModel):
     This is the root model that gets serialized to JSON.
     Versioned for migration support.
     """
-    schema_version: str = "1.0.0"
+    schema_version: str = "1.1.0"  # Added LeverageDemand, pending_demand field
     saved_at: datetime = Field(default_factory=datetime.now)
 
     meta: CampaignMeta

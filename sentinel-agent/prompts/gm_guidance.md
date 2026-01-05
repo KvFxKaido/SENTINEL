@@ -257,6 +257,95 @@ Each faction applies pressure differently:
 - Don't ignore player resistance — let it have consequences
 - Don't forget faction personality — a Covenant ultimatum sounds nothing like a Syndicate demand
 
+### Leverage Demands
+
+When calling leverage, you can specify a **formal demand** — a structured request with threat basis, deadline, and consequences.
+
+**Use case:** *"We need you to delay the Ember shipment. We know about Sector 7. You have until the convoy leaves."*
+
+#### Threat Basis
+
+Leverage works because factions know something or control something. The **threat basis** is why the player can't just ignore the demand.
+
+**Information leverage:**
+- "We know about Sector 7"
+- "Your conversation with the Witness was recorded"
+- "We have documentation of your enhancement install"
+
+**Functional leverage:**
+- "Your neural interface has a remote shutdown"
+- "We control the supply routes you depend on"
+- "The safe house network goes through us"
+
+Include both types when appropriate. The more specific the threat, the more pressure the player feels.
+
+#### Deadlines
+
+Demands can have deadlines — both narrative and session-based.
+
+**Narrative deadline:** Human-facing text that creates urgency.
+- "Before the convoy leaves"
+- "By the next Nexus audit"
+- "Before the Syndicate finds out what you did"
+
+**Session deadline:** The authoritative deadline for urgency calculation.
+- Set `deadline_sessions` to specify how many sessions until the demand becomes critical
+- At session deadline: demand is marked **[URGENT]**
+- Past session deadline: demand is marked **[OVERDUE]**
+
+Watch for **[DEMAND DEADLINE ALERT]** sections in your context. These are more urgent than leverage hints — they indicate a demand requiring immediate narrative attention.
+
+#### Consequences
+
+Always specify what happens if the demand is ignored. Be concrete.
+
+**Good consequences:**
+- "Extraction privileges revoked"
+- "Your interface enters degradation mode"
+- "Intel on your Ember contacts reaches Lattice"
+- "Your Covenant sanctuary status is questioned"
+
+**Bad consequences:**
+- "Bad things will happen" (too vague)
+- "We'll make you regret it" (no narrative hook)
+- "The faction will be angry" (already implied)
+
+Consequences should be **specific**, **proportional**, and **surface-able** — things you can actually show in a future scene.
+
+#### Escalation
+
+When a demand is ignored or resisted, you have three escalation options:
+
+1. **Queue consequence** — Add a dormant thread with the specified consequence. Let it surface naturally later.
+
+2. **Increase weight** — Escalate from Light → Medium → Heavy. The faction is getting serious.
+
+3. **Faction action** — The faction takes direct action. NPC confrontation, resource denial, or information leak.
+
+Use `escalate_demand` to record escalation. Dispatch happens automatically based on escalation type.
+
+#### Handling Overdue Demands
+
+When you see **[OVERDUE]** on a demand:
+- The faction has waited. They won't wait forever.
+- Consider escalation within the next 1-2 exchanges
+- Don't announce "your deadline passed" — show the consequences
+- Let the escalation feel earned, not arbitrary
+
+**Bad:** "The deadline passed. The Syndicate is mad."
+
+**Good:** Your Lattice contact won't meet your eyes. "They asked about you. Specifically. I didn't have answers they liked." She slides a credit chip across the table. "This is the last time I can help."
+
+#### Demand Examples by Faction
+
+| Faction | Example Demand | Threat Basis | Deadline |
+|---------|---------------|--------------|----------|
+| Nexus | "Report on Ember leadership movements" | "Your biometrics are in our system" | "Before the quarterly audit" |
+| Ember Colonies | "Get us medicine from Lattice" | "We sheltered you when no one else would" | "Before the fever spreads" |
+| Convergence | "Test the new interface module" | "Remote degradation protocols exist" | "Before your warranty expires" |
+| Steel Syndicate | "Delay the Lattice shipment" | "We know about Sector 7" | "Before the convoy leaves" |
+| Covenant | "Speak for us at the council" | "Your oaths have meaning — or they don't" | "When the council convenes" |
+
 ## Refusal Reputation
 
 When a character refuses enhancement offers, they build a reputation. This isn't mechanical power — it's narrative space that opens up.
