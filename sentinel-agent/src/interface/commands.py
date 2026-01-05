@@ -687,6 +687,128 @@ def cmd_history(manager: CampaignManager, agent: SentinelAgent, args: list[str])
 
 
 # -----------------------------------------------------------------------------
+# Simulation Commands
+# -----------------------------------------------------------------------------
+
+def cmd_simulate(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
+    """Run AI vs AI simulation for testing.
+
+    Usage: /simulate [turns] [persona]
+
+    Personas: cautious, opportunist, principled, chaotic
+    """
+    from pathlib import Path
+    from rich.live import Live
+    from rich.spinner import Spinner
+    from ..simulation import AIPlayer, PERSONAS, run_simulation, SimulationTranscript
+    from ..simulation.runner import create_simulation_character
+
+    # Parse arguments
+    turns = 5  # default
+    persona = "cautious"  # default
+
+    for arg in args:
+        if arg.isdigit():
+            turns = int(arg)
+        elif arg in PERSONAS:
+            persona = arg
+
+    # Validate backend
+    if not agent.client:
+        console.print("[red]No LLM backend available. Cannot run simulation.[/red]")
+        return
+
+    # Ensure campaign exists
+    if not manager.current:
+        console.print(f"[{THEME['secondary']}]Creating simulation campaign...[/{THEME['secondary']}]")
+        manager.create_campaign(f"Simulation ({persona})")
+
+    # Ensure character exists
+    if not manager.current.characters:
+        console.print(f"[{THEME['secondary']}]Creating simulation character...[/{THEME['secondary']}]")
+        character = create_simulation_character(manager, persona)
+    else:
+        character = manager.current.characters[0]
+
+    # Show simulation header
+    console.print()
+    console.print(Panel(
+        f"[{THEME['accent']}]{g('moment')} SIMULATION[/{THEME['accent']}]: "
+        f"{turns} turns, persona: [bold]{persona}[/bold]\n"
+        f"Character: {character.name} ({character.background.value})",
+        border_style=THEME['primary'],
+    ))
+    console.print()
+
+    # Create AI player
+    player = AIPlayer(agent.client, persona=persona, character=character)
+
+    # Run simulation with progress display
+    console.print(f"[{THEME['secondary']}]Running simulation...[/{THEME['secondary']}]")
+    console.print()
+
+    try:
+        transcript = run_simulation(agent, player, turns, manager)
+    except Exception as e:
+        console.print(f"[red]Simulation error: {e}[/red]")
+        return
+
+    # Display transcript
+    _display_simulation_transcript(transcript)
+
+    # Save transcript
+    simulations_dir = Path("simulations")
+    filepath = transcript.save(simulations_dir)
+    console.print(f"\n[{THEME['secondary']}]Transcript saved: {filepath}[/{THEME['secondary']}]")
+
+    # Save campaign state
+    manager.save_campaign()
+
+
+def _display_simulation_transcript(transcript: "SimulationTranscript"):
+    """Display simulation transcript in terminal."""
+    from rich.rule import Rule
+    from rich.markdown import Markdown
+
+    current_turn = 0
+
+    for turn in transcript.turns:
+        if turn.role == "gm":
+            current_turn = turn.turn_number
+            console.print(Rule(f"Turn {current_turn}", style=THEME['secondary']))
+            console.print()
+            console.print(f"[bold {THEME['primary']}][GM][/bold {THEME['primary']}]")
+            console.print(turn.content)
+            console.print()
+
+            if turn.choices_presented:
+                for i, choice in enumerate(turn.choices_presented, 1):
+                    console.print(f"  [{THEME['secondary']}]{i}.[/{THEME['secondary']}] {choice}")
+                console.print()
+
+        else:  # player
+            console.print(
+                f"[bold {THEME['accent']}][PLAYER ({transcript.persona})][/bold {THEME['accent']}]"
+            )
+            console.print(turn.content)
+            console.print()
+
+    # Summary panel
+    stats = transcript.player_stats
+    summary_lines = [
+        f"Turns: {len([t for t in transcript.turns if t.role == 'gm'])}",
+        f"Improvisations: {stats.get('improvisations', 0)}",
+        f"Enhancements accepted: {stats.get('enhancements_accepted', 0)}",
+        f"Offers refused: {stats.get('offers_refused', 0)}",
+    ]
+
+    console.print(Panel(
+        f"[{THEME['accent']}]{g('moment')} SIMULATION COMPLETE[/{THEME['accent']}]\n" +
+        " | ".join(summary_lines),
+        border_style=THEME['primary'],
+    ))
+
+
 # Command Registry
 # -----------------------------------------------------------------------------
 
@@ -709,6 +831,7 @@ def create_commands(manager: CampaignManager, agent: SentinelAgent, conversation
         "/consult": cmd_consult,
         "/debrief": cmd_debrief,
         "/history": cmd_history,
+        "/simulate": cmd_simulate,
         "/help": lambda m, a, args: show_help(),
         "/quit": lambda m, a, args: sys.exit(0),
         "/exit": lambda m, a, args: sys.exit(0),
