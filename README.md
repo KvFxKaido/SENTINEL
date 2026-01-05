@@ -21,7 +21,7 @@ Then: `/new` → `/char` → `/start` → play
 ```
 SENTINEL/
 ├── sentinel-agent/     # AI Game Master
-├── sentinel-mcp/       # Faction MCP Server
+├── sentinel-campaign/  # Faction MCP Server
 ├── core/               # Game rules document
 ├── lore/               # Novellas and world-building
 └── architecture/       # Design documents
@@ -33,7 +33,7 @@ SENTINEL/
 
 | [sentinel-agent](sentinel-agent/) | Python CLI that runs the AI GM |
 
-| [sentinel-mcp](sentinel-mcp/) | MCP server providing faction knowledge |
+| [sentinel-campaign](sentinel-campaign/) | MCP server providing faction knowledge |
 
 | [Core Rules](core/) | Complete game rules |
 
@@ -82,9 +82,11 @@ Players choose one professional background. Backgrounds express capability, not 
 
 ### AI Game Master
 
-* Multiple LLM backends (LM Studio, Claude, OpenRouter)
+* Multiple LLM backends (LM Studio, Ollama, Claude, OpenRouter, Gemini, Codex)
 * Hot-reloadable prompts
 * Lore retrieval from novellas
+* `/consult` — get competing perspectives from faction advisors
+* `/simulate` — AI vs AI testing with 4 player personas
 
 ### NPC System
 
@@ -96,7 +98,14 @@ Players choose one professional background. Backgrounds express capability, not 
 
 * Hinge moments (irreversible choices)
 * Dormant threads (delayed consequences)
+* Leverage escalation (factions call in favors)
 * Faction standing affects NPC behavior
+
+### Choice System
+
+* GM always offers 2-4 options plus improvisation
+* High-stakes moments use formal choice blocks
+* Choices extracted and tracked for AI simulation
 
 ### Social Energy
 
@@ -132,12 +141,7 @@ pip install -e ".[dev]"
 pytest
 ```
 
-**77 tests** covering:
-
-* Memory triggers and disposition shifts
-* Faction standing operations
-* Chronicle logging and hinge moments
-* Social energy mechanics
+**197 tests** covering state, mechanics, simulation, and event queue.
 
 ## Design Philosophy
 
