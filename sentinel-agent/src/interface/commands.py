@@ -16,7 +16,7 @@ from ..state import CampaignManager, Character, Background
 from ..state.schema import SessionReflection, HistoryType
 from ..agent import SentinelAgent
 from .renderer import console, THEME, show_status, show_backend_status, show_help
-from .config import set_model as save_model_config
+from .config import set_model as save_model_config, set_animate_banner, load_config
 from .glyphs import g
 
 
@@ -181,6 +181,32 @@ def cmd_model(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
         console.print("[dim]  Tool calling supported[/dim]")
     else:
         console.print("[yellow]  Tool calling not supported by this model[/yellow]")
+
+
+def cmd_banner(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
+    """Toggle banner animation on startup."""
+    config = load_config()
+    current = config.get("animate_banner", True)
+
+    if args:
+        # Set explicitly: /banner on, /banner off
+        arg = args[0].lower()
+        if arg in ("on", "true", "1", "yes"):
+            new_value = True
+        elif arg in ("off", "false", "0", "no"):
+            new_value = False
+        else:
+            console.print(f"[yellow]Unknown option: {arg}[/yellow]")
+            console.print("[dim]Use: /banner on, /banner off, or just /banner to toggle[/dim]")
+            return
+    else:
+        # Toggle
+        new_value = not current
+
+    set_animate_banner(new_value)
+    status = "[green]on[/green]" if new_value else "[dim]off[/dim]"
+    console.print(f"Banner animation: {status}")
+    console.print("[dim]  (Saved for future sessions)[/dim]")
 
 
 def cmd_lore(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
@@ -641,6 +667,7 @@ def create_commands(manager: CampaignManager, agent: SentinelAgent, conversation
         "/status": lambda m, a, args: show_status(m, a, conversation),
         "/backend": cmd_backend,
         "/model": cmd_model,
+        "/banner": cmd_banner,
         "/lore": cmd_lore,
         "/char": cmd_char,
         "/roll": cmd_roll,

@@ -13,11 +13,13 @@ class Config(TypedDict, total=False):
     """User configuration."""
     backend: str  # lmstudio, claude, openrouter, etc.
     model: str | None  # Model name for LM Studio/Ollama
+    animate_banner: bool  # Show animated banner on startup
 
 
 DEFAULT_CONFIG: Config = {
     "backend": "auto",
     "model": None,
+    "animate_banner": True,
 }
 
 
@@ -70,4 +72,11 @@ def set_model(model: str | None, campaigns_dir: Path | str = "campaigns") -> Non
     """Save model preference."""
     config = load_config(campaigns_dir)
     config["model"] = model
+    save_config(config, campaigns_dir)
+
+
+def set_animate_banner(animate: bool, campaigns_dir: Path | str = "campaigns") -> None:
+    """Save banner animation preference."""
+    config = load_config(campaigns_dir)
+    config["animate_banner"] = animate
     save_config(config, campaigns_dir)
