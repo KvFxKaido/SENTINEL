@@ -647,6 +647,67 @@ class CampaignManager:
         return matches
 
     # -------------------------------------------------------------------------
+    # Player Push Mechanic
+    # -------------------------------------------------------------------------
+
+    def declare_push(
+        self,
+        character_id: str,
+        goal: str,
+        consequence: str,
+        severity: str = "moderate",
+    ) -> dict:
+        """
+        Player explicitly invites a consequence for advantage.
+
+        The Push mechanic gives players agency over the risk/reward tradeoff.
+        They get advantage now, but a dormant thread is queued.
+
+        Args:
+            character_id: Character making the push
+            goal: What they're pushing for ("to convince the guard", "to crack the lock")
+            consequence: What will happen later as a result
+            severity: minor/moderate/major for the dormant thread
+
+        Returns:
+            Dict with confirmation, thread ID, and narrative
+        """
+        if not self.current:
+            return {"error": "No campaign loaded"}
+
+        char = self.get_character(character_id)
+        if not char:
+            return {"error": "Character not found"}
+
+        # Queue the consequence as a dormant thread
+        thread = self.queue_dormant_thread(
+            origin=f"PUSH: {goal}",
+            trigger_condition="When the cost comes due",
+            consequence=consequence,
+            severity=severity,
+        )
+
+        # Log to history
+        self.log_history(
+            type=HistoryType.HINGE,
+            summary=f"PUSHED: {char.name} accepted future cost for {goal}",
+            is_permanent=False,
+        )
+
+        return {
+            "success": True,
+            "advantage_granted": True,
+            "thread_id": thread.id,
+            "goal": goal,
+            "consequence": consequence,
+            "severity": severity,
+            "narrative_hint": (
+                f"You reach deeper. This will cost you—but not today. "
+                f"Advantage granted."
+            ),
+        }
+
+    # -------------------------------------------------------------------------
     # Non-Action / Avoidance Tracking
     # -------------------------------------------------------------------------
 

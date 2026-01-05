@@ -864,3 +864,87 @@ class TestPendingAvoidances:
         assert len(pending) == 1
         assert pending[0]["overdue"] is True
         assert pending[0]["age_sessions"] == 4
+
+
+class TestDeclarePush:
+    """Test player Push mechanic."""
+
+    def test_push_grants_advantage(self):
+        """Push returns advantage granted."""
+        store = MemoryCampaignStore()
+        manager = CampaignManager(store)
+        manager.create_campaign("Test")
+
+        char = Character(name="Test", background=Background.OPERATIVE)
+        manager.add_character(char)
+
+        result = manager.declare_push(
+            character_id=char.id,
+            goal="to convince the guard",
+            consequence="The guard will remember your face",
+        )
+
+        assert result["success"] is True
+        assert result["advantage_granted"] is True
+        assert result["goal"] == "to convince the guard"
+
+    def test_push_queues_dormant_thread(self):
+        """Push creates a dormant thread with the consequence."""
+        store = MemoryCampaignStore()
+        manager = CampaignManager(store)
+        manager.create_campaign("Test")
+
+        char = Character(name="Test", background=Background.OPERATIVE)
+        manager.add_character(char)
+
+        result = manager.declare_push(
+            character_id=char.id,
+            goal="to crack the encryption",
+            consequence="Your intrusion will be traced",
+            severity="major",
+        )
+
+        # Should have created a dormant thread
+        assert len(manager.current.dormant_threads) == 1
+        thread = manager.current.dormant_threads[0]
+        assert thread.id == result["thread_id"]
+        assert "PUSH" in thread.origin
+        assert thread.consequence == "Your intrusion will be traced"
+        assert thread.severity.value == "major"
+
+    def test_push_logs_to_history(self):
+        """Push is logged as a hinge moment."""
+        store = MemoryCampaignStore()
+        manager = CampaignManager(store)
+        manager.create_campaign("Test")
+
+        char = Character(name="Test", background=Background.OPERATIVE)
+        manager.add_character(char)
+
+        manager.declare_push(
+            character_id=char.id,
+            goal="to escape",
+            consequence="They'll know you were here",
+        )
+
+        history = manager.current.history
+        assert len(history) >= 1
+        assert any("PUSHED" in h.summary for h in history)
+
+    def test_push_includes_narrative(self):
+        """Push returns narrative hint."""
+        store = MemoryCampaignStore()
+        manager = CampaignManager(store)
+        manager.create_campaign("Test")
+
+        char = Character(name="Test", background=Background.OPERATIVE)
+        manager.add_character(char)
+
+        result = manager.declare_push(
+            character_id=char.id,
+            goal="to win",
+            consequence="cost",
+        )
+
+        assert "narrative_hint" in result
+        assert "Advantage" in result["narrative_hint"]

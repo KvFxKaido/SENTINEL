@@ -308,6 +308,7 @@ class SentinelAgent:
             "log_avoidance": self._handle_log_avoidance,
             "surface_avoidance": self._handle_surface_avoidance,
             "invoke_restorer": self._handle_invoke_restorer,
+            "declare_push": self._handle_declare_push,
         }
 
         # Initialize client
@@ -622,6 +623,30 @@ class SentinelAgent:
                     "required": ["character_id", "action"],
                 },
             },
+            {
+                "name": "declare_push",
+                "description": "Player explicitly invites a consequence for advantage. Use when player accepts a Devil's Bargain. Queues a dormant thread with the consequence.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "character_id": {"type": "string"},
+                        "goal": {
+                            "type": "string",
+                            "description": "What they're pushing for (e.g., 'to convince the guard')",
+                        },
+                        "consequence": {
+                            "type": "string",
+                            "description": "What will happen later as a result of the push",
+                        },
+                        "severity": {
+                            "type": "string",
+                            "enum": ["minor", "moderate", "major"],
+                            "default": "moderate",
+                        },
+                    },
+                    "required": ["character_id", "goal", "consequence"],
+                },
+            },
         ]
 
     # -------------------------------------------------------------------------
@@ -657,6 +682,15 @@ class SentinelAgent:
         return self.manager.invoke_restorer(
             character_id=kwargs["character_id"],
             action=kwargs["action"],
+        )
+
+    def _handle_declare_push(self, **kwargs) -> dict:
+        """Handle declare_push tool call."""
+        return self.manager.declare_push(
+            character_id=kwargs["character_id"],
+            goal=kwargs["goal"],
+            consequence=kwargs["consequence"],
+            severity=kwargs.get("severity", "moderate"),
         )
 
     def _handle_update_character(self, **kwargs) -> dict:
