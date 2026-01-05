@@ -141,6 +141,17 @@ class PromptLoader:
                             )
                         lines.append(f"  → Enhancement: {enh.name} ({', '.join(status_parts)})")
 
+                # Show refusal reputation if any
+                if char.refused_enhancements:
+                    rep = self.manager.get_refusal_reputation(char.id)
+                    if rep and rep["count"] > 0:
+                        if rep["title"]:
+                            lines.append(f"  → Reputation: \"{rep['title']}\" ({rep['count']} refusals)")
+                        else:
+                            lines.append(f"  → Refusals: {rep['count']}")
+                        if rep["narrative_hint"]:
+                            lines.append(f"    {rep['narrative_hint']}")
+
         # Active NPCs
         if campaign.npcs.active:
             lines.append("\n**Active NPCs:**")
@@ -278,6 +289,7 @@ class SentinelAgent:
             "queue_dormant_thread": self._handle_queue_thread,
             "surface_dormant_thread": self._handle_surface_thread,
             "grant_enhancement": self._handle_grant_enhancement,
+            "refuse_enhancement": self._handle_refuse_enhancement,
             "call_leverage": self._handle_call_leverage,
             "resolve_leverage": self._handle_resolve_leverage,
         }
@@ -464,6 +476,34 @@ class SentinelAgent:
                 },
             },
             {
+                "name": "refuse_enhancement",
+                "description": "Record when a character refuses an enhancement offer. Refusal builds reputation that NPCs react to.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "character_id": {"type": "string"},
+                        "name": {
+                            "type": "string",
+                            "description": "Enhancement name that was offered",
+                        },
+                        "source": {
+                            "type": "string",
+                            "enum": [f.value for f in FactionName],
+                            "description": "Faction that offered the enhancement",
+                        },
+                        "benefit": {
+                            "type": "string",
+                            "description": "What the enhancement would have provided",
+                        },
+                        "reason_refused": {
+                            "type": "string",
+                            "description": "Why the character refused (in their words)",
+                        },
+                    },
+                    "required": ["character_id", "name", "source", "benefit", "reason_refused"],
+                },
+            },
+            {
                 "name": "call_leverage",
                 "description": "A faction calls in leverage on an enhancement they granted. Creates a pending obligation the player must respond to.",
                 "input_schema": {
@@ -644,6 +684,36 @@ class SentinelAgent:
                 "granted": True,
                 "narrative_hint": f"Accepted {source.value} enhancement. They won't forget.",
             }
+        except ValueError as e:
+            return {"error": str(e)}
+
+    def _handle_refuse_enhancement(self, **kwargs) -> dict:
+        """Handle refuse_enhancement tool call."""
+        try:
+            source = FactionName(kwargs["source"])
+            refusal = self.manager.refuse_enhancement(
+                character_id=kwargs["character_id"],
+                name=kwargs["name"],
+                source=source,
+                benefit=kwargs["benefit"],
+                reason_refused=kwargs["reason_refused"],
+            )
+
+            # Get updated reputation
+            rep = self.manager.get_refusal_reputation(kwargs["character_id"])
+
+            result = {
+                "id": refusal.id,
+                "name": refusal.name,
+                "source": refusal.source.value,
+                "refused": True,
+                "reason": refusal.reason_refused,
+            }
+
+            if rep:
+                result["reputation"] = rep
+
+            return result
         except ValueError as e:
             return {"error": str(e)}
 

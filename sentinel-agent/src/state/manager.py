@@ -634,6 +634,99 @@ class CampaignManager:
         self.save_campaign()
         return enhancement
 
+    def refuse_enhancement(
+        self,
+        character_id: str,
+        name: str,
+        source: FactionName,
+        benefit: str,
+        reason_refused: str,
+    ) -> "RefusedEnhancement":
+        """
+        Record a refused enhancement offer.
+
+        Refusal is meaningful — it builds reputation that NPCs react to.
+        """
+        from .schema import RefusedEnhancement
+
+        if not self.current:
+            raise ValueError("No campaign loaded")
+
+        char = self.get_character(character_id)
+        if not char:
+            raise ValueError(f"Character not found: {character_id}")
+
+        refusal = RefusedEnhancement(
+            name=name,
+            source=source,
+            benefit=benefit,
+            reason_refused=reason_refused,
+        )
+
+        char.refused_enhancements.append(refusal)
+
+        # Log as hinge moment (refusal is an identity-defining choice)
+        self.log_history(
+            type=HistoryType.HINGE,
+            summary=f"Refused {source.value} enhancement: {name}",
+            is_permanent=True,
+        )
+
+        self.save_campaign()
+        return refusal
+
+    def get_refusal_reputation(self, character_id: str) -> dict | None:
+        """
+        Calculate refusal reputation based on refused enhancements.
+
+        Returns title, count, and faction breakdown for GM context.
+        """
+        char = self.get_character(character_id)
+        if not char:
+            return None
+
+        refusals = char.refused_enhancements
+        count = len(refusals)
+
+        if count == 0:
+            return {
+                "title": None,
+                "count": 0,
+                "by_faction": {},
+                "narrative_hint": None,
+            }
+
+        # Count by faction
+        by_faction: dict[str, int] = {}
+        for r in refusals:
+            faction = r.source.value
+            by_faction[faction] = by_faction.get(faction, 0) + 1
+
+        # Determine title
+        title = None
+        narrative_hint = None
+
+        # Check for faction-specific defiance (3+ from same faction)
+        max_faction = max(by_faction.items(), key=lambda x: x[1])
+        if max_faction[1] >= 3:
+            title = f"The {max_faction[0]} Defiant"
+            narrative_hint = f"Known for repeatedly refusing {max_faction[0]} offers"
+        elif count >= 3:
+            title = "The Undaunted"
+            narrative_hint = "Has refused multiple faction offers — values autonomy"
+        elif count >= 2:
+            title = "The Unbought"
+            narrative_hint = "Has turned down enhancement offers before"
+        else:
+            narrative_hint = "Refused an enhancement — some NPCs may notice"
+
+        return {
+            "title": title,
+            "count": count,
+            "by_faction": by_faction,
+            "narrative_hint": narrative_hint,
+        }
+
     def call_leverage(
         self,
         character_id: str,
