@@ -1,14 +1,14 @@
 # SENTINEL
 
-[![CI](https://github.com/KvFxKaido/SENTINEL/actions/workflows/ci.yml/badge.svg)](https://github.com/KvFxKaido/SENTINEL/actions/workflows/ci.yml)
+[![CI](https://github.com/KvFxKaido/SENTINEL/actions/workflows/ci.yml/badge.svg)]([https://github.com/KvFxKaido/SENTINEL/actions/workflows/ci.yml](https://github.com/KvFxKaido/SENTINEL/actions/workflows/ci.yml))
 
-A tactical tabletop RPG with an AI Game Master. Navigate political tension, ethical tradeoffs, and survival in a post-collapse world where 11 factions compete for influence.
+A tactical, relationship-driven tabletop RPG with an AI Game Master. Navigate political tension, ethical tradeoffs, and survival in a post-collapse world where 11 factions compete for influence.
 
 **Core loop:** Investigation → Interpretation → Choice → Consequence
 
 ## Quick Start
 
-```bash
+```
 cd sentinel-agent
 pip install -e .
 python -m src.interface.cli
@@ -28,94 +28,140 @@ SENTINEL/
 ```
 
 | Component | Description |
+
 |-----------|-------------|
+
 | [sentinel-agent](sentinel-agent/) | Python CLI that runs the AI GM |
+
 | [sentinel-mcp](sentinel-mcp/) | MCP server providing faction knowledge |
+
 | [Core Rules](core/) | Complete game rules |
+
 | [Lore](lore/) | Canon novellas for RAG retrieval |
 
 ## The Eleven Factions
 
 | Faction | Philosophy |
+
 |---------|------------|
+
 | **Nexus** | The network that watches |
+
 | **Ember Colonies** | We survived. We endure. |
+
 | **Lattice** | We keep the lights on |
+
 | **Convergence** | Become what you were meant to be |
+
 | **Covenant** | We hold the line |
+
 | **Wanderers** | The road remembers |
+
 | **Cultivators** | From the soil, we rise |
+
 | **Steel Syndicate** | Everything has a price |
+
 | **Witnesses** | We remember so you don't have to lie |
+
 | **Architects** | We built this world |
+
 | **Ghost Networks** | We were never here |
+
+## Character Backgrounds
+
+Players choose one professional background. Backgrounds express capability, not destiny.
+
+* **Intel Operative** — Systems analysis, surveillance, pattern recognition
+* **Medic / Field Surgeon** — Triage, biology, crisis care
+* **Engineer / Technician** — Repair, infrastructure, hacking
+* **Negotiator / Diplomat** — Persuasion, mediation, languages
+* **Scavenger / Salvager** — Resource location, improvisation, barter
+* **Combat Specialist** — Tactics, firearms, physical conditioning
 
 ## Key Features
 
 ### AI Game Master
-- Multiple LLM backends (LM Studio, Claude, OpenRouter)
-- Hot-reloadable prompts
-- Lore retrieval from novellas
+
+* Multiple LLM backends (LM Studio, Claude, OpenRouter)
+* Hot-reloadable prompts
+* Lore retrieval from novellas
 
 ### NPC System
-- Agendas: wants, fears, leverage, owes, lie_to_self
-- Memory triggers react to player actions
-- Disposition modifiers change behavior
+
+* Agendas: wants, fears, leverage, owes, lie_to_self
+* Memory triggers react to player actions
+* Disposition modifiers change behavior
 
 ### Consequence Engine
-- Hinge moments (irreversible choices)
-- Dormant threads (delayed consequences)
-- Faction standing affects NPC behavior
+
+* Hinge moments (irreversible choices)
+* Dormant threads (delayed consequences)
+* Faction standing affects NPC behavior
 
 ### Social Energy
-- Tracks emotional bandwidth (0-100%)
-- Personalized restorers and drains
-- Affects social roll modifiers
+
+* Tracks emotional bandwidth (0-100%)
+* Personalized restorers and drains
+* Affects social roll modifiers
 
 ## LLM Backends
 
 | Backend | Setup |
+
 |---------|-------|
+
 | **LM Studio** | Download app, load model, start server (port 1234) |
+
 | **Ollama** | `ollama pull llama3.2` — runs automatically (port 11434) |
+
 | **Claude** | `pip install -e ".[claude]"` + API key |
+
 | **OpenRouter** | Set `OPENROUTER_API_KEY` |
+
 | **Gemini CLI** | Install `gemini` command |
+
 | **Codex CLI** | Install `codex` command |
 
 The agent auto-detects available backends (prefers local: LM Studio > Ollama).
 
 ## Development
 
-```bash
+```
 cd sentinel-agent
 pip install -e ".[dev]"
 pytest
 ```
 
 **77 tests** covering:
-- Memory triggers and disposition shifts
-- Faction standing operations
-- Chronicle logging and hinge moments
-- Social energy mechanics
+
+* Memory triggers and disposition shifts
+* Faction standing operations
+* Chronicle logging and hinge moments
+* Social energy mechanics
 
 ## Design Philosophy
 
 > "The agent is a storyteller who knows the rules, not a rules engine that tells stories."
 
-- NPCs are people, not obstacles
-- Consequences bloom over time
-- Honor player choices — no "right answers"
-- Every faction is right about something
+* NPCs are people, not obstacles
+* Consequences bloom over time
+* Honor player choices — no "right answers"
+* Every faction is right about something
 
 ## Documentation
 
 | Document | Purpose |
+
 |----------|---------|
+
 | [Project Brief](SENTINEL_PROJECT_BRIEF.md) | Full project overview |
+
 | [Agent Architecture](architecture/AGENT_ARCHITECTURE.md) | Technical design |
+
 | [MCP Design](architecture/MCP_FACTIONS.md) | Faction server design |
+
 | [Refactoring Roadmap](architecture/REFACTORING.md) | Development progress |
+
 | [Agent Dev Guide](sentinel-agent/CLAUDE.md) | Contributor guide |
 
 ## License
