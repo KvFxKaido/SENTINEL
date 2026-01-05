@@ -17,6 +17,8 @@ from .schema import (
     HistoryType,
     HingeMoment,
     DormantThread,
+    LeverageDemand,
+    LeverageWeight,
     NPC,
     FactionName,
     SessionState,
@@ -98,11 +100,46 @@ class CampaignManager:
         # Load from store
         campaign = self.store.load(campaign_id)
         if campaign:
+            # Run migrations if needed
+            migrated = self._migrate_campaign(campaign)
             self.current = campaign
             self._cache[campaign.meta.id] = campaign
+            if migrated:
+                self.save_campaign()  # Persist migration
             return campaign
 
         return None
+
+    def _migrate_campaign(self, campaign: Campaign) -> bool:
+        """
+        Migrate campaign to current schema version.
+
+        Returns True if any migration was performed.
+        """
+        migrated = False
+
+        # v1.0.0 -> v1.1.0: Migrate pending_obligation to pending_demand
+        if campaign.schema_version < "1.1.0":
+            for char in campaign.characters:
+                for enh in char.enhancements:
+                    # If legacy field set but new field not set, migrate
+                    if enh.leverage.pending_obligation and not enh.leverage.pending_demand:
+                        enh.leverage.pending_demand = LeverageDemand(
+                            faction=enh.source,
+                            enhancement_id=enh.id,
+                            enhancement_name=enh.name,
+                            demand=enh.leverage.pending_obligation,
+                            weight=enh.leverage.weight,
+                            created_session=campaign.meta.session_count,
+                        )
+                        # Clear legacy field
+                        enh.leverage.pending_obligation = None
+                        migrated = True
+
+            campaign.schema_version = "1.1.0"
+            migrated = True
+
+        return migrated
 
     def save_campaign(self) -> bool:
         """Save current campaign to store."""
@@ -986,14 +1023,27 @@ class CampaignManager:
         enhancement_id: str,
         demand: str,
         weight: str = "medium",
+        threat_basis: list[str] | None = None,
+        deadline: str | None = None,
+        deadline_sessions: int | None = None,
+        consequences: list[str] | None = None,
     ) -> dict:
         """
         A faction calls in leverage on an enhancement.
 
-        Records pending obligation. Player must respond.
-        """
-        from .schema import LeverageWeight
+        Creates a LeverageDemand with optional threat basis, deadline, and consequences.
+        Player must respond.
 
+        Args:
+            character_id: Character being leveraged
+            enhancement_id: Enhancement being leveraged
+            demand: What the faction is asking
+            weight: Pressure level (light/medium/heavy)
+            threat_basis: Why leverage works (info or functional leverage)
+            deadline: Human-facing deadline ("Before the convoy leaves")
+            deadline_sessions: Sessions until must resolve (e.g., 2)
+            consequences: What happens if ignored
+        """
         if not self.current:
             return {"error": "No campaign loaded"}
 
@@ -1008,10 +1058,30 @@ class CampaignManager:
         if not enhancement:
             return {"error": "Enhancement not found"}
 
-        if enhancement.leverage.pending_obligation:
-            return {"error": "Already has pending obligation - resolve that first"}
+        # Check for existing demand (new system) or obligation (legacy)
+        if enhancement.leverage.pending_demand or enhancement.leverage.pending_obligation:
+            return {"error": "Already has pending demand - resolve that first"}
 
-        enhancement.leverage.pending_obligation = demand
+        # Calculate deadline session if relative deadline given
+        deadline_session = None
+        if deadline_sessions is not None:
+            deadline_session = self.current.meta.session_count + deadline_sessions
+
+        # Create rich demand object
+        leverage_demand = LeverageDemand(
+            faction=enhancement.source,
+            enhancement_id=enhancement.id,
+            enhancement_name=enhancement.name,
+            demand=demand,
+            threat_basis=threat_basis or [],
+            deadline=deadline,
+            deadline_session=deadline_session,
+            consequences=consequences or [],
+            created_session=self.current.meta.session_count,
+            weight=LeverageWeight(weight),
+        )
+
+        enhancement.leverage.pending_demand = leverage_demand
         enhancement.leverage.last_called = datetime.now()
         enhancement.leverage.weight = LeverageWeight(weight)
 
@@ -1021,7 +1091,12 @@ class CampaignManager:
             "enhancement": enhancement.name,
             "faction": enhancement.source.value,
             "demand": demand,
+            "demand_id": leverage_demand.id,
             "weight": weight,
+            "threat_basis": threat_basis or [],
+            "deadline": deadline,
+            "deadline_session": deadline_session,
+            "consequences": consequences or [],
             "compliance_history": enhancement.leverage.compliance_count,
             "resistance_history": enhancement.leverage.resistance_count,
         }
@@ -1034,14 +1109,14 @@ class CampaignManager:
         outcome: str,
     ) -> dict:
         """
-        Resolve a pending leverage obligation.
+        Resolve a pending leverage demand or obligation.
 
         - Comply: weight may decrease
         - Resist: weight increases
         - Negotiate: weight stays, resets hint counter
-        """
-        from .schema import LeverageWeight
 
+        Works with both new LeverageDemand system and legacy pending_obligation.
+        """
         if not self.current:
             return {"error": "No campaign loaded"}
 
@@ -1053,10 +1128,19 @@ class CampaignManager:
             (e for e in char.enhancements if e.id == enhancement_id),
             None
         )
-        if not enhancement or not enhancement.leverage.pending_obligation:
-            return {"error": "No pending obligation"}
+        if not enhancement:
+            return {"error": "Enhancement not found"}
 
-        old_obligation = enhancement.leverage.pending_obligation
+        # Check for demand (new) or obligation (legacy)
+        demand = enhancement.leverage.pending_demand
+        legacy_obligation = enhancement.leverage.pending_obligation
+
+        if not demand and not legacy_obligation:
+            return {"error": "No pending demand or obligation"}
+
+        # Get the demand text for logging
+        old_demand_text = demand.demand if demand else legacy_obligation
+
         weights = list(LeverageWeight)
         current_weight_idx = weights.index(enhancement.leverage.weight)
 
@@ -1072,13 +1156,15 @@ class CampaignManager:
                 enhancement.leverage.weight = weights[current_weight_idx + 1]
         # negotiate: weight stays same
 
+        # Clear both fields
+        enhancement.leverage.pending_demand = None
         enhancement.leverage.pending_obligation = None
         enhancement.leverage.hint_count = 0  # Reset hint counter
 
         # Log to history
         self.log_history(
             type=HistoryType.CONSEQUENCE,
-            summary=f"Leverage {response}: {enhancement.source.value} demanded '{old_obligation}', outcome: {outcome}",
+            summary=f"Leverage {response}: {enhancement.source.value} demanded '{old_demand_text}', outcome: {outcome}",
             is_permanent=False,
         )
 
@@ -1112,8 +1198,8 @@ class CampaignManager:
 
         for char in self.current.characters:
             for enhancement in char.enhancements:
-                # Skip if already has pending obligation
-                if enhancement.leverage.pending_obligation:
+                # Skip if already has pending demand or obligation
+                if enhancement.leverage.pending_demand or enhancement.leverage.pending_obligation:
                     continue
 
                 # Skip if hinted this session already
@@ -1143,6 +1229,187 @@ class CampaignManager:
                     })
 
         return hints
+
+    def _compute_urgency_score(
+        self,
+        demand: LeverageDemand,
+        current_session: int,
+    ) -> tuple[str, int]:
+        """
+        Compute urgency tier and score for a demand.
+
+        Returns (urgency_tier, numeric_score) where:
+        - "critical": past deadline
+        - "urgent": deadline this session
+        - "pending": no deadline or future deadline
+
+        Score is for sorting: higher = more urgent.
+        """
+        age = current_session - demand.created_session
+
+        if demand.deadline_session is not None:
+            if current_session > demand.deadline_session:
+                return ("critical", 1000 + age)  # Past deadline
+            elif current_session == demand.deadline_session:
+                return ("urgent", 500 + age)  # Deadline is now
+
+        # Weight adds urgency even without deadline
+        weight_bonus = {"light": 0, "medium": 50, "heavy": 100}
+        return ("pending", weight_bonus.get(demand.weight.value, 0) + age)
+
+    def get_pending_demands(self) -> list[dict]:
+        """
+        Get all pending leverage demands for GM context.
+
+        Returns demands sorted by urgency (critical > urgent > pending).
+        Does NOT auto-escalate - returns hints for GM judgment.
+        """
+        if not self.current:
+            return []
+
+        demands = []
+        current_session = self.current.meta.session_count
+
+        for char in self.current.characters:
+            for enh in char.enhancements:
+                demand = enh.leverage.pending_demand
+                if not demand:
+                    continue
+
+                urgency, score = self._compute_urgency_score(demand, current_session)
+                age = current_session - demand.created_session
+                overdue = (
+                    demand.deadline_session is not None
+                    and current_session > demand.deadline_session
+                )
+
+                demands.append({
+                    "id": demand.id,
+                    "character_id": char.id,
+                    "character_name": char.name,
+                    "enhancement_id": enh.id,
+                    "enhancement_name": demand.enhancement_name,
+                    "faction": demand.faction.value,
+                    "demand": demand.demand,
+                    "threat_basis": demand.threat_basis,
+                    "deadline": demand.deadline,
+                    "deadline_session": demand.deadline_session,
+                    "consequences": demand.consequences,
+                    "weight": demand.weight.value,
+                    "age_sessions": age,
+                    "overdue": overdue,
+                    "urgency": urgency,
+                    "_score": score,  # For sorting
+                })
+
+        # Sort by score descending (most urgent first)
+        demands.sort(key=lambda d: -d["_score"])
+
+        # Remove internal score field
+        for d in demands:
+            del d["_score"]
+
+        return demands
+
+    def check_demand_deadlines(self) -> list[dict]:
+        """
+        Check for demands past their deadline.
+
+        Returns list of overdue/urgent demands for GM attention.
+        Does NOT auto-escalate - the GM decides how to handle.
+        """
+        all_demands = self.get_pending_demands()
+        return [d for d in all_demands if d["urgency"] in ("critical", "urgent")]
+
+    def escalate_demand(
+        self,
+        character_id: str,
+        enhancement_id: str,
+        escalation_type: str,  # "queue_consequence" | "increase_weight" | "faction_action"
+        narrative: str = "",
+    ) -> dict:
+        """
+        Escalate an unresolved leverage demand.
+
+        Called by GM when a deadline passes or player ignores faction pressure.
+
+        escalation_type:
+        - queue_consequence: Creates dormant thread from demand consequences
+        - increase_weight: Bumps demand weight (light→medium→heavy)
+        - faction_action: Logs faction taking independent action
+
+        All types log to history. Does NOT auto-resolve the demand.
+        """
+        if not self.current:
+            return {"error": "No campaign loaded"}
+
+        char = self.get_character(character_id)
+        if not char:
+            return {"error": "Character not found"}
+
+        enhancement = next(
+            (e for e in char.enhancements if e.id == enhancement_id),
+            None
+        )
+        if not enhancement:
+            return {"error": "Enhancement not found"}
+
+        demand = enhancement.leverage.pending_demand
+        if not demand:
+            return {"error": "No pending demand to escalate"}
+
+        result = {
+            "success": True,
+            "enhancement": enhancement.name,
+            "faction": enhancement.source.value,
+            "escalation_type": escalation_type,
+        }
+
+        if escalation_type == "queue_consequence":
+            # Create dormant thread from consequences
+            consequence_text = (
+                "; ".join(demand.consequences)
+                if demand.consequences
+                else f"Faction {demand.faction.value} acts on ignored demand"
+            )
+            thread = self.queue_dormant_thread(
+                origin=f"DEMAND IGNORED: {demand.demand}",
+                trigger_condition="When the faction's patience runs out",
+                consequence=consequence_text,
+                severity="moderate",
+            )
+            result["thread_id"] = thread.id
+            result["consequence"] = consequence_text
+
+        elif escalation_type == "increase_weight":
+            # Bump weight on both demand and leverage
+            weights = list(LeverageWeight)
+            current_idx = weights.index(enhancement.leverage.weight)
+            if current_idx < len(weights) - 1:
+                new_weight = weights[current_idx + 1]
+                enhancement.leverage.weight = new_weight
+                demand.weight = new_weight
+                result["old_weight"] = weights[current_idx].value
+                result["new_weight"] = new_weight.value
+            else:
+                result["note"] = "Already at maximum weight (heavy)"
+                result["new_weight"] = enhancement.leverage.weight.value
+
+        elif escalation_type == "faction_action":
+            # Log faction taking action
+            action_desc = narrative or f"{demand.faction.value} acts on unmet demand"
+            self.log_history(
+                type=HistoryType.CONSEQUENCE,
+                summary=f"FACTION ACTION: {action_desc}",
+                is_permanent=False,
+            )
+            result["action"] = action_desc
+
+        else:
+            return {"error": f"Unknown escalation type: {escalation_type}"}
+
+        self.save_campaign()
+        return result
 
     # -------------------------------------------------------------------------
     # Utilities

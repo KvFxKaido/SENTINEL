@@ -154,9 +154,10 @@ class TestCallLeverage:
         assert result["demand"] == "Access the Lattice network for us"
         assert result["weight"] == "medium"
 
-        # Check the enhancement was updated
+        # Check the enhancement was updated with a LeverageDemand
         updated = char.enhancements[0]
-        assert updated.leverage.pending_obligation == "Access the Lattice network for us"
+        assert updated.leverage.pending_demand is not None
+        assert updated.leverage.pending_demand.demand == "Access the Lattice network for us"
         assert updated.leverage.weight == LeverageWeight.MEDIUM
 
     def test_no_double_call(self, setup_with_enhancement):
@@ -948,3 +949,487 @@ class TestDeclarePush:
 
         assert "narrative_hint" in result
         assert "Advantage" in result["narrative_hint"]
+
+
+class TestLeverageDemand:
+    """Test LeverageDemand model and creation."""
+
+    def test_call_leverage_creates_demand(self):
+        """Calling leverage creates a LeverageDemand object."""
+        store = MemoryCampaignStore()
+        manager = CampaignManager(store)
+        manager.create_campaign("Test")
+
+        char = Character(name="Test", background=Background.OPERATIVE)
+        manager.add_character(char)
+
+        enhancement = manager.grant_enhancement(
+            character_id=char.id,
+            name="Neural Link",
+            source=FactionName.NEXUS,
+            benefit="Data access",
+            cost="Surveillance",
+        )
+
+        manager.call_leverage(
+            character_id=char.id,
+            enhancement_id=enhancement.id,
+            demand="Report on Ember movements",
+            weight="medium",
+        )
+
+        demand = char.enhancements[0].leverage.pending_demand
+        assert demand is not None
+        assert demand.demand == "Report on Ember movements"
+        assert demand.faction == FactionName.NEXUS
+        assert demand.enhancement_name == "Neural Link"
+
+    def test_demand_with_threat_basis(self):
+        """Demand can include threat basis."""
+        store = MemoryCampaignStore()
+        manager = CampaignManager(store)
+        manager.create_campaign("Test")
+
+        char = Character(name="Test", background=Background.OPERATIVE)
+        manager.add_character(char)
+
+        enhancement = manager.grant_enhancement(
+            character_id=char.id,
+            name="Syndicate Chip",
+            source=FactionName.STEEL_SYNDICATE,
+            benefit="Credit line",
+            cost="They own you",
+        )
+
+        manager.call_leverage(
+            character_id=char.id,
+            enhancement_id=enhancement.id,
+            demand="Delay the Lattice shipment",
+            threat_basis=["We know about Sector 7", "Remote shutdown capability"],
+            weight="heavy",
+        )
+
+        demand = char.enhancements[0].leverage.pending_demand
+        assert len(demand.threat_basis) == 2
+        assert "Sector 7" in demand.threat_basis[0]
+        assert "Remote shutdown" in demand.threat_basis[1]
+
+    def test_demand_with_deadline(self):
+        """Demand can include deadline."""
+        store = MemoryCampaignStore()
+        manager = CampaignManager(store)
+        manager.create_campaign("Test")
+        manager.current.meta.session_count = 3
+
+        char = Character(name="Test", background=Background.OPERATIVE)
+        manager.add_character(char)
+
+        enhancement = manager.grant_enhancement(
+            character_id=char.id,
+            name="Chip",
+            source=FactionName.CONVERGENCE,
+            benefit="Power",
+            cost="Strings",
+        )
+
+        manager.call_leverage(
+            character_id=char.id,
+            enhancement_id=enhancement.id,
+            demand="Test the new module",
+            deadline="Before your warranty expires",
+            deadline_sessions=2,
+        )
+
+        demand = char.enhancements[0].leverage.pending_demand
+        assert demand.deadline == "Before your warranty expires"
+        assert demand.deadline_session == 5  # 3 + 2
+
+    def test_demand_with_consequences(self):
+        """Demand can include consequences list."""
+        store = MemoryCampaignStore()
+        manager = CampaignManager(store)
+        manager.create_campaign("Test")
+
+        char = Character(name="Test", background=Background.OPERATIVE)
+        manager.add_character(char)
+
+        enhancement = manager.grant_enhancement(
+            character_id=char.id,
+            name="Chip",
+            source=FactionName.COVENANT,
+            benefit="Sanctuary",
+            cost="Oaths",
+        )
+
+        manager.call_leverage(
+            character_id=char.id,
+            enhancement_id=enhancement.id,
+            demand="Speak for us at the council",
+            consequences=["Sanctuary status revoked", "Oaths declared void"],
+        )
+
+        demand = char.enhancements[0].leverage.pending_demand
+        assert len(demand.consequences) == 2
+        assert "Sanctuary" in demand.consequences[0]
+
+
+class TestPendingDemands:
+    """Test pending demand retrieval and sorting."""
+
+    @pytest.fixture
+    def setup_multiple_demands(self):
+        """Create manager with multiple pending demands."""
+        store = MemoryCampaignStore()
+        manager = CampaignManager(store)
+        manager.create_campaign("Test")
+        manager.current.meta.session_count = 5
+
+        char = Character(name="Test", background=Background.OPERATIVE)
+        manager.add_character(char)
+
+        # Enhancement 1: overdue demand (deadline session 3)
+        enh1 = manager.grant_enhancement(
+            character_id=char.id,
+            name="Nexus Link",
+            source=FactionName.NEXUS,
+            benefit="Data",
+            cost="Watch",
+        )
+        manager.call_leverage(
+            character_id=char.id,
+            enhancement_id=enh1.id,
+            demand="Overdue demand",
+            deadline="Past deadline",
+            weight="medium",
+        )
+        # Manually set deadline_session to make it overdue
+        char.enhancements[0].leverage.pending_demand.deadline_session = 3
+
+        # Enhancement 2: urgent demand (deadline this session)
+        enh2 = manager.grant_enhancement(
+            character_id=char.id,
+            name="Syndicate Chip",
+            source=FactionName.STEEL_SYNDICATE,
+            benefit="Credit",
+            cost="Debt",
+        )
+        manager.call_leverage(
+            character_id=char.id,
+            enhancement_id=enh2.id,
+            demand="Urgent demand",
+            deadline="Now",
+            weight="light",
+        )
+        char.enhancements[1].leverage.pending_demand.deadline_session = 5
+
+        # Enhancement 3: pending demand (no deadline)
+        enh3 = manager.grant_enhancement(
+            character_id=char.id,
+            name="Covenant Badge",
+            source=FactionName.COVENANT,
+            benefit="Sanctuary",
+            cost="Oaths",
+        )
+        manager.call_leverage(
+            character_id=char.id,
+            enhancement_id=enh3.id,
+            demand="Regular demand",
+            weight="heavy",
+        )
+
+        return manager, char
+
+    def test_get_pending_demands_returns_all(self, setup_multiple_demands):
+        """Returns all pending demands."""
+        manager, char = setup_multiple_demands
+
+        demands = manager.get_pending_demands()
+        assert len(demands) == 3
+
+    def test_demands_sorted_by_urgency(self, setup_multiple_demands):
+        """Demands sorted by urgency: critical > urgent > pending."""
+        manager, char = setup_multiple_demands
+
+        demands = manager.get_pending_demands()
+
+        # First should be critical (overdue)
+        assert demands[0]["urgency"] == "critical"
+        assert demands[0]["demand"] == "Overdue demand"
+
+        # Second should be urgent (deadline this session)
+        assert demands[1]["urgency"] == "urgent"
+        assert demands[1]["demand"] == "Urgent demand"
+
+        # Third should be pending (no deadline)
+        assert demands[2]["urgency"] == "pending"
+        assert demands[2]["demand"] == "Regular demand"
+
+    def test_demand_includes_context(self, setup_multiple_demands):
+        """Demand dict includes useful context."""
+        manager, char = setup_multiple_demands
+
+        demands = manager.get_pending_demands()
+        demand = demands[0]
+
+        assert "character_id" in demand
+        assert "enhancement_id" in demand
+        assert "faction" in demand
+        assert "weight" in demand
+        assert "threat_basis" in demand
+        assert "deadline" in demand
+        assert "consequences" in demand
+
+
+class TestDemandDeadlines:
+    """Test demand deadline checking."""
+
+    def test_check_demand_deadlines_overdue(self):
+        """Overdue demands flagged correctly."""
+        store = MemoryCampaignStore()
+        manager = CampaignManager(store)
+        manager.create_campaign("Test")
+        manager.current.meta.session_count = 5
+
+        char = Character(name="Test", background=Background.OPERATIVE)
+        manager.add_character(char)
+
+        enh = manager.grant_enhancement(
+            character_id=char.id,
+            name="Chip",
+            source=FactionName.NEXUS,
+            benefit="Data",
+            cost="Watch",
+        )
+        manager.call_leverage(
+            character_id=char.id,
+            enhancement_id=enh.id,
+            demand="Overdue task",
+            deadline="Two sessions ago",
+        )
+        char.enhancements[0].leverage.pending_demand.deadline_session = 3
+
+        alerts = manager.check_demand_deadlines()
+        assert len(alerts) >= 1
+        assert any(a["urgency"] == "critical" for a in alerts)
+
+    def test_check_demand_deadlines_urgent(self):
+        """Urgent demands (deadline this session) flagged."""
+        store = MemoryCampaignStore()
+        manager = CampaignManager(store)
+        manager.create_campaign("Test")
+        manager.current.meta.session_count = 5
+
+        char = Character(name="Test", background=Background.OPERATIVE)
+        manager.add_character(char)
+
+        enh = manager.grant_enhancement(
+            character_id=char.id,
+            name="Chip",
+            source=FactionName.NEXUS,
+            benefit="Data",
+            cost="Watch",
+        )
+        manager.call_leverage(
+            character_id=char.id,
+            enhancement_id=enh.id,
+            demand="Urgent task",
+            deadline="This session",
+        )
+        char.enhancements[0].leverage.pending_demand.deadline_session = 5
+
+        alerts = manager.check_demand_deadlines()
+        assert len(alerts) >= 1
+        assert any(a["urgency"] == "urgent" for a in alerts)
+
+    def test_no_deadline_not_flagged(self):
+        """Demands without deadlines not flagged as urgent/critical."""
+        store = MemoryCampaignStore()
+        manager = CampaignManager(store)
+        manager.create_campaign("Test")
+
+        char = Character(name="Test", background=Background.OPERATIVE)
+        manager.add_character(char)
+
+        enh = manager.grant_enhancement(
+            character_id=char.id,
+            name="Chip",
+            source=FactionName.NEXUS,
+            benefit="Data",
+            cost="Watch",
+        )
+        manager.call_leverage(
+            character_id=char.id,
+            enhancement_id=enh.id,
+            demand="No deadline task",
+        )
+
+        alerts = manager.check_demand_deadlines()
+        # Should be empty - no urgent/critical demands
+        assert len(alerts) == 0
+
+
+class TestDemandEscalation:
+    """Test demand escalation mechanics."""
+
+    @pytest.fixture
+    def setup_with_demand(self):
+        """Create manager with a pending demand."""
+        store = MemoryCampaignStore()
+        manager = CampaignManager(store)
+        manager.create_campaign("Test")
+
+        char = Character(name="Test", background=Background.OPERATIVE)
+        manager.add_character(char)
+
+        enhancement = manager.grant_enhancement(
+            character_id=char.id,
+            name="Syndicate Chip",
+            source=FactionName.STEEL_SYNDICATE,
+            benefit="Credit",
+            cost="Debt",
+        )
+
+        manager.call_leverage(
+            character_id=char.id,
+            enhancement_id=enhancement.id,
+            demand="Delay the shipment",
+            consequences=["Supply cut off", "Intel leaked"],
+            weight="medium",
+        )
+
+        return manager, char, enhancement
+
+    def test_escalate_queue_consequence(self, setup_with_demand):
+        """Queue consequence creates dormant thread."""
+        manager, char, enhancement = setup_with_demand
+
+        result = manager.escalate_demand(
+            character_id=char.id,
+            enhancement_id=enhancement.id,
+            escalation_type="queue_consequence",
+            narrative="The Syndicate is done waiting",
+        )
+
+        assert result["success"] is True
+        assert result["escalation_type"] == "queue_consequence"
+
+        # Should have created a dormant thread
+        assert len(manager.current.dormant_threads) == 1
+        thread = manager.current.dormant_threads[0]
+        assert "DEMAND IGNORED" in thread.origin
+
+    def test_escalate_increase_weight(self, setup_with_demand):
+        """Increase weight escalates leverage level."""
+        manager, char, enhancement = setup_with_demand
+
+        # Start at medium
+        assert char.enhancements[0].leverage.weight == LeverageWeight.MEDIUM
+
+        result = manager.escalate_demand(
+            character_id=char.id,
+            enhancement_id=enhancement.id,
+            escalation_type="increase_weight",
+            narrative="They're getting serious",
+        )
+
+        assert result["success"] is True
+        assert result["escalation_type"] == "increase_weight"
+        assert result["new_weight"] == "heavy"
+        assert char.enhancements[0].leverage.weight == LeverageWeight.HEAVY
+
+    def test_escalate_faction_action(self, setup_with_demand):
+        """Faction action logs the escalation."""
+        manager, char, enhancement = setup_with_demand
+
+        initial_history = len(manager.current.history)
+
+        result = manager.escalate_demand(
+            character_id=char.id,
+            enhancement_id=enhancement.id,
+            escalation_type="faction_action",
+            narrative="The Syndicate sent enforcers",
+        )
+
+        assert result["success"] is True
+        assert result["escalation_type"] == "faction_action"
+
+        # Should have logged to history
+        assert len(manager.current.history) > initial_history
+
+    def test_escalate_no_pending_demand(self):
+        """Cannot escalate when no demand is pending."""
+        store = MemoryCampaignStore()
+        manager = CampaignManager(store)
+        manager.create_campaign("Test")
+
+        char = Character(name="Test", background=Background.OPERATIVE)
+        manager.add_character(char)
+
+        enhancement = manager.grant_enhancement(
+            character_id=char.id,
+            name="Chip",
+            source=FactionName.NEXUS,
+            benefit="Data",
+            cost="Watch",
+        )
+
+        result = manager.escalate_demand(
+            character_id=char.id,
+            enhancement_id=enhancement.id,
+            escalation_type="queue_consequence",
+            narrative="Trying to escalate nothing",
+        )
+
+        assert "error" in result
+
+    def test_escalate_invalid_type(self, setup_with_demand):
+        """Invalid escalation type returns error."""
+        manager, char, enhancement = setup_with_demand
+
+        result = manager.escalate_demand(
+            character_id=char.id,
+            enhancement_id=enhancement.id,
+            escalation_type="invalid_type",
+            narrative="Test",
+        )
+
+        assert "error" in result
+
+
+class TestLeverageDemandMigration:
+    """Test migration from pending_obligation to pending_demand."""
+
+    def test_resolve_clears_demand(self):
+        """Resolving leverage clears pending_demand."""
+        store = MemoryCampaignStore()
+        manager = CampaignManager(store)
+        manager.create_campaign("Test")
+
+        char = Character(name="Test", background=Background.OPERATIVE)
+        manager.add_character(char)
+
+        enhancement = manager.grant_enhancement(
+            character_id=char.id,
+            name="Chip",
+            source=FactionName.NEXUS,
+            benefit="Data",
+            cost="Watch",
+        )
+
+        manager.call_leverage(
+            character_id=char.id,
+            enhancement_id=enhancement.id,
+            demand="Do the thing",
+        )
+
+        assert char.enhancements[0].leverage.pending_demand is not None
+
+        manager.resolve_leverage(
+            character_id=char.id,
+            enhancement_id=enhancement.id,
+            response="comply",
+            outcome="Did the thing",
+        )
+
+        assert char.enhancements[0].leverage.pending_demand is None
+        assert char.enhancements[0].leverage.pending_obligation is None

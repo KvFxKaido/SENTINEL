@@ -133,7 +133,10 @@ class PromptLoader:
                         lev = enh.leverage
                         status_parts = [f"{enh.source.value}"]
                         status_parts.append(f"weight: {lev.weight.value}")
-                        if lev.pending_obligation:
+                        # Check for demand (new) or obligation (legacy)
+                        if lev.pending_demand:
+                            status_parts.append("HAS PENDING DEMAND")
+                        elif lev.pending_obligation:
                             status_parts.append(f"PENDING: \"{lev.pending_obligation}\"")
                         if lev.compliance_count or lev.resistance_count:
                             status_parts.append(
@@ -225,6 +228,27 @@ class PromptLoader:
                 )
                 lines.append(f"    → If surfaced: {avoided.potential_consequence}")
 
+        # Pending leverage demands (using get_pending_demands from manager)
+        pending_demands = self.manager.get_pending_demands()
+        if pending_demands:
+            lines.append("\n**Pending Leverage Demands:**")
+            for demand in pending_demands:
+                urgency_marker = {
+                    "critical": "[OVERDUE]",
+                    "urgent": "[URGENT]",
+                    "pending": "",
+                }.get(demand["urgency"], "")
+                lines.append(
+                    f"  {urgency_marker} {demand['faction']} via {demand['enhancement_name']}: "
+                    f"\"{demand['demand']}\""
+                )
+                if demand.get("deadline"):
+                    lines.append(f"    Deadline: {demand['deadline']}")
+                if demand.get("threat_basis"):
+                    lines.append(f"    Threat basis: {', '.join(demand['threat_basis'])}")
+                if demand.get("consequences"):
+                    lines.append(f"    If ignored: {'; '.join(demand['consequences'])}")
+
         # Current mission
         if campaign.session:
             lines.append(
@@ -304,6 +328,7 @@ class SentinelAgent:
             "grant_enhancement": self._handle_grant_enhancement,
             "refuse_enhancement": self._handle_refuse_enhancement,
             "call_leverage": self._handle_call_leverage,
+            "escalate_demand": self._handle_escalate_demand,
             "resolve_leverage": self._handle_resolve_leverage,
             "log_avoidance": self._handle_log_avoidance,
             "surface_avoidance": self._handle_surface_avoidance,
@@ -522,7 +547,7 @@ class SentinelAgent:
             },
             {
                 "name": "call_leverage",
-                "description": "A faction calls in leverage on an enhancement they granted. Creates a pending obligation the player must respond to.",
+                "description": "A faction calls in leverage on an enhancement they granted. Creates a formal demand the player must respond to.",
                 "input_schema": {
                     "type": "object",
                     "properties": {
@@ -538,8 +563,47 @@ class SentinelAgent:
                             "default": "medium",
                             "description": "Pressure level: light (subtle), medium (direct), heavy (ultimatum)",
                         },
+                        "threat_basis": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Why the faction has leverage: info they know ('Sector 7 incident') or functional control ('neural interface access')",
+                        },
+                        "deadline": {
+                            "type": "string",
+                            "description": "Narrative deadline ('Before the convoy leaves', 'By tomorrow')",
+                        },
+                        "deadline_sessions": {
+                            "type": "integer",
+                            "description": "Sessions until must resolve (e.g., 2 means deadline in 2 sessions)",
+                        },
+                        "consequences": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "What happens if the player refuses or ignores the demand",
+                        },
                     },
                     "required": ["character_id", "enhancement_id", "demand"],
+                },
+            },
+            {
+                "name": "escalate_demand",
+                "description": "Escalate an unresolved leverage demand. Use when deadline passes or player ignores faction pressure.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "character_id": {"type": "string"},
+                        "enhancement_id": {"type": "string"},
+                        "escalation_type": {
+                            "type": "string",
+                            "enum": ["queue_consequence", "increase_weight", "faction_action"],
+                            "description": "queue_consequence: create dormant thread; increase_weight: bump pressure; faction_action: log faction taking action",
+                        },
+                        "narrative": {
+                            "type": "string",
+                            "description": "What the faction does in response (for faction_action type)",
+                        },
+                    },
+                    "required": ["character_id", "enhancement_id", "escalation_type"],
                 },
             },
             {
@@ -841,6 +905,19 @@ class SentinelAgent:
             enhancement_id=kwargs["enhancement_id"],
             demand=kwargs["demand"],
             weight=kwargs.get("weight", "medium"),
+            threat_basis=kwargs.get("threat_basis"),
+            deadline=kwargs.get("deadline"),
+            deadline_sessions=kwargs.get("deadline_sessions"),
+            consequences=kwargs.get("consequences"),
+        )
+
+    def _handle_escalate_demand(self, **kwargs) -> dict:
+        """Handle escalate_demand tool call."""
+        return self.manager.escalate_demand(
+            character_id=kwargs["character_id"],
+            enhancement_id=kwargs["enhancement_id"],
+            escalation_type=kwargs["escalation_type"],
+            narrative=kwargs.get("narrative", ""),
         )
 
     def _handle_resolve_leverage(self, **kwargs) -> dict:
@@ -984,6 +1061,39 @@ class SentinelAgent:
 
         return "\n".join(lines)
 
+    def _format_demand_alerts(self, demands: list[dict]) -> str:
+        """Format demand deadline alerts for injection into system prompt."""
+        lines = [
+            "[DEMAND DEADLINE ALERT]",
+            "Faction demands require immediate attention:",
+            ""
+        ]
+
+        for demand in demands[:3]:  # Limit to top 3 urgent demands
+            urgency = demand.get("urgency", "pending").upper()
+            lines.append(f"**{urgency}**: {demand['faction']} demands via {demand['enhancement_name']}")
+            lines.append(f"  \"{demand['demand']}\"")
+
+            if demand.get("threat_basis"):
+                lines.append(f"  They have: {', '.join(demand['threat_basis'])}")
+
+            if demand.get("deadline"):
+                lines.append(f"  Deadline: {demand['deadline']}")
+
+            if demand.get("consequences"):
+                lines.append(f"  If ignored: {'; '.join(demand['consequences'])}")
+
+            lines.append("")
+
+        lines.append("**As GM, consider:**")
+        lines.append("1. Having faction proxy appear with increasing pressure")
+        lines.append("2. If deadline passed, use escalate_demand() to queue consequences or increase weight")
+        lines.append("3. Show the faction's disappointment/anger through NPC behavior")
+        lines.append("")
+        lines.append("This is DIFFERENT from [LEVERAGE HINT] — these are active demands requiring response.")
+
+        return "\n".join(lines)
+
     def respond(
         self,
         user_message: str,
@@ -1033,6 +1143,12 @@ class SentinelAgent:
         if leverage_hints:
             leverage_context = self._format_leverage_hints(leverage_hints)
             system_prompt = system_prompt + "\n\n---\n\n" + leverage_context
+
+        # Check for demand deadlines (overdue/urgent demands)
+        urgent_demands = self.manager.check_demand_deadlines()
+        if urgent_demands:
+            demand_context = self._format_demand_alerts(urgent_demands)
+            system_prompt = system_prompt + "\n\n---\n\n" + demand_context
 
         # Retrieve relevant lore if available
         if self.lore_retriever:
