@@ -100,6 +100,67 @@ def cmd_save(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
     console.print(f"[{THEME['accent']}]Saved[/{THEME['accent']}]")
 
 
+def cmd_delete(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
+    """Delete a campaign."""
+    if not args:
+        # Show list and prompt
+        campaigns = manager.list_campaigns()
+        if not campaigns:
+            console.print("[yellow]No campaigns to delete.[/yellow]")
+            return
+
+        table = Table(title="Campaigns")
+        table.add_column("#", style="dim")
+        table.add_column("Name")
+        table.add_column("Sessions")
+        table.add_column("Last Played")
+
+        for i, c in enumerate(campaigns, 1):
+            table.add_row(
+                str(i),
+                c["name"],
+                str(c["session_count"]),
+                c["display_time"],
+            )
+
+        console.print(table)
+        selection = Prompt.ask("Delete campaign #")
+        args = [selection]
+
+    # Confirm deletion
+    campaign_id = args[0]
+    campaigns = manager.list_campaigns()
+
+    # Resolve numeric index to get name for confirmation
+    if campaign_id.isdigit():
+        idx = int(campaign_id) - 1
+        if 0 <= idx < len(campaigns):
+            campaign_name = campaigns[idx]["name"]
+            campaign_id = campaigns[idx]["id"]
+        else:
+            console.print("[red]Invalid selection[/red]")
+            return
+    else:
+        # Find by ID
+        campaign_name = next((c["name"] for c in campaigns if c["id"] == campaign_id), campaign_id)
+
+    confirm = Prompt.ask(
+        f"[{THEME['danger']}]Delete '{campaign_name}'? This cannot be undone[/{THEME['danger']}]",
+        choices=["y", "n"],
+        default="n"
+    )
+
+    if confirm != "y":
+        console.print("[dim]Cancelled[/dim]")
+        return
+
+    deleted_id = manager.delete_campaign(campaign_id)
+    if deleted_id:
+        console.print(f"[{THEME['accent']}]Deleted campaign: {campaign_name}[/{THEME['accent']}]")
+    else:
+        console.print("[red]Campaign not found[/red]")
+
+
 # -----------------------------------------------------------------------------
 # Backend Commands
 # -----------------------------------------------------------------------------
@@ -819,6 +880,7 @@ def create_commands(manager: CampaignManager, agent: SentinelAgent, conversation
         "/load": cmd_load,
         "/list": cmd_list,
         "/save": cmd_save,
+        "/delete": cmd_delete,
         "/status": lambda m, a, args: show_status(m, a, conversation),
         "/backend": cmd_backend,
         "/model": cmd_model,

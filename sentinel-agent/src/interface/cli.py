@@ -42,6 +42,7 @@ COMMAND_META = {
     "/history": "View chronicle",
     "/load": "Load campaign",
     "/save": "Save campaign",
+    "/delete": "Delete campaign",
     "/list": "List campaigns",
     "/status": "Show status",
     "/backend": "Switch LLM backend",
