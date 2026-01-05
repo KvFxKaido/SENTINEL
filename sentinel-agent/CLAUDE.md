@@ -212,4 +212,4 @@ Use `/backend <name>` in the CLI to switch manually. Note: CLI backends (Gemini,
 - `../architecture/AGENT_ARCHITECTURE.md` — Design document
 - `../architecture/SOVWREN_SALVAGE_MAP.md` — Components adapted from Sovwren (with status)
 - `../architecture/MCP_FACTIONS.md` — Faction MCP server design
-- `../sentinel-mcp/` — Faction MCP server (separate package)
+- `../sentinel-campaign/` — Campaign MCP server (factions, history)

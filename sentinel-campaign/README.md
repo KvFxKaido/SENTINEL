@@ -1,11 +1,11 @@
-# SENTINEL Faction MCP Server
+# SENTINEL Campaign MCP Server
 
-MCP server exposing faction lore, NPC archetypes, and campaign-specific faction state for the SENTINEL TTRPG.
+MCP server exposing campaign data for the SENTINEL TTRPG: faction lore, NPC archetypes, campaign history, and state tracking.
 
 ## Installation
 
 ```bash
-cd sentinel-mcp
+cd sentinel-campaign
 pip install -e .
 ```
 
@@ -18,10 +18,10 @@ Add to your Claude Code MCP settings:
 ```json
 {
   "mcpServers": {
-    "sentinel-factions": {
+    "sentinel-campaign": {
       "command": "python",
-      "args": ["-m", "sentinel_factions.server"],
-      "cwd": "/path/to/sentinel-mcp/src"
+      "args": ["-m", "sentinel_campaign.server"],
+      "cwd": "/path/to/sentinel-campaign/src"
     }
   }
 }
@@ -30,7 +30,7 @@ Add to your Claude Code MCP settings:
 ### Standalone
 
 ```bash
-sentinel-factions
+sentinel-campaign
 ```
 
 ## Resources
@@ -60,7 +60,7 @@ Campaign-specific operations:
 
 ## Data Files
 
-Faction data lives in `src/sentinel_factions/data/`:
+Faction data lives in `src/sentinel_campaign/data/`:
 
 ```
 data/
@@ -68,7 +68,7 @@ data/
 │   ├── nexus.json
 │   ├── ember_colonies.json
 │   ├── witnesses.json
-│   └── ... (add more)
+│   └── ... (all 11 factions)
 └── relationships.json
 ```
 
@@ -84,7 +84,7 @@ Create a JSON file in `data/factions/` with:
   "ideology": "Core beliefs...",
   "history": "Origin story...",
   "structure": "How they organize...",
-  "symbols": ["◈", "visual motifs"],
+  "symbols": ["visual motifs"],
   "aesthetic": "Look and feel...",
   "key_events": [...],
   "archetypes": [...],
@@ -95,12 +95,12 @@ Create a JSON file in `data/factions/` with:
 }
 ```
 
-## Layer 2: Living World (Future)
+## Future: Campaign History
 
 The design supports adding:
 
-- `advance_world_clock(days)` - Simulate faction actions
-- `get_pending_events()` - What happened off-screen
-- `check_leverage_calls()` - Faction demands
+- `search_history(query, filters)` - Search campaign history
+- `get_npc_timeline(npc_name)` - Chronological NPC events
+- `get_session_summary(session)` - Condensed session recap
 
 See `architecture/MCP_FACTIONS.md` for the full design.

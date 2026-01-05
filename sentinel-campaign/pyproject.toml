@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "sentinel-factions"
-version = "0.1.0"
-description = "MCP server for SENTINEL faction lore and campaign tracking"
+name = "sentinel-campaign"
+version = "0.2.0"
+description = "MCP server for SENTINEL campaign data: factions, history, and lore"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
@@ -20,7 +20,7 @@ dev = [
 ]
 
 [project.scripts]
-sentinel-factions = "sentinel_factions.server:main"
+sentinel-campaign = "sentinel_campaign.server:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/sentinel_factions"]
+packages = ["src/sentinel_campaign"]

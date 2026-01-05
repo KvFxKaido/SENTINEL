@@ -17,8 +17,8 @@ SENTINEL/
 │   ├── src/                 # Python source
 │   ├── prompts/             # Hot-reloadable prompts
 │   └── campaigns/           # Save files
-├── sentinel-mcp/            # Faction MCP server
-│   ├── src/sentinel_factions/
+├── sentinel-campaign/       # Campaign MCP server
+│   ├── src/sentinel_campaign/
 │   │   ├── server.py        # MCP entry point
 │   │   ├── resources/       # Lore, NPCs, operations
 │   │   ├── tools/           # Standing, interactions, intel
@@ -40,7 +40,7 @@ SENTINEL is a tactical tabletop RPG about navigating political tension, ethical 
 | `architecture/SOVWREN_SALVAGE_MAP.md` | Components adapted from Sovwren (with status) |
 | `architecture/MCP_FACTIONS.md` | Faction MCP server design |
 | `sentinel-agent/CLAUDE.md` | Dev guide for the agent codebase |
-| `sentinel-mcp/README.md` | MCP server installation and usage |
+| `sentinel-campaign/README.md` | MCP server installation and usage |
 
 ## Game Philosophy
 
@@ -88,7 +88,7 @@ NPCs have disposition modifiers that change their behavior:
 - **Modifiers per level:** tone, reveals, withholds, tells
 - **Memory triggers:** NPCs react to tagged events (e.g., `helped_ember` shifts Lattice NPCs wary)
 
-## MCP Server: sentinel-factions
+## MCP Server: sentinel-campaign
 
 When enabled, provides faction tools and resources.
 
@@ -109,7 +109,7 @@ When enabled, provides faction tools and resources.
 
 ### Setup
 ```bash
-cd sentinel-mcp && pip install -e .
+cd sentinel-campaign && pip install -e .
 ```
 Configured in `.mcp.json` and enabled in `.claude/settings.local.json`.
 
@@ -127,7 +127,7 @@ See `sentinel-agent/CLAUDE.md` for detailed guidance. Key files:
 - `src/state/schema.py` — Data models
 
 ### To modify faction data
-Edit JSON files in `sentinel-mcp/src/sentinel_factions/data/factions/`.
+Edit JSON files in `sentinel-campaign/src/sentinel_campaign/data/factions/`.
 
 ### To run the agent
 ```bash
