@@ -38,7 +38,7 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 - **Test suite** — 164 tests covering core mechanics
 - **CI/CD** — GitHub Actions (Python 3.10, 3.11, 3.12)
 - **Dormant thread surfacing** — keyword matching alerts GM when threads may trigger
-- **Enhancement leverage** — factions call in favors with weight escalation (light/medium/heavy)
+- **Leverage escalation** — factions call in favors with threat basis, deadlines, consequences; three escalation types (queue_consequence, increase_weight, faction_action); `[DEMAND DEADLINE ALERT]` injection
 - **Phase-based GM guidance** — different prompts per mission phase (briefing, planning, execution, resolution, debrief, between)
 - **Refusal reputation** — refused enhancements build titles (The Unbought, The Undaunted) that NPCs react to
 - **Non-action as hinge** — avoidance is content; tracks when players disengage and surfaces consequences later
