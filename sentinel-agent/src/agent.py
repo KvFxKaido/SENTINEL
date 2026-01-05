@@ -212,6 +212,19 @@ class PromptLoader:
             if by_severity["minor"]:
                 lines.append(f"  + {len(by_severity['minor'])} minor threads")
 
+        # Pending avoidances (non-action consequences waiting to surface)
+        pending_avoidances = [a for a in campaign.avoided_situations if not a.surfaced]
+        if pending_avoidances:
+            lines.append("\n**Pending Avoidances** (non-action consequences):")
+            for avoided in pending_avoidances:
+                age = campaign.meta.session_count - avoided.created_session
+                overdue = " [OVERDUE]" if age >= 3 else ""
+                lines.append(
+                    f"  [{avoided.severity.value.upper()}]{overdue} {avoided.id}: "
+                    f"\"{avoided.situation}\""
+                )
+                lines.append(f"    → If surfaced: {avoided.potential_consequence}")
+
         # Current mission
         if campaign.session:
             lines.append(
@@ -292,6 +305,8 @@ class SentinelAgent:
             "refuse_enhancement": self._handle_refuse_enhancement,
             "call_leverage": self._handle_call_leverage,
             "resolve_leverage": self._handle_resolve_leverage,
+            "log_avoidance": self._handle_log_avoidance,
+            "surface_avoidance": self._handle_surface_avoidance,
         }
 
         # Initialize client
@@ -546,6 +561,51 @@ class SentinelAgent:
                     "required": ["character_id", "enhancement_id", "response", "outcome"],
                 },
             },
+            {
+                "name": "log_avoidance",
+                "description": "Record when a player chooses not to engage with a significant situation. Non-action is content — the world doesn't wait.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "situation": {
+                            "type": "string",
+                            "description": "What was presented that they avoided",
+                        },
+                        "what_was_at_stake": {
+                            "type": "string",
+                            "description": "What they were avoiding (confrontation, decision, commitment)",
+                        },
+                        "potential_consequence": {
+                            "type": "string",
+                            "description": "What may happen because they didn't act",
+                        },
+                        "severity": {
+                            "type": "string",
+                            "enum": ["minor", "moderate", "major"],
+                            "default": "moderate",
+                        },
+                    },
+                    "required": ["situation", "what_was_at_stake", "potential_consequence"],
+                },
+            },
+            {
+                "name": "surface_avoidance",
+                "description": "Mark an avoidance as surfaced when its consequences come due. Logs to history.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "avoidance_id": {
+                            "type": "string",
+                            "description": "ID of the avoided situation",
+                        },
+                        "what_happened": {
+                            "type": "string",
+                            "description": "How the consequence manifested",
+                        },
+                    },
+                    "required": ["avoidance_id", "what_happened"],
+                },
+            },
         ]
 
     # -------------------------------------------------------------------------
@@ -734,6 +794,36 @@ class SentinelAgent:
             response=kwargs["response"],
             outcome=kwargs["outcome"],
         )
+
+    def _handle_log_avoidance(self, **kwargs) -> dict:
+        """Handle log_avoidance tool call."""
+        avoided = self.manager.log_avoidance(
+            situation=kwargs["situation"],
+            what_was_at_stake=kwargs["what_was_at_stake"],
+            potential_consequence=kwargs["potential_consequence"],
+            severity=kwargs.get("severity", "moderate"),
+        )
+        return {
+            "id": avoided.id,
+            "situation": avoided.situation,
+            "severity": avoided.severity.value,
+            "narrative_hint": "The world moves on. This may resurface.",
+        }
+
+    def _handle_surface_avoidance(self, **kwargs) -> dict:
+        """Handle surface_avoidance tool call."""
+        avoided = self.manager.surface_avoidance(
+            avoidance_id=kwargs["avoidance_id"],
+            what_happened=kwargs["what_happened"],
+        )
+        if avoided:
+            return {
+                "id": avoided.id,
+                "situation": avoided.situation,
+                "what_happened": kwargs["what_happened"],
+                "severity": avoided.severity.value,
+            }
+        return {"error": "Avoidance not found or already surfaced"}
 
     def execute_tool(self, name: str, arguments: dict) -> dict:
         """Execute a tool and return the result."""

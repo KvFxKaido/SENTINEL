@@ -680,3 +680,187 @@ class TestRefusalReputation:
         rep = manager.get_refusal_reputation(char.id)
         assert rep["by_faction"]["Nexus"] == 2
         assert rep["by_faction"]["Steel Syndicate"] == 1
+
+
+class TestLogAvoidance:
+    """Test non-action tracking."""
+
+    def test_log_avoidance_basic(self):
+        """Can log an avoided situation."""
+        store = MemoryCampaignStore()
+        manager = CampaignManager(store)
+        manager.create_campaign("Test")
+
+        avoided = manager.log_avoidance(
+            situation="Marcus begged for help escaping Nexus",
+            what_was_at_stake="Someone's freedom",
+            potential_consequence="Marcus gets reintegrated",
+            severity="moderate",
+        )
+
+        assert avoided.situation == "Marcus begged for help escaping Nexus"
+        assert avoided.surfaced is False
+        assert len(manager.current.avoided_situations) == 1
+
+    def test_log_avoidance_sets_session(self):
+        """Avoidance records which session it was logged."""
+        store = MemoryCampaignStore()
+        manager = CampaignManager(store)
+        manager.create_campaign("Test")
+        manager.current.meta.session_count = 5
+
+        avoided = manager.log_avoidance(
+            situation="Ignored the warning",
+            what_was_at_stake="Safety",
+            potential_consequence="Ambush",
+        )
+
+        assert avoided.created_session == 5
+
+    def test_log_avoidance_logs_history(self):
+        """Avoidance is logged to history."""
+        store = MemoryCampaignStore()
+        manager = CampaignManager(store)
+        manager.create_campaign("Test")
+
+        manager.log_avoidance(
+            situation="Walked away from the negotiation",
+            what_was_at_stake="Alliance opportunity",
+            potential_consequence="They ally with your enemy",
+        )
+
+        history = manager.current.history
+        assert len(history) >= 1
+        assert any("avoided" in h.summary.lower() for h in history)
+
+
+class TestSurfaceAvoidance:
+    """Test surfacing avoidance consequences."""
+
+    def test_surface_avoidance_basic(self):
+        """Can surface an avoided situation."""
+        store = MemoryCampaignStore()
+        manager = CampaignManager(store)
+        manager.create_campaign("Test")
+
+        avoided = manager.log_avoidance(
+            situation="Ignored the warning",
+            what_was_at_stake="Safety",
+            potential_consequence="Ambush",
+        )
+
+        result = manager.surface_avoidance(
+            avoidance_id=avoided.id,
+            what_happened="The ambush happened. You weren't ready.",
+        )
+
+        assert result is not None
+        assert result.surfaced is True
+        assert result.surfaced_session == manager.current.meta.session_count
+
+    def test_surface_avoidance_logs_history(self):
+        """Surfacing avoidance logs to history."""
+        store = MemoryCampaignStore()
+        manager = CampaignManager(store)
+        manager.create_campaign("Test")
+
+        avoided = manager.log_avoidance(
+            situation="Didn't warn the village",
+            what_was_at_stake="Lives",
+            potential_consequence="Raid succeeds",
+            severity="major",
+        )
+
+        initial_count = len(manager.current.history)
+
+        manager.surface_avoidance(
+            avoidance_id=avoided.id,
+            what_happened="The raid happened. The village burned.",
+        )
+
+        assert len(manager.current.history) > initial_count
+        last_entry = manager.current.history[-1]
+        assert "avoidance" in last_entry.summary.lower()
+
+    def test_cannot_surface_twice(self):
+        """Cannot surface the same avoidance twice."""
+        store = MemoryCampaignStore()
+        manager = CampaignManager(store)
+        manager.create_campaign("Test")
+
+        avoided = manager.log_avoidance(
+            situation="Test",
+            what_was_at_stake="Test",
+            potential_consequence="Test",
+        )
+
+        manager.surface_avoidance(avoided.id, "First surfacing")
+        result = manager.surface_avoidance(avoided.id, "Second attempt")
+
+        assert result is None
+
+
+class TestPendingAvoidances:
+    """Test pending avoidance retrieval."""
+
+    def test_get_pending_avoidances(self):
+        """Can retrieve pending avoidances."""
+        store = MemoryCampaignStore()
+        manager = CampaignManager(store)
+        manager.create_campaign("Test")
+
+        manager.log_avoidance(
+            situation="First avoidance",
+            what_was_at_stake="Stakes",
+            potential_consequence="Consequence",
+        )
+        manager.log_avoidance(
+            situation="Second avoidance",
+            what_was_at_stake="Stakes",
+            potential_consequence="Consequence",
+            severity="major",
+        )
+
+        pending = manager.get_pending_avoidances()
+
+        assert len(pending) == 2
+        # Major should come first (sorted by severity)
+        assert pending[0]["severity"] == "major"
+
+    def test_surfaced_not_included(self):
+        """Surfaced avoidances not included in pending."""
+        store = MemoryCampaignStore()
+        manager = CampaignManager(store)
+        manager.create_campaign("Test")
+
+        avoided = manager.log_avoidance(
+            situation="Test",
+            what_was_at_stake="Stakes",
+            potential_consequence="Consequence",
+        )
+        manager.surface_avoidance(avoided.id, "Surfaced")
+
+        pending = manager.get_pending_avoidances()
+        assert len(pending) == 0
+
+    def test_overdue_flag(self):
+        """Old avoidances marked as overdue."""
+        store = MemoryCampaignStore()
+        manager = CampaignManager(store)
+        manager.create_campaign("Test")
+
+        # Log at session 1
+        manager.current.meta.session_count = 1
+        manager.log_avoidance(
+            situation="Old avoidance",
+            what_was_at_stake="Stakes",
+            potential_consequence="Consequence",
+        )
+
+        # Jump to session 5
+        manager.current.meta.session_count = 5
+
+        pending = manager.get_pending_avoidances()
+        assert len(pending) == 1
+        assert pending[0]["overdue"] is True
+        assert pending[0]["age_sessions"] == 4

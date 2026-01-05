@@ -191,7 +191,7 @@ WebSocket frontend as migration path is a practical suggestion if we ever go web
 | Idea | Source | Effort | Notes |
 |------|--------|--------|-------|
 | ~~Phase-based GM guidance~~ | ChatGPT, Deepseek | ✅ Done | 6 phase prompts + auto-injection |
-| Non-action as hinge | Infinite Imagination | Medium | Track disengagement, surface consequences |
+| ~~Non-action as hinge~~ | Infinite Imagination | ✅ Done | AvoidedSituation model + tools + GM guidance |
 | ~~Refusal grants title/reputation~~ | Kimi | ✅ Done | Titles + GM guidance for NPC reactions |
 | ~~Faction narrative corruption~~ | Infinite Imagination | ✅ Done | 11 faction linguistic patterns + examples |
 | ~~Debrief enhancement~~ | Infinite Imagination | ✅ Done | Fourth question: "What would enough look like?" |
@@ -231,7 +231,7 @@ WebSocket frontend as migration path is a practical suggestion if we ever go web
 
 ## Open Questions
 
-1. How do we track "non-action" without being punitive? (Avoidance should have consequences, but not feel like the game is punishing passivity)
+1. ~~How do we track "non-action" without being punitive?~~ → **Answered:** AvoidedSituation model tracks what was avoided and potential consequences. GM guidance emphasizes "the world notices" not "the game punishes." Consequences surface naturally, not as punishment.
 
 2. ~~How does faction corruption manifest in prompts?~~ → **Answered:** 11 faction linguistic patterns in gm_guidance.md
 
