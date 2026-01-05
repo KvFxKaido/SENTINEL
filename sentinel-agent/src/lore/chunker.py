@@ -40,6 +40,11 @@ class LoreChunk:
     section: str  # section header if any
     content: str
 
+    # Document-level metadata (from frontmatter)
+    arc: str = ""
+    date: str = ""
+    location: str = ""
+
     # Auto-extracted tags
     factions: list[str] = field(default_factory=list)
     characters: list[str] = field(default_factory=list)
@@ -55,6 +60,9 @@ class LoreChunk:
             "title": self.title,
             "section": self.section,
             "content": self.content,
+            "arc": self.arc,
+            "date": self.date,
+            "location": self.location,
             "factions": self.factions,
             "characters": self.characters,
             "themes": self.themes,
@@ -74,6 +82,35 @@ def extract_keywords(text: str) -> set[str]:
         "here", "about", "after", "before", "more", "some", "other",
     }
     return set(w for w in words if w not in stopwords)
+
+
+def extract_frontmatter(content: str) -> dict[str, str]:
+    """Extract metadata from novella frontmatter.
+
+    Looks for patterns like:
+    **Arc:** Value
+    **Date:** Value
+    **Location:** Value
+    **Chapter:** Value (treated as arc)
+    """
+    metadata = {"arc": "", "date": "", "location": ""}
+
+    # Arc or Chapter
+    arc_match = re.search(r'\*\*(?:Arc|Chapter):\*\*\s*(.+?)(?:\s*\\|\s*$)', content, re.MULTILINE)
+    if arc_match:
+        metadata["arc"] = arc_match.group(1).strip()
+
+    # Date
+    date_match = re.search(r'\*\*Date:\*\*\s*(.+?)(?:\s*\\|\s*$)', content, re.MULTILINE)
+    if date_match:
+        metadata["date"] = date_match.group(1).strip()
+
+    # Location
+    location_match = re.search(r'\*\*Location:\*\*\s*(.+?)(?:\s*\\|\s*$)', content, re.MULTILINE)
+    if location_match:
+        metadata["location"] = location_match.group(1).strip()
+
+    return metadata
 
 
 def extract_tags(text: str) -> tuple[list[str], list[str], list[str]]:
@@ -111,6 +148,9 @@ def parse_markdown(filepath: Path) -> list[LoreChunk]:
     title_match = re.search(r'^#\s+(.+)$', content, re.MULTILINE)
     title = title_match.group(1) if title_match else filename
 
+    # Extract document-level metadata from frontmatter
+    frontmatter = extract_frontmatter(content)
+
     # Split on scene breaks (---)
     # But keep section headers (## ) with their content
     sections = re.split(r'\n---+\n', content)
@@ -135,6 +175,9 @@ def parse_markdown(filepath: Path) -> list[LoreChunk]:
             title=title,
             section=section_header,
             content=section,
+            arc=frontmatter["arc"],
+            date=frontmatter["date"],
+            location=frontmatter["location"],
             factions=factions,
             characters=characters,
             themes=themes,
