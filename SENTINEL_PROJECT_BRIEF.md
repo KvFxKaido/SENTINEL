@@ -35,12 +35,15 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 - **Context meter** — visual indicator of conversation depth
 - **Faction MCP server** — external faction lore + campaign tracking
 - **Multi-backend LLM** — LM Studio, Ollama, Claude, OpenRouter, Gemini CLI, Codex CLI
-- **Test suite** — 115 tests covering core mechanics
+- **Test suite** — 124 tests covering core mechanics
 - **CI/CD** — GitHub Actions (Python 3.10, 3.11, 3.12)
 - **Dormant thread surfacing** — keyword matching alerts GM when threads may trigger
 - **Enhancement leverage** — factions call in favors with weight escalation (light/medium/heavy)
 - **Phase-based GM guidance** — different prompts per mission phase (briefing, planning, execution, resolution, debrief, between)
 - **Refusal reputation** — refused enhancements build titles (The Unbought, The Undaunted) that NPCs react to
+- **Non-action as hinge** — avoidance is content; tracks when players disengage and surfaces consequences later
+- **Faction narrative corruption** — GM language shifts based on faction standing (11 linguistic patterns)
+- **Debrief "enough" question** — helps players articulate their own success criteria in a game with no win condition
 
 ### Not Yet Built
 - Multi-character party support
@@ -320,7 +323,7 @@ Applied throughout CLI: banners, panels, status displays, choice blocks.
 - **LM Studio** — Local LLM (free, OpenAI-compatible API at port 1234)
 - **Ollama** — Local LLM alternative (OpenAI-compatible API at port 11434)
 - **Anthropic SDK** — Claude API (optional)
-- **pytest** — Test framework with 115 tests
+- **pytest** — Test framework with 124 tests
 - **GitHub Actions** — CI/CD pipeline
 
 No heavy ML dependencies — lore retrieval uses keyword matching.
@@ -333,7 +336,9 @@ No heavy ML dependencies — lore retrieval uses keyword matching.
 
 2. **Web interface** — Worth building, or is CLI sufficient for the audience?
 
-3. **Phase-based prompts** — Should the GM get different guidance during briefing vs execution vs debrief?
+3. **Social energy carrot** — Should players be able to spend energy for advantage (not just suffer penalties)?
+
+4. **Player "Push" mechanic** — Should players be able to explicitly invite consequences?
 
 ---
 
@@ -348,6 +353,7 @@ No heavy ML dependencies — lore retrieval uses keyword matching.
 - Every faction is right about something, dangerous when taken too far
 - **Refusal is a meaningful choice** — what you don't accept matters
 - **Competing truths** — the council shows multiple valid perspectives
+- **Avoidance is content** — not acting is also a choice; the world doesn't wait
 
 ---
 
