@@ -190,7 +190,7 @@ WebSocket frontend as migration path is a practical suggestion if we ever go web
 
 | Idea | Source | Effort | Notes |
 |------|--------|--------|-------|
-| Phase-based GM guidance | ChatGPT, Deepseek | Low | Mostly prompt work |
+| ~~Phase-based GM guidance~~ | ChatGPT, Deepseek | ✅ Done | 6 phase prompts + auto-injection |
 | Non-action as hinge | Infinite Imagination | Medium | Track disengagement, surface consequences |
 | Refusal grants title/reputation | Kimi | Low | NPCs react to refused enhancements |
 | Faction narrative corruption | Infinite Imagination | Low | GM guidance update |

@@ -39,9 +39,9 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 - **CI/CD** — GitHub Actions (Python 3.10, 3.11, 3.12)
 - **Dormant thread surfacing** — keyword matching alerts GM when threads may trigger
 - **Enhancement leverage** — factions call in favors with weight escalation (light/medium/heavy)
+- **Phase-based GM guidance** — different prompts per mission phase (briefing, planning, execution, resolution, debrief, between)
 
 ### Not Yet Built
-- Phase-based GM guidance (different prompts per mission phase)
 - Multi-character party support
 - Web/mobile interface
 
