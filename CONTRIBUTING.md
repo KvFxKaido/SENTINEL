@@ -32,7 +32,7 @@ If you are unsure whether a change aligns with these principles, open an issue f
 
 ## Code of Conduct
 
-This project and everyone participating in it are governed by the repository's Code of Conduct. By participating, you agree to uphold it. Please report unacceptable behavior to the project maintainers.
+This project and everyone participating in it are governed by the [Code of Conduct](CODE_OF_CONDUCT.md). By participating, you agree to uphold it. Please report unacceptable behavior to the project maintainers.
 
 ---
 
