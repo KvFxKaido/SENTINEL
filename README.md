@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/KvFxKaido/SENTINEL/actions/workflows/ci.yml/badge.svg)](https://github.com/KvFxKaido/SENTINEL/actions/workflows/ci.yml)
 [![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC_BY--NC_4.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc/4.0/)
+[![Sponsor](https://img.shields.io/badge/Sponsor-♡-pink)](https://github.com/sponsors/KvFxKaido)
 
 A tactical, relationship-driven tabletop RPG with an AI Game Master. Navigate political tension, ethical tradeoffs, and survival in a post-collapse world where 11 factions compete for influence.
 
