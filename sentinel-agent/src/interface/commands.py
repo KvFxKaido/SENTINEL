@@ -325,6 +325,18 @@ def cmd_lore(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
         if results:
             for r in results:
                 console.print(f"\n[cyan]{r.chunk.title}[/cyan] ({r.chunk.source})")
+
+                # Show arc/date/location if present
+                meta_parts = []
+                if r.chunk.arc:
+                    meta_parts.append(r.chunk.arc)
+                if r.chunk.date:
+                    meta_parts.append(r.chunk.date)
+                if r.chunk.location:
+                    meta_parts.append(r.chunk.location)
+                if meta_parts:
+                    console.print(f"  [{THEME['secondary']}]{' · '.join(meta_parts)}[/{THEME['secondary']}]")
+
                 console.print(f"  Score: {r.score:.1f} — {', '.join(r.match_reasons)}")
 
                 # Show perspective/bias prominently
