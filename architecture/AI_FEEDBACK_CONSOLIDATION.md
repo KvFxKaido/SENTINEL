@@ -195,12 +195,12 @@ WebSocket frontend as migration path is a practical suggestion if we ever go web
 | ~~Refusal grants title/reputation~~ | Kimi | ✅ Done | Titles + GM guidance for NPC reactions |
 | ~~Faction narrative corruption~~ | Infinite Imagination | ✅ Done | 11 faction linguistic patterns + examples |
 | ~~Debrief enhancement~~ | Infinite Imagination | ✅ Done | Fourth question: "What would enough look like?" |
+| ~~Social energy carrot~~ | Kimi | ✅ Done | `invoke_restorer` tool + GM guidance |
 
 ### Worth Considering (Good Ideas, Lower Priority)
 
 | Idea | Source | Effort | Notes |
 |------|--------|--------|-------|
-| Social energy carrot | Kimi | Medium | Spend 10% for advantage when invoking restorer |
 | Player "Push" mechanic | ChatGPT | Medium | Player invites consequence explicitly |
 | Banner UX toggle | Kimi | Low | `/quiet-banner` or cache after first load |
 | Lore faction filtering | Kimi | Low | `/lore lattice` shows bias explicitly |

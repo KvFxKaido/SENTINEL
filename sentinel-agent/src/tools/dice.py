@@ -104,11 +104,14 @@ class TacticalResetResult:
     new_energy: int
     advantage_granted: bool
     narrative_hint: str
+    restorer_matched: str | None = None  # Which restorer was invoked
 
 
 def tactical_reset(current_energy: int, ritual_description: str) -> TacticalResetResult:
     """
     Perform a tactical reset: spend 10% social energy for advantage on next social roll.
+
+    DEPRECATED: Use invoke_restorer in manager.py instead, which connects to character state.
 
     Args:
         current_energy: Current social energy (0-100)

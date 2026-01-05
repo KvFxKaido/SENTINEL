@@ -275,6 +275,88 @@ class CampaignManager:
             "narrative_hint": char.social_energy.narrative_hint,
         }
 
+    def invoke_restorer(
+        self,
+        character_id: str,
+        action: str,
+    ) -> dict:
+        """
+        Spend 10% social energy for advantage when acting in your element.
+
+        The action must match one of the character's restorers. This is the
+        "carrot" for social energy — not just penalties, but strategic use.
+
+        Args:
+            character_id: Character invoking their restorer
+            action: What the character is doing (matched against restorers)
+
+        Returns:
+            Dict with success status, matched restorer, energy change, and narrative
+        """
+        if not self.current:
+            return {"error": "No campaign loaded"}
+
+        char = self.get_character(character_id)
+        if not char:
+            return {"error": "Character not found"}
+
+        energy = char.social_energy
+        cost = 10
+
+        # Check if action matches any restorer (case-insensitive substring match)
+        action_lower = action.lower()
+        matched_restorer = None
+        for restorer in energy.restorers:
+            # Check if restorer keywords appear in the action
+            restorer_words = restorer.lower().split()
+            if any(word in action_lower for word in restorer_words if len(word) > 3):
+                matched_restorer = restorer
+                break
+
+        if not matched_restorer:
+            return {
+                "success": False,
+                "reason": "not_in_element",
+                "narrative_hint": (
+                    f"This doesn't feel like {char.name}'s element. "
+                    f"They find renewal in: {', '.join(energy.restorers[:3])}"
+                ),
+                "restorers": energy.restorers,
+            }
+
+        if energy.current < cost:
+            return {
+                "success": False,
+                "reason": "insufficient_energy",
+                "narrative_hint": "Not enough reserves to push right now.",
+                "current_energy": energy.current,
+            }
+
+        # Deduct energy
+        old_energy = energy.current
+        energy.current = max(0, energy.current - cost)
+        new_energy = energy.current
+
+        # Generate narrative based on new state
+        if new_energy >= 51:
+            hint = f"You lean into what centers you—{matched_restorer}. Advantage gained."
+        elif new_energy >= 26:
+            hint = f"You draw on {matched_restorer}. It helps, but the edges are showing."
+        else:
+            hint = f"You push through {matched_restorer}. Running on fumes now, but you're ready."
+
+        self.save_campaign()
+
+        return {
+            "success": True,
+            "advantage_granted": True,
+            "restorer_matched": matched_restorer,
+            "old_energy": old_energy,
+            "new_energy": new_energy,
+            "energy_state": energy.state,
+            "narrative_hint": hint,
+        }
+
     # -------------------------------------------------------------------------
     # NPC Management
     # -------------------------------------------------------------------------
