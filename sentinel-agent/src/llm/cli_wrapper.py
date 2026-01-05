@@ -10,7 +10,7 @@ import shutil
 from abc import abstractmethod
 from dataclasses import dataclass
 
-from .base import LLMClient, Message
+from .base import LLMClient, LLMResponse, Message
 
 
 @dataclass
@@ -122,15 +122,22 @@ class CLIWrapperClient(LLMClient):
         self,
         messages: list[Message],
         system: str | None = None,
-    ) -> str:
-        """Send messages and get response."""
+        tools: list[dict] | None = None,
+        temperature: float = 0.7,
+        max_tokens: int = 2048,
+    ) -> LLMResponse:
+        """Send messages and get response.
+
+        Note: CLI wrappers ignore tools, temperature, and max_tokens
+        as these are not supported by external CLI tools.
+        """
         prompt = self._format_conversation(messages, system)
         result = self.invoke(prompt)
 
         if result.success:
-            return result.output
+            return LLMResponse(content=result.output)
         else:
-            return f"[Error: {result.error}]"
+            return LLMResponse(content=f"[Error: {result.error}]")
 
     def chat_with_tools(
         self,
@@ -141,7 +148,8 @@ class CLIWrapperClient(LLMClient):
     ) -> str:
         """CLI wrappers don't support tools, just do regular chat."""
         # Ignore tools parameter
-        return self.chat(messages, system)
+        response = self.chat(messages, system)
+        return response.content
 
 
 class GeminiCLI(CLIWrapperClient):
