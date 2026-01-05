@@ -135,6 +135,25 @@ Players choose one professional background. Backgrounds express capability, not 
 
 The agent auto-detects available backends (prefers local: LM Studio > Ollama).
 
+## Recommended Setup
+
+| Requirement | Minimum | Recommended |
+|-------------|---------|-------------|
+| **Context window** | 8K tokens | 16K+ tokens |
+| **VRAM (local)** | 8GB | 16GB+ |
+| **Tool calling** | Optional | Required for full experience |
+
+### Tested Models
+
+| Model | Size | Notes |
+|-------|------|-------|
+| **Qwen 2.5** | 32B | Excellent tool calling, good roleplay |
+| **Mistral Large** | 123B | Strong narrative, needs beefy GPU |
+| **Llama 3.1** | 70B | Solid all-around |
+| **Claude Sonnet** | API | Best quality, requires API key |
+
+CLI-only backends (Gemini, Codex) work but skip tool calling — dice rolls, faction tracking, and hinge detection happen manually.
+
 ## Development
 
 ```
