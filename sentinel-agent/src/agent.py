@@ -69,6 +69,12 @@ class PromptLoader:
             self.load("gm_guidance"),
         ]
 
+        # Add phase-specific guidance if in active session
+        if campaign and campaign.session:
+            phase_guidance = self.load_phase(campaign.session.phase.value)
+            if phase_guidance:
+                parts.append(phase_guidance)
+
         # Add campaign state if available
         if campaign:
             parts.append(self._format_state_summary(campaign))
@@ -81,6 +87,25 @@ class PromptLoader:
         if not path.exists():
             return ""
         return path.read_text(encoding="utf-8")
+
+    def load_phase(self, phase: str) -> str:
+        """Load phase-specific GM guidance."""
+        path = self.prompts_dir / "phases" / f"{phase}.md"
+        if not path.exists():
+            return ""
+
+        # Use caching like other loaders
+        cache_key = f"phase_{phase}"
+        mtime = path.stat().st_mtime
+
+        if cache_key in self._cache and self._cache_times.get(cache_key) == mtime:
+            return self._cache[cache_key]
+
+        content = path.read_text(encoding="utf-8")
+        self._cache[cache_key] = content
+        self._cache_times[cache_key] = mtime
+
+        return content
 
     def _format_state_summary(self, campaign: Campaign) -> str:
         """Format current campaign state for injection."""
