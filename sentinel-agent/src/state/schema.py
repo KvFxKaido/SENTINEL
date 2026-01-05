@@ -520,6 +520,65 @@ class FactionRegistry(BaseModel):
         return mapping[faction]
 
 
+# -----------------------------------------------------------------------------
+# Event Queue (for MCP → Agent communication)
+# -----------------------------------------------------------------------------
+
+
+class PendingEvent(BaseModel):
+    """
+    An event from an external source (MCP) waiting to be processed by the agent.
+
+    This solves state concurrency: MCP appends events to a queue file,
+    agent processes them on startup. No direct state modification by MCP.
+    """
+
+    id: str = Field(default_factory=lambda: str(uuid4())[:8])
+    timestamp: datetime = Field(default_factory=datetime.now)
+    source: Literal["mcp", "external"] = "mcp"
+    event_type: str  # e.g., "faction_event", "npc_update"
+    campaign_id: str  # Which campaign this affects
+    payload: dict = Field(default_factory=dict)  # Event-specific data
+    processed: bool = False  # Marked true after agent processes it
+
+
+class EventQueue(BaseModel):
+    """
+    Queue of pending events from external sources.
+
+    Stored in a separate file (pending_events.json) to avoid
+    conflicts with campaign state files.
+    """
+
+    events: list[PendingEvent] = Field(default_factory=list)
+    last_processed: datetime | None = None
+
+    def append(self, event: PendingEvent) -> None:
+        """Add an event to the queue."""
+        self.events.append(event)
+
+    def get_pending(self, campaign_id: str | None = None) -> list[PendingEvent]:
+        """Get unprocessed events, optionally filtered by campaign."""
+        pending = [e for e in self.events if not e.processed]
+        if campaign_id:
+            pending = [e for e in pending if e.campaign_id == campaign_id]
+        return pending
+
+    def mark_processed(self, event_id: str) -> bool:
+        """Mark an event as processed."""
+        for event in self.events:
+            if event.id == event_id:
+                event.processed = True
+                return True
+        return False
+
+    def clear_processed(self) -> int:
+        """Remove all processed events. Returns count removed."""
+        original = len(self.events)
+        self.events = [e for e in self.events if not e.processed]
+        return original - len(self.events)
+
+
 class Campaign(BaseModel):
     """
     Complete campaign state.

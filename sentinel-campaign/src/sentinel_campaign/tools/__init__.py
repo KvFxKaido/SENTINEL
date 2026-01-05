@@ -47,6 +47,46 @@ def _save_campaign(campaigns_dir: Path, campaign_id: str, data: dict) -> bool:
     return True
 
 
+# -----------------------------------------------------------------------------
+# Event Queue (for safe MCP → Agent communication)
+# -----------------------------------------------------------------------------
+
+QUEUE_FILE = "pending_events.json"
+
+
+def _append_event(campaigns_dir: Path, event: dict) -> str:
+    """
+    Append an event to the queue file.
+
+    This is the safe way for MCP to communicate state changes.
+    The agent processes these events on startup.
+
+    Returns the event ID.
+    """
+    queue_file = campaigns_dir / QUEUE_FILE
+
+    # Load existing queue
+    if queue_file.exists():
+        try:
+            queue = json.loads(queue_file.read_text())
+        except json.JSONDecodeError:
+            queue = {"events": [], "last_processed": None}
+    else:
+        queue = {"events": [], "last_processed": None}
+
+    # Generate event ID and timestamp
+    event_id = str(uuid4())[:8]
+    event["id"] = event_id
+    event["timestamp"] = datetime.now().isoformat()
+    event["processed"] = False
+
+    # Append and save
+    queue["events"].append(event)
+    queue_file.write_text(json.dumps(queue, indent=2, default=str))
+
+    return event_id
+
+
 def _faction_id_to_attr(faction_id: str) -> str:
     """Convert faction ID to attribute name (e.g., 'ember_colonies' -> 'ember_colonies')."""
     return faction_id.lower().replace(" ", "_")
@@ -141,31 +181,38 @@ def log_faction_event(
     summary: str,
     session: int,
 ) -> dict:
-    """Record a faction-related event in the campaign."""
+    """
+    Queue a faction-related event for the agent to process.
+
+    Instead of directly modifying campaign state, this appends to an event
+    queue that the agent processes on startup. This prevents race conditions
+    between MCP and agent state modifications.
+    """
+    # Verify campaign exists (read-only check)
     campaign = _load_campaign(campaigns_dir, campaign_id)
     if not campaign:
         return {"error": f"Campaign not found: {campaign_id}"}
 
-    # Create history entry
-    event_id = str(uuid4())[:8]
-    entry = {
-        "id": event_id,
-        "session": session,
-        "type": f"faction_{event_type}",
-        "summary": f"[{faction.replace('_', ' ').title()}] {summary}",
-        "timestamp": datetime.now().isoformat(),
-        "is_permanent": event_type == "betray",  # Betrayals are permanent
+    # Resolve actual campaign ID (in case partial match was used)
+    actual_campaign_id = campaign.get("meta", {}).get("id", campaign_id)
+
+    # Queue the event for agent processing
+    event = {
+        "source": "mcp",
+        "event_type": "faction_event",
+        "campaign_id": actual_campaign_id,
+        "payload": {
+            "faction": faction,
+            "event_type": event_type,
+            "summary": summary,
+            "session": session,
+            "is_permanent": event_type == "betray",
+        },
     }
 
-    # Add to history
-    if "history" not in campaign:
-        campaign["history"] = []
-    campaign["history"].append(entry)
+    event_id = _append_event(campaigns_dir, event)
 
-    # Save
-    _save_campaign(campaigns_dir, campaign_id, campaign)
-
-    # Check for dormant threads that might trigger
+    # Check for dormant threads that might trigger (read-only advisory)
     dormant = campaign.get("dormant_threads", [])
     warnings = []
     faction_name = faction.replace("_", " ").title()
@@ -175,8 +222,9 @@ def log_faction_event(
             warnings.append(f"Dormant thread may trigger: {thread.get('consequence', '')[:50]}...")
 
     return {
-        "logged": True,
+        "queued": True,
         "event_id": event_id,
+        "note": "Event queued for agent processing on next startup",
         "warnings": warnings if warnings else None,
     }
 
