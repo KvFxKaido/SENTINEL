@@ -210,41 +210,74 @@ def cmd_banner(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
 
 
 def cmd_lore(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
-    """Show lore status and test retrieval."""
+    """Show lore status and test retrieval. Use /lore <faction> to filter by perspective."""
     if not agent.lore_retriever:
         console.print("[yellow]No lore directory configured[/yellow]")
         return
 
     retriever = agent.lore_retriever
+
+    # Check if first arg is a faction name (for filtering)
+    index = retriever.index
+    known_factions = set(index.get("by_faction", {}).keys())
+    faction_filter = None
+    query_args = args
+
+    if args:
+        # Check if first arg matches a faction (case-insensitive)
+        first_arg_lower = args[0].lower()
+        for faction in known_factions:
+            if faction.lower() == first_arg_lower or faction.lower().startswith(first_arg_lower):
+                faction_filter = faction
+                query_args = args[1:]  # Rest is the query
+                break
+
+    # Show lore status
     console.print(f"\n[bold]Lore System[/bold]")
     console.print(f"  Directory: {retriever.lore_dir}")
     console.print(f"  Chunks indexed: {retriever.chunk_count}")
 
-    # Show what's in the index
-    index = retriever.index
-    if index["by_faction"]:
-        factions = ", ".join(sorted(index["by_faction"].keys()))
-        console.print(f"  Factions tagged: {factions}")
+    if known_factions:
+        factions_list = ", ".join(sorted(known_factions))
+        console.print(f"  Factions tagged: {factions_list}")
 
     if index["by_theme"]:
         themes = ", ".join(sorted(index["by_theme"].keys()))
         console.print(f"  Themes tagged: {themes}")
 
-    # Test retrieval if query provided
+    # Show faction filter notice
+    if faction_filter:
+        console.print(f"\n[bold {THEME['accent']}]◈ Viewing through {faction_filter.upper()} perspective ◈[/bold {THEME['accent']}]")
+        console.print(f"[dim]Results filtered and weighted toward {faction_filter} sources.[/dim]")
+        console.print(f"[dim]Remember: Every faction believes they're telling the truth.[/dim]")
+
+    # Test retrieval if query provided (or faction filter with optional query)
     if args:
-        query = " ".join(args)
-        console.print(f"\n[dim]Searching for: {query}[/dim]")
-        results = retriever.retrieve(query=query, limit=2)
+        query = " ".join(query_args) if query_args else ""
+        if query:
+            console.print(f"\n[dim]Searching for: {query}[/dim]")
+
+        # Retrieve with faction filter if specified
+        factions_arg = [faction_filter] if faction_filter else None
+        results = retriever.retrieve(query=query, factions=factions_arg, limit=3 if faction_filter else 2)
+
         if results:
             for r in results:
                 console.print(f"\n[cyan]{r.chunk.title}[/cyan] ({r.chunk.source})")
                 console.print(f"  Score: {r.score:.1f} — {', '.join(r.match_reasons)}")
+
+                # Show perspective/bias prominently
+                if r.chunk.factions:
+                    faction_tags = ", ".join(r.chunk.factions)
+                    console.print(f"  [{THEME['warning']}]Perspective: {faction_tags}[/{THEME['warning']}]")
+
                 preview = r.chunk.content[:200].replace('\n', ' ')
                 console.print(f"  [dim]{preview}...[/dim]")
         else:
             console.print("[dim]No matches found[/dim]")
     else:
-        console.print("\n[dim]Use /lore <query> to test retrieval[/dim]")
+        console.print(f"\n[dim]Use /lore <query> to search, or /lore <faction> to filter by perspective[/dim]")
+        console.print(f"[dim]Example: /lore lattice infrastructure[/dim]")
 
 
 # -----------------------------------------------------------------------------
