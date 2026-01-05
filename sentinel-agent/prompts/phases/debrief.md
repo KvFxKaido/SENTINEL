@@ -9,10 +9,10 @@ You are in the **debrief** phase. Close the session with intention.
 
 ## Pacing
 - **5-10 minutes max**
-- Three questions, then done
+- Four questions, then done
 - Don't let it drag into a second session
 
-## The Three Questions
+## The Four Questions
 
 Ask these directly:
 
@@ -28,9 +28,14 @@ Ask these directly:
    - Identifies emerging boundaries
    - Seeds future hinge moments
 
-Optional fourth question (from feedback):
-- **"What would 'enough' look like for your character?"**
-   - Helps players articulate their own success criteria
+4. **"What would 'enough' look like?"**
+   - SENTINEL has no win condition — this is intentional
+   - But players need emotional anchors to sustain long campaigns
+   - Help them articulate their own success criteria:
+     - "When would your character feel they could stop?"
+     - "What would make this worth it?"
+     - "Is there a version of 'done' you're working toward?"
+   - The answer may change. That's the point.
 
 ## Mechanical Wrap-Up
 - Social energy resets to 100%

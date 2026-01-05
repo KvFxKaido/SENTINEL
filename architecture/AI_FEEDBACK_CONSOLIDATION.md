@@ -194,7 +194,7 @@ WebSocket frontend as migration path is a practical suggestion if we ever go web
 | Non-action as hinge | Infinite Imagination | Medium | Track disengagement, surface consequences |
 | ~~Refusal grants title/reputation~~ | Kimi | ✅ Done | Titles + GM guidance for NPC reactions |
 | ~~Faction narrative corruption~~ | Infinite Imagination | ✅ Done | 11 faction linguistic patterns + examples |
-| Debrief enhancement | Infinite Imagination | Low | Add "What would enough look like?" |
+| ~~Debrief enhancement~~ | Infinite Imagination | ✅ Done | Fourth question: "What would enough look like?" |
 
 ### Worth Considering (Good Ideas, Lower Priority)
 
@@ -233,13 +233,13 @@ WebSocket frontend as migration path is a practical suggestion if we ever go web
 
 1. How do we track "non-action" without being punitive? (Avoidance should have consequences, but not feel like the game is punishing passivity)
 
-2. How does faction corruption manifest in prompts? (Specific language patterns per faction?)
+2. ~~How does faction corruption manifest in prompts?~~ → **Answered:** 11 faction linguistic patterns in gm_guidance.md
 
 3. Should "Push" be a player-initiated command, or GM-offered choice?
 
 4. What does "tactical" mean for SENTINEL? (Social maneuvering? Resource positioning? Consequence management?)
 
-5. What should players feel guilty about when a campaign ends? (Design north star for hinges and debrief)
+5. ~~What should players feel guilty about when a campaign ends?~~ → **Addressed:** Debrief now asks "What would enough look like?" — flips guilt into player-defined purpose
 
 ---
 
