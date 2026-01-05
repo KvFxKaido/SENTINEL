@@ -7,7 +7,7 @@ Context for AI coding assistants (Codex CLI) working on the SENTINEL repository.
 SENTINEL is a tactical tabletop RPG plus an AI Game Master implementation. The repo contains:
 - **Canon & rules** (design docs)
 - **`sentinel-agent/`**: the Python AI GM (CLI + state + tools + prompts + lore retrieval)
-- **`sentinel-mcp/`**: an MCP server exposing faction lore + campaign-aware faction utilities
+- **`sentinel-campaign/`**: an MCP server exposing faction lore + campaign-aware faction utilities
 
 ## Repo Map (Start Here)
 
@@ -16,7 +16,6 @@ SENTINEL is a tactical tabletop RPG plus an AI Game Master implementation. The r
   - `core/SENTINEL Character Sheet.md`
 - `architecture/` — technical design docs
   - `architecture/AGENT_ARCHITECTURE.md`
-  - `architecture/MCP_FACTIONS.md`
 - `lore/` — canon documents used for lightweight RAG
 - `sentinel-agent/` — AI GM package (Python)
   - `sentinel-agent/src/agent.py` (orchestrator; tools + prompts + lore + LLM)
@@ -26,10 +25,10 @@ SENTINEL is a tactical tabletop RPG plus an AI Game Master implementation. The r
   - `sentinel-agent/src/interface/cli.py` (Rich terminal UI + command loop)
   - `sentinel-agent/prompts/*.md` (hot-reloadable behavior modules)
   - `sentinel-agent/tests/` (golden/boundary; keep changes intentional)
-- `sentinel-mcp/` — faction MCP server (Python)
-  - `sentinel-mcp/src/sentinel_factions/server.py` (MCP entry point)
-  - `sentinel-mcp/src/sentinel_factions/data/` (faction JSON + relationships)
-  - `sentinel-mcp/src/sentinel_factions/tools/__init__.py` (campaign-aware tool handlers)
+- `sentinel-campaign/` — campaign MCP server (Python)
+  - `sentinel-campaign/src/sentinel_campaign/server.py` (MCP entry point)
+  - `sentinel-campaign/src/sentinel_campaign/data/` (faction JSON + relationships)
+  - `sentinel-campaign/src/sentinel_campaign/tools/__init__.py` (campaign-aware tool handlers)
 - `.mcp.json` — local MCP wiring for `sentinel-factions`
 
 ## Core Engineering Patterns (Do Not Fight These)
@@ -47,8 +46,8 @@ SENTINEL is a tactical tabletop RPG plus an AI Game Master implementation. The r
 - Add/modify **game mechanics tools**: `sentinel-agent/src/tools/` and register schemas/handlers in `sentinel-agent/src/agent.py`.
 - Change **campaign state fields**: `sentinel-agent/src/state/schema.py`, then follow through in `manager.py` and any save/load expectations.
 - Change **CLI behavior/commands**: `sentinel-agent/src/interface/cli.py` (and supporting `commands.py`, `renderer.py`, `choices.py`, `glyphs.py`).
-- Change **faction content**: `sentinel-mcp/src/sentinel_factions/data/factions/*.json` and `sentinel-mcp/src/sentinel_factions/data/relationships.json`.
-- Change **MCP behavior**: `sentinel-mcp/src/sentinel_factions/server.py` and `sentinel-mcp/src/sentinel_factions/tools/__init__.py`.
+- Change **faction content**: `sentinel-campaign/src/sentinel_campaign/data/factions/*.json` and `sentinel-campaign/src/sentinel_campaign/data/relationships.json`.
+- Change **MCP behavior**: `sentinel-campaign/src/sentinel_campaign/server.py` and `sentinel-campaign/src/sentinel_campaign/tools/__init__.py`.
 
 ## Practical Constraints (Optimize For These)
 
@@ -64,7 +63,7 @@ SENTINEL is a tactical tabletop RPG plus an AI Game Master implementation. The r
   - Install: `pip install -e .`
   - Run: `python -m src.interface.cli` (or `sentinel` after install)
 - Run tests (from `sentinel-agent/`): `pytest`
-- Run MCP server (from `sentinel-mcp/` after install): `sentinel-factions`
+- Run MCP server (from `sentinel-campaign/` after install): `sentinel-campaign`
 
 ### Verification checklist
 - If you touched prompts: run the CLI and sanity-check tone + choice offering.
@@ -80,4 +79,4 @@ SENTINEL is a tactical tabletop RPG plus an AI Game Master implementation. The r
 - `CLAUDE.md` (repo root): high-level structure + philosophy
 - `sentinel-agent/CLAUDE.md`: detailed development conventions for the agent
 - `architecture/AGENT_ARCHITECTURE.md`: design intent (state/tools/prompts)
-- `architecture/MCP_FACTIONS.md`: intent for faction MCP server
+- `sentinel-campaign/README.md`: campaign MCP server (factions, history, tools)

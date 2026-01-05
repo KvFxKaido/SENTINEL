@@ -388,7 +388,6 @@ No heavy ML dependencies — lore retrieval uses keyword matching.
 
 - Game rules: `core/SENTINEL Playbook — Core Rules.md`
 - Architecture doc: `architecture/AGENT_ARCHITECTURE.md`
-- MCP design: `architecture/MCP_FACTIONS.md`
 - Dev guide: `sentinel-agent/CLAUDE.md`
 - MCP server: `sentinel-campaign/README.md`
 
