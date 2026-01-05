@@ -1,9 +1,15 @@
-"""Faction tool handlers."""
+"""Tool handlers for factions and campaign history."""
 
 import json
 from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
+
+from .history import (
+    search_history,
+    get_npc_timeline,
+    get_session_summary,
+)
 
 
 def _load_campaign(campaigns_dir: Path, campaign_id: str) -> dict | None:

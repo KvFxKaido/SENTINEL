@@ -307,18 +307,32 @@ Features:
 
 ---
 
-## Not Implemented
+### 19. Campaign History Search ✅
+**Implemented:** `sentinel-campaign/` package (MCP tools and resources)
 
-### 19. RAG for Campaign History
-**Priority:** Low (Phase 3)
-**Effort:** 4+ hours
+Keyword-based campaign history search (not embedding-based RAG - works with local models):
 
-Search past sessions for relevant moments:
-- "What did Marta say about her brother?"
-- "When did we last help Ember?"
-- Surface relevant hinge moments automatically
+**Resources:**
+- `campaign://{id}/sessions` — Session summaries grouped by session
+- `campaign://{id}/hinges` — All hinge moments in chronological order
+- `campaign://{id}/npc/{name}` — All history related to a specific NPC
 
-Could extend existing `LoreRetriever` to index campaign history.
+**Tools:**
+- `search_history` — Keyword search with filters (NPC, faction, type, session range)
+- `get_npc_timeline` — Chronological timeline of events involving an NPC
+- `get_session_summary` — Condensed summary of a specific session
+
+Features:
+- ✅ Keyword extraction with boost factors for exact matches
+- ✅ Filters: NPC, faction, entry type, session range
+- ✅ Searches both history entries and character hinge_history
+- ✅ Results sorted by relevance score, then by session
+
+---
+
+## All Salvage Items Complete
+
+All 19 items from the Sovwren salvage map have been implemented.
 
 ---
 
@@ -363,7 +377,7 @@ sovwren/                          sentinel-agent/
 4. ~~**Chronicle Logging Integration** (#16)~~ ✅ Complete
 5. ~~**Leverage Escalation UI** (#17)~~ ✅ Complete
 6. ~~**Phase-Based GM Guidance** (#18)~~ ✅ Complete
-7. **RAG for Campaign History** (#19) - Phase 3
+7. ~~**Campaign History Search** (#19)~~ ✅ Complete
 
 ---
 
