@@ -346,7 +346,120 @@ But we're the ones who keep it running. Remember that."
 
 ---
 
-## 8. API Boundary
+## 8. Unified Lore + Campaign Memory Queries
+
+**Current:** Two separate retrieval systems:
+- `LoreRetriever` — Static world knowledge from `lore/*.md` (keyword matching)
+- `MemvidAdapter` — Dynamic campaign events (semantic search via memvid)
+
+**Proposed:** Unified query interface that searches both sources simultaneously.
+
+### Use Cases
+
+When an NPC or faction is mentioned, pull both:
+1. **Lore context** — Who are they? What do they believe?
+2. **Campaign history** — What has the player done with them?
+
+### Example Query
+
+```python
+# Player asks about Nexus during dialogue
+results = unified_query("Nexus", context="npc_dialogue")
+
+# Returns:
+{
+    "lore": [
+        {"source": "factions/nexus.md", "content": "The network that watches..."},
+        {"source": "canon_bible.md", "content": "Nexus monitors all infrastructure..."}
+    ],
+    "campaign": [
+        {"type": "faction_shift", "session": 3, "summary": "Helped Nexus analyst"},
+        {"type": "npc_interaction", "npc": "Cipher", "summary": "Shared intel"}
+    ]
+}
+```
+
+### Implementation Sketch
+
+```python
+class UnifiedRetriever:
+    """Combines static lore with dynamic campaign memory."""
+
+    def __init__(self, lore_retriever: LoreRetriever, memvid: MemvidAdapter):
+        self.lore = lore_retriever
+        self.memvid = memvid
+
+    def query(
+        self,
+        topic: str,
+        factions: list[str] | None = None,
+        npc_id: str | None = None,
+        limit_lore: int = 2,
+        limit_campaign: int = 5,
+    ) -> dict:
+        """Query both lore and campaign history."""
+        results = {"lore": [], "campaign": []}
+
+        # Static lore
+        lore_hits = self.lore.retrieve(
+            query=topic,
+            factions=factions,
+            limit=limit_lore,
+        )
+        results["lore"] = [
+            {"source": h.chunk.source, "content": h.chunk.content}
+            for h in lore_hits
+        ]
+
+        # Campaign history (if memvid enabled)
+        if self.memvid and self.memvid.is_enabled:
+            if npc_id:
+                campaign_hits = self.memvid.get_npc_history(npc_id, limit_campaign)
+            else:
+                campaign_hits = self.memvid.query(topic, top_k=limit_campaign)
+            results["campaign"] = campaign_hits
+
+        return results
+
+    def format_for_prompt(self, results: dict) -> str:
+        """Format unified results for GM context."""
+        lines = []
+
+        if results["lore"]:
+            lines.append("## Lore Reference")
+            for hit in results["lore"]:
+                lines.append(f"*From {hit['source']}:* {hit['content'][:300]}...")
+            lines.append("")
+
+        if results["campaign"]:
+            lines.append("## Campaign History")
+            for hit in results["campaign"]:
+                frame_type = hit.get("type", "event")
+                session = hit.get("session", "?")
+                summary = hit.get("narrative_summary") or hit.get("choice") or str(hit)[:100]
+                lines.append(f"- S{session} [{frame_type}]: {summary}")
+            lines.append("")
+
+        return "\n".join(lines)
+```
+
+### Integration Points
+
+1. **GM Context Building** — Before generating response, query both sources
+2. **NPC Dialogue** — NPC references past interactions AND faction lore
+3. **`/consult` Command** — Advisors draw on both canon and campaign events
+4. **`/history` Enhancement** — Show lore context alongside campaign chronicle
+
+### Design Considerations
+
+- **Lore is authoritative** — Campaign can't contradict canon
+- **Campaign adds specificity** — "Nexus is surveillance" + "You helped them in Session 3"
+- **Graceful degradation** — Works with just lore if memvid disabled
+- **Performance** — Lore is local keyword match; memvid is semantic search
+
+---
+
+## 9. API Boundary
 
 Before building any UI, formalize the API boundary so any frontend can connect:
 
@@ -384,7 +497,7 @@ class GameAPI:
 
 ---
 
-## 9. Terminal UI Mockup
+## 10. Terminal UI Mockup
 
 Reference implementation for Warp-style terminal with SENTINEL data:
 
@@ -428,7 +541,7 @@ Choices detected:
 
 ---
 
-## 10. Event-Driven UI Architecture
+## 11. Event-Driven UI Architecture
 
 **Principle:** The frontend should **never interpret meaning** — only display state.
 
@@ -524,14 +637,19 @@ Every GM output becomes a typed event:
    - NPC reaction preview
    - Consequence preview
 
+6. **Unified Lore + Campaign Memory** — 1 week
+   - `UnifiedRetriever` class combining both sources
+   - Integration into GM context building
+   - `/consult` draws on campaign history
+
 ### Long-Term (Polish)
 
-6. **Character Arc Detection** — 2-3 weeks
+7. **Character Arc Detection** — 2-3 weeks
    - Pattern recognition across sessions
    - Arc suggestions
    - Optional quest integration
 
-7. **Lore Quote Integration** — 1 week
+8. **Lore Quote Integration** — 1 week
    - Quote extraction from lore
    - Context-aware insertion
    - Reference tagging
