@@ -21,6 +21,7 @@ from ..tools.hinge_detector import detect_hinge
 from .renderer import (
     console, THEME, pt_style,
     show_banner, show_backend_status, show_status, show_choices,
+    status_bar,
 )
 from .config import load_config, set_backend
 from .glyphs import (
@@ -51,6 +52,7 @@ COMMAND_META = {
     "/backend": "Switch LLM backend",
     "/model": "Switch model",
     "/banner": "Toggle banner animation",
+    "/statusbar": "Toggle status bar",
     "/lore": "Search lore",
     "/npc": "View NPC info",
     "/factions": "View faction standings",
@@ -108,11 +110,15 @@ def main():
     campaigns_dir = Path("campaigns")
     lore_dir = base_dir / "lore"
 
-    # Load saved config (backend, model, banner preference)
+    # Load saved config (backend, model, banner preference, status bar)
     config = load_config(campaigns_dir)
     saved_backend = config.get("backend", "auto")
     saved_model = config.get("model")
     animate_banner = config.get("animate_banner", True)
+    show_status_bar = config.get("show_status_bar", True)
+
+    # Initialize status bar from config
+    status_bar.enabled = show_status_bar
 
     # Command line --no-animate overrides config
     if args.no_animate:
@@ -173,6 +179,10 @@ def main():
             else:
                 context_display = ""
                 usage_ratio = 0.0
+
+            # Show status bar if enabled and campaign loaded
+            if status_bar.enabled and manager.current:
+                status_bar.render(manager.current)
 
             # Show choice-aware prompt with autocomplete
             if last_choices:

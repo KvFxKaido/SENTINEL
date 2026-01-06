@@ -14,12 +14,14 @@ class Config(TypedDict, total=False):
     backend: str  # lmstudio, claude, openrouter, etc.
     model: str | None  # Model name for LM Studio/Ollama
     animate_banner: bool  # Show animated banner on startup
+    show_status_bar: bool  # Show persistent status bar
 
 
 DEFAULT_CONFIG: Config = {
     "backend": "auto",
     "model": None,
     "animate_banner": True,
+    "show_status_bar": True,
 }
 
 
@@ -79,4 +81,11 @@ def set_animate_banner(animate: bool, campaigns_dir: Path | str = "campaigns") -
     """Save banner animation preference."""
     config = load_config(campaigns_dir)
     config["animate_banner"] = animate
+    save_config(config, campaigns_dir)
+
+
+def set_show_status_bar(show: bool, campaigns_dir: Path | str = "campaigns") -> None:
+    """Save status bar visibility preference."""
+    config = load_config(campaigns_dir)
+    config["show_status_bar"] = show
     save_config(config, campaigns_dir)
