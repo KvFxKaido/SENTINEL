@@ -693,15 +693,15 @@ Detect terminal emulator via `$TERM_PROGRAM` or `process.env.WARP_IS_LOCAL`. If 
 
 ## Implementation Priority
 
-**Quarter 1:**
-- [ ] Block-based output system
-- [ ] Enhanced command palette
+**Quarter 1:** ✓ Complete
+- [x] Block-based output system (timestamped blocks, auto-detect INTEL/NARRATIVE)
+- [x] Enhanced command palette (categories, fuzzy search, context-aware, recent cmds)
 - [x] State visualization improvements (persistent status bar with delta tracking)
-- [ ] Basic session history
+- [x] Session history enhancement (filter by type/session, keyword search, /search cmd)
 - [x] Enhanced faction glyphs for NPC dialogue (MGS codec style, Phase 1)
 
 **Quarter 2:**
-- [ ] Search functionality
+- [x] Search functionality (integrated with /history search, /search alias)
 - [ ] Faction visual language refinements
 - [ ] Desktop app prototype (Tauri POC)
 - [ ] Kitty protocol image support for terminals
