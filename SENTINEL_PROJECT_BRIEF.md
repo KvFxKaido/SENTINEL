@@ -129,7 +129,7 @@ SENTINEL/
 │   │   ├── lore/
 │   │   │   ├── chunker.py        # Parse novellas → tagged chunks
 │   │   │   ├── retriever.py      # Keyword matching retrieval
-│   │   │   ├── unified.py        # Combined lore + campaign memory queries
+│   │   │   ├── unified.py        # Combined lore + campaign + state (RetrievalBudget)
 │   │   │   └── quotes.py         # 44 curated faction/world quotes
 │   │   ├── tools/
 │   │   │   ├── dice.py           # Roll mechanics
@@ -170,7 +170,9 @@ SENTINEL/
 - Tools return dicts for API serialization
 - NPCs have agendas (wants, fears, leverage, owes, **lie_to_self**)
 - NPC behavior logic extracted to pure functions (`rules/npc.py`) for testability
-- **Event queue for concurrency** — MCP appends events to `pending_events.json`, Agent processes on load (single writer pattern)
+- **Event queue for concurrency** — MCP appends events to `pending_events.json`, Agent polls each input loop
+- **Retrieval budget** — `RetrievalBudget` controls lore/campaign/state limits to prevent context bloat
+- **Event provenance** — `event_id` links MCP events → history entries → memvid frames
 
 ---
 
@@ -437,11 +439,17 @@ The GM draws from your novellas for narrative inspiration:
 - Injected into GM context (up to 2 chunks per response)
 
 **Unified Query System:**
-The `UnifiedRetriever` combines static lore with dynamic campaign memory:
+The `UnifiedRetriever` combines static lore, dynamic campaign memory, and current faction state:
 
 ```python
-# Single query returns both lore and campaign history
-results = unified_query("Nexus")
+from src.lore import UnifiedRetriever, RetrievalBudget, extract_faction_state
+
+# Query with budget control
+results = retriever.query(
+    "Nexus",
+    faction_state=extract_faction_state(campaign),
+    budget=RetrievalBudget.standard()  # 2 lore + 2 campaign + state
+)
 
 # Returns:
 {
@@ -449,9 +457,17 @@ results = unified_query("Nexus")
   "campaign": [
     {"type": "faction_shift", "session": 3, "summary": "Helped Nexus analyst"},
     {"type": "npc_interaction", "npc": "Cipher", "summary": "Shared intel"}
-  ]
+  ],
+  "faction_state": {"nexus": "Friendly", "ember_colonies": "Neutral", ...}
 }
 ```
+
+**Retrieval Budget Presets:**
+| Preset | Lore | Campaign | State | Use Case |
+|--------|------|----------|-------|----------|
+| `minimal()` | 1 | 1 | ✓ | Quick queries, low context |
+| `standard()` | 2 | 2 | ✓ | Default balanced retrieval |
+| `deep()` | 3 | 5 | ✓ | Complex queries needing more context |
 
 Test with: `/lore sentinel` or `/lore lattice infrastructure` (filters by Lattice perspective)
 
@@ -596,7 +612,7 @@ External MCP server providing faction knowledge and state tracking.
 | Tool | Purpose |
 |------|---------|
 | `get_faction_standing` | Player's standing + history |
-| `get_faction_interactions` | Past encounters this campaign |
+| `get_faction_interactions` | Past encounters *(deprecated — prefer `/timeline`)* |
 | `log_faction_event` | Record faction-related event |
 | `get_faction_intel` | What does faction know about topic? |
 | `query_faction_npcs` | NPCs by faction in campaign |
