@@ -168,7 +168,7 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="get_faction_interactions",
-            description="Get history of player interactions with a faction this campaign",
+            description="[DEPRECATED] Get history of player interactions with a faction. Prefer /timeline (memvid) for semantic search.",
             inputSchema={
                 "type": "object",
                 "properties": {

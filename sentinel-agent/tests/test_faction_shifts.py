@@ -92,6 +92,7 @@ class TestManagerFactionOperations:
             faction=FactionName.NEXUS,
             delta=-1,
             reason="Refused surveillance request",
+            apply_cascades=False,  # Disable cascades for this test
         )
 
         history = manager.current.history
@@ -127,9 +128,9 @@ class TestManagerFactionOperations:
 class TestCrossFactionEffects:
     """Test interactions between factions."""
 
-    def test_helping_one_faction_doesnt_affect_others(self, manager, campaign):
-        """Helping one faction doesn't automatically affect others."""
-        manager.shift_faction(FactionName.EMBER_COLONIES, 1, "Helped")
+    def test_helping_one_faction_doesnt_affect_others_without_cascades(self, manager, campaign):
+        """Without cascades, helping one faction doesn't affect others."""
+        manager.shift_faction(FactionName.EMBER_COLONIES, 1, "Helped", apply_cascades=False)
 
         # Check other factions are still neutral
         for faction in FactionName:
@@ -139,10 +140,10 @@ class TestCrossFactionEffects:
 
     def test_can_have_mixed_standings(self, manager, campaign):
         """Player can be Allied with one faction and Hostile with another."""
-        manager.shift_faction(FactionName.EMBER_COLONIES, 1, "Helped")
-        manager.shift_faction(FactionName.EMBER_COLONIES, 1, "Helped again")
-        manager.shift_faction(FactionName.NEXUS, -1, "Refused")
-        manager.shift_faction(FactionName.NEXUS, -1, "Refused again")
+        manager.shift_faction(FactionName.EMBER_COLONIES, 1, "Helped", apply_cascades=False)
+        manager.shift_faction(FactionName.EMBER_COLONIES, 1, "Helped again", apply_cascades=False)
+        manager.shift_faction(FactionName.NEXUS, -1, "Refused", apply_cascades=False)
+        manager.shift_faction(FactionName.NEXUS, -1, "Refused again", apply_cascades=False)
 
         ember_standing = manager.current.factions.get(FactionName.EMBER_COLONIES)
         nexus_standing = manager.current.factions.get(FactionName.NEXUS)

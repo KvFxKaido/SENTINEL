@@ -16,10 +16,44 @@ if TYPE_CHECKING:
 
 
 @dataclass
+class RetrievalBudget:
+    """
+    Global budget for retrieval across all layers.
+
+    Prevents context bloat by capping items from each source.
+    Total tokens roughly estimated as: (lore*500) + (campaign*200) + (state*100)
+    """
+    lore: int = 2          # Max lore chunks (static world-building)
+    campaign: int = 2      # Max memvid hits (dynamic history)
+    state: bool = True     # Whether to include current faction state
+
+    # Convenience presets
+    @classmethod
+    def minimal(cls) -> "RetrievalBudget":
+        """For quick queries or low-context situations."""
+        return cls(lore=1, campaign=1, state=True)
+
+    @classmethod
+    def standard(cls) -> "RetrievalBudget":
+        """Default balanced retrieval."""
+        return cls(lore=2, campaign=2, state=True)
+
+    @classmethod
+    def deep(cls) -> "RetrievalBudget":
+        """For complex queries needing more context."""
+        return cls(lore=3, campaign=5, state=True)
+
+
+# Default budget used when none specified
+DEFAULT_BUDGET = RetrievalBudget.standard()
+
+
+@dataclass
 class UnifiedResult:
-    """Combined results from lore and campaign memory."""
+    """Combined results from lore, campaign memory, and current state."""
     lore: list[dict]
     campaign: list[dict]
+    faction_state: dict | None = None  # Current faction standings (authoritative truth)
 
     @property
     def has_lore(self) -> bool:
@@ -30,8 +64,12 @@ class UnifiedResult:
         return len(self.campaign) > 0
 
     @property
+    def has_state(self) -> bool:
+        return self.faction_state is not None and len(self.faction_state) > 0
+
+    @property
     def is_empty(self) -> bool:
-        return not self.has_lore and not self.has_campaign
+        return not self.has_lore and not self.has_campaign and not self.has_state
 
 
 class UnifiedRetriever:
@@ -70,8 +108,10 @@ class UnifiedRetriever:
         factions: list[str] | None = None,
         npc_id: str | None = None,
         npc_name: str | None = None,
-        limit_lore: int = 2,
-        limit_campaign: int = 5,
+        limit_lore: int | None = None,
+        limit_campaign: int | None = None,
+        faction_state: dict | None = None,
+        budget: RetrievalBudget | None = None,
     ) -> UnifiedResult:
         """
         Query both lore and campaign history.
@@ -81,19 +121,29 @@ class UnifiedRetriever:
             factions: Factions to prioritize in lore search
             npc_id: NPC ID for targeted campaign history
             npc_name: NPC name for search fallback
-            limit_lore: Max lore chunks to return
-            limit_campaign: Max campaign events to return
+            limit_lore: Max lore chunks (overrides budget if specified)
+            limit_campaign: Max campaign events (overrides budget if specified)
+            faction_state: Current faction standings (injected for authoritative truth)
+            budget: RetrievalBudget to control limits across layers
 
         Returns:
-            UnifiedResult with lore and campaign hits
+            UnifiedResult with lore, campaign hits, and current state
         """
-        result = UnifiedResult(lore=[], campaign=[])
+        # Apply budget (explicit limits override budget)
+        budget = budget or DEFAULT_BUDGET
+        lore_limit = limit_lore if limit_lore is not None else budget.lore
+        campaign_limit = limit_campaign if limit_campaign is not None else budget.campaign
+
+        # Only include state if budget allows and state was provided
+        effective_state = faction_state if budget.state else None
+
+        result = UnifiedResult(lore=[], campaign=[], faction_state=effective_state)
 
         # Static lore retrieval
         lore_hits = self.lore.retrieve(
             query=topic,
             factions=factions,
-            limit=limit_lore,
+            limit=lore_limit,
         )
         result.lore = [
             {
@@ -112,16 +162,16 @@ class UnifiedRetriever:
         if self.memvid and self.memvid.is_enabled:
             if npc_id:
                 # Targeted NPC history
-                campaign_hits = self.memvid.get_npc_history(npc_id, limit_campaign)
+                campaign_hits = self.memvid.get_npc_history(npc_id, campaign_limit)
             elif npc_name:
                 # Search by NPC name
                 campaign_hits = self.memvid.query(
                     f"npc_name:{npc_name} {topic}",
-                    top_k=limit_campaign,
+                    top_k=campaign_limit,
                 )
             else:
                 # General topic search
-                campaign_hits = self.memvid.query(topic, top_k=limit_campaign)
+                campaign_hits = self.memvid.query(topic, top_k=campaign_limit)
 
             result.campaign = campaign_hits
 
@@ -169,6 +219,7 @@ class UnifiedRetriever:
         topic: str = "",
         limit_lore: int = 3,
         limit_campaign: int = 5,
+        faction_state: dict | None = None,
     ) -> UnifiedResult:
         """
         Get context for a faction-related query.
@@ -176,12 +227,14 @@ class UnifiedRetriever:
         Retrieves:
         - Faction lore
         - Player's history with this faction
+        - Current standing (if faction_state provided)
 
         Args:
             faction: Faction name/ID
             topic: Optional topic to narrow search
             limit_lore: Max lore chunks
             limit_campaign: Max campaign events
+            faction_state: Current faction standings dict
 
         Returns:
             UnifiedResult for faction context
@@ -193,6 +246,7 @@ class UnifiedRetriever:
             factions=[faction],
             limit_lore=limit_lore,
             limit_campaign=limit_campaign,
+            faction_state=faction_state,
         )
 
         # Also search for faction shifts specifically
@@ -236,6 +290,16 @@ class UnifiedRetriever:
             return ""
 
         lines = []
+
+        # Current state section (authoritative truth - goes first)
+        if result.has_state:
+            lines.append("## Current Faction Standings")
+            lines.append("*Authoritative current state — takes precedence over history*")
+            lines.append("")
+            for faction, standing in result.faction_state.items():
+                faction_display = faction.replace("_", " ").title()
+                lines.append(f"- **{faction_display}**: {standing}")
+            lines.append("")
 
         # Lore section
         if result.has_lore:
@@ -352,3 +416,31 @@ def create_unified_retriever(
 
     lore_retriever = create_retriever(lore_dir)
     return UnifiedRetriever(lore_retriever, memvid)
+
+
+def extract_faction_state(campaign) -> dict[str, str]:
+    """
+    Extract current faction standings from a campaign for state injection.
+
+    Args:
+        campaign: Campaign object with factions attribute
+
+    Returns:
+        Dict mapping faction_id -> standing (e.g., {"nexus": "Friendly"})
+    """
+    if not campaign or not hasattr(campaign, "factions"):
+        return {}
+
+    standings = {}
+    faction_ids = [
+        "nexus", "ember_colonies", "lattice", "convergence", "covenant",
+        "wanderers", "cultivators", "steel_syndicate", "witnesses",
+        "architects", "ghost_networks"
+    ]
+
+    for faction_id in faction_ids:
+        faction_obj = getattr(campaign.factions, faction_id, None)
+        if faction_obj and hasattr(faction_obj, "standing"):
+            standings[faction_id] = faction_obj.standing.value
+
+    return standings

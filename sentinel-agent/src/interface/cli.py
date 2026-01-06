@@ -158,6 +158,12 @@ def main():
 
     while True:
         try:
+            # Poll for MCP events at start of each loop
+            # This ensures faction events are processed immediately, not just on load
+            events_processed = manager.poll_events()
+            if events_processed > 0:
+                console.print(f"[{THEME['dim']}]Processed {events_processed} pending event(s)[/{THEME['dim']}]")
+
             # Build prompt with context meter
             if conversation:
                 tokens = estimate_conversation_tokens(conversation)
