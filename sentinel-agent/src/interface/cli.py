@@ -40,6 +40,8 @@ COMMAND_META = {
     "/consult": "Ask the council for advice",
     "/debrief": "End session",
     "/history": "View chronicle",
+    "/consequences": "View pending threads",
+    "/threads": "View pending threads",
     "/load": "Load campaign",
     "/save": "Save campaign",
     "/delete": "Delete campaign",

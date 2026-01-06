@@ -788,6 +788,124 @@ def cmd_history(manager: CampaignManager, agent: SentinelAgent, args: list[str])
     return None
 
 
+def cmd_consequences(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
+    """View pending consequences and dormant threads.
+
+    Shows:
+    - Active dormant threads waiting to trigger
+    - Avoided situations that may come back
+    - Recently resolved consequences
+    """
+    if not manager.current:
+        console.print(f"[{THEME['warning']}]No campaign loaded[/{THEME['warning']}]")
+        return
+
+    console.print(f"\n[bold {THEME['primary']}]◈ CONSEQUENCE THREADS ◈[/bold {THEME['primary']}]")
+
+    current_session = manager.current.meta.session_count
+    has_content = False
+
+    # Severity styling
+    severity_style = {
+        "major": (THEME["danger"], "▲▲▲"),
+        "moderate": (THEME["warning"], "▲▲○"),
+        "minor": (THEME["dim"], "▲○○"),
+    }
+
+    # -------------------------------------------------------------------------
+    # Active Dormant Threads
+    # -------------------------------------------------------------------------
+    threads = manager.current.dormant_threads
+    if threads:
+        has_content = True
+        console.print(f"\n[bold {THEME['secondary']}]DORMANT THREADS[/bold {THEME['secondary']}]")
+        console.print(f"[{THEME['dim']}]Consequences waiting to surface[/{THEME['dim']}]\n")
+
+        for thread in threads:
+            sev = thread.severity.value if hasattr(thread.severity, 'value') else thread.severity
+            color, indicator = severity_style.get(sev, (THEME["dim"], "▲○○"))
+
+            # Calculate age
+            age = current_session - thread.created_session
+            if age == 0:
+                age_text = "this session"
+            elif age == 1:
+                age_text = "1 session ago"
+            else:
+                age_text = f"{age} sessions ago"
+
+            console.print(f"[{color}]{indicator}[/{color}] [{THEME['accent']}]{thread.origin}[/{THEME['accent']}]")
+            console.print(f"  [{THEME['dim']}]Created:[/{THEME['dim']}] {age_text} (S{thread.created_session})")
+            console.print(f"  [{THEME['secondary']}]Trigger:[/{THEME['secondary']}] {thread.trigger_condition}")
+            console.print(f"  [{color}]Consequence:[/{color}] {thread.consequence}")
+            console.print()
+
+    # -------------------------------------------------------------------------
+    # Avoided Situations
+    # -------------------------------------------------------------------------
+    avoided = manager.current.avoided_situations
+    unsurfaced = [a for a in avoided if not a.surfaced]
+    if unsurfaced:
+        has_content = True
+        console.print(f"[bold {THEME['secondary']}]AVOIDED SITUATIONS[/bold {THEME['secondary']}]")
+        console.print(f"[{THEME['dim']}]What you chose not to engage with[/{THEME['dim']}]\n")
+
+        for situation in unsurfaced[:5]:  # Show up to 5
+            sev = situation.severity.value if hasattr(situation.severity, 'value') else situation.severity
+            color, indicator = severity_style.get(sev, (THEME["dim"], "▲○○"))
+
+            age = current_session - situation.created_session
+            age_text = f"S{situation.created_session}" if age > 0 else "this session"
+
+            console.print(f"[{color}]{indicator}[/{color}] [{THEME['warning']}]{situation.situation}[/{THEME['warning']}]")
+            console.print(f"  [{THEME['dim']}]At stake:[/{THEME['dim']}] {situation.what_was_at_stake}")
+            console.print(f"  [{color}]May cause:[/{color}] {situation.potential_consequence}")
+            console.print()
+
+    # -------------------------------------------------------------------------
+    # Recently Resolved (from history)
+    # -------------------------------------------------------------------------
+    resolved = [
+        h for h in manager.current.history
+        if h.type == HistoryType.CONSEQUENCE
+    ]
+    if resolved:
+        has_content = True
+        console.print(f"[bold {THEME['secondary']}]RESOLVED THREADS[/bold {THEME['secondary']}]")
+        console.print(f"[{THEME['dim']}]Consequences that have surfaced[/{THEME['dim']}]\n")
+
+        for entry in reversed(resolved[-5:]):  # Last 5
+            ts = entry.timestamp.strftime("%Y-%m-%d")
+            console.print(
+                f"[{THEME['accent']}]{g('success')}[/{THEME['accent']}] "
+                f"[{THEME['dim']}]S{entry.session} {ts}[/{THEME['dim']}] — "
+                f"{entry.summary}"
+            )
+
+        if len(resolved) > 5:
+            console.print(f"\n[{THEME['dim']}]...and {len(resolved) - 5} more. Use /history consequence to see all.[/{THEME['dim']}]")
+        console.print()
+
+    # -------------------------------------------------------------------------
+    # Empty State
+    # -------------------------------------------------------------------------
+    if not has_content:
+        console.print(f"\n[{THEME['dim']}]No pending consequences.[/{THEME['dim']}]")
+        console.print(f"[{THEME['dim']}]Threads are created when choices have delayed effects.[/{THEME['dim']}]")
+
+    # Summary stats
+    thread_count = len(threads) if threads else 0
+    avoided_count = len(unsurfaced) if unsurfaced else 0
+    if thread_count or avoided_count:
+        console.print(f"[{THEME['dim']}]─────────────────────────────────────[/{THEME['dim']}]")
+        console.print(
+            f"[{THEME['dim']}]Dormant: {thread_count} | "
+            f"Avoided: {avoided_count}[/{THEME['dim']}]"
+        )
+
+    return None
+
+
 # -----------------------------------------------------------------------------
 # Memory / Timeline Commands
 # -----------------------------------------------------------------------------
@@ -1197,6 +1315,8 @@ def create_commands(manager: CampaignManager, agent: SentinelAgent, conversation
         "/consult": cmd_consult,
         "/debrief": cmd_debrief,
         "/history": cmd_history,
+        "/consequences": cmd_consequences,
+        "/threads": cmd_consequences,  # Alias
         "/simulate": cmd_simulate,
         "/timeline": cmd_timeline,
         "/help": lambda m, a, args: show_help(),
