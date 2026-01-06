@@ -162,6 +162,26 @@ class ThreadSeverity(str, Enum):
     MAJOR = "major"
 
 
+class ArcType(str, Enum):
+    """Character arc types that emerge from play patterns."""
+    DIPLOMAT = "diplomat"      # Consistent negotiation, conflict avoidance
+    PARTISAN = "partisan"      # Faction loyalty, true believer
+    BROKER = "broker"          # Information gathering, deals, trades
+    PACIFIST = "pacifist"      # Violence avoidance, de-escalation
+    PRAGMATIST = "pragmatist"  # Resource focus, practical choices
+    SURVIVOR = "survivor"      # Self-preservation, trust issues
+    PROTECTOR = "protector"    # Shields others, takes hits for allies
+    SEEKER = "seeker"          # Truth-focused, uncovers secrets
+
+
+class ArcStatus(str, Enum):
+    """Status of a detected character arc."""
+    SUGGESTED = "suggested"  # Detected, awaiting player response
+    ACCEPTED = "accepted"    # Player embraced this arc
+    REJECTED = "rejected"    # Player declined this arc
+    DORMANT = "dormant"      # Was active but pattern faded
+
+
 class LeverageWeight(str, Enum):
     """How heavily a faction leans on this leverage."""
     LIGHT = "light"      # Subtle reminders, minor asks
@@ -295,6 +315,124 @@ class HingeMoment(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.now)
 
 
+class CharacterArc(BaseModel):
+    """Emergent character arc detected from play patterns.
+
+    Arcs are recognition of player behavior, not rails.
+    Players can accept, reject, or ignore detected arcs.
+    Multiple arcs can coexist.
+    """
+    id: str = Field(default_factory=generate_id)
+    arc_type: ArcType
+    title: str  # "The Reluctant Mediator", "True Believer"
+    description: str  # What this arc means for the character
+
+    # Detection info
+    detected_session: int  # When first detected
+    evidence: list[str] = Field(default_factory=list)  # Session refs supporting this
+    strength: float = 0.5  # 0.0-1.0, how strong the pattern is
+
+    # Status
+    status: ArcStatus = ArcStatus.SUGGESTED
+
+    # Effects when accepted (narrative prompts, not mechanics)
+    effects: list[str] = Field(default_factory=list)
+    # e.g., ["NPCs recognize you as a mediator", "Factions may request you broker deals"]
+
+    # Tracking
+    last_reinforced: int | None = None  # Last session that reinforced this
+    times_reinforced: int = 0
+
+
+# Arc detection patterns - keywords and behaviors that suggest each arc
+ARC_PATTERNS: dict[ArcType, dict] = {
+    ArcType.DIPLOMAT: {
+        "keywords": ["negotiate", "talk", "convince", "persuade", "mediate", "broker", "peace", "agreement", "compromise"],
+        "anti_keywords": ["attack", "fight", "kill", "destroy", "betray"],
+        "title_templates": ["The Reluctant Mediator", "Voice of Reason", "The Bridge Builder"],
+        "description": "Your character consistently chooses words over weapons, seeking common ground even in hostile situations.",
+        "effects": [
+            "NPCs may seek you out to broker disputes",
+            "Factions might request mediation services",
+            "Breaking from diplomacy carries extra narrative weight",
+        ],
+    },
+    ArcType.PARTISAN: {
+        "keywords": ["loyal", "faction", "serve", "believe", "cause", "mission", "duty"],
+        "faction_focus": True,  # Looks for consistent faction loyalty
+        "title_templates": ["True Believer", "The Faithful", "Devoted Agent"],
+        "description": "Your character has shown unwavering loyalty to a faction, embracing their cause as their own.",
+        "effects": [
+            "Your faction recognizes your dedication",
+            "Rival factions view you with suspicion",
+            "Betrayal would be devastating to your identity",
+        ],
+    },
+    ArcType.BROKER: {
+        "keywords": ["information", "intel", "trade", "deal", "exchange", "secret", "learn", "discover", "know"],
+        "title_templates": ["The One Who Knows", "Information Dealer", "The Connector"],
+        "description": "Your character trades in secrets and connections, always seeking to know more than others.",
+        "effects": [
+            "NPCs may approach you with intel to trade",
+            "You hear rumors others don't",
+            "Knowledge can become a liability",
+        ],
+    },
+    ArcType.PACIFIST: {
+        "keywords": ["peaceful", "avoid", "de-escalate", "calm", "gentle", "protect", "save", "spare"],
+        "anti_keywords": ["kill", "attack", "destroy", "violence", "weapon"],
+        "title_templates": ["The Unarmed", "Peaceful Resistance", "The Gentle Hand"],
+        "description": "Your character avoids violence, finding other solutions even when bloodshed seems inevitable.",
+        "effects": [
+            "Some see your restraint as wisdom",
+            "Others see it as weakness to exploit",
+            "Breaking your code would be a defining hinge moment",
+        ],
+    },
+    ArcType.PRAGMATIST: {
+        "keywords": ["practical", "resource", "prepare", "plan", "efficient", "useful", "value", "cost", "benefit"],
+        "title_templates": ["The Prepared", "Cold Calculator", "The Practical One"],
+        "description": "Your character focuses on what works, accumulating resources and making choices based on outcomes.",
+        "effects": [
+            "You're rarely caught unprepared",
+            "Others may see you as cold or mercenary",
+            "Emotional choices feel foreign",
+        ],
+    },
+    ArcType.SURVIVOR: {
+        "keywords": ["survive", "escape", "alone", "trust", "betray", "self", "safe", "risk"],
+        "anti_keywords": ["sacrifice", "die for", "give everything"],
+        "title_templates": ["Trust No One", "The Survivor", "Last One Standing"],
+        "description": "Your character prioritizes self-preservation, keeping escape routes open and trust limited.",
+        "effects": [
+            "You're hard to pin down or trap",
+            "Deep relationships are difficult to form",
+            "Loyalty feels like a cage",
+        ],
+    },
+    ArcType.PROTECTOR: {
+        "keywords": ["protect", "shield", "defend", "save", "guard", "sacrifice", "take the hit", "cover"],
+        "title_templates": ["The Shield", "Guardian", "First Into Danger"],
+        "description": "Your character puts themselves between danger and others, taking hits so they don't have to.",
+        "effects": [
+            "Those you protect feel genuine loyalty",
+            "Enemies may target you specifically",
+            "Your own wellbeing becomes secondary",
+        ],
+    },
+    ArcType.SEEKER: {
+        "keywords": ["truth", "discover", "investigate", "uncover", "reveal", "understand", "why", "what really"],
+        "title_templates": ["The Truth Seeker", "Digger", "The Questioner"],
+        "description": "Your character is driven to uncover truth, questioning narratives and digging for what's hidden.",
+        "effects": [
+            "You notice inconsistencies others miss",
+            "Some secrets are dangerous to know",
+            "The truth isn't always liberating",
+        ],
+    },
+}
+
+
 class Character(BaseModel):
     """Player character state."""
     id: str = Field(default_factory=generate_id)
@@ -321,6 +459,9 @@ class Character(BaseModel):
     enhancements: list[Enhancement] = Field(default_factory=list)
     refused_enhancements: list[RefusedEnhancement] = Field(default_factory=list)
     hinge_history: list[HingeMoment] = Field(default_factory=list)
+
+    # Emergent character arcs detected from play patterns
+    arcs: list[CharacterArc] = Field(default_factory=list)
 
     def model_post_init(self, __context) -> None:
         """Set expertise based on background if not provided."""

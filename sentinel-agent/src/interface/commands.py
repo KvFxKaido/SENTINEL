@@ -827,6 +827,233 @@ def _relation_bar(relation: int) -> str:
 
 
 # -----------------------------------------------------------------------------
+# Character Arc Commands
+# -----------------------------------------------------------------------------
+
+def cmd_arc(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
+    """View and manage character arcs.
+
+    Usage:
+        /arc                - Show current arcs and any suggestions
+        /arc detect         - Analyze history for new arc patterns
+        /arc accept <type>  - Accept a suggested arc
+        /arc reject <type>  - Reject a suggested arc
+        /arc list           - List all arc types
+
+    Arcs are recognition of play patterns, not restrictions.
+    They provide narrative flavor and GM context.
+    """
+    from ..state.schema import ArcType, ArcStatus, ARC_PATTERNS
+
+    if not manager.current:
+        console.print(f"[{THEME['warning']}]No campaign loaded[/{THEME['warning']}]")
+        return
+
+    if not manager.current.characters:
+        console.print(f"[{THEME['warning']}]No character in campaign[/{THEME['warning']}]")
+        return
+
+    char = manager.current.characters[0]
+
+    # No args: show current arcs and check for suggestions
+    if not args:
+        _show_arcs_status(manager, char)
+        return
+
+    subcommand = args[0].lower()
+
+    if subcommand == "detect":
+        _detect_arcs(manager, char)
+    elif subcommand == "accept" and len(args) > 1:
+        _accept_arc(manager, char, args[1])
+    elif subcommand == "reject" and len(args) > 1:
+        _reject_arc(manager, char, args[1])
+    elif subcommand == "list":
+        _list_arc_types()
+    else:
+        console.print(f"[{THEME['warning']}]Unknown subcommand: {subcommand}[/{THEME['warning']}]")
+        console.print(f"[{THEME['dim']}]Use: /arc, /arc detect, /arc accept <type>, /arc reject <type>, /arc list[/{THEME['dim']}]")
+
+
+def _show_arcs_status(manager: CampaignManager, char):
+    """Show current arcs and any pending suggestions."""
+    from ..state.schema import ArcStatus
+
+    console.print(f"\n[bold {THEME['primary']}]◈ CHARACTER ARCS ◈[/bold {THEME['primary']}]")
+    console.print(f"[{THEME['dim']}]{char.name}'s emergent identity patterns[/{THEME['dim']}]\n")
+
+    # Show accepted arcs
+    accepted = [a for a in char.arcs if a.status == ArcStatus.ACCEPTED]
+    if accepted:
+        console.print(f"[bold {THEME['accent']}]ACTIVE ARCS[/bold {THEME['accent']}]")
+        for arc in accepted:
+            strength_bar = _arc_strength_bar(arc.strength)
+            console.print(f"\n  [{THEME['accent']}]◆[/{THEME['accent']}] [bold]{arc.title}[/bold] ({arc.arc_type.value})")
+            console.print(f"    [{THEME['dim']}]{arc.description}[/{THEME['dim']}]")
+            console.print(f"    Strength: {strength_bar} [{THEME['dim']}]Reinforced {arc.times_reinforced}x[/{THEME['dim']}]")
+            if arc.effects:
+                console.print(f"    [{THEME['secondary']}]Effects:[/{THEME['secondary']}]")
+                for effect in arc.effects[:2]:
+                    console.print(f"      [{THEME['dim']}]• {effect}[/{THEME['dim']}]")
+        console.print()
+
+    # Show suggested arcs (detected but not accepted/rejected)
+    suggested = [a for a in char.arcs if a.status == ArcStatus.SUGGESTED]
+    if suggested:
+        console.print(f"[bold {THEME['warning']}]SUGGESTED ARCS[/bold {THEME['warning']}]")
+        for arc in suggested:
+            strength_bar = _arc_strength_bar(arc.strength)
+            console.print(f"\n  [{THEME['warning']}]?[/{THEME['warning']}] [bold]{arc.title}[/bold] ({arc.arc_type.value})")
+            console.print(f"    [{THEME['dim']}]{arc.description}[/{THEME['dim']}]")
+            console.print(f"    Strength: {strength_bar}")
+            console.print(f"    [{THEME['dim']}]Use /arc accept {arc.arc_type.value} or /arc reject {arc.arc_type.value}[/{THEME['dim']}]")
+        console.print()
+
+    # Check for new suggestions
+    suggestion = manager.suggest_arc()
+    if suggestion and suggestion["arc_type"] not in [a.arc_type.value for a in char.arcs]:
+        console.print(f"[bold {THEME['accent']}]NEW ARC DETECTED[/bold {THEME['accent']}]")
+        _display_arc_suggestion(suggestion)
+
+    if not accepted and not suggested and not suggestion:
+        console.print(f"[{THEME['dim']}]No arcs detected yet.[/{THEME['dim']}]")
+        console.print(f"[{THEME['dim']}]Play more sessions to develop patterns, or use /arc detect to analyze history.[/{THEME['dim']}]")
+
+
+def _detect_arcs(manager: CampaignManager, char):
+    """Run arc detection and show results."""
+    console.print(f"\n[bold {THEME['primary']}]◈ ARC DETECTION ◈[/bold {THEME['primary']}]")
+    console.print(f"[{THEME['dim']}]Analyzing campaign history for patterns...[/{THEME['dim']}]\n")
+
+    candidates = manager.detect_arcs()
+
+    if not candidates:
+        console.print(f"[{THEME['dim']}]No strong patterns detected yet.[/{THEME['dim']}]")
+        console.print(f"[{THEME['dim']}]Keep making choices — arcs emerge from consistent behavior.[/{THEME['dim']}]")
+        return
+
+    # Filter out already-processed arcs
+    existing_types = {a.arc_type.value for a in char.arcs}
+    new_candidates = [c for c in candidates if c["arc_type"] not in existing_types]
+
+    if new_candidates:
+        console.print(f"[bold {THEME['accent']}]DETECTED PATTERNS[/bold {THEME['accent']}]\n")
+        for candidate in sorted(new_candidates, key=lambda x: x["strength"], reverse=True):
+            _display_arc_suggestion(candidate)
+
+        console.print(f"[{THEME['dim']}]Use /arc accept <type> to embrace an arc[/{THEME['dim']}]")
+        console.print(f"[{THEME['dim']}]Use /arc reject <type> to decline (won't suggest again)[/{THEME['dim']}]")
+    else:
+        console.print(f"[{THEME['dim']}]No new patterns detected.[/{THEME['dim']}]")
+        console.print(f"[{THEME['dim']}]All detected arcs have been processed.[/{THEME['dim']}]")
+
+
+def _display_arc_suggestion(suggestion: dict):
+    """Display a single arc suggestion."""
+    strength_bar = _arc_strength_bar(suggestion["strength"])
+
+    console.print(f"  [{THEME['accent']}]◆[/{THEME['accent']}] [bold]{suggestion['title']}[/bold] ({suggestion['arc_type']})")
+    console.print(f"    [{THEME['dim']}]{suggestion['description']}[/{THEME['dim']}]")
+    console.print(f"    Strength: {strength_bar}")
+
+    if suggestion.get("evidence"):
+        console.print(f"    [{THEME['secondary']}]Evidence:[/{THEME['secondary']}]")
+        for ev in suggestion["evidence"][:3]:
+            console.print(f"      [{THEME['dim']}]• {ev[:60]}...[/{THEME['dim']}]" if len(ev) > 60 else f"      [{THEME['dim']}]• {ev}[/{THEME['dim']}]")
+
+    if suggestion.get("effects"):
+        console.print(f"    [{THEME['secondary']}]If accepted:[/{THEME['secondary']}]")
+        for effect in suggestion["effects"][:2]:
+            console.print(f"      [{THEME['dim']}]• {effect}[/{THEME['dim']}]")
+
+    console.print()
+
+
+def _accept_arc(manager: CampaignManager, char, arc_type: str):
+    """Accept a detected arc."""
+    from ..state.schema import ArcType
+
+    # Validate arc type
+    try:
+        ArcType(arc_type)
+    except ValueError:
+        console.print(f"[{THEME['warning']}]Unknown arc type: {arc_type}[/{THEME['warning']}]")
+        console.print(f"[{THEME['dim']}]Use /arc list to see available types[/{THEME['dim']}]")
+        return
+
+    arc = manager.accept_arc(char.id, arc_type)
+
+    if arc:
+        console.print(f"\n[bold {THEME['accent']}]◆ ARC ACCEPTED ◆[/bold {THEME['accent']}]")
+        console.print(f"[bold]{arc.title}[/bold] ({arc.arc_type.value})")
+        console.print(f"[{THEME['dim']}]{arc.description}[/{THEME['dim']}]\n")
+
+        if arc.effects:
+            console.print(f"[{THEME['secondary']}]This arc means:[/{THEME['secondary']}]")
+            for effect in arc.effects:
+                console.print(f"  [{THEME['dim']}]• {effect}[/{THEME['dim']}]")
+
+        console.print(f"\n[{THEME['dim']}]The GM will weave this into your story.[/{THEME['dim']}]")
+        console.print(f"[{THEME['dim']}]Your choices still define you — arcs recognize, not restrict.[/{THEME['dim']}]")
+    else:
+        console.print(f"[{THEME['warning']}]Could not accept arc: {arc_type}[/{THEME['warning']}]")
+
+
+def _reject_arc(manager: CampaignManager, char, arc_type: str):
+    """Reject a suggested arc."""
+    from ..state.schema import ArcType
+
+    # Validate arc type
+    try:
+        ArcType(arc_type)
+    except ValueError:
+        console.print(f"[{THEME['warning']}]Unknown arc type: {arc_type}[/{THEME['warning']}]")
+        console.print(f"[{THEME['dim']}]Use /arc list to see available types[/{THEME['dim']}]")
+        return
+
+    success = manager.reject_arc(char.id, arc_type)
+
+    if success:
+        console.print(f"\n[{THEME['dim']}]Arc rejected: {arc_type}[/{THEME['dim']}]")
+        console.print(f"[{THEME['dim']}]This pattern won't be suggested again.[/{THEME['dim']}]")
+        console.print(f"[{THEME['dim']}]Your character's story remains unwritten.[/{THEME['dim']}]")
+    else:
+        console.print(f"[{THEME['warning']}]Could not reject arc: {arc_type}[/{THEME['warning']}]")
+
+
+def _list_arc_types():
+    """List all available arc types."""
+    from ..state.schema import ArcType, ARC_PATTERNS
+
+    console.print(f"\n[bold {THEME['primary']}]◈ ARC TYPES ◈[/bold {THEME['primary']}]")
+    console.print(f"[{THEME['dim']}]Patterns that can emerge from play[/{THEME['dim']}]\n")
+
+    for arc_type in ArcType:
+        pattern = ARC_PATTERNS.get(arc_type, {})
+        title = pattern.get("title_templates", [arc_type.value])[0]
+        desc = pattern.get("description", "")
+
+        console.print(f"  [{THEME['accent']}]{arc_type.value}[/{THEME['accent']}] — {title}")
+        console.print(f"    [{THEME['dim']}]{desc[:80]}...[/{THEME['dim']}]" if len(desc) > 80 else f"    [{THEME['dim']}]{desc}[/{THEME['dim']}]")
+        console.print()
+
+
+def _arc_strength_bar(strength: float) -> str:
+    """Create a visual bar for arc strength (0.0-1.0)."""
+    filled = int(strength * 5)
+    empty = 5 - filled
+
+    if strength >= 0.7:
+        color = THEME["accent"]
+    elif strength >= 0.5:
+        color = THEME["secondary"]
+    else:
+        color = THEME["dim"]
+
+    return f"[{color}]{'●' * filled}{'○' * empty}[/{color}]"
+
+
+# -----------------------------------------------------------------------------
 # Gameplay Commands
 # -----------------------------------------------------------------------------
 
@@ -2135,6 +2362,7 @@ def create_commands(manager: CampaignManager, agent: SentinelAgent, conversation
         "/char": cmd_char,
         "/npc": cmd_npc,
         "/factions": cmd_factions,
+        "/arc": cmd_arc,
         "/roll": cmd_roll,
         "/start": cmd_start,
         "/mission": cmd_mission,

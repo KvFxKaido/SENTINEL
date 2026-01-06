@@ -161,6 +161,17 @@ class PromptLoader:
                         if rep["narrative_hint"]:
                             lines.append(f"    {rep['narrative_hint']}")
 
+                # Show accepted character arcs
+                from .state.schema import ArcStatus
+                accepted_arcs = [a for a in char.arcs if a.status == ArcStatus.ACCEPTED]
+                if accepted_arcs:
+                    lines.append("  **Character Arcs** (recognized patterns):")
+                    for arc in accepted_arcs:
+                        lines.append(f"  → {arc.title} ({arc.arc_type.value})")
+                        lines.append(f"    {arc.description}")
+                        if arc.effects:
+                            lines.append(f"    Effects: {'; '.join(arc.effects[:2])}")
+
         # Active NPCs
         if campaign.npcs.active:
             lines.append("\n**Active NPCs:**")
