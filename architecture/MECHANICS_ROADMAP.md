@@ -610,15 +610,15 @@ Every GM output becomes a typed event:
 
 ### Near-Term (Core Improvements)
 
-1. **Consequence Visualization** — 1 week
-   - `/consequences` command
-   - Thread status display
-   - Dormant thread countdown
+1. ~~**Consequence Visualization**~~ — DONE
+   - [x] `/consequences` command
+   - [x] Thread status display
+   - [x] Dormant thread countdown
 
-2. **Session Summaries** — 1 week
-   - Auto-generation on session end
-   - Export to markdown
-   - Integration with `/history`
+2. ~~**Session Summaries**~~ — DONE
+   - [x] Auto-generation on session end (`/debrief`)
+   - [x] Export to markdown
+   - [x] Standalone `/summary` command for any session
 
 3. **NPC Individual Memory** — 1-2 weeks
    - Separate NPC reputation from faction
