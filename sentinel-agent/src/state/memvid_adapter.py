@@ -38,9 +38,10 @@ logger = logging.getLogger(__name__)
 # -----------------------------------------------------------------------------
 
 try:
-    from memvid import Memvid, PutOptions, SearchRequest
+    import memvid_sdk
     MEMVID_AVAILABLE = True
 except ImportError:
+    memvid_sdk = None  # type: ignore
     MEMVID_AVAILABLE = False
     logger.info("memvid-sdk not installed. Run: pip install memvid-sdk")
 
@@ -91,7 +92,7 @@ class MemvidAdapter:
         """
         self.campaign_file = Path(campaign_file)
         self.enabled = enabled and MEMVID_AVAILABLE
-        self._mv: Memvid | None = None
+        self._mv: Any = None  # memvid_sdk.Memvid instance
 
         if self.enabled:
             self._init_memvid()
@@ -104,12 +105,17 @@ class MemvidAdapter:
     def _init_memvid(self) -> None:
         """Initialize or open the memvid file."""
         try:
+            self.campaign_file.parent.mkdir(parents=True, exist_ok=True)
+
             if self.campaign_file.exists():
-                self._mv = Memvid.open(str(self.campaign_file))
+                self._mv = memvid_sdk.use("basic", str(self.campaign_file))
                 logger.info(f"Opened existing memvid: {self.campaign_file}")
             else:
-                self.campaign_file.parent.mkdir(parents=True, exist_ok=True)
-                self._mv = Memvid.create(str(self.campaign_file))
+                self._mv = memvid_sdk.use(
+                    "basic",
+                    str(self.campaign_file),
+                    mode="create"
+                )
                 logger.info(f"Created new memvid: {self.campaign_file}")
         except Exception as e:
             logger.error(f"Failed to initialize memvid: {e}")
@@ -147,6 +153,7 @@ class MemvidAdapter:
         player = campaign.characters[0] if campaign.characters else None
 
         frame_data = {
+            "type": FrameType.TURN,
             "turn": turn_number,
             "session": campaign.meta.session_count,
             "timestamp": datetime.now().isoformat(),
@@ -164,16 +171,16 @@ class MemvidAdapter:
         }
 
         try:
-            opts = (
-                PutOptions.builder()
-                .title(f"Turn {turn_number} - Session {campaign.meta.session_count}")
-                .tag("type", FrameType.TURN)
-                .tag("session", str(campaign.meta.session_count))
-                .tag("turn", str(turn_number))
-                .build()
+            frame_id = self._mv.put(
+                title=f"Turn {turn_number} - Session {campaign.meta.session_count}",
+                label=FrameType.TURN,
+                text=json.dumps(frame_data),
+                tags=[
+                    f"type:{FrameType.TURN}",
+                    f"session:{campaign.meta.session_count}",
+                    f"turn:{turn_number}",
+                ],
             )
-
-            frame_id = self._mv.put_json(frame_data, opts)
             self._mv.commit()
             logger.debug(f"Saved turn {turn_number} as frame {frame_id}")
             return frame_id
@@ -208,6 +215,7 @@ class MemvidAdapter:
             return None
 
         frame_data = {
+            "type": FrameType.HINGE,
             "hinge_id": hinge.id,
             "session": session,
             "situation": hinge.situation,
@@ -220,17 +228,17 @@ class MemvidAdapter:
         }
 
         try:
-            opts = (
-                PutOptions.builder()
-                .title(f"HINGE: {hinge.choice[:50]}...")
-                .tag("type", FrameType.HINGE)
-                .tag("session", str(session))
-                .tag("hinge_id", hinge.id)
-                .tag("severity", "high")
-                .build()
+            frame_id = self._mv.put(
+                title=f"HINGE: {hinge.choice[:50]}...",
+                label=FrameType.HINGE,
+                text=json.dumps(frame_data),
+                tags=[
+                    f"type:{FrameType.HINGE}",
+                    f"session:{session}",
+                    f"hinge_id:{hinge.id}",
+                    "severity:high",
+                ],
             )
-
-            frame_id = self._mv.put_json(frame_data, opts)
             self._mv.commit()
             logger.info(f"Saved hinge moment: {hinge.id}")
             return frame_id
@@ -269,6 +277,7 @@ class MemvidAdapter:
             return None
 
         frame_data = {
+            "type": FrameType.NPC_INTERACTION,
             "npc_id": npc.id,
             "npc_name": npc.name,
             "faction": npc.faction.value if npc.faction else None,
@@ -284,21 +293,22 @@ class MemvidAdapter:
             "npc_wants": npc.agenda.wants if npc.agenda else None,
         }
 
+        tags = [
+            f"type:{FrameType.NPC_INTERACTION}",
+            f"npc_id:{npc.id}",
+            f"npc_name:{npc.name}",
+            f"session:{session}",
+        ]
+        if npc.faction:
+            tags.append(f"faction:{npc.faction.value}")
+
         try:
-            opts = (
-                PutOptions.builder()
-                .title(f"Interaction: {npc.name}")
-                .tag("type", FrameType.NPC_INTERACTION)
-                .tag("npc_id", npc.id)
-                .tag("npc_name", npc.name)
-                .tag("session", str(session))
-                .build()
+            frame_id = self._mv.put(
+                title=f"Interaction: {npc.name}",
+                label=FrameType.NPC_INTERACTION,
+                text=json.dumps(frame_data),
+                tags=tags,
             )
-
-            if npc.faction:
-                opts = opts.tag("faction", npc.faction.value)
-
-            frame_id = self._mv.put_json(frame_data, opts)
             self._mv.commit()
             logger.debug(f"Saved interaction with {npc.name}")
             return frame_id
@@ -320,6 +330,7 @@ class MemvidAdapter:
             return None
 
         frame_data = {
+            "type": FrameType.FACTION_SHIFT,
             "faction": faction.value,
             "from_standing": from_standing,
             "to_standing": to_standing,
@@ -329,16 +340,16 @@ class MemvidAdapter:
         }
 
         try:
-            opts = (
-                PutOptions.builder()
-                .title(f"Faction Shift: {faction.value}")
-                .tag("type", FrameType.FACTION_SHIFT)
-                .tag("faction", faction.value)
-                .tag("session", str(session))
-                .build()
+            frame_id = self._mv.put(
+                title=f"Faction Shift: {faction.value}",
+                label=FrameType.FACTION_SHIFT,
+                text=json.dumps(frame_data),
+                tags=[
+                    f"type:{FrameType.FACTION_SHIFT}",
+                    f"faction:{faction.value}",
+                    f"session:{session}",
+                ],
             )
-
-            frame_id = self._mv.put_json(frame_data, opts)
             self._mv.commit()
             return frame_id
 
@@ -352,6 +363,7 @@ class MemvidAdapter:
             return None
 
         frame_data = {
+            "type": FrameType.DORMANT_THREAD,
             "thread_id": thread.id,
             "origin": thread.origin,
             "trigger_condition": thread.trigger_condition,
@@ -364,17 +376,17 @@ class MemvidAdapter:
         }
 
         try:
-            opts = (
-                PutOptions.builder()
-                .title(f"Thread: {thread.origin[:50]}...")
-                .tag("type", FrameType.DORMANT_THREAD)
-                .tag("thread_id", thread.id)
-                .tag("status", "dormant")
-                .tag("severity", thread.severity.value)
-                .build()
+            frame_id = self._mv.put(
+                title=f"Thread: {thread.origin[:50]}...",
+                label=FrameType.DORMANT_THREAD,
+                text=json.dumps(frame_data),
+                tags=[
+                    f"type:{FrameType.DORMANT_THREAD}",
+                    f"thread_id:{thread.id}",
+                    "status:dormant",
+                    f"severity:{thread.severity.value}",
+                ],
             )
-
-            frame_id = self._mv.put_json(frame_data, opts)
             self._mv.commit()
             return frame_id
 
@@ -385,6 +397,24 @@ class MemvidAdapter:
     # -------------------------------------------------------------------------
     # Query Operations
     # -------------------------------------------------------------------------
+
+    def _parse_frame_data(self, hit: Any) -> dict:
+        """Parse frame data from a search hit."""
+        try:
+            # Get full frame data using the URI
+            frame = self._mv.frame(hit.uri)
+            # The text field contains our JSON data
+            if "text" in frame:
+                return json.loads(frame["text"])
+            # Fallback: try to parse from snippet
+            return json.loads(hit.snippet) if hit.snippet else {}
+        except (json.JSONDecodeError, KeyError, TypeError):
+            # Return basic hit info if parsing fails
+            return {
+                "title": hit.title,
+                "tags": hit.tags,
+                "snippet": hit.snippet,
+            }
 
     def query(
         self,
@@ -407,17 +437,13 @@ class MemvidAdapter:
             return []
 
         try:
-            request = SearchRequest(
-                query=query_text,
-                top_k=top_k,
-                snippet_chars=300,
-            )
-
+            # Add type filter to query if specified
+            search_query = query_text
             if frame_type:
-                request = request.filter("type", frame_type)
+                search_query = f"type:{frame_type} {query_text}"
 
-            results = self._mv.search(request)
-            return [hit.json_data for hit in results.hits]
+            results = self._mv.find(search_query, k=top_k, snippet_chars=500)
+            return [self._parse_frame_data(hit) for hit in results.hits]
 
         except Exception as e:
             logger.error(f"Query failed: {e}")
@@ -438,13 +464,12 @@ class MemvidAdapter:
             return []
 
         try:
-            request = SearchRequest(
-                query=f"npc_id:{npc_id}",
-                top_k=limit,
-            ).filter("type", FrameType.NPC_INTERACTION)
-
-            results = self._mv.search(request)
-            return [hit.json_data for hit in results.hits]
+            results = self._mv.find(
+                f"type:{FrameType.NPC_INTERACTION} npc_id:{npc_id}",
+                k=limit,
+                snippet_chars=500,
+            )
+            return [self._parse_frame_data(hit) for hit in results.hits]
 
         except Exception as e:
             logger.error(f"NPC history query failed: {e}")
@@ -465,13 +490,12 @@ class MemvidAdapter:
             return False, []
 
         try:
-            request = SearchRequest(
-                query=f"npc_id:{npc_id} {topic}",
-                top_k=5,
-            ).filter("type", FrameType.NPC_INTERACTION)
-
-            results = self._mv.search(request)
-            hits = [hit.json_data for hit in results.hits]
+            results = self._mv.find(
+                f"type:{FrameType.NPC_INTERACTION} npc_id:{npc_id} {topic}",
+                k=5,
+                snippet_chars=500,
+            )
+            hits = [self._parse_frame_data(hit) for hit in results.hits]
             return len(hits) > 0, hits
 
         except Exception as e:
@@ -484,13 +508,12 @@ class MemvidAdapter:
             return []
 
         try:
-            request = SearchRequest(
-                query="type:hinge_moment",
-                top_k=limit,
-            ).filter("type", FrameType.HINGE)
-
-            results = self._mv.search(request)
-            return [hit.json_data for hit in results.hits]
+            results = self._mv.find(
+                f"type:{FrameType.HINGE}",
+                k=limit,
+                snippet_chars=500,
+            )
+            return [self._parse_frame_data(hit) for hit in results.hits]
 
         except Exception as e:
             logger.error(f"Hinge query failed: {e}")
@@ -502,13 +525,12 @@ class MemvidAdapter:
             return []
 
         try:
-            request = SearchRequest(
-                query=f"session:{session}",
-                top_k=100,
+            results = self._mv.find(
+                f"session:{session}",
+                k=100,
+                snippet_chars=500,
             )
-
-            results = self._mv.search(request)
-            return [hit.json_data for hit in results.hits]
+            return [self._parse_frame_data(hit) for hit in results.hits]
 
         except Exception as e:
             logger.error(f"Session timeline query failed: {e}")
@@ -520,13 +542,12 @@ class MemvidAdapter:
             return []
 
         try:
-            request = SearchRequest(
-                query="status:dormant",
-                top_k=50,
-            ).filter("type", FrameType.DORMANT_THREAD)
-
-            results = self._mv.search(request)
-            return [hit.json_data for hit in results.hits]
+            results = self._mv.find(
+                f"type:{FrameType.DORMANT_THREAD} status:dormant",
+                k=50,
+                snippet_chars=500,
+            )
+            return [self._parse_frame_data(hit) for hit in results.hits]
 
         except Exception as e:
             logger.error(f"Thread query failed: {e}")
