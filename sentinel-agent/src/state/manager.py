@@ -28,6 +28,7 @@ from .schema import (
     ThreadSeverity,
 )
 from .store import CampaignStore, JsonCampaignStore, EventQueueStore
+from .memvid_adapter import MemvidAdapter, create_memvid_adapter, MEMVID_AVAILABLE
 
 
 def _version_tuple(version: str) -> tuple[int, ...]:
@@ -65,6 +66,7 @@ class CampaignManager:
         self,
         store: CampaignStore | Path | str = "campaigns",
         event_queue: EventQueueStore | None = None,
+        enable_memvid: bool = True,
     ):
         """
         Initialize with a store.
@@ -72,6 +74,7 @@ class CampaignManager:
         Args:
             store: CampaignStore instance, or path for JsonCampaignStore
             event_queue: Optional EventQueueStore for MCP event processing
+            enable_memvid: Whether to enable memvid memory (requires memvid-sdk)
         """
         if isinstance(store, (Path, str)):
             # Backwards compatible: path creates JsonCampaignStore
@@ -79,12 +82,124 @@ class CampaignManager:
             self.store = JsonCampaignStore(campaigns_path)
             # Auto-create event queue store with same path
             self.event_queue = event_queue or EventQueueStore(campaigns_path)
+            self._campaigns_path = campaigns_path
         else:
             self.store = store
             self.event_queue = event_queue
+            self._campaigns_path = Path("campaigns")
 
         self.current: Campaign | None = None
         self._cache: dict[str, Campaign] = {}
+
+        # Memvid adapter (lazily initialized per campaign)
+        self._enable_memvid = enable_memvid and MEMVID_AVAILABLE
+        self._memvid: MemvidAdapter | None = None
+        self._turn_counter: int = 0  # Track turns within session
+
+    # -------------------------------------------------------------------------
+    # Memvid Integration
+    # -------------------------------------------------------------------------
+
+    def _init_memvid_for_campaign(self, campaign_id: str) -> None:
+        """Initialize memvid adapter for a campaign."""
+        if self._enable_memvid:
+            self._memvid = create_memvid_adapter(
+                campaign_id,
+                campaigns_dir=self._campaigns_path,
+                enabled=True,
+            )
+            self._turn_counter = 0
+        else:
+            self._memvid = None
+
+    def _close_memvid(self) -> None:
+        """Close current memvid adapter."""
+        if self._memvid:
+            self._memvid.close()
+            self._memvid = None
+
+    @property
+    def memvid(self) -> MemvidAdapter | None:
+        """Access the memvid adapter (may be None if disabled)."""
+        return self._memvid
+
+    def record_turn(
+        self,
+        choices_made: list[dict] | None = None,
+        npcs_affected: list[str] | None = None,
+        narrative_summary: str = "",
+    ) -> str | None:
+        """
+        Record a turn state to memvid.
+
+        Call this at the end of each turn to snapshot state.
+        Returns frame ID if successful.
+        """
+        if not self.current or not self._memvid:
+            return None
+
+        self._turn_counter += 1
+        return self._memvid.save_turn(
+            campaign=self.current,
+            turn_number=self._turn_counter,
+            choices_made=choices_made,
+            npcs_affected=npcs_affected,
+            narrative_summary=narrative_summary,
+        )
+
+    def record_npc_interaction(
+        self,
+        npc_id: str,
+        player_action: str,
+        npc_reaction: str,
+        disposition_change: int = 0,
+        context: dict | None = None,
+    ) -> str | None:
+        """
+        Record an NPC interaction to memvid.
+
+        Call this when meaningful NPC interactions occur.
+        Returns frame ID if successful.
+        """
+        if not self.current or not self._memvid:
+            return None
+
+        npc = self.get_npc(npc_id)
+        if not npc:
+            return None
+
+        return self._memvid.save_npc_interaction(
+            npc=npc,
+            player_action=player_action,
+            npc_reaction=npc_reaction,
+            disposition_change=disposition_change,
+            session=self.current.meta.session_count,
+            context=context,
+        )
+
+    def query_campaign_history(
+        self,
+        query: str,
+        top_k: int = 10,
+    ) -> list[dict]:
+        """
+        Semantic search across campaign history via memvid.
+
+        Returns matching frames if memvid enabled, empty list otherwise.
+        """
+        if not self._memvid:
+            return []
+        return self._memvid.query(query, top_k=top_k)
+
+    def get_npc_memory(self, npc_id: str, limit: int = 20) -> list[dict]:
+        """
+        Get interaction history for a specific NPC via memvid.
+
+        Returns interaction frames if memvid enabled.
+        """
+        if not self._memvid:
+            return []
+        return self._memvid.get_npc_history(npc_id, limit=limit)
 
     # -------------------------------------------------------------------------
     # Campaign Lifecycle
@@ -95,9 +210,15 @@ class CampaignManager:
         meta = CampaignMeta(name=name)
         campaign = Campaign(meta=meta)
 
+        # Close any existing memvid
+        self._close_memvid()
+
         self.current = campaign
         self._cache[meta.id] = campaign
         self.save_campaign()
+
+        # Initialize memvid for new campaign
+        self._init_memvid_for_campaign(meta.id)
 
         return campaign
 
@@ -124,6 +245,9 @@ class CampaignManager:
         # Load from store
         campaign = self.store.load(campaign_id)
         if campaign:
+            # Close any existing memvid
+            self._close_memvid()
+
             # Run migrations if needed
             migrated = self._migrate_campaign(campaign)
 
@@ -136,6 +260,9 @@ class CampaignManager:
             # Persist if migrations or events were processed
             if migrated or events_processed > 0:
                 self.save_campaign()
+
+            # Initialize memvid for this campaign
+            self._init_memvid_for_campaign(campaign.meta.id)
 
             return campaign
 
@@ -643,6 +770,16 @@ class CampaignManager:
             is_permanent=False,
         )
 
+        # Save to memvid
+        if self._memvid:
+            self._memvid.save_faction_shift(
+                faction=faction,
+                from_standing=before.value,
+                to_standing=after.value,
+                cause=reason,
+                session=self.current.meta.session_count,
+            )
+
         # Generate tags for NPC triggers
         faction_tag = faction.value.lower().replace(" ", "_")
         tags = []
@@ -699,6 +836,8 @@ class CampaignManager:
         situation: str,
         choice: str,
         reasoning: str,
+        immediate_effects: list[str] | None = None,
+        dormant_threads_created: list[str] | None = None,
     ) -> HistoryEntry:
         """Log an irreversible hinge moment."""
         if not self.current:
@@ -710,6 +849,15 @@ class CampaignManager:
             choice=choice,
             reasoning=reasoning,
         )
+
+        # Save to memvid
+        if self._memvid:
+            self._memvid.save_hinge_moment(
+                hinge,
+                session=self.current.meta.session_count,
+                immediate_effects=immediate_effects,
+                dormant_threads_created=dormant_threads_created,
+            )
 
         return self.log_history(
             type=HistoryType.HINGE,
@@ -746,6 +894,11 @@ class CampaignManager:
         )
 
         self.current.dormant_threads.append(thread)
+
+        # Save to memvid
+        if self._memvid:
+            self._memvid.save_dormant_thread(thread)
+
         self.save_campaign()
 
         return thread
