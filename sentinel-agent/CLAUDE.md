@@ -15,7 +15,8 @@ src/
 ├── agent.py              # Orchestrates LLM, tools, and state
 ├── state/
 │   ├── schema.py         # Pydantic models — the source of truth
-│   └── manager.py        # CRUD operations on campaign state
+│   ├── manager.py        # CRUD operations on campaign state
+│   └── memvid_adapter.py # Campaign memory via memvid (optional)
 ├── tools/
 │   ├── dice.py           # Game mechanics (rolls, tactical reset)
 │   └── hinge_detector.py # Detects irreversible choices in player input
@@ -65,12 +66,21 @@ NPCs react to tagged events. When `check_triggers(["helped_ember"])` is called, 
 ### Social energy is narrative, not just numeric
 When querying social energy, always include a `narrative_hint` that describes the state in fiction ("running on fumes").
 
+### Memvid is optional campaign memory
+The `MemvidAdapter` provides semantic search over campaign history (hinges, NPC interactions, faction shifts). It's append-only and complements JSON saves. Key principles:
+- **Graceful degradation**: All ops are no-ops if `memvid-sdk` not installed
+- **Evidence, not memory**: Raw frames are GM-only; player queries go through faction bias
+- **Auto-hooks**: Manager automatically saves hinges, faction shifts, and dormant threads
+
+Query with `/timeline` command or `manager.query_campaign_history()`.
+
 ## File Purposes
 
 | File | Purpose | When to modify |
 |------|---------|----------------|
 | `schema.py` | Data models | Adding new state fields |
 | `manager.py` | State operations | Adding new CRUD operations |
+| `memvid_adapter.py` | Campaign memory | Adding new frame types or queries |
 | `agent.py` | API orchestration | Adding new tools, changing prompts |
 | `cli.py` | User interface | Adding commands, changing display |
 | `glyphs.py` | Visual indicators | Adding new symbols, context meter |
@@ -185,6 +195,7 @@ pydantic>=2.0.0     # State validation
 rich>=13.0.0        # Terminal UI
 prompt-toolkit>=3.0 # Input handling
 anthropic>=0.40.0   # Claude API (optional, pip install -e ".[claude]")
+memvid-sdk>=0.1.0   # Campaign memory (optional, pip install -e ".[memvid]")
 ```
 
 ## Environment
@@ -210,4 +221,5 @@ Use `/backend <name>` in the CLI to switch manually. Note: CLI backends (Gemini,
 - `../core/SENTINEL Playbook — Core Rules.md` — The full game rules
 - `../lore/` — Canon bible, characters, session logs (indexed by lore retriever)
 - `../architecture/AGENT_ARCHITECTURE.md` — Design document
+- `../architecture/memvid_integration_design.md` — Memvid philosophy and integration design
 - `../sentinel-campaign/README.md` — Campaign MCP server (factions, history, tools)
