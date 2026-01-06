@@ -654,10 +654,12 @@ Every GM output becomes a typed event:
    - [x] /arc command (view, detect, accept, reject, list)
    - [x] GM context integration (accepted arcs in prompt)
 
-8. **Lore Quote Integration**
-   - Quote extraction from lore
-   - Context-aware insertion
-   - Reference tagging
+8. ~~**Lore Quote Integration**~~ — DONE
+   - [x] quotes.py with 44 curated faction and world truth quotes
+   - [x] QuoteCategory enum (motto, belief, world_truth, proverb, historical)
+   - [x] get_relevant_quotes() with tag/word matching and faction priority
+   - [x] _get_relevant_quotes() in agent for GM context injection
+   - [x] /lore quotes command (mottos, faction filter, category display)
 
 ---
 
