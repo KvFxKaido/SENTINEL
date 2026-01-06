@@ -11,7 +11,7 @@ from pathlib import Path
 from rich.panel import Panel
 from rich.prompt import Prompt
 from prompt_toolkit import prompt as pt_prompt
-from prompt_toolkit.completion import WordCompleter
+from prompt_toolkit.completion import Completer, Completion
 
 from ..state import CampaignManager
 from ..agent import SentinelAgent
@@ -49,17 +49,35 @@ COMMAND_META = {
     "/model": "Switch model",
     "/banner": "Toggle banner animation",
     "/lore": "Search lore",
+    "/timeline": "Search campaign memory",
     "/roll": "Roll dice",
     "/help": "Show help",
     "/quit": "Exit",
     "/exit": "Exit",
 }
-command_completer = WordCompleter(
-    list(COMMAND_META.keys()),
-    ignore_case=True,
-    match_middle=False,
-    meta_dict=COMMAND_META,
-)
+
+
+class SlashCommandCompleter(Completer):
+    """Custom completer that filters slash commands as you type."""
+
+    def get_completions(self, document, complete_event):
+        text = document.text_before_cursor.lstrip()
+
+        # Only complete if starting with /
+        if not text.startswith("/"):
+            return
+
+        text_lower = text.lower()
+        for cmd, description in COMMAND_META.items():
+            if cmd.lower().startswith(text_lower):
+                yield Completion(
+                    cmd,
+                    start_position=-len(text),
+                    display_meta=description,
+                )
+
+
+command_completer = SlashCommandCompleter()
 
 
 # -----------------------------------------------------------------------------
