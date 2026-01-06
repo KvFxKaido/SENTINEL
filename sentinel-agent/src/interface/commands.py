@@ -648,15 +648,27 @@ def cmd_consult(manager: CampaignManager, agent: SentinelAgent, args: list[str])
 # -----------------------------------------------------------------------------
 
 def cmd_debrief(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
-    """End session with reflection prompts."""
+    """End session with reflection prompts and summary."""
+    from pathlib import Path
+
     if not manager.current:
         console.print(f"[{THEME['warning']}]No campaign loaded[/{THEME['warning']}]")
         return
 
-    console.print(f"\n[bold {THEME['primary']}]◈ SESSION DEBRIEF ◈[/bold {THEME['primary']}]")
+    session_num = manager.current.meta.session_count
+
+    console.print(f"\n[bold {THEME['primary']}]◈ SESSION {session_num} DEBRIEF ◈[/bold {THEME['primary']}]")
+
+    # Generate session summary BEFORE incrementing session count
+    summary_data = manager.generate_session_summary(session_num)
+
+    # Display session summary
+    _display_session_summary(summary_data)
+
+    # Reflection prompts
+    console.print(f"\n[bold {THEME['secondary']}]REFLECTIONS[/bold {THEME['secondary']}]")
     console.print(f"[{THEME['dim']}]Answer what feels relevant. Skip with Enter.[/{THEME['dim']}]\n")
 
-    # Reflection prompts from the Cipher sheet
     cost = Prompt.ask(f"[{THEME['secondary']}]What did this cost you?[/{THEME['secondary']}]", default="")
     learned = Prompt.ask(f"[{THEME['secondary']}]What did you learn?[/{THEME['secondary']}]", default="")
     refuse = Prompt.ask(f"[{THEME['secondary']}]What would you refuse to do again?[/{THEME['secondary']}]", default="")
@@ -668,7 +680,7 @@ def cmd_debrief(manager: CampaignManager, agent: SentinelAgent, args: list[str])
         would_refuse=refuse,
     )
 
-    # Build summary for display
+    # Build summary text
     reflection_lines = []
     if cost:
         reflection_lines.append(f"Cost: {cost}")
@@ -677,29 +689,57 @@ def cmd_debrief(manager: CampaignManager, agent: SentinelAgent, args: list[str])
     if refuse:
         reflection_lines.append(f"Would refuse: {refuse}")
 
-    if not reflection_lines:
-        console.print(f"[{THEME['dim']}]No reflections recorded.[/{THEME['dim']}]")
-        summary = "Session concluded"
-    else:
+    if reflection_lines:
         console.print(f"\n[{THEME['dim']}]Reflections noted.[/{THEME['dim']}]")
-        summary = "; ".join(reflection_lines)
+    summary_text = "; ".join(reflection_lines) if reflection_lines else "Session concluded"
 
     # Increment session count BEFORE end_session (so it logs correctly)
     manager.current.meta.session_count += 1
 
     # End session with proper logging
     entry = manager.end_session(
-        summary=summary,
+        summary=summary_text,
         reflections=reflections_obj if reflection_lines else None,
         reset_social_energy=True,
     )
 
-    console.print(f"\n[{THEME['accent']}]Session {manager.current.meta.session_count} complete.[/{THEME['accent']}]")
+    console.print(f"\n[{THEME['accent']}]Session {session_num} complete.[/{THEME['accent']}]")
     console.print(f"[{THEME['dim']}]Social energy reset. Chronicle updated. Campaign saved.[/{THEME['dim']}]")
+
+    # Offer to export summary
+    export = Prompt.ask(f"\n[{THEME['dim']}]Export summary to markdown?[/{THEME['dim']}]", choices=["y", "n"], default="n")
+    if export == "y":
+        # Add reflections to summary for export
+        if reflection_lines:
+            summary_data["reflections"] = {
+                "cost": cost,
+                "learned": learned,
+                "would_refuse": refuse,
+            }
+
+        markdown = manager.format_session_summary_markdown(summary_data)
+
+        # Add reflections section to markdown
+        if reflection_lines:
+            markdown += "\n## PLAYER REFLECTIONS\n"
+            if cost:
+                markdown += f"- **Cost:** {cost}\n"
+            if learned:
+                markdown += f"- **Learned:** {learned}\n"
+            if refuse:
+                markdown += f"- **Would refuse:** {refuse}\n"
+
+        # Save to file
+        export_dir = Path("campaigns") / "summaries"
+        export_dir.mkdir(parents=True, exist_ok=True)
+        filename = f"session_{session_num}_{manager.current.meta.name.replace(' ', '_')}.md"
+        filepath = export_dir / filename
+        filepath.write_text(markdown, encoding="utf-8")
+        console.print(f"[{THEME['accent']}]Saved:[/{THEME['accent']}] {filepath}")
 
     # Offer to wrap up with GM
     if agent.is_available and reflection_lines:
-        wrap = Prompt.ask("\nAsk the GM to narrate the aftermath?", choices=["y", "n"], default="n")
+        wrap = Prompt.ask(f"\n[{THEME['dim']}]Ask the GM to narrate the aftermath?[/{THEME['dim']}]", choices=["y", "n"], default="n")
         if wrap == "y":
             prompt = (
                 f"The session is ending. Here are the player's reflections:\n"
@@ -708,6 +748,117 @@ def cmd_debrief(manager: CampaignManager, agent: SentinelAgent, args: list[str])
                 f"and sets up threads for next session."
             )
             return ("gm_prompt", prompt)
+
+    return None
+
+
+def _display_session_summary(summary: dict):
+    """Display session summary in terminal."""
+    has_content = False
+
+    # Key Choices / Hinges
+    if summary.get("hinges"):
+        has_content = True
+        console.print(f"\n[bold {THEME['secondary']}]KEY CHOICES[/bold {THEME['secondary']}]")
+        for hinge in summary["hinges"]:
+            console.print(f"  [{THEME['danger']}]{g('hinge')}[/{THEME['danger']}] {hinge['choice']}")
+            if hinge.get("what_shifted"):
+                console.print(f"    [{THEME['dim']}]Shifted: {hinge['what_shifted']}[/{THEME['dim']}]")
+
+    # Faction Changes
+    if summary.get("faction_changes"):
+        has_content = True
+        console.print(f"\n[bold {THEME['secondary']}]FACTION STANDING CHANGES[/bold {THEME['secondary']}]")
+        for change in summary["faction_changes"]:
+            marker = f" [{THEME['accent']}]★[/{THEME['accent']}]" if change.get("is_permanent") else ""
+            console.print(f"  [{THEME['warning']}]{g('faction')}[/{THEME['warning']}] {change['summary']}{marker}")
+
+    # Threads Created
+    if summary.get("threads_created"):
+        has_content = True
+        console.print(f"\n[bold {THEME['secondary']}]NEW CONSEQUENCE THREADS[/bold {THEME['secondary']}]")
+        severity_style = {
+            "major": THEME["danger"],
+            "moderate": THEME["warning"],
+            "minor": THEME["dim"],
+        }
+        for thread in summary["threads_created"]:
+            sev = thread["severity"]
+            color = severity_style.get(sev, THEME["dim"])
+            console.print(f"  [{color}]{g('thread')}[/{color}] {thread['origin']}")
+            console.print(f"    [{THEME['dim']}]Trigger: {thread['trigger']}[/{THEME['dim']}]")
+
+    # Threads Resolved
+    if summary.get("threads_resolved"):
+        has_content = True
+        console.print(f"\n[bold {THEME['secondary']}]RESOLVED THREADS[/bold {THEME['secondary']}]")
+        for thread in summary["threads_resolved"]:
+            console.print(f"  [{THEME['accent']}]{g('success')}[/{THEME['accent']}] {thread['summary']}")
+
+    # NPCs Encountered
+    if summary.get("npcs_encountered"):
+        has_content = True
+        console.print(f"\n[bold {THEME['secondary']}]NPCs ENCOUNTERED[/bold {THEME['secondary']}]")
+        for npc in summary["npcs_encountered"]:
+            disp = npc.get("disposition_change", 0)
+            if disp > 0:
+                change = f" [{THEME['accent']}]+{disp}[/{THEME['accent']}]"
+            elif disp < 0:
+                change = f" [{THEME['danger']}]{disp}[/{THEME['danger']}]"
+            else:
+                change = ""
+            faction = f" [{THEME['dim']}]{npc['faction']}[/{THEME['dim']}]" if npc.get("faction") else ""
+            console.print(f"  [{THEME['secondary']}]{g('npc')}[/{THEME['secondary']}] {npc['name']}{faction}{change}")
+
+    if not has_content:
+        console.print(f"\n[{THEME['dim']}]No significant events recorded this session.[/{THEME['dim']}]")
+
+
+def cmd_summary(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
+    """View summary of a session.
+
+    Usage:
+        /summary          - Summary of current/last session
+        /summary <n>      - Summary of session n
+        /summary export   - Export current session to markdown
+    """
+    from pathlib import Path
+
+    if not manager.current:
+        console.print(f"[{THEME['warning']}]No campaign loaded[/{THEME['warning']}]")
+        return
+
+    # Parse arguments
+    session_num = manager.current.meta.session_count
+    export_mode = False
+
+    for arg in args:
+        if arg.lower() == "export":
+            export_mode = True
+        elif arg.isdigit():
+            session_num = int(arg)
+
+    # Generate summary
+    summary_data = manager.generate_session_summary(session_num)
+
+    if "error" in summary_data:
+        console.print(f"[{THEME['warning']}]{summary_data['error']}[/{THEME['warning']}]")
+        return
+
+    console.print(f"\n[bold {THEME['primary']}]◈ SESSION {session_num} SUMMARY ◈[/bold {THEME['primary']}]")
+    console.print(f"[{THEME['dim']}]Campaign: {summary_data['campaign']}[/{THEME['dim']}]")
+
+    _display_session_summary(summary_data)
+
+    # Export if requested
+    if export_mode:
+        markdown = manager.format_session_summary_markdown(summary_data)
+        export_dir = Path("campaigns") / "summaries"
+        export_dir.mkdir(parents=True, exist_ok=True)
+        filename = f"session_{session_num}_{manager.current.meta.name.replace(' ', '_')}.md"
+        filepath = export_dir / filename
+        filepath.write_text(markdown, encoding="utf-8")
+        console.print(f"\n[{THEME['accent']}]Exported:[/{THEME['accent']}] {filepath}")
 
     return None
 
@@ -1315,6 +1466,7 @@ def create_commands(manager: CampaignManager, agent: SentinelAgent, conversation
         "/consult": cmd_consult,
         "/debrief": cmd_debrief,
         "/history": cmd_history,
+        "/summary": cmd_summary,
         "/consequences": cmd_consequences,
         "/threads": cmd_consequences,  # Alias
         "/simulate": cmd_simulate,

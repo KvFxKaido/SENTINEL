@@ -466,6 +466,144 @@ class CampaignManager:
         self.save_campaign()
         return entry
 
+    def generate_session_summary(self, session_number: int | None = None) -> dict:
+        """
+        Generate a summary of a session's events.
+
+        Args:
+            session_number: Session to summarize (defaults to current)
+
+        Returns:
+            Dict with keys: session, hinges, faction_changes, npcs_encountered,
+            threads_created, threads_resolved, key_choices
+        """
+        if not self.current:
+            return {"error": "No campaign loaded"}
+
+        session = session_number or self.current.meta.session_count
+
+        summary = {
+            "session": session,
+            "campaign": self.current.meta.name,
+            "hinges": [],
+            "faction_changes": [],
+            "npcs_encountered": [],
+            "threads_created": [],
+            "threads_resolved": [],
+            "key_choices": [],
+        }
+
+        # Gather hinges from this session
+        for entry in self.current.history:
+            if entry.session != session:
+                continue
+
+            if entry.type == HistoryType.HINGE and entry.hinge:
+                summary["hinges"].append({
+                    "choice": entry.hinge.choice,
+                    "situation": entry.hinge.situation,
+                    "what_shifted": entry.hinge.what_shifted,
+                })
+                summary["key_choices"].append(entry.hinge.choice)
+
+            elif entry.type == HistoryType.FACTION_SHIFT:
+                # Parse faction shift from summary
+                # Format: "Faction: Standing1 → Standing2"
+                summary["faction_changes"].append({
+                    "summary": entry.summary,
+                    "is_permanent": entry.is_permanent,
+                })
+
+            elif entry.type == HistoryType.CONSEQUENCE:
+                summary["threads_resolved"].append({
+                    "summary": entry.summary,
+                    "timestamp": entry.timestamp.isoformat(),
+                })
+
+        # Gather threads created this session
+        for thread in self.current.dormant_threads:
+            if thread.created_session == session:
+                summary["threads_created"].append({
+                    "origin": thread.origin,
+                    "trigger": thread.trigger_condition,
+                    "severity": thread.severity.value if hasattr(thread.severity, 'value') else thread.severity,
+                })
+
+        # Gather NPCs from memvid if available
+        if self._memvid and self._memvid.is_enabled:
+            npc_frames = self._memvid.get_session_timeline(session)
+            seen_npcs = set()
+            for frame in npc_frames:
+                if frame.get("type") == "npc_interaction":
+                    npc_name = frame.get("npc_name", "Unknown")
+                    if npc_name not in seen_npcs:
+                        seen_npcs.add(npc_name)
+                        summary["npcs_encountered"].append({
+                            "name": npc_name,
+                            "faction": frame.get("faction"),
+                            "disposition_change": frame.get("disposition_change", 0),
+                        })
+
+        return summary
+
+    def format_session_summary_markdown(self, summary: dict) -> str:
+        """Format a session summary as markdown for export."""
+        lines = [
+            f"# SESSION {summary['session']} SUMMARY",
+            f"**Campaign:** {summary['campaign']}",
+            "",
+        ]
+
+        # Key Choices / Hinges
+        if summary["hinges"]:
+            lines.append("## KEY CHOICES")
+            for hinge in summary["hinges"]:
+                lines.append(f"- {hinge['choice']}")
+                if hinge.get("what_shifted"):
+                    lines.append(f"  - *Shifted: {hinge['what_shifted']}*")
+            lines.append("")
+
+        # Faction Changes
+        if summary["faction_changes"]:
+            lines.append("## FACTION STANDING CHANGES")
+            for change in summary["faction_changes"]:
+                marker = "★" if change.get("is_permanent") else ""
+                lines.append(f"- {change['summary']} {marker}")
+            lines.append("")
+
+        # Threads Created
+        if summary["threads_created"]:
+            lines.append("## NEW CONSEQUENCE THREADS")
+            for thread in summary["threads_created"]:
+                sev = thread["severity"].upper()
+                lines.append(f"- [{sev}] {thread['origin']}")
+                lines.append(f"  - *Trigger: {thread['trigger']}*")
+            lines.append("")
+
+        # Threads Resolved
+        if summary["threads_resolved"]:
+            lines.append("## RESOLVED THREADS")
+            for thread in summary["threads_resolved"]:
+                lines.append(f"- {thread['summary']}")
+            lines.append("")
+
+        # NPCs Encountered
+        if summary["npcs_encountered"]:
+            lines.append("## NPCs ENCOUNTERED")
+            for npc in summary["npcs_encountered"]:
+                disp = npc.get("disposition_change", 0)
+                if disp > 0:
+                    change = f"(+{disp})"
+                elif disp < 0:
+                    change = f"({disp})"
+                else:
+                    change = ""
+                faction = f" [{npc['faction']}]" if npc.get("faction") else ""
+                lines.append(f"- {npc['name']}{faction} {change}")
+            lines.append("")
+
+        return "\n".join(lines)
+
     def set_phase(self, phase: str) -> dict:
         """
         Set the current mission phase.
