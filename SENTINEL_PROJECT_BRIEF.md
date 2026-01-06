@@ -90,6 +90,7 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 - **Config persistence** — remembers last used backend and model across sessions
 - **Context meter** — visual indicator of conversation depth
 - **Banner UX toggle** — `/banner` command to enable/disable startup animation (persists)
+- **Persistent status bar** — shows character, mission, phase, social energy with delta tracking (`/statusbar` to toggle)
 - **Social energy carrot** — spend 10% energy for advantage when acting in your element (matches restorers)
 - **Player Push mechanic** — explicitly invite consequences for advantage (Devil's Bargain), queues dormant thread
 
