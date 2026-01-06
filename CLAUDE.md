@@ -91,6 +91,13 @@ NPCs have disposition modifiers that change their behavior:
 - **Modifiers per level:** tone, reveals, withholds, tells
 - **Memory triggers:** NPCs react to tagged events (e.g., `helped_ember` shifts Lattice NPCs wary)
 
+### Memvid Campaign Memory (Optional)
+Semantic search over campaign history using [memvid](https://github.com/memvid/memvid). Stores hinges, NPC interactions, faction shifts as queryable frames.
+- **Install:** `pip install -e ".[memvid]"` in sentinel-agent
+- **Query:** `/timeline` command or `manager.query_campaign_history()`
+- **Philosophy:** Evidence, not memory — raw frames are GM-only; player queries filter through faction bias
+- **Graceful degradation:** All ops are no-ops if SDK not installed
+
 ## MCP Server: sentinel-campaign
 
 When enabled, provides faction tools and resources.
