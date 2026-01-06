@@ -646,12 +646,15 @@ Every GM output becomes a typed event:
 
 ### Long-Term (Polish)
 
-7. **Character Arc Detection** — 2-3 weeks
-   - Pattern recognition across sessions
-   - Arc suggestions
-   - Optional quest integration
+7. ~~**Character Arc Detection**~~ — DONE
+   - [x] ArcType enum (8 arc types: diplomat, partisan, broker, etc.)
+   - [x] CharacterArc model with title, description, evidence, strength
+   - [x] ARC_PATTERNS with keywords and detection logic
+   - [x] detect_arcs() analyzer scanning hinges, factions, NPC interactions
+   - [x] /arc command (view, detect, accept, reject, list)
+   - [x] GM context integration (accepted arcs in prompt)
 
-8. **Lore Quote Integration** — 1 week
+8. **Lore Quote Integration**
    - Quote extraction from lore
    - Context-aware insertion
    - Reference tagging
