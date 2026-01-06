@@ -40,6 +40,81 @@ class FactionName(str, Enum):
     GHOST_NETWORKS = "Ghost Networks"
 
 
+# Inter-faction relationships: positive = allies, negative = rivals
+# Range: -50 (deep rivalry) to +50 (strong alliance)
+# These relationships drive cascade effects when player helps/opposes a faction
+FACTION_RELATIONS: dict[tuple[str, str], int] = {
+    # Nexus relationships
+    ("Nexus", "Ghost Networks"): -50,       # Deep rivalry: surveillance vs anonymity
+    ("Nexus", "Lattice"): 30,               # Cooperation: both infrastructure-focused
+    ("Nexus", "Witnesses"): -30,            # Tension: control vs truth
+
+    # Ember Colonies relationships
+    ("Ember Colonies", "Cultivators"): 40,  # Alliance: survival/sustainability
+    ("Ember Colonies", "Wanderers"): 25,    # Mutual survival focus
+    ("Ember Colonies", "Ghost Networks"): 20,  # Both distrust central authority
+
+    # Covenant relationships
+    ("Covenant", "Convergence"): -40,       # Ideological: ethics vs enhancement
+    ("Covenant", "Witnesses"): 25,          # Both value truth/ethics
+
+    # Convergence relationships
+    ("Convergence", "Architects"): 15,      # Both tech-forward, build toward future
+
+    # Lattice relationships
+    ("Lattice", "Cultivators"): 15,         # Infrastructure supports farming
+    ("Lattice", "Steel Syndicate"): -15,    # Competition over resources
+
+    # Steel Syndicate relationships
+    ("Steel Syndicate", "Architects"): -20, # Tension: profit vs legacy
+    ("Steel Syndicate", "Wanderers"): 10,   # Trade partners
+
+    # Witnesses relationships
+    ("Witnesses", "Architects"): 20,        # Both value records/history
+
+    # Ghost Networks relationships
+    ("Ghost Networks", "Wanderers"): 15,    # Both value mobility/freedom
+}
+
+
+def get_faction_relation(faction1: FactionName, faction2: FactionName) -> int:
+    """
+    Get the relationship score between two factions.
+
+    Returns score from -50 to +50, or 0 if no defined relationship.
+    Handles bidirectional lookup (order doesn't matter).
+    """
+    if faction1 == faction2:
+        return 0
+
+    key1 = (faction1.value, faction2.value)
+    key2 = (faction2.value, faction1.value)
+
+    return FACTION_RELATIONS.get(key1, FACTION_RELATIONS.get(key2, 0))
+
+
+def get_faction_allies(faction: FactionName, threshold: int = 20) -> list[FactionName]:
+    """Get factions that are allies (relationship >= threshold)."""
+    allies = []
+    for other in FactionName:
+        if other != faction:
+            relation = get_faction_relation(faction, other)
+            if relation >= threshold:
+                allies.append(other)
+    return allies
+
+
+def get_faction_rivals(faction: FactionName, threshold: int = -20) -> list[FactionName]:
+    """Get factions that are rivals (relationship <= threshold)."""
+    rivals = []
+    for other in FactionName:
+        if other != faction:
+            relation = get_faction_relation(faction, other)
+            if relation <= threshold:
+                rivals.append(other)
+    return rivals
+
+
 class Standing(str, Enum):
     HOSTILE = "Hostile"
     UNFRIENDLY = "Unfriendly"
