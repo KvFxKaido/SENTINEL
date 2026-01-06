@@ -1231,6 +1231,13 @@ class SentinelAgent:
         "witness": "WITNESS ARCHIVIST",
     }
 
+    # Map advisor names to faction names for context retrieval
+    ADVISOR_FACTIONS = {
+        "nexus": "nexus",
+        "ember": "ember_colonies",
+        "witness": "witnesses",
+    }
+
     def _query_advisor(
         self,
         advisor: str,
@@ -1260,6 +1267,20 @@ class SentinelAgent:
 
         # Build system prompt with advisor personality + context
         system = f"{advisor_prompt}\n\n---\n\n# Current Situation\n\n{context}"
+
+        # Add faction-specific campaign history if available
+        if self.unified_retriever:
+            faction = self.ADVISOR_FACTIONS.get(advisor)
+            if faction:
+                unified_result = self.unified_retriever.query_for_faction(
+                    faction=faction,
+                    topic=question,
+                    limit_lore=1,
+                    limit_campaign=5,
+                )
+                if unified_result.has_campaign:
+                    history_section = self.unified_retriever.format_for_prompt(unified_result)
+                    system = system + "\n\n---\n\n" + history_section
 
         try:
             # Simple completion without tools
