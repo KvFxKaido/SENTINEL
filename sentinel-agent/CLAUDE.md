@@ -221,5 +221,4 @@ Use `/backend <name>` in the CLI to switch manually. Note: CLI backends (Gemini,
 - `../core/SENTINEL Playbook — Core Rules.md` — The full game rules
 - `../lore/` — Canon bible, characters, session logs (indexed by lore retriever)
 - `../architecture/AGENT_ARCHITECTURE.md` — Design document
-- `../architecture/memvid_integration_design.md` — Memvid philosophy and integration design
 - `../sentinel-campaign/README.md` — Campaign MCP server (factions, history, tools)

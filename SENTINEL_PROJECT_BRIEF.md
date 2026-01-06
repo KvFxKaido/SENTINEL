@@ -160,8 +160,7 @@ SENTINEL/
 │       ├── tools/                # Standing, interactions, intel, history search
 │       └── data/factions/        # 11 faction JSON files
 └── architecture/
-    ├── AGENT_ARCHITECTURE.md     # Design document
-    └── MECHANICS_ROADMAP.md      # Feature roadmap (all items complete)
+    └── AGENT_ARCHITECTURE.md     # Design document
 ```
 
 **Key decisions:**
