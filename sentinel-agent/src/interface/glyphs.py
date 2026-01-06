@@ -78,10 +78,18 @@ GLYPHS_UNICODE = {
     "save": "◆",
     "load": "◇",
 
-    # Council advisors
-    "nexus": "◈",
-    "ember": "◆",
-    "witness": "◎",
+    # Faction glyphs (for codec boxes and council)
+    "nexus": "◈",           # Diamond with dot - surveillance, data
+    "ember_colonies": "◆",  # Solid diamond - resilience, community
+    "lattice": "▣",         # Grid square - infrastructure
+    "convergence": "⚡",     # Lightning - enhancement, change
+    "covenant": "⚖",        # Scales - oaths, ethics
+    "wanderers": "◇",       # Empty diamond - movement, freedom
+    "cultivators": "❋",     # Flower - growth, sustainability
+    "steel_syndicate": "⚙", # Gear - industry, leverage
+    "witnesses": "◎",       # Target/eye - observation, records
+    "architects": "▲",      # Triangle - structure, pre-collapse
+    "ghost_networks": "◌",  # Dashed circle - hidden, ephemeral
 }
 
 
@@ -149,10 +157,18 @@ GLYPHS_ASCII = {
     "save": "[S]",
     "load": "[L]",
 
-    # Council advisors
-    "nexus": "[N]",
-    "ember": "[E]",
-    "witness": "[W]",
+    # Faction glyphs (for codec boxes and council)
+    "nexus": "[NX]",
+    "ember_colonies": "[EM]",
+    "lattice": "[LA]",
+    "convergence": "[CV]",
+    "covenant": "[CO]",
+    "wanderers": "[WA]",
+    "cultivators": "[CU]",
+    "steel_syndicate": "[SS]",
+    "witnesses": "[WI]",
+    "architects": "[AR]",
+    "ghost_networks": "[GN]",
 }
 
 
