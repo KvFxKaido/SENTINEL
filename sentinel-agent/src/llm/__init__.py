@@ -162,8 +162,8 @@ def detect_backend(
     except Exception:
         pass
 
-    # Try Claude API
-    if ClaudeClient is not None:
+    # Try Claude API (only if key is available)
+    if ClaudeClient is not None and os.environ.get("ANTHROPIC_API_KEY"):
         try:
             client = ClaudeClient()
             return ("claude", client)
