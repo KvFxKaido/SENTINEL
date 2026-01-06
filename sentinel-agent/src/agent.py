@@ -17,7 +17,7 @@ from .tools.dice import roll_check, tactical_reset, TOOL_SCHEMAS
 from .tools.hinge_detector import detect_hinge, get_hinge_context
 from .llm.base import LLMClient, Message
 from .llm import create_llm_client
-from .lore import LoreRetriever, UnifiedRetriever
+from .lore import UnifiedRetriever
 
 
 @dataclass
@@ -313,17 +313,16 @@ class SentinelAgent:
             "openrouter_model": openrouter_model,
         }
 
-        # Initialize lore retriever if lore_dir provided
-        self.lore_retriever: LoreRetriever | None = None
+        # Initialize unified retriever (lore + campaign memory) if lore_dir provided
         self.unified_retriever: UnifiedRetriever | None = None
         if lore_dir:
             lore_path = Path(lore_dir)
             if lore_path.exists():
-                self.lore_retriever = LoreRetriever(lore_path)
-                # Create unified retriever with memvid from manager
+                from .lore import LoreRetriever
+                lore_retriever = LoreRetriever(lore_path)
                 memvid = getattr(self.manager, 'memvid', None)
                 self.unified_retriever = UnifiedRetriever(
-                    self.lore_retriever,
+                    lore_retriever,
                     memvid=memvid,
                 )
 
@@ -381,6 +380,11 @@ class SentinelAgent:
             "model": self.client.model_name,
             "supports_tools": self.client.supports_tools,
         }
+
+    @property
+    def lore_retriever(self):
+        """Backwards compatibility - access lore via unified retriever."""
+        return self.unified_retriever.lore if self.unified_retriever else None
 
     def get_tools(self) -> list[dict]:
         """Get all tool schemas for the API."""
@@ -1186,7 +1190,6 @@ class SentinelAgent:
 
         # Retrieve relevant lore and campaign history if available
         if self.unified_retriever:
-            # Use unified retriever for combined lore + campaign context
             unified_result = self.unified_retriever.query(
                 topic=user_message,
                 factions=self._get_active_factions(),
@@ -1196,17 +1199,6 @@ class SentinelAgent:
             if not unified_result.is_empty:
                 context_section = self.unified_retriever.format_for_prompt(unified_result)
                 system_prompt = system_prompt + "\n\n---\n\n" + context_section
-        elif self.lore_retriever:
-            # Fallback to lore-only retriever
-            results = self.lore_retriever.retrieve_for_context(
-                player_input=user_message,
-                active_factions=self._get_active_factions(),
-                mission_type=self._get_mission_type(),
-                limit=2,
-            )
-            if results:
-                lore_section = self.lore_retriever.format_for_prompt(results)
-                system_prompt = system_prompt + "\n\n---\n\n" + lore_section
 
         # Use the client's tool loop
         def tool_executor(name: str, args: dict) -> dict:
