@@ -312,7 +312,8 @@ def show_help():
 | `/mission` | Get a new mission from the GM |
 | `/consult <q>` | Ask faction advisors for perspectives |
 | `/debrief` | End session with reflection prompts |
-| `/history` | View campaign chronicle |
+| `/history [filter]` | View chronicle (hinges, faction, missions, session N) |
+| `/search <term>` | Search campaign history for keywords |
 | `/summary [n]` | View session summary (n = session number) |
 | `/consequences` | View pending threads and avoided situations |
 | `/timeline` | Search campaign memory (memvid) |
