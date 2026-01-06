@@ -628,12 +628,13 @@ Every GM output becomes a typed event:
 
 ### Mid-Term (System Expansion)
 
-4. **Inter-Faction Dynamics** — 2 weeks
-   - Faction relationship matrix
-   - Cascading effects system
-   - Surface relationships through NPC dialogue
+4. ~~**Inter-Faction Dynamics**~~ — DONE
+   - [x] Faction relationship matrix (`FACTION_RELATIONS` in schema)
+   - [x] Cascading effects system (`_calculate_faction_cascades`)
+   - [x] `/factions` command showing standings and relationship webs
+   - [x] Cascade effects visualized on faction shifts
 
-5. **Enhanced `/simulate`** — 2 weeks
+5. **Enhanced `/simulate`**
    - What-if branching
    - NPC reaction preview
    - Consequence preview
