@@ -7,7 +7,7 @@ Prototype for enhanced faction glyphs + styled frames
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
-from rich.style import Style
+from rich.box import DOUBLE
 from typing import Literal
 
 console = Console()
@@ -103,21 +103,10 @@ def show_npc_dialogue(
     header.append("\n")
     header.append(f"  [Disposition: {disposition.capitalize()}]", style=f"{disposition_color}")
     
-    # Build the dialogue section
+    # Build the dialogue section with Rich's built-in wrapping
     dialogue_text = Text()
     dialogue_text.append("\n")
-    
-    # Wrap dialogue for readability
-    words = dialogue.split()
-    line = "  "
-    for word in words:
-        if len(line) + len(word) + 1 > 50:  # Wrap at ~50 chars
-            dialogue_text.append(line + "\n", style=faction_color)
-            line = "  " + word + " "
-        else:
-            line += word + " "
-    if line.strip():
-        dialogue_text.append(line + "\n", style=faction_color)
+    dialogue_text.append(f"  {dialogue}\n", style=faction_color)
     
     # Combine header and dialogue
     content = Text()
@@ -128,9 +117,9 @@ def show_npc_dialogue(
     panel = Panel(
         content,
         border_style=faction_color,
-        box=__import__('rich.box').box.DOUBLE,
+        box=DOUBLE,
         padding=(0, 1),
-        expand=False
+        width=55
     )
     
     console.print(panel)
