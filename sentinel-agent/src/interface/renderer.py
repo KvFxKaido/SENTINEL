@@ -245,6 +245,7 @@ def show_help():
 | `/consult <q>` | Ask faction advisors for perspectives |
 | `/debrief` | End session with reflection prompts |
 | `/history` | View campaign chronicle |
+| `/timeline` | Search campaign memory (memvid) |
 | `/load` | Load an existing campaign |
 | `/save` | Save current campaign |
 | `/list` | List all campaigns |
