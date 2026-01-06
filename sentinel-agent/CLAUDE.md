@@ -74,6 +74,31 @@ The `MemvidAdapter` provides semantic search over campaign history (hinges, NPC 
 
 Query with `/timeline` command or `manager.query_campaign_history()`.
 
+### Unified retrieval with budget control
+The `UnifiedRetriever` combines lore, campaign history, and current state into a single query interface:
+
+```python
+from src.lore import UnifiedRetriever, RetrievalBudget, extract_faction_state
+
+# Query with default budget (2 lore + 2 campaign + state)
+result = retriever.query("Nexus", faction_state=extract_faction_state(campaign))
+
+# Use presets for different situations
+result = retriever.query("betrayal", budget=RetrievalBudget.minimal())  # 1+1+state
+result = retriever.query("deep dive", budget=RetrievalBudget.deep())    # 3+5+state
+
+# Custom budget
+result = retriever.query("topic", budget=RetrievalBudget(lore=2, campaign=3, state=True))
+```
+
+**Budget presets:**
+- `minimal()` — Quick queries: 1 lore, 1 campaign, state
+- `standard()` — Default: 2 lore, 2 campaign, state
+- `deep()` — Complex queries: 3 lore, 5 campaign, state
+
+### Event polling for MCP sync
+The CLI polls `pending_events.json` at the start of each input loop. Call `manager.poll_events()` to process MCP events mid-session without reloading.
+
 ## File Purposes
 
 | File | Purpose | When to modify |
