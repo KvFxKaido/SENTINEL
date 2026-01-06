@@ -681,6 +681,152 @@ def _disposition_color(disposition: str) -> str:
 
 
 # -----------------------------------------------------------------------------
+# Faction Commands
+# -----------------------------------------------------------------------------
+
+def cmd_factions(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
+    """View faction standings and inter-faction relationships.
+
+    Usage:
+        /factions              - List all factions with player standing
+        /factions <name>       - Show a faction's relationship web
+    """
+    from ..state.schema import FactionName, get_faction_relation
+
+    if not manager.current:
+        console.print(f"[{THEME['warning']}]No campaign loaded[/{THEME['warning']}]")
+        return
+
+    # Get all faction standings
+    factions = manager.current.factions
+
+    # If no args, show all factions
+    if not args:
+        console.print(f"\n[bold {THEME['primary']}]◈ FACTION STANDINGS ◈[/bold {THEME['primary']}]")
+        console.print(f"[{THEME['dim']}]Your reputation with each faction[/{THEME['dim']}]\n")
+
+        # Group by standing level
+        standings_order = ["Allied", "Friendly", "Neutral", "Unfriendly", "Hostile"]
+        grouped = {s: [] for s in standings_order}
+
+        for faction_enum in FactionName:
+            faction_state = factions.get(faction_enum)
+            standing = faction_state.standing.value
+            grouped[standing].append(faction_enum.value)
+
+        for standing in standings_order:
+            if grouped[standing]:
+                color = _standing_color(standing)
+                console.print(f"[bold {color}]{standing.upper()}[/bold {color}]")
+                for name in grouped[standing]:
+                    console.print(f"  [{THEME['secondary']}]{g('faction')}[/{THEME['secondary']}] {name}")
+                console.print()
+
+        console.print(f"[{THEME['dim']}]Use /factions <name> to see a faction's relationship web[/{THEME['dim']}]")
+        return
+
+    # Find faction by name (case-insensitive partial match)
+    query = args[0].lower()
+    matched_faction = None
+    for faction_enum in FactionName:
+        if query in faction_enum.value.lower():
+            matched_faction = faction_enum
+            break
+
+    if not matched_faction:
+        console.print(f"[{THEME['warning']}]No faction found matching '{args[0]}'[/{THEME['warning']}]")
+        console.print(f"[{THEME['dim']}]Available: {', '.join(f.value for f in FactionName)}[/{THEME['dim']}]")
+        return
+
+    # Show faction relationship web
+    web = manager.get_faction_web(matched_faction)
+    player_standing = factions.get(matched_faction).standing.value
+
+    console.print(f"\n[bold {THEME['primary']}]◈ {matched_faction.value.upper()} ◈[/bold {THEME['primary']}]")
+    standing_color = _standing_color(player_standing)
+    console.print(f"[{THEME['dim']}]Your standing:[/{THEME['dim']}] [{standing_color}]{player_standing}[/{standing_color}]\n")
+
+    # Allies
+    if web["allies"]:
+        console.print(f"[bold {THEME['accent']}]ALLIES[/bold {THEME['accent']}]")
+        for ally in web["allies"]:
+            relation_bar = _relation_bar(ally["relation"])
+            your_standing = _standing_color(ally["player_standing"])
+            console.print(
+                f"  [{THEME['accent']}]+[/{THEME['accent']}] {ally['faction']} "
+                f"[{THEME['dim']}]{relation_bar}[/{THEME['dim']}] "
+                f"[{your_standing}](you: {ally['player_standing']})[/{your_standing}]"
+            )
+        console.print()
+
+    # Rivals
+    if web["rivals"]:
+        console.print(f"[bold {THEME['danger']}]RIVALS[/bold {THEME['danger']}]")
+        for rival in web["rivals"]:
+            relation_bar = _relation_bar(rival["relation"])
+            your_standing = _standing_color(rival["player_standing"])
+            console.print(
+                f"  [{THEME['danger']}]−[/{THEME['danger']}] {rival['faction']} "
+                f"[{THEME['dim']}]{relation_bar}[/{THEME['dim']}] "
+                f"[{your_standing}](you: {rival['player_standing']})[/{your_standing}]"
+            )
+        console.print()
+
+    # Neutral (if any significant ones)
+    if web["neutral"]:
+        console.print(f"[bold {THEME['dim']}]NEUTRAL[/bold {THEME['dim']}]")
+        for neu in web["neutral"]:
+            your_standing = _standing_color(neu["player_standing"])
+            console.print(
+                f"  [{THEME['dim']}]○[/{THEME['dim']}] {neu['faction']} "
+                f"[{your_standing}](you: {neu['player_standing']})[/{your_standing}]"
+            )
+        console.print()
+
+    # Cascade warning
+    console.print(f"[{THEME['dim']}]─────────────────────────────────────[/{THEME['dim']}]")
+    if web["allies"]:
+        ally_names = [a["faction"] for a in web["allies"][:2]]
+        console.print(
+            f"[{THEME['dim']}]Help {matched_faction.value} → "
+            f"{', '.join(ally_names)} may warm to you[/{THEME['dim']}]"
+        )
+    if web["rivals"]:
+        rival_names = [r["faction"] for r in web["rivals"][:2]]
+        console.print(
+            f"[{THEME['dim']}]Help {matched_faction.value} → "
+            f"{', '.join(rival_names)} may cool toward you[/{THEME['dim']}]"
+        )
+
+    return None
+
+
+def _standing_color(standing: str) -> str:
+    """Get color for a faction standing level."""
+    colors = {
+        "Allied": THEME["accent"],
+        "Friendly": "green",
+        "Neutral": THEME["dim"],
+        "Unfriendly": THEME["warning"],
+        "Hostile": THEME["danger"],
+    }
+    return colors.get(standing, THEME["dim"])
+
+
+def _relation_bar(relation: int) -> str:
+    """Create a small visual bar for faction-to-faction relation (-50 to +50)."""
+    abs_rel = abs(relation)
+    if abs_rel >= 40:
+        return "████"
+    elif abs_rel >= 30:
+        return "███░"
+    elif abs_rel >= 20:
+        return "██░░"
+    else:
+        return "█░░░"
+
+
+# -----------------------------------------------------------------------------
 # Gameplay Commands
 # -----------------------------------------------------------------------------
 
@@ -1648,6 +1794,7 @@ def create_commands(manager: CampaignManager, agent: SentinelAgent, conversation
         "/lore": cmd_lore,
         "/char": cmd_char,
         "/npc": cmd_npc,
+        "/factions": cmd_factions,
         "/roll": cmd_roll,
         "/start": cmd_start,
         "/mission": cmd_mission,

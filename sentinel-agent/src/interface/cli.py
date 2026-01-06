@@ -53,6 +53,7 @@ COMMAND_META = {
     "/banner": "Toggle banner animation",
     "/lore": "Search lore",
     "/npc": "View NPC info",
+    "/factions": "View faction standings",
     "/timeline": "Search campaign memory",
     "/roll": "Roll dice",
     "/help": "Show help",

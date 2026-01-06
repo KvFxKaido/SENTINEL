@@ -26,6 +26,9 @@ from .schema import (
     SessionReflection,
     MissionOutcome,
     ThreadSeverity,
+    get_faction_relation,
+    get_faction_allies,
+    get_faction_rivals,
 )
 from .store import CampaignStore, JsonCampaignStore, EventQueueStore
 from .memvid_adapter import MemvidAdapter, create_memvid_adapter, MEMVID_AVAILABLE
@@ -998,11 +1001,29 @@ class CampaignManager:
     # Faction Management
     # -------------------------------------------------------------------------
 
-    def shift_faction(self, faction: FactionName, delta: int, reason: str) -> dict:
+    def shift_faction(
+        self,
+        faction: FactionName,
+        delta: int,
+        reason: str,
+        apply_cascades: bool = True,
+    ) -> dict:
         """
-        Shift faction standing. Returns before/after.
+        Shift faction standing with optional cascade effects.
 
-        delta: -2 (betray), -1 (oppose), +1 (help)
+        When you help or oppose a faction, their allies and rivals react:
+        - Allies of a helped faction warm slightly to you
+        - Rivals of a helped faction cool slightly toward you
+        - (Inverse for opposing a faction)
+
+        Args:
+            faction: Target faction
+            delta: Standing shift (-2 betray, -1 oppose, +1 help, +2 major help)
+            reason: Description of what caused the shift
+            apply_cascades: Whether to apply ripple effects to related factions
+
+        Returns:
+            Dict with before/after, cascades, and NPC reactions
         """
         if not self.current:
             raise ValueError("No campaign loaded")
@@ -1014,7 +1035,7 @@ class CampaignManager:
         # Log to history
         self.log_history(
             type=HistoryType.FACTION_SHIFT,
-            summary=f"{faction.value}: {before.value} -> {after.value} ({reason})",
+            summary=f"{faction.value}: {before.value} → {after.value} ({reason})",
             is_permanent=False,
         )
 
@@ -1027,6 +1048,11 @@ class CampaignManager:
                 cause=reason,
                 session=self.current.meta.session_count,
             )
+
+        # Calculate and apply cascade effects
+        cascades = []
+        if apply_cascades and abs(delta) >= 1:
+            cascades = self._calculate_faction_cascades(faction, delta, reason)
 
         # Generate tags for NPC triggers
         faction_tag = faction.value.lower().replace(" ", "_")
@@ -1048,7 +1074,137 @@ class CampaignManager:
             "before": before.value,
             "after": after.value,
             "reason": reason,
+            "cascades": cascades,
             "npc_reactions": triggered,
+        }
+
+    def _calculate_faction_cascades(
+        self,
+        primary_faction: FactionName,
+        delta: int,
+        reason: str,
+    ) -> list[dict]:
+        """
+        Calculate cascade effects on related factions.
+
+        When player helps a faction:
+        - Strong allies (relation >= 30): +15% of delta
+        - Moderate allies (relation >= 20): +10% of delta
+        - Strong rivals (relation <= -30): -25% of delta
+        - Moderate rivals (relation <= -20): -15% of delta
+
+        Returns list of cascade effects applied.
+        """
+        cascades = []
+
+        for other_faction in FactionName:
+            if other_faction == primary_faction:
+                continue
+
+            relation = get_faction_relation(primary_faction, other_faction)
+            if relation == 0:
+                continue  # No defined relationship
+
+            cascade_delta = 0
+            cascade_reason = ""
+
+            if delta > 0:  # Player helped the primary faction
+                if relation >= 30:  # Strong ally
+                    cascade_delta = max(1, int(abs(delta) * 0.15))
+                    cascade_reason = f"Ally of {primary_faction.value}"
+                elif relation >= 20:  # Moderate ally
+                    # Only cascade on larger shifts
+                    if abs(delta) >= 2:
+                        cascade_delta = 1
+                        cascade_reason = f"Ally of {primary_faction.value}"
+                elif relation <= -30:  # Strong rival
+                    cascade_delta = -max(1, int(abs(delta) * 0.25))
+                    cascade_reason = f"Rival of {primary_faction.value}"
+                elif relation <= -20:  # Moderate rival
+                    if abs(delta) >= 2:
+                        cascade_delta = -1
+                        cascade_reason = f"Rival of {primary_faction.value}"
+
+            elif delta < 0:  # Player opposed the primary faction
+                if relation >= 30:  # Strong ally (of the opposed faction)
+                    cascade_delta = -max(1, int(abs(delta) * 0.15))
+                    cascade_reason = f"Ally of {primary_faction.value}"
+                elif relation >= 20:  # Moderate ally
+                    if abs(delta) >= 2:
+                        cascade_delta = -1
+                        cascade_reason = f"Ally of {primary_faction.value}"
+                elif relation <= -30:  # Strong rival (pleased you opposed their enemy)
+                    cascade_delta = max(1, int(abs(delta) * 0.20))
+                    cascade_reason = f"Rival of {primary_faction.value}"
+                elif relation <= -20:  # Moderate rival
+                    if abs(delta) >= 2:
+                        cascade_delta = 1
+                        cascade_reason = f"Rival of {primary_faction.value}"
+
+            if cascade_delta != 0:
+                # Apply the cascade (without further cascades to prevent infinite loops)
+                other_standing = self.current.factions.get(other_faction)
+                before = other_standing.standing
+                after = other_standing.shift(cascade_delta)
+
+                cascades.append({
+                    "faction": other_faction.value,
+                    "before": before.value,
+                    "after": after.value,
+                    "delta": cascade_delta,
+                    "reason": cascade_reason,
+                    "relation": relation,
+                })
+
+                # Log subtle cascades (don't spam history with minor shifts)
+                if before != after:
+                    self.log_history(
+                        type=HistoryType.FACTION_SHIFT,
+                        summary=f"{other_faction.value}: {before.value} → {after.value} ({cascade_reason})",
+                        is_permanent=False,
+                    )
+
+        return cascades
+
+    def get_faction_web(self, faction: FactionName) -> dict:
+        """
+        Get a faction's relationship web for display.
+
+        Returns dict with allies, rivals, and neutral factions.
+        """
+        allies = []
+        rivals = []
+        neutral = []
+
+        for other in FactionName:
+            if other == faction:
+                continue
+
+            relation = get_faction_relation(faction, other)
+            player_standing = self.current.factions.get(other).standing.value if self.current else "Unknown"
+
+            entry = {
+                "faction": other.value,
+                "relation": relation,
+                "player_standing": player_standing,
+            }
+
+            if relation >= 20:
+                allies.append(entry)
+            elif relation <= -20:
+                rivals.append(entry)
+            else:
+                neutral.append(entry)
+
+        # Sort by relation strength
+        allies.sort(key=lambda x: x["relation"], reverse=True)
+        rivals.sort(key=lambda x: x["relation"])
+
+        return {
+            "faction": faction.value,
+            "allies": allies,
+            "rivals": rivals,
+            "neutral": neutral,
         }
 
     # -------------------------------------------------------------------------

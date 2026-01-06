@@ -248,6 +248,7 @@ def show_help():
 | `/summary [n]` | View session summary (n = session number) |
 | `/consequences` | View pending threads and avoided situations |
 | `/timeline` | Search campaign memory (memvid) |
+| `/factions` | View faction standings and relationships |
 | `/load` | Load an existing campaign |
 | `/save` | Save current campaign |
 | `/list` | List all campaigns |
