@@ -1,6 +1,6 @@
 # SENTINEL Project Brief
 
-*Last updated: January 2026*
+*Last updated: January 6, 2026*
 
 ## What This Is
 
@@ -17,6 +17,8 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 ## Current Status
 
 ### Working
+
+**Core Systems**
 - CLI interface with Rich terminal UI + themed visuals
 - Animated hexagon banner with glitch reveal
 - Command autocomplete with descriptions
@@ -25,33 +27,70 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 - 11 factions with reputation tracking
 - Social energy system with **personalized restorers/drains**
 - Dice mechanics (d20 + modifiers, advantage/disadvantage)
-- Mission framework with 5 phases
+- Mission framework with 6 phases (briefing, planning, execution, resolution, debrief, between)
+
+**Narrative Systems**
 - **Multiple-choice system** — GM always offers 2-4 options + improvisation
 - **Lore retrieval (RAG)** — GM draws from canon bible + novellas
 - **Council system** — consult faction advisors for competing perspectives
 - **Hinge detection** — auto-detects irreversible choices in player input
+- **Non-action as hinge** — avoidance is content; tracks when players disengage and surfaces consequences later
+- **Debrief "enough" question** — helps players articulate their own success criteria in a game with no win condition
+
+**NPC Systems**
 - **NPC disposition modifiers** — behavior changes based on disposition level
 - **NPC memory triggers** — NPCs react to tagged events (e.g., faction shifts)
-- **Context meter** — visual indicator of conversation depth
+- **NPC individual memory** — separate personal standing from faction, effective disposition (60% personal, 40% faction)
+- **`/npc` command** — view NPC info, personal standing, interaction history
+
+**Faction Systems**
+- **Inter-faction dynamics** — faction relationship matrix with cascading effects
+- **`/factions` command** — view standings, relationship webs, cascade visualization
+- **Faction narrative corruption** — GM language shifts based on faction standing (11 linguistic patterns)
 - **Faction MCP server** — external faction lore + campaign tracking
+
+**Consequence Systems**
+- **Dormant thread surfacing** — keyword matching alerts GM when threads may trigger
+- **`/consequences` command** — view pending threads, avoided situations, thread countdown
+- **Leverage escalation** — factions call in favors with threat basis, deadlines, consequences; three escalation types (queue_consequence, increase_weight, faction_action); `[DEMAND DEADLINE ALERT]` injection
+- **Refusal reputation** — refused enhancements build titles (The Unbought, The Undaunted) that NPCs react to
+
+**Session & History Systems**
+- **Session summaries** — auto-generated on `/debrief`, exportable markdown
+- **`/summary [n]` command** — view any session summary
+- **Campaign history search** — MCP tools for searching history, NPC timelines, session summaries
+- **`/timeline` command** — search campaign memory via memvid semantic search
+- **Unified lore + campaign memory** — single query interface for both static lore and dynamic history
+
+**Character Development**
+- **Character arc detection** — AI identifies patterns across sessions, suggests emergent arcs
+- **8 arc types** — diplomat, partisan, broker, pacifist, pragmatist, survivor, protector, seeker
+- **`/arc` command** — view, detect, accept, reject character arcs
+- **Arc context injection** — accepted arcs inform GM behavior
+
+**Lore Integration**
+- **Lore faction filtering** — `/lore <faction>` filters by perspective, shows source bias
+- **Lore quote system** — 44 curated quotes from factions and world truths
+- **`/lore quotes` command** — browse mottos, faction quotes, world truths
+- **Quote context injection** — GM receives relevant quotes for NPC dialogue flavor
+
+**Simulation & Analysis**
+- **Simulation mode** — AI vs AI testing with 4 player personas (cautious, opportunist, principled, chaotic)
+- **`/simulate preview <action>`** — preview consequences without committing
+- **`/simulate npc <name> <approach>`** — predict NPC reaction to planned interaction
+- **`/simulate whatif <query>`** — explore alternate timelines
+
+**Technical Infrastructure**
 - **Multi-backend LLM** — LM Studio, Ollama, Claude, OpenRouter, Gemini CLI, Codex CLI
 - **Test suite** — 197 tests covering core mechanics
-- **Simulation mode** — AI vs AI testing with 4 player personas (cautious, opportunist, principled, chaotic)
 - **Event queue** — MCP → Agent state sync via append-only queue (solves concurrency)
 - **CI/CD** — GitHub Actions (Python 3.10, 3.11, 3.12)
-- **Dormant thread surfacing** — keyword matching alerts GM when threads may trigger
-- **Leverage escalation** — factions call in favors with threat basis, deadlines, consequences; three escalation types (queue_consequence, increase_weight, faction_action); `[DEMAND DEADLINE ALERT]` injection
-- **Phase-based GM guidance** — different prompts per mission phase (briefing, planning, execution, resolution, debrief, between)
-- **Refusal reputation** — refused enhancements build titles (The Unbought, The Undaunted) that NPCs react to
-- **Non-action as hinge** — avoidance is content; tracks when players disengage and surfaces consequences later
-- **Faction narrative corruption** — GM language shifts based on faction standing (11 linguistic patterns)
-- **Debrief "enough" question** — helps players articulate their own success criteria in a game with no win condition
+- **Phase-based GM guidance** — different prompts per mission phase
 - **Config persistence** — remembers last used backend and model across sessions
+- **Context meter** — visual indicator of conversation depth
+- **Banner UX toggle** — `/banner` command to enable/disable startup animation (persists)
 - **Social energy carrot** — spend 10% energy for advantage when acting in your element (matches restorers)
 - **Player Push mechanic** — explicitly invite consequences for advantage (Devil's Bargain), queues dormant thread
-- **Campaign history search** — MCP tools for searching history, NPC timelines, session summaries
-- **Banner UX toggle** — `/banner` command to enable/disable startup animation (persists)
-- **Lore faction filtering** — `/lore <faction>` filters by perspective, shows source bias
 
 ### Not Yet Built
 - Multi-character party support
@@ -74,8 +113,10 @@ SENTINEL/
 │   │   ├── agent.py              # LLM orchestration + tool handlers + council
 │   │   ├── state/
 │   │   │   ├── schema.py         # Pydantic models (source of truth)
-│   │   │   ├── manager.py        # Campaign CRUD
-│   │   │   └── store.py          # Abstract storage interface
+│   │   │   │                     # Includes: ArcType, CharacterArc, ARC_PATTERNS
+│   │   │   ├── manager.py        # Campaign CRUD + arc detection + faction cascades
+│   │   │   ├── store.py          # Abstract storage interface
+│   │   │   └── memvid_adapter.py # Campaign memory via memvid (optional)
 │   │   ├── rules/
 │   │   │   └── npc.py            # Pure functions for NPC behavior
 │   │   ├── llm/
@@ -87,26 +128,40 @@ SENTINEL/
 │   │   │   └── cli_wrapper.py    # Gemini/Codex CLI wrappers
 │   │   ├── lore/
 │   │   │   ├── chunker.py        # Parse novellas → tagged chunks
-│   │   │   └── retriever.py      # Keyword matching retrieval
+│   │   │   ├── retriever.py      # Keyword matching retrieval
+│   │   │   ├── unified.py        # Combined lore + campaign memory queries
+│   │   │   └── quotes.py         # 44 curated faction/world quotes
 │   │   ├── tools/
 │   │   │   ├── dice.py           # Roll mechanics
 │   │   │   └── hinge_detector.py # Detect irreversible choices
 │   │   └── interface/
 │   │       ├── cli.py            # Terminal UI with theming
+│   │       ├── commands.py       # Command handlers (simulate, arc, factions, etc.)
+│   │       ├── renderer.py       # Display helpers, banners, status
 │   │       ├── glyphs.py         # Unicode/ASCII visual indicators
 │   │       └── choices.py        # Choice parsing
 │   ├── prompts/                  # Hot-reloadable GM instructions
 │   │   ├── core.md               # Identity and principles
 │   │   ├── mechanics.md          # Rules reference
 │   │   ├── gm_guidance.md        # Narrative style + choice generation
+│   │   ├── phases/               # Phase-specific GM guidance
+│   │   │   ├── briefing.md
+│   │   │   ├── planning.md
+│   │   │   ├── execution.md
+│   │   │   ├── resolution.md
+│   │   │   ├── debrief.md
+│   │   │   └── between.md
 │   │   └── advisors/             # Council faction perspectives
 │   └── campaigns/                # JSON save files
-└── sentinel-campaign/            # Campaign MCP Server
-    └── src/sentinel_campaign/
-        ├── server.py             # MCP entry point
-        ├── resources/            # Lore, NPCs, operations, history
-        ├── tools/                # Standing, interactions, intel, history search
-        └── data/factions/        # 11 faction JSON files
+├── sentinel-campaign/            # Campaign MCP Server
+│   └── src/sentinel_campaign/
+│       ├── server.py             # MCP entry point
+│       ├── resources/            # Lore, NPCs, operations, history
+│       ├── tools/                # Standing, interactions, intel, history search
+│       └── data/factions/        # 11 faction JSON files
+└── architecture/
+    ├── AGENT_ARCHITECTURE.md     # Design document
+    └── MECHANICS_ROADMAP.md      # Feature roadmap (all items complete)
 ```
 
 **Key decisions:**
@@ -122,22 +177,51 @@ SENTINEL/
 
 ## CLI Commands
 
+### Core Commands
 | Command | Description |
 |---------|-------------|
 | `/new` | Create a new campaign |
 | `/char` | Create character (with restorers/drains, establishing incident) |
 | `/start` | Begin campaign — GM sets establishing scene |
 | `/mission` | Get a new mission from the GM |
-| `/consult <q>` | Ask faction advisors for competing perspectives |
 | `/debrief` | End session with reflection prompts |
-| `/model` | List/switch LM Studio models |
-| `/banner` | Toggle banner animation on startup |
-| `/lore [faction]` | Show lore status, filter by faction perspective |
-| `/simulate [n] [persona]` | Run AI vs AI simulation for n turns |
-| `/roll <skill> <dc>` | Roll a skill check |
 | `/save` | Save current campaign |
 | `/load` | Load an existing campaign |
+| `/list` | List all campaigns |
+| `/delete` | Delete a campaign |
 | `/status` | Show current status |
+
+### Information & Analysis
+| Command | Description |
+|---------|-------------|
+| `/consult <q>` | Ask faction advisors for competing perspectives |
+| `/factions` | View faction standings, relationships, and cascade effects |
+| `/npc [name]` | View NPC info, personal standing, interaction history |
+| `/arc` | View and manage emergent character arcs |
+| `/history` | View campaign chronicle |
+| `/summary [n]` | View session summary (n = session number) |
+| `/consequences` | View pending threads and avoided situations |
+| `/timeline` | Search campaign memory (memvid semantic search) |
+
+### Lore & Simulation
+| Command | Description |
+|---------|-------------|
+| `/lore [faction]` | Show lore status, filter by faction perspective |
+| `/lore quotes [faction]` | Browse faction mottos, quotes, and world truths |
+| `/simulate run [n] [persona]` | Run AI vs AI simulation for n turns |
+| `/simulate preview <action>` | Preview consequences without committing |
+| `/simulate npc <name> <approach>` | Predict NPC reaction to planned interaction |
+| `/simulate whatif <query>` | Explore alternate timelines |
+
+### Utility
+| Command | Description |
+|---------|-------------|
+| `/roll <skill> <dc>` | Roll a skill check |
+| `/backend` | Show/change LLM backend |
+| `/model` | List/switch LM Studio models |
+| `/banner` | Toggle banner animation on startup |
+| `/help` | Show all commands |
+| `/quit` | Exit the game |
 
 **Quick Start:**
 ```
@@ -227,6 +311,92 @@ agenda:
 
 The `lie_to_self` field makes antagonists human — they believe they're helping.
 
+### Inter-Faction Dynamics
+
+Factions have relationships that cause cascading effects:
+
+```
+Player helps Nexus (+20)
+├── Nexus: +20 (direct)
+├── Ghost Networks: -5 (rivals dislike you more)
+├── Lattice: +3 (allies warm to you)
+└── Ember Colonies: 0 (neutral relationship)
+```
+
+View with `/factions`:
+```
+◈ FACTION STANDINGS ◈
+
+NEXUS                    [■■■■■□□□□□] Friendly (+20)
+  ↳ Cascade from last shift: Lattice +3, Ghost Networks -5
+
+RELATIONSHIP WEB
+  Nexus ←→ Lattice: Technical cooperation (+20)
+  Nexus ←→ Ghost Networks: Deep rivalry (-50)
+```
+
+### Character Arcs
+
+AI detects patterns in your play and suggests emergent arcs:
+
+```
+◈ EMERGENT ARC DETECTED ◈
+"The Reluctant Diplomat"
+
+Your character consistently chooses negotiation over confrontation.
+Observed in: Sessions 3, 5, 7, 8
+Strength: ████████░░ 82%
+
+Evidence:
+  • Hinge: "Chose to negotiate with hostile Nexus contact"
+  • Pattern: 8 faction interactions favoring diplomacy
+
+Accept this arc? [Yes] [No] [Later]
+```
+
+**8 Arc Types:**
+| Arc | Pattern | Example Title |
+|-----|---------|---------------|
+| Diplomat | Consistent negotiation | "The Reluctant Mediator" |
+| Partisan | Faction loyalty | "True Believer" |
+| Broker | Information gathering | "The One Who Knows" |
+| Pacifist | Violence avoidance | "The Unarmed" |
+| Pragmatist | Resource focus | "The Prepared" |
+| Survivor | Self-preservation | "Trust No One" |
+| Protector | Defending others | "The Shield" |
+| Seeker | Truth-finding | "The Questioner" |
+
+Accepted arcs inform GM behavior — NPCs may recognize your reputation.
+
+### Lore Quotes
+
+44 curated quotes from factions and world truths that NPCs can weave into dialogue:
+
+```
+/lore quotes mottos
+
+◈ FACTION MOTTOS ◈
+
+Nexus
+  "The network that watches."
+
+Ember Colonies
+  "We survived. We endure."
+
+Witnesses
+  "We remember so you don't have to lie."
+```
+
+The GM receives relevant quotes based on context:
+```
+[LORE QUOTES - NPC Dialogue Flavor]
+"The flesh is a draft. We are the revision."
+  — Convergence doctrine
+  (Philosophy of enhancement)
+
+Use sparingly. One quote per scene maximum.
+```
+
 ---
 
 ## Multiple-Choice System
@@ -267,13 +437,85 @@ The GM draws from your novellas for narrative inspiration:
 - Retrieved based on current faction standings + player input
 - Injected into GM context (up to 2 chunks per response)
 
-Includes:
-- 6 original novellas
-- Cipher sample character sheet
-- Cipher case file (example timeline)
-- RESET mission module (template)
+**Unified Query System:**
+The `UnifiedRetriever` combines static lore with dynamic campaign memory:
+
+```python
+# Single query returns both lore and campaign history
+results = unified_query("Nexus")
+
+# Returns:
+{
+  "lore": [{"source": "canon_bible.md", "content": "The network that watches..."}],
+  "campaign": [
+    {"type": "faction_shift", "session": 3, "summary": "Helped Nexus analyst"},
+    {"type": "npc_interaction", "npc": "Cipher", "summary": "Shared intel"}
+  ]
+}
+```
 
 Test with: `/lore sentinel` or `/lore lattice infrastructure` (filters by Lattice perspective)
+
+---
+
+## Simulation System
+
+Explore hypotheticals without committing to actions:
+
+### Preview Consequences
+```
+> /simulate preview "betray the Nexus contact"
+
+◈ CONSEQUENCE PREVIEW ◈
+Action: Betray the Nexus contact
+
+LIKELY OUTCOMES:
+  • Nexus standing: -20 to -30 (betrayal penalty)
+  • NPC Cipher: disposition drops to Hostile
+  • Dormant thread queued: "Nexus retribution"
+
+CASCADE EFFECTS:
+  • Lattice: -3 to -5 (Nexus ally)
+  • Ghost Networks: +2 to +5 (Nexus rival)
+
+This is speculative. Actual outcomes depend on context.
+```
+
+### Predict NPC Reactions
+```
+> /simulate npc "Commander Reeves" "ask for weapons"
+
+NPC REACTION PREVIEW: Commander Reeves
+
+Current disposition: Neutral (personal: -5, faction: +15)
+
+LIKELY REACTIONS:
+├─ 60% — Negotiates terms
+├─ 25% — Refuses citing past grievance
+└─ 15% — Agrees if approached correctly
+
+SUGGESTED APPROACHES:
+├─ Acknowledge past tension first
+├─ Offer concrete value, not promises
+└─ Avoid mentioning Nexus (sore point)
+```
+
+### Explore What-Ifs
+```
+> /simulate whatif "helped Ember instead of refusing"
+
+TIMELINE DIVERGENCE ANALYSIS
+
+Original: Refused Ember aid request
+Alternate: Helped Ember Colonies
+
+PROJECTED DIFFERENCES:
+├─ Ember standing: -5 → +20
+├─ "Ember Revenge" thread: Would not exist
+└─ NPC Elder Kara: Hostile → Warm
+
+Note: Speculative. Actual outcomes depend on choices not yet made.
+```
 
 ---
 
@@ -348,10 +590,11 @@ Applied throughout CLI: banners, panels, status displays, choice blocks.
 - **LM Studio** — Local LLM (free, OpenAI-compatible API at port 1234)
 - **Ollama** — Local LLM alternative (OpenAI-compatible API at port 11434)
 - **Anthropic SDK** — Claude API (optional)
-- **pytest** — Test framework with 197 tests
+- **memvid-sdk** — Campaign memory semantic search (optional)
+- **pytest** — Test framework with 197+ tests
 - **GitHub Actions** — CI/CD pipeline
 
-No heavy ML dependencies — lore retrieval uses keyword matching.
+No heavy ML dependencies — lore retrieval uses keyword matching, memvid is optional.
 
 ---
 
@@ -375,6 +618,8 @@ No heavy ML dependencies — lore retrieval uses keyword matching.
 - **Refusal is a meaningful choice** — what you don't accept matters
 - **Competing truths** — the council shows multiple valid perspectives
 - **Avoidance is content** — not acting is also a choice; the world doesn't wait
+- **Emergent identity** — character arcs recognize patterns, not prescribe paths
+- **Lore as texture** — quotes are seasoning, not scripts
 
 ---
 
