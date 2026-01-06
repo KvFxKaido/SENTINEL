@@ -22,6 +22,8 @@ from .renderer import (
     console, THEME, pt_style,
     show_banner, show_backend_status, show_status, show_choices,
     status_bar,
+    render_narrative_block, render_choice_block, detect_block_type,
+    BlockType,
 )
 from .config import load_config, set_backend
 from .glyphs import (
@@ -40,7 +42,8 @@ COMMAND_META = {
     "/mission": "Get a new mission",
     "/consult": "Ask the council for advice",
     "/debrief": "End session",
-    "/history": "View chronicle",
+    "/history": "View chronicle (filter: hinges, faction, session, search)",
+    "/search": "Search campaign history",
     "/summary": "View session summary",
     "/consequences": "View pending threads",
     "/threads": "View pending threads",
@@ -65,9 +68,132 @@ COMMAND_META = {
     "/exit": "Exit",
 }
 
+# Command categories for organized display
+COMMAND_CATEGORIES = {
+    "Campaign": ["/new", "/load", "/save", "/list", "/delete"],
+    "Character": ["/char", "/arc", "/roll"],
+    "Mission": ["/start", "/mission", "/debrief"],
+    "Social": ["/consult", "/npc", "/factions"],
+    "Info": ["/status", "/history", "/summary", "/consequences", "/threads", "/timeline"],
+    "Simulation": ["/simulate"],
+    "Settings": ["/backend", "/model", "/banner", "/statusbar"],
+    "Lore": ["/lore"],
+    "System": ["/help", "/quit", "/exit"],
+}
+
+# Commands that require specific context to be shown
+CONTEXT_REQUIREMENTS = {
+    # Requires a campaign to be loaded
+    "campaign_required": [
+        "/char", "/start", "/mission", "/consult", "/debrief", "/save",
+        "/status", "/history", "/summary", "/consequences", "/threads",
+        "/timeline", "/npc", "/factions", "/arc", "/simulate", "/roll",
+    ],
+    # Requires a character to exist
+    "character_required": ["/start", "/mission", "/consult", "/debrief", "/arc", "/roll"],
+    # Requires an active session (session started)
+    "session_required": ["/debrief"],
+}
+
+
+def fuzzy_match(pattern: str, text: str) -> tuple[bool, int]:
+    """
+    Check if pattern fuzzy-matches text.
+    Returns (matches, score) where score is higher for better matches.
+    """
+    pattern = pattern.lower()
+    text = text.lower()
+
+    # Exact prefix match gets highest score
+    if text.startswith(pattern):
+        return True, 1000 - len(text)
+
+    # Fuzzy match: all pattern chars must appear in order
+    pattern_idx = 0
+    score = 0
+    consecutive = 0
+
+    for i, char in enumerate(text):
+        if pattern_idx < len(pattern) and char == pattern[pattern_idx]:
+            pattern_idx += 1
+            consecutive += 1
+            # Bonus for consecutive matches
+            score += consecutive * 10
+            # Bonus for matching at word boundaries (after /)
+            if i == 0 or text[i - 1] == "/":
+                score += 50
+        else:
+            consecutive = 0
+
+    if pattern_idx == len(pattern):
+        return True, score
+    return False, 0
+
 
 class SlashCommandCompleter(Completer):
-    """Custom completer that filters slash commands as you type."""
+    """
+    Enhanced command completer with:
+    - Category grouping
+    - Context-aware filtering
+    - Recent commands prioritized
+    - Fuzzy search
+    """
+
+    def __init__(self, manager_ref=None):
+        """
+        Initialize completer.
+
+        Args:
+            manager_ref: Callable that returns the CampaignManager instance,
+                        used for context-aware filtering.
+        """
+        self.manager_ref = manager_ref
+        self.recent_commands: list[str] = []
+        self.max_recent = 5
+
+    def record_command(self, cmd: str):
+        """Record a command as recently used."""
+        # Remove if already in list
+        if cmd in self.recent_commands:
+            self.recent_commands.remove(cmd)
+        # Add to front
+        self.recent_commands.insert(0, cmd)
+        # Trim to max size
+        self.recent_commands = self.recent_commands[: self.max_recent]
+
+    def _is_command_available(self, cmd: str) -> bool:
+        """Check if a command is available in the current context."""
+        if self.manager_ref is None:
+            return True
+
+        try:
+            manager = self.manager_ref()
+        except Exception:
+            return True
+
+        # Check campaign requirement
+        if cmd in CONTEXT_REQUIREMENTS.get("campaign_required", []):
+            if not manager.current:
+                return False
+
+        # Check character requirement
+        if cmd in CONTEXT_REQUIREMENTS.get("character_required", []):
+            if not manager.current or not manager.current.character:
+                return False
+
+        # Check session requirement (session has been started)
+        if cmd in CONTEXT_REQUIREMENTS.get("session_required", []):
+            if not manager.current:
+                return False
+            # Session is started if there's session history or current_session exists
+            session_started = (
+                manager.current.sessions
+                or (hasattr(manager.current, "current_session") and manager.current.current_session)
+            )
+            if not session_started:
+                return False
+
+        return True
 
     def get_completions(self, document, complete_event):
         text = document.text_before_cursor.lstrip()
@@ -76,16 +202,76 @@ class SlashCommandCompleter(Completer):
         if not text.startswith("/"):
             return
 
-        text_lower = text.lower()
+        # Get the search pattern (everything after /)
+        search_pattern = text[1:].lower() if len(text) > 1 else ""
+
+        # Collect all matching commands with scores
+        matches: list[tuple[str, str, int, str | None]] = []  # (cmd, desc, score, category)
+
+        # Build command to category mapping
+        cmd_to_category = {}
+        for category, cmds in COMMAND_CATEGORIES.items():
+            for cmd in cmds:
+                cmd_to_category[cmd] = category
+
         for cmd, description in COMMAND_META.items():
-            if cmd.lower().startswith(text_lower):
-                yield Completion(
-                    cmd,
-                    start_position=-len(text),
-                    display_meta=description,
-                )
+            # Skip if not available in current context
+            if not self._is_command_available(cmd):
+                continue
+
+            # Check if matches (prefix or fuzzy)
+            if search_pattern:
+                # Try matching against command without /
+                cmd_name = cmd[1:]  # Remove leading /
+                is_match, score = fuzzy_match(search_pattern, cmd_name)
+                if not is_match:
+                    # Also try matching against description
+                    is_match, score = fuzzy_match(search_pattern, description)
+                    if is_match:
+                        score = score // 2  # Lower priority for description matches
+                if not is_match:
+                    continue
+            else:
+                score = 0
+
+            # Boost score for recent commands
+            if cmd in self.recent_commands:
+                recent_idx = self.recent_commands.index(cmd)
+                score += (self.max_recent - recent_idx) * 100
+
+            category = cmd_to_category.get(cmd)
+            matches.append((cmd, description, score, category))
+
+        # Sort by score (descending), then by category, then alphabetically
+        category_order = list(COMMAND_CATEGORIES.keys())
+
+        def sort_key(item):
+            cmd, desc, score, category = item
+            cat_idx = category_order.index(category) if category in category_order else 999
+            return (-score, cat_idx, cmd)
+
+        matches.sort(key=sort_key)
+
+        # Yield completions with category display
+        current_category = None
+        for cmd, description, score, category in matches:
+            # Build display text with category prefix if category changed
+            if category and category != current_category:
+                # Add category header as display
+                display = f"[{category}] {cmd}"
+                current_category = category
+            else:
+                display = f"        {cmd}"  # Indent under category
+
+            yield Completion(
+                cmd,
+                start_position=-len(text),
+                display=display,
+                display_meta=description,
+            )
 
 
+# Global completer instance - will be configured with manager reference later
 command_completer = SlashCommandCompleter()
 
 
@@ -128,6 +314,9 @@ def main():
     show_banner(animate=animate_banner)
 
     manager = CampaignManager(campaigns_dir)
+
+    # Configure the command completer with manager reference for context-aware filtering
+    command_completer.manager_ref = lambda: manager
 
     agent = SentinelAgent(
         manager,
@@ -221,6 +410,9 @@ def main():
                 cmd_args = parts[1:]
 
                 if cmd in commands:
+                    # Record command usage for recent commands feature
+                    command_completer.record_command(cmd)
+
                     result = commands[cmd](manager, agent, cmd_args)
 
                     # Handle backend switch
@@ -296,13 +488,14 @@ def main():
             narrative, choices = parse_response(response)
             last_choices = choices
 
-            # Display narrative - cold twilight blue border
-            console.print(Panel(narrative, border_style=THEME["primary"]))
+            # Display narrative using block-based output
+            # Auto-detect block type (NARRATIVE vs INTEL) based on content
+            render_narrative_block(narrative)
 
-            # Display choices if present
+            # Display choices if present using block-based output
             if choices:
                 console.print()
-                show_choices(choices)
+                render_choice_block(choices)
 
             # Show context meter and warning after response
             tokens = estimate_conversation_tokens(conversation)
