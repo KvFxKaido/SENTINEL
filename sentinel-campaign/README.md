@@ -1,6 +1,8 @@
 # SENTINEL Campaign MCP Server
 
-MCP server exposing campaign data for the SENTINEL TTRPG: faction lore, NPC archetypes, campaign history, and state tracking.
+MCP server exposing faction data for the SENTINEL TTRPG: faction lore, NPC archetypes, and faction state tracking.
+
+> **Note:** Campaign history search is handled by memvid (semantic search). Use `/timeline` in the agent CLI.
 
 ## Installation
 
@@ -82,18 +84,6 @@ Static faction information exposed as MCP resources.
 
 ---
 
-## Campaign History Resources
-
-Campaign-specific history data.
-
-| URI | Description |
-|-----|-------------|
-| `campaign://{id}/sessions` | Session summaries grouped by session |
-| `campaign://{id}/hinges` | All hinge moments in chronological order |
-| `campaign://{id}/npc/{name}` | All history related to a specific NPC |
-
----
-
 ## Faction Tools
 
 Dynamic operations for campaign-specific faction state.
@@ -147,48 +137,6 @@ Dynamic operations for campaign-specific faction state.
   "knowledge_level": "detailed",
   "note": "Witnesses have historical archives. They trade information for information.",
   "intel_domains": ["history", "records", "contradictions"]
-}
-```
-
----
-
-## Campaign History Tools
-
-Search and query campaign history.
-
-| Tool | Description |
-|------|-------------|
-| `search_history` | Keyword search with filters (NPC, faction, type, session range) |
-| `get_npc_timeline` | Chronological timeline of events involving an NPC |
-| `get_session_summary` | Condensed summary of a specific session |
-
-### Example: search_history
-
-**Input:**
-```json
-{
-  "campaign_id": "a1b2c3d4",
-  "query": "betrayal",
-  "faction": "lattice",
-  "limit": 5
-}
-```
-
-**Output:**
-```json
-{
-  "campaign_id": "a1b2c3d4",
-  "query": "betrayal",
-  "total_results": 2,
-  "results": [
-    {
-      "session": 5,
-      "type": "hinge",
-      "summary": "HINGE: Revealed Lattice supply route to Ember",
-      "score": 7.5,
-      "is_permanent": true
-    }
-  ]
 }
 ```
 
@@ -258,7 +206,6 @@ The MCP server reads campaign JSON files from the `campaigns/` directory to:
 - Read current faction standings
 - Query interaction history
 - Log new events
-- Search campaign history
 
 ### With GM Agent
 
@@ -266,7 +213,8 @@ The agent can call MCP tools during response generation:
 - Before describing faction NPC: `query_faction_npcs`
 - When player asks about faction: `get_faction_intel`
 - After faction-relevant action: `log_faction_event`
-- When referencing past events: `search_history`
+
+> **Campaign history search** is handled by memvid semantic search via the `/timeline` command, not MCP tools.
 
 ---
 

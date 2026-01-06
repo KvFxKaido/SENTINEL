@@ -22,9 +22,6 @@ from .resources import (
     get_faction_npcs,
     get_faction_operations,
     get_relationships,
-    get_campaign_sessions,
-    get_campaign_hinges,
-    get_npc_history,
 )
 from .tools import (
     get_faction_standing,
@@ -32,9 +29,6 @@ from .tools import (
     log_faction_event,
     get_faction_intel,
     query_faction_npcs,
-    search_history,
-    get_npc_timeline,
-    get_session_summary,
 )
 
 # Setup logging
@@ -106,58 +100,12 @@ async def list_resources() -> list[Resource]:
         )
     )
 
-    # Campaign history resources (require campaign_id in URI)
-    # These are templates - actual campaign IDs filled in at runtime
-    resources.extend([
-        Resource(
-            uri="campaign://{campaign_id}/sessions",
-            name="Campaign Sessions",
-            description="Session summaries and history for a campaign. Replace {campaign_id} with actual ID.",
-            mimeType="application/json",
-        ),
-        Resource(
-            uri="campaign://{campaign_id}/hinges",
-            name="Campaign Hinge Moments",
-            description="All irreversible choices made during a campaign. Replace {campaign_id} with actual ID.",
-            mimeType="application/json",
-        ),
-        Resource(
-            uri="campaign://{campaign_id}/npc/{npc_name}",
-            name="NPC History",
-            description="Everything involving a specific NPC. Replace {campaign_id} and {npc_name}.",
-            mimeType="application/json",
-        ),
-    ])
-
     return resources
 
 
 @server.read_resource()
 async def read_resource(uri: str) -> str:
     """Read a resource by URI."""
-    # Campaign history resources: campaign://{campaign_id}/{resource_type}
-    if uri.startswith("campaign://"):
-        path = uri[len("campaign://"):]
-        parts = path.split("/")
-
-        if len(parts) < 2:
-            raise ValueError(f"Invalid campaign URI: {uri}")
-
-        campaign_id = parts[0]
-        resource_type = parts[1]
-
-        if resource_type == "sessions":
-            data = get_campaign_sessions(CAMPAIGNS_DIR, campaign_id)
-        elif resource_type == "hinges":
-            data = get_campaign_hinges(CAMPAIGNS_DIR, campaign_id)
-        elif resource_type == "npc" and len(parts) >= 3:
-            npc_name = "/".join(parts[2:])  # Handle names with slashes
-            data = get_npc_history(CAMPAIGNS_DIR, campaign_id, npc_name)
-        else:
-            raise ValueError(f"Unknown campaign resource type: {resource_type}")
-
-        return json.dumps(data, indent=2)
-
     # Faction resources: faction://{faction_id}/{resource_type}
     if uri.startswith("faction://"):
         path = uri[len("faction://"):]
@@ -317,88 +265,6 @@ async def list_tools() -> list[Tool]:
                 "required": ["campaign_id", "faction"],
             },
         ),
-        # Campaign history tools
-        Tool(
-            name="search_history",
-            description="Search campaign history with keyword matching and filters",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "campaign_id": {
-                        "type": "string",
-                        "description": "Campaign ID to search",
-                    },
-                    "query": {
-                        "type": "string",
-                        "description": "Search query (keywords)",
-                    },
-                    "npc": {
-                        "type": "string",
-                        "description": "Filter by NPC name",
-                    },
-                    "faction": {
-                        "type": "string",
-                        "description": "Filter by faction name",
-                        "enum": FACTIONS,
-                    },
-                    "entry_type": {
-                        "type": "string",
-                        "description": "Filter by history type",
-                        "enum": ["hinge", "faction_shift", "mission", "faction_help", "faction_oppose"],
-                    },
-                    "session_min": {
-                        "type": "integer",
-                        "description": "Minimum session number",
-                    },
-                    "session_max": {
-                        "type": "integer",
-                        "description": "Maximum session number",
-                    },
-                    "limit": {
-                        "type": "integer",
-                        "description": "Max results to return",
-                        "default": 20,
-                    },
-                },
-                "required": ["campaign_id", "query"],
-            },
-        ),
-        Tool(
-            name="get_npc_timeline",
-            description="Get chronological timeline of all events involving an NPC",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "campaign_id": {
-                        "type": "string",
-                        "description": "Campaign ID",
-                    },
-                    "npc_name": {
-                        "type": "string",
-                        "description": "Name of the NPC to look up",
-                    },
-                },
-                "required": ["campaign_id", "npc_name"],
-            },
-        ),
-        Tool(
-            name="get_session_summary",
-            description="Get a condensed summary of a specific session",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "campaign_id": {
-                        "type": "string",
-                        "description": "Campaign ID",
-                    },
-                    "session": {
-                        "type": "integer",
-                        "description": "Session number to summarize",
-                    },
-                },
-                "required": ["campaign_id", "session"],
-            },
-        ),
     ]
 
 
@@ -444,34 +310,6 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             campaign_id=arguments["campaign_id"],
             faction=arguments["faction"],
             disposition_filter=arguments.get("disposition_filter"),
-        )
-
-    # Campaign history tools
-    elif name == "search_history":
-        result = search_history(
-            campaigns_dir=CAMPAIGNS_DIR,
-            campaign_id=arguments["campaign_id"],
-            query=arguments["query"],
-            npc=arguments.get("npc"),
-            faction=arguments.get("faction"),
-            entry_type=arguments.get("entry_type"),
-            session_min=arguments.get("session_min"),
-            session_max=arguments.get("session_max"),
-            limit=arguments.get("limit", 20),
-        )
-
-    elif name == "get_npc_timeline":
-        result = get_npc_timeline(
-            campaigns_dir=CAMPAIGNS_DIR,
-            campaign_id=arguments["campaign_id"],
-            npc_name=arguments["npc_name"],
-        )
-
-    elif name == "get_session_summary":
-        result = get_session_summary(
-            campaigns_dir=CAMPAIGNS_DIR,
-            campaign_id=arguments["campaign_id"],
-            session=arguments["session"],
         )
 
     else:

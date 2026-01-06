@@ -1,13 +1,7 @@
-"""Resource handlers for factions and campaign history."""
+"""Resource handlers for factions."""
 
 import json
 from pathlib import Path
-
-from .history import (
-    get_campaign_sessions,
-    get_campaign_hinges,
-    get_npc_history,
-)
 
 
 def _load_faction_data(data_dir: Path, faction_id: str) -> dict:
