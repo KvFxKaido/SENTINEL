@@ -696,9 +696,9 @@ Detect terminal emulator via `$TERM_PROGRAM` or `process.env.WARP_IS_LOCAL`. If 
 **Quarter 1:**
 - [ ] Block-based output system
 - [ ] Enhanced command palette
-- [ ] State visualization improvements
+- [x] State visualization improvements (persistent status bar with delta tracking)
 - [ ] Basic session history
-- [ ] Enhanced faction glyphs for NPC dialogue (MGS codec style, Phase 1)
+- [x] Enhanced faction glyphs for NPC dialogue (MGS codec style, Phase 1)
 
 **Quarter 2:**
 - [ ] Search functionality
