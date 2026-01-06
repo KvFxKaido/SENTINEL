@@ -116,7 +116,11 @@ def main():
     # Show backend status
     show_backend_status(agent)
     if agent.lore_retriever:
-        console.print(f"[{THEME['dim']}]Lore: {agent.lore_retriever.chunk_count} chunks indexed[/{THEME['dim']}]")
+        lore_status = f"Lore: {agent.lore_retriever.chunk_count} chunks"
+        if agent.unified_retriever and agent.unified_retriever.memvid:
+            memvid_status = "enabled" if agent.unified_retriever.memvid.is_enabled else "disabled"
+            lore_status += f" | Memvid: {memvid_status}"
+        console.print(f"[{THEME['dim']}]{lore_status}[/{THEME['dim']}]")
     console.print(f"[{THEME['dim']}]Type /help for commands, or just start playing.[/{THEME['dim']}]\n")
 
     # Initialize state
