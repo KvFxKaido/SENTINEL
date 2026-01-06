@@ -41,7 +41,8 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 - **NPC disposition modifiers** — behavior changes based on disposition level
 - **NPC memory triggers** — NPCs react to tagged events (e.g., faction shifts)
 - **NPC individual memory** — separate personal standing from faction, effective disposition (60% personal, 40% faction)
-- **`/npc` command** — view NPC info, personal standing, interaction history
+- **NPC codec boxes** — MGS-style dialogue frames with faction-colored borders, disposition indicators
+- **`/npc` command** — view NPC info, personal standing, interaction history (shows codec box greeting)
 
 **Faction Systems**
 - **Inter-faction dynamics** — faction relationship matrix with cascading effects
@@ -641,6 +642,24 @@ Based on design concept: *"If it looks calm, it's lying."*
 | Rusted red | Memory of violence, high-stakes decisions |
 
 Applied throughout CLI: banners, panels, status displays, choice blocks.
+
+### NPC Codec Boxes
+
+MGS-style dialogue frames for NPC speech:
+
+```
+╔══════════════════════════════════════════════════════════════╗
+║   ◈  CIPHER                                                  ║
+║   [Nexus — Analyst]  [Disposition: Neutral ▰▰▰▱▱]            ║
+║                                                              ║
+║   "The network sees patterns. You're becoming one."          ║
+╚══════════════════════════════════════════════════════════════╝
+```
+
+- **Faction glyph** — unique symbol per faction (◈ Nexus, ◆ Ember, ▣ Lattice, etc.)
+- **Faction-colored border** — visual identity at a glance
+- **Disposition bar** — ▰▰▰▱▱ shows relationship state
+- **Memory tags** — [⚡ remembers: shared intel] when referencing past events
 
 ---
 
