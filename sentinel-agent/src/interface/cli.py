@@ -52,6 +52,7 @@ COMMAND_META = {
     "/model": "Switch model",
     "/banner": "Toggle banner animation",
     "/lore": "Search lore",
+    "/npc": "View NPC info",
     "/timeline": "Search campaign memory",
     "/roll": "Roll dice",
     "/help": "Show help",

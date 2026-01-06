@@ -152,30 +152,140 @@ class CampaignManager:
         npc_id: str,
         player_action: str,
         npc_reaction: str,
-        disposition_change: int = 0,
+        standing_change: int = 0,
+        tags: list[str] | None = None,
         context: dict | None = None,
-    ) -> str | None:
+    ) -> dict | None:
         """
-        Record an NPC interaction to memvid.
+        Record an NPC interaction, updating personal standing and saving to memvid.
 
-        Call this when meaningful NPC interactions occur.
-        Returns frame ID if successful.
+        This is the primary method for recording meaningful NPC interactions.
+        It updates the NPC's personal_standing (separate from faction) and
+        stores the interaction in both the NPC's local history and memvid.
+
+        Args:
+            npc_id: NPC identifier
+            player_action: What the player did
+            npc_reaction: How the NPC responded
+            standing_change: Change to personal standing (-20 to +20)
+            tags: Tags for searching/triggers
+            context: Additional context for memvid
+
+        Returns:
+            Dict with interaction details and updated disposition
         """
-        if not self.current or not self._memvid:
+        if not self.current:
             return None
 
         npc = self.get_npc(npc_id)
         if not npc:
             return None
 
-        return self._memvid.save_npc_interaction(
-            npc=npc,
-            player_action=player_action,
-            npc_reaction=npc_reaction,
-            disposition_change=disposition_change,
-            session=self.current.meta.session_count,
-            context=context,
+        session = self.current.meta.session_count
+
+        # Record interaction on the NPC (updates personal_standing)
+        interaction = npc.record_interaction(
+            session=session,
+            action=player_action,
+            outcome=npc_reaction,
+            standing_change=standing_change,
+            tags=tags,
         )
+
+        # Get faction standing for effective disposition calculation
+        faction_standing = None
+        if npc.faction:
+            faction_standing = self.current.factions.get(npc.faction).standing
+
+        # Calculate effective disposition
+        effective_disposition = npc.get_effective_disposition(faction_standing)
+
+        # Update NPC's displayed disposition if it changed
+        old_disposition = npc.disposition
+        if effective_disposition != old_disposition:
+            npc.disposition = effective_disposition
+
+        self.save_campaign()
+
+        # Also save to memvid for semantic search
+        frame_id = None
+        if self._memvid:
+            frame_id = self._memvid.save_npc_interaction(
+                npc=npc,
+                player_action=player_action,
+                npc_reaction=npc_reaction,
+                disposition_change=standing_change,
+                session=session,
+                context=context,
+            )
+
+        return {
+            "npc_id": npc_id,
+            "npc_name": npc.name,
+            "action": player_action,
+            "outcome": npc_reaction,
+            "standing_change": standing_change,
+            "personal_standing": npc.personal_standing,
+            "old_disposition": old_disposition.value,
+            "new_disposition": effective_disposition.value,
+            "disposition_changed": effective_disposition != old_disposition,
+            "frame_id": frame_id,
+        }
+
+    def get_npc_status(self, npc_id: str) -> dict | None:
+        """
+        Get comprehensive NPC status including personal and faction standings.
+
+        Returns dict with:
+        - NPC info (name, faction, agenda)
+        - Personal standing (-100 to +100)
+        - Faction standing (if applicable)
+        - Effective disposition (combining both)
+        - Recent interactions
+        """
+        if not self.current:
+            return None
+
+        npc = self.get_npc(npc_id)
+        if not npc:
+            return None
+
+        # Get faction standing
+        faction_standing = None
+        faction_standing_value = None
+        if npc.faction:
+            faction_obj = self.current.factions.get(npc.faction)
+            faction_standing = faction_obj.standing
+            faction_standing_value = faction_standing.value
+
+        # Calculate effective disposition
+        effective_disposition = npc.get_effective_disposition(faction_standing)
+
+        return {
+            "id": npc.id,
+            "name": npc.name,
+            "faction": npc.faction.value if npc.faction else None,
+            "agenda": {
+                "wants": npc.agenda.wants,
+                "fears": npc.agenda.fears,
+                "leverage": npc.agenda.leverage,
+                "owes": npc.agenda.owes,
+            },
+            "personal_standing": npc.personal_standing,
+            "faction_standing": faction_standing_value,
+            "base_disposition": npc.disposition.value,
+            "effective_disposition": effective_disposition.value,
+            "interactions": [
+                {
+                    "session": i.session,
+                    "action": i.action,
+                    "outcome": i.outcome,
+                    "standing_change": i.standing_change,
+                }
+                for i in npc.interactions[-5:]  # Last 5
+            ],
+            "remembers": npc.remembers[-5:],  # Last 5 memories
+        }
 
     def query_campaign_history(
         self,

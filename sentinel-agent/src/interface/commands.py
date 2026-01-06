@@ -493,6 +493,193 @@ def cmd_char(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
     console.print(f"\n[{THEME['dim']}]Type /start to begin your story[/{THEME['dim']}]")
 
 
+def cmd_npc(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
+    """View NPC information including personal standing and interactions.
+
+    Usage:
+        /npc                  - List all active NPCs
+        /npc <name>           - Show details for an NPC
+        /npc <name> history   - Show full interaction history
+    """
+    if not manager.current:
+        console.print(f"[{THEME['warning']}]No campaign loaded[/{THEME['warning']}]")
+        return
+
+    # List all NPCs
+    if not args:
+        active = manager.current.npcs.active
+        dormant = manager.current.npcs.dormant
+
+        if not active and not dormant:
+            console.print(f"[{THEME['dim']}]No NPCs in this campaign yet.[/{THEME['dim']}]")
+            return
+
+        console.print(f"\n[bold {THEME['primary']}]◈ NPCs ◈[/bold {THEME['primary']}]")
+
+        if active:
+            console.print(f"\n[bold {THEME['secondary']}]ACTIVE[/bold {THEME['secondary']}]")
+            for npc in active:
+                _display_npc_summary(npc, manager)
+
+        if dormant:
+            console.print(f"\n[bold {THEME['secondary']}]DORMANT[/bold {THEME['secondary']}]")
+            for npc in dormant:
+                _display_npc_summary(npc, manager, dim=True)
+
+        return
+
+    # Find NPC by name
+    name_query = args[0].lower()
+    show_history = len(args) > 1 and args[1].lower() == "history"
+
+    npc = None
+    for n in manager.current.npcs.active + manager.current.npcs.dormant:
+        if name_query in n.name.lower():
+            npc = n
+            break
+
+    if not npc:
+        console.print(f"[{THEME['warning']}]No NPC found matching '{args[0]}'[/{THEME['warning']}]")
+        return
+
+    # Get comprehensive status
+    status = manager.get_npc_status(npc.id)
+    if not status:
+        console.print(f"[{THEME['warning']}]Could not retrieve NPC status[/{THEME['warning']}]")
+        return
+
+    # Display NPC details
+    console.print(f"\n[bold {THEME['primary']}]◈ {npc.name.upper()} ◈[/bold {THEME['primary']}]")
+
+    # Faction
+    if status["faction"]:
+        console.print(f"[{THEME['secondary']}]Faction:[/{THEME['secondary']}] {status['faction']}")
+
+    # Standing breakdown
+    console.print(f"\n[bold {THEME['secondary']}]RELATIONSHIP[/bold {THEME['secondary']}]")
+
+    # Personal standing with visual bar
+    ps = status["personal_standing"]
+    bar = _standing_bar(ps)
+    console.print(f"  [{THEME['dim']}]Personal:[/{THEME['dim']}] {bar} ({ps:+d})")
+
+    # Faction standing if applicable
+    if status["faction_standing"]:
+        console.print(f"  [{THEME['dim']}]Faction:[/{THEME['dim']}] {status['faction_standing']}")
+
+    # Effective disposition
+    eff_disp = status["effective_disposition"]
+    disp_color = _disposition_color(eff_disp)
+    console.print(f"  [{THEME['dim']}]Effective:[/{THEME['dim']}] [{disp_color}]{eff_disp.upper()}[/{disp_color}]")
+
+    # Agenda
+    agenda = status["agenda"]
+    console.print(f"\n[bold {THEME['secondary']}]AGENDA[/bold {THEME['secondary']}]")
+    console.print(f"  [{THEME['dim']}]Wants:[/{THEME['dim']}] {agenda['wants']}")
+    console.print(f"  [{THEME['dim']}]Fears:[/{THEME['dim']}] {agenda['fears']}")
+    if agenda.get("leverage"):
+        console.print(f"  [{THEME['warning']}]Leverage:[/{THEME['warning']}] {agenda['leverage']}")
+    if agenda.get("owes"):
+        console.print(f"  [{THEME['accent']}]Owes you:[/{THEME['accent']}] {agenda['owes']}")
+
+    # Memories
+    if status["remembers"]:
+        console.print(f"\n[bold {THEME['secondary']}]REMEMBERS[/bold {THEME['secondary']}]")
+        for mem in status["remembers"]:
+            console.print(f"  [{THEME['dim']}]•[/{THEME['dim']}] {mem}")
+
+    # Recent interactions
+    interactions = status["interactions"]
+    if interactions:
+        console.print(f"\n[bold {THEME['secondary']}]RECENT INTERACTIONS[/bold {THEME['secondary']}]")
+        for inter in interactions:
+            change = inter["standing_change"]
+            if change > 0:
+                change_str = f"[{THEME['accent']}]+{change}[/{THEME['accent']}]"
+            elif change < 0:
+                change_str = f"[{THEME['danger']}]{change}[/{THEME['danger']}]"
+            else:
+                change_str = ""
+
+            console.print(
+                f"  [{THEME['dim']}]S{inter['session']}[/{THEME['dim']}] "
+                f"{inter['action'][:40]}{'...' if len(inter['action']) > 40 else ''} {change_str}"
+            )
+
+    # Full history if requested
+    if show_history and npc.interactions:
+        console.print(f"\n[bold {THEME['secondary']}]FULL HISTORY[/bold {THEME['secondary']}]")
+        for inter in npc.interactions:
+            change = inter.standing_change
+            if change > 0:
+                change_str = f"[{THEME['accent']}]+{change}[/{THEME['accent']}]"
+            elif change < 0:
+                change_str = f"[{THEME['danger']}]{change}[/{THEME['danger']}]"
+            else:
+                change_str = ""
+
+            console.print(
+                f"\n  [{THEME['dim']}]Session {inter.session}[/{THEME['dim']}] {change_str}"
+            )
+            console.print(f"  [{THEME['secondary']}]Action:[/{THEME['secondary']}] {inter.action}")
+            console.print(f"  [{THEME['secondary']}]Outcome:[/{THEME['secondary']}] {inter.outcome}")
+
+    return None
+
+
+def _display_npc_summary(npc, manager: CampaignManager, dim: bool = False):
+    """Display a single NPC in summary format."""
+    style = THEME["dim"] if dim else THEME["secondary"]
+
+    # Get faction standing for effective disposition
+    faction_standing = None
+    if npc.faction and manager.current:
+        faction_standing = manager.current.factions.get(npc.faction).standing
+
+    eff_disp = npc.get_effective_disposition(faction_standing)
+    disp_color = _disposition_color(eff_disp.value) if not dim else THEME["dim"]
+
+    faction_str = f" [{THEME['dim']}]{npc.faction.value}[/{THEME['dim']}]" if npc.faction else ""
+    standing_str = f" ({npc.personal_standing:+d})" if npc.personal_standing != 0 else ""
+
+    console.print(
+        f"  [{style}]{g('npc')}[/{style}] "
+        f"[{style}]{npc.name}[/{style}]{faction_str} — "
+        f"[{disp_color}]{eff_disp.value}[/{disp_color}]{standing_str}"
+    )
+
+
+def _standing_bar(standing: int) -> str:
+    """Create a visual bar for standing (-100 to +100)."""
+    # Normalize to 0-10 scale
+    normalized = (standing + 100) / 20  # 0-10
+    filled = int(normalized)
+    empty = 10 - filled
+
+    if standing < -30:
+        color = "red"
+    elif standing < 0:
+        color = "yellow"
+    elif standing < 30:
+        color = "white"
+    else:
+        color = "green"
+
+    return f"[{color}]{'█' * filled}{'░' * empty}[/{color}]"
+
+
+def _disposition_color(disposition: str) -> str:
+    """Get color for a disposition level."""
+    colors = {
+        "hostile": THEME["danger"],
+        "wary": THEME["warning"],
+        "neutral": THEME["dim"],
+        "warm": THEME["secondary"],
+        "loyal": THEME["accent"],
+    }
+    return colors.get(disposition.lower(), THEME["dim"])
+
+
 # -----------------------------------------------------------------------------
 # Gameplay Commands
 # -----------------------------------------------------------------------------
@@ -1460,6 +1647,7 @@ def create_commands(manager: CampaignManager, agent: SentinelAgent, conversation
         "/banner": cmd_banner,
         "/lore": cmd_lore,
         "/char": cmd_char,
+        "/npc": cmd_npc,
         "/roll": cmd_roll,
         "/start": cmd_start,
         "/mission": cmd_mission,

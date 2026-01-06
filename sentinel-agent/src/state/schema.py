@@ -288,6 +288,44 @@ class MemoryTrigger(BaseModel):
     triggered: bool = False  # Has this already fired?
 
 
+class NPCInteraction(BaseModel):
+    """Record of a single interaction with an NPC."""
+    session: int
+    action: str  # What the player did
+    outcome: str  # How it resolved
+    standing_change: int = 0  # How it affected personal standing (-20 to +20)
+    timestamp: datetime = Field(default_factory=datetime.now)
+    tags: list[str] = Field(default_factory=list)  # For searching/triggers
+
+
+# Mapping faction Standing to numeric scores for disposition calculation
+STANDING_SCORES: dict[str, int] = {
+    "Hostile": -50,
+    "Unfriendly": -25,
+    "Neutral": 0,
+    "Friendly": 25,
+    "Allied": 50,
+}
+
+# Thresholds for converting effective score to Disposition
+# Format: (max_score, disposition) - first match wins
+DISPOSITION_THRESHOLDS: list[tuple[int, Disposition]] = [
+    (-30, Disposition.HOSTILE),
+    (-10, Disposition.WARY),
+    (10, Disposition.NEUTRAL),
+    (30, Disposition.WARM),
+    (100, Disposition.LOYAL),
+]
+
+
+def score_to_disposition(score: int) -> Disposition:
+    """Convert numeric score to Disposition enum."""
+    for threshold, disposition in DISPOSITION_THRESHOLDS:
+        if score <= threshold:
+            return disposition
+    return Disposition.LOYAL
+
+
 class NPC(BaseModel):
     """Non-player character with memory and agenda."""
     id: str = Field(default_factory=generate_id)
@@ -300,12 +338,83 @@ class NPC(BaseModel):
 
     remembers: list[str] = Field(default_factory=list)
 
+    # NEW: Personal standing independent of faction (-100 to +100)
+    personal_standing: int = 0
+
+    # NEW: Interaction history with this specific NPC
+    interactions: list[NPCInteraction] = Field(default_factory=list)
+
     # Disposition-based behavior modifiers
     disposition_modifiers: dict[str, DispositionModifier] = Field(default_factory=dict)
     # Keys are disposition values: "hostile", "wary", "neutral", "warm", "loyal"
 
     # Memory triggers - react to tagged events
     memory_triggers: list[MemoryTrigger] = Field(default_factory=list)
+
+    def get_effective_disposition(self, faction_standing: Standing | None = None) -> Disposition:
+        """
+        Calculate effective disposition from faction + personal standing.
+
+        Personal standing weighs more heavily (60%) than faction (40%).
+        This allows NPCs to have individual relationships despite faction politics.
+
+        Args:
+            faction_standing: Player's standing with NPC's faction (optional)
+
+        Returns:
+            Effective Disposition combining both factors
+        """
+        # Get faction score (0 if no faction or no standing provided)
+        if faction_standing:
+            faction_score = STANDING_SCORES.get(faction_standing.value, 0)
+        else:
+            faction_score = 0
+
+        # Weight: 40% faction, 60% personal
+        effective_score = (faction_score * 0.4) + (self.personal_standing * 0.6)
+
+        return score_to_disposition(int(effective_score))
+
+    def record_interaction(
+        self,
+        session: int,
+        action: str,
+        outcome: str,
+        standing_change: int = 0,
+        tags: list[str] | None = None,
+    ) -> NPCInteraction:
+        """
+        Record an interaction and update personal standing.
+
+        Args:
+            session: Session number
+            action: What the player did
+            outcome: How it resolved
+            standing_change: Change to personal standing (-20 to +20)
+            tags: Tags for searching/triggers
+
+        Returns:
+            The created interaction record
+        """
+        # Clamp standing change
+        standing_change = max(-20, min(20, standing_change))
+
+        interaction = NPCInteraction(
+            session=session,
+            action=action,
+            outcome=outcome,
+            standing_change=standing_change,
+            tags=tags or [],
+        )
+        self.interactions.append(interaction)
+
+        # Update personal standing (clamped to -100 to +100)
+        self.personal_standing = max(-100, min(100, self.personal_standing + standing_change))
+
+        # Update last_interaction for quick reference
+        self.last_interaction = f"S{session}: {action[:50]}"
+
+        return interaction
 
     def get_current_modifier(self) -> DispositionModifier | None:
         """Get behavior modifier for current disposition.

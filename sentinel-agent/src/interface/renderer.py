@@ -255,6 +255,7 @@ def show_help():
 | `/backend` | Show/change LLM backend |
 | `/model` | List/switch LM Studio models |
 | `/lore` | Show lore status, test retrieval |
+| `/npc [name]` | View NPC info and personal standing |
 | `/roll <skill> <dc>` | Roll a skill check |
 | `/quit` | Exit the game |
 
