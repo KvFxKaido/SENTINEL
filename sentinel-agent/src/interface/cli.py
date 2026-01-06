@@ -185,10 +185,10 @@ class SlashCommandCompleter(Completer):
         if cmd in CONTEXT_REQUIREMENTS.get("session_required", []):
             if not manager.current:
                 return False
-            # Session is started if there's session history or current_session exists
+            # Session is started if there's history or an active session
             session_started = (
-                manager.current.sessions
-                or (hasattr(manager.current, "current_session") and manager.current.current_session)
+                manager.current.history
+                or manager.current.session is not None
             )
             if not session_started:
                 return False
