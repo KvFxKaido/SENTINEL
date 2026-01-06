@@ -760,6 +760,269 @@ def cmd_history(manager: CampaignManager, agent: SentinelAgent, args: list[str])
 
 
 # -----------------------------------------------------------------------------
+# Memory / Timeline Commands
+# -----------------------------------------------------------------------------
+
+def cmd_timeline(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
+    """Search campaign memory via memvid.
+
+    Usage:
+        /timeline              - Show recent turns and hinges
+        /timeline <query>      - Semantic search across history
+        /timeline hinges       - Show all hinge moments
+        /timeline session <n>  - Show events from session n
+        /timeline npc <name>   - Show interactions with an NPC
+    """
+    from ..state import MEMVID_AVAILABLE
+
+    if not manager.current:
+        console.print(f"[{THEME['warning']}]No campaign loaded[/{THEME['warning']}]")
+        return
+
+    if not MEMVID_AVAILABLE:
+        console.print(f"[{THEME['warning']}]Memvid not installed. Run: pip install memvid-sdk[/{THEME['warning']}]")
+        return
+
+    if not manager.memvid or not manager.memvid.is_enabled:
+        console.print(f"[{THEME['warning']}]Memvid not enabled for this campaign[/{THEME['warning']}]")
+        return
+
+    memvid = manager.memvid
+
+    # Parse subcommands
+    if not args:
+        # Default: show recent activity
+        _show_timeline_overview(manager, memvid)
+        return
+
+    subcommand = args[0].lower()
+
+    if subcommand == "hinges":
+        _show_hinges(memvid)
+    elif subcommand == "session" and len(args) > 1:
+        try:
+            session_num = int(args[1])
+            _show_session_timeline(memvid, session_num)
+        except ValueError:
+            console.print(f"[{THEME['danger']}]Session number must be an integer[/{THEME['danger']}]")
+    elif subcommand == "npc" and len(args) > 1:
+        npc_name = " ".join(args[1:])
+        _show_npc_memory(manager, memvid, npc_name)
+    else:
+        # Treat as semantic search query
+        query = " ".join(args)
+        _search_timeline(memvid, query)
+
+
+def _show_timeline_overview(manager: CampaignManager, memvid):
+    """Show overview of recent campaign activity."""
+    console.print(f"\n[bold {THEME['primary']}]◈ CAMPAIGN TIMELINE ◈[/bold {THEME['primary']}]")
+    console.print(f"[{THEME['dim']}]Campaign: {manager.current.meta.name}[/{THEME['dim']}]")
+    console.print(f"[{THEME['dim']}]Sessions: {manager.current.meta.session_count}[/{THEME['dim']}]\n")
+
+    # Show recent hinges
+    hinges = memvid.get_hinges(limit=5)
+    if hinges:
+        console.print(f"[bold {THEME['secondary']}]Recent Hinge Moments[/bold {THEME['secondary']}]")
+        for h in hinges:
+            session = h.get("session", "?")
+            choice = h.get("choice", "Unknown choice")[:60]
+            console.print(f"  [{THEME['danger']}]{g('hinge')}[/{THEME['danger']}] S{session}: {choice}...")
+        console.print()
+
+    # Show active threads
+    threads = memvid.get_active_threads()
+    if threads:
+        console.print(f"[bold {THEME['secondary']}]Dormant Threads[/bold {THEME['secondary']}]")
+        for t in threads[:5]:
+            severity = t.get("severity", "moderate")
+            origin = t.get("origin", "Unknown")[:50]
+            severity_color = {
+                "major": THEME['danger'],
+                "moderate": THEME['warning'],
+                "minor": THEME['dim'],
+            }.get(severity, THEME['dim'])
+            console.print(f"  [{severity_color}]{g('thread')}[/{severity_color}] {origin}...")
+        console.print()
+
+    # Show usage hints
+    console.print(f"[{THEME['dim']}]Commands:[/{THEME['dim']}]")
+    console.print(f"  [{THEME['accent']}]/timeline <query>[/{THEME['accent']}]      - Search history")
+    console.print(f"  [{THEME['accent']}]/timeline hinges[/{THEME['accent']}]       - All hinge moments")
+    console.print(f"  [{THEME['accent']}]/timeline session <n>[/{THEME['accent']}]  - Events from session n")
+    console.print(f"  [{THEME['accent']}]/timeline npc <name>[/{THEME['accent']}]   - NPC interactions")
+
+
+def _show_hinges(memvid):
+    """Show all hinge moments."""
+    console.print(f"\n[bold {THEME['primary']}]◈ HINGE MOMENTS ◈[/bold {THEME['primary']}]")
+    console.print(f"[{THEME['dim']}]Irreversible choices that shaped this story[/{THEME['dim']}]\n")
+
+    hinges = memvid.get_hinges(limit=20)
+    if not hinges:
+        console.print(f"[{THEME['dim']}]No hinge moments recorded yet.[/{THEME['dim']}]")
+        return
+
+    for h in hinges:
+        session = h.get("session", "?")
+        situation = h.get("situation", "")[:80]
+        choice = h.get("choice", "Unknown")
+        reasoning = h.get("reasoning", "")
+        what_shifted = h.get("what_shifted", "")
+
+        console.print(f"[bold {THEME['danger']}]{g('hinge')} Session {session}[/bold {THEME['danger']}]")
+        if situation:
+            console.print(f"  [{THEME['dim']}]Situation:[/{THEME['dim']}] {situation}...")
+        console.print(f"  [{THEME['secondary']}]Choice:[/{THEME['secondary']}] {choice}")
+        if reasoning:
+            console.print(f"  [{THEME['dim']}]Reasoning:[/{THEME['dim']}] {reasoning[:100]}...")
+        if what_shifted:
+            console.print(f"  [{THEME['accent']}]Shifted:[/{THEME['accent']}] {what_shifted}")
+        console.print()
+
+
+def _show_session_timeline(memvid, session_num: int):
+    """Show all events from a specific session."""
+    console.print(f"\n[bold {THEME['primary']}]◈ SESSION {session_num} TIMELINE ◈[/bold {THEME['primary']}]\n")
+
+    frames = memvid.get_session_timeline(session_num)
+    if not frames:
+        console.print(f"[{THEME['dim']}]No events found for session {session_num}.[/{THEME['dim']}]")
+        return
+
+    # Group by type
+    type_icons = {
+        "turn_state": g("phase"),
+        "hinge_moment": g("hinge"),
+        "npc_interaction": g("npc"),
+        "faction_shift": g("faction"),
+        "dormant_thread": g("thread"),
+    }
+
+    for frame in frames:
+        frame_type = frame.get("type", "unknown")
+        icon = type_icons.get(frame_type, "•")
+        timestamp = frame.get("timestamp", "")[:10]
+
+        if frame_type == "turn_state":
+            turn = frame.get("turn", "?")
+            summary = frame.get("narrative_summary", "")[:60]
+            console.print(f"  [{THEME['secondary']}]{icon}[/{THEME['secondary']}] Turn {turn}: {summary or '[no summary]'}")
+
+        elif frame_type == "hinge_moment":
+            choice = frame.get("choice", "")[:60]
+            console.print(f"  [{THEME['danger']}]{icon}[/{THEME['danger']}] HINGE: {choice}...")
+
+        elif frame_type == "npc_interaction":
+            npc = frame.get("npc_name", "Unknown")
+            action = frame.get("player_action", "")[:40]
+            console.print(f"  [{THEME['accent']}]{icon}[/{THEME['accent']}] {npc}: {action}...")
+
+        elif frame_type == "faction_shift":
+            faction = frame.get("faction", "Unknown")
+            from_s = frame.get("from_standing", "")
+            to_s = frame.get("to_standing", "")
+            console.print(f"  [{THEME['warning']}]{icon}[/{THEME['warning']}] {faction}: {from_s} → {to_s}")
+
+        elif frame_type == "dormant_thread":
+            origin = frame.get("origin", "")[:50]
+            console.print(f"  [{THEME['dim']}]{icon}[/{THEME['dim']}] Thread queued: {origin}...")
+
+
+def _show_npc_memory(manager: CampaignManager, memvid, npc_name: str):
+    """Show interactions with a specific NPC."""
+    console.print(f"\n[bold {THEME['primary']}]◈ NPC MEMORY: {npc_name.upper()} ◈[/bold {THEME['primary']}]\n")
+
+    # First, try to find NPC by name in current campaign to get ID
+    npc = None
+    npc_id = None
+    if manager.current:
+        for n in manager.current.npcs.active + manager.current.npcs.dormant:
+            if npc_name.lower() in n.name.lower():
+                npc = n
+                npc_id = n.id
+                break
+
+    if npc:
+        console.print(f"[{THEME['dim']}]NPC: {npc.name}[/{THEME['dim']}]")
+        if npc.faction:
+            console.print(f"[{THEME['dim']}]Faction: {npc.faction.value}[/{THEME['dim']}]")
+        console.print(f"[{THEME['dim']}]Disposition: {npc.disposition.value}[/{THEME['dim']}]\n")
+
+        interactions = memvid.get_npc_history(npc_id, limit=15)
+    else:
+        # Search by name in memvid
+        console.print(f"[{THEME['dim']}]Searching for interactions with '{npc_name}'...[/{THEME['dim']}]\n")
+        interactions = memvid.query(f"npc_name:{npc_name}", top_k=15)
+
+    if not interactions:
+        console.print(f"[{THEME['dim']}]No recorded interactions found.[/{THEME['dim']}]")
+        return
+
+    for inter in interactions:
+        session = inter.get("session", "?")
+        action = inter.get("player_action", "")
+        reaction = inter.get("npc_reaction", "")
+        disp_change = inter.get("disposition_change", 0)
+
+        console.print(f"[bold {THEME['secondary']}]Session {session}[/bold {THEME['secondary']}]")
+        if action:
+            console.print(f"  [{THEME['dim']}]You:[/{THEME['dim']}] {action[:80]}...")
+        if reaction:
+            console.print(f"  [{THEME['accent']}]They:[/{THEME['accent']}] {reaction[:80]}...")
+        if disp_change != 0:
+            sign = "+" if disp_change > 0 else ""
+            color = THEME['accent'] if disp_change > 0 else THEME['danger']
+            console.print(f"  [{color}]Disposition: {sign}{disp_change}[/{color}]")
+        console.print()
+
+
+def _search_timeline(memvid, query: str):
+    """Semantic search across campaign history."""
+    console.print(f"\n[bold {THEME['primary']}]◈ TIMELINE SEARCH ◈[/bold {THEME['primary']}]")
+    console.print(f"[{THEME['dim']}]Query: {query}[/{THEME['dim']}]\n")
+
+    results = memvid.query(query, top_k=10)
+    if not results:
+        console.print(f"[{THEME['dim']}]No matches found.[/{THEME['dim']}]")
+        return
+
+    type_icons = {
+        "turn_state": (g("phase"), THEME['secondary']),
+        "hinge_moment": (g("hinge"), THEME['danger']),
+        "npc_interaction": (g("npc"), THEME['accent']),
+        "faction_shift": (g("faction"), THEME['warning']),
+        "dormant_thread": (g("thread"), THEME['dim']),
+    }
+
+    for result in results:
+        frame_type = result.get("type", "unknown")
+        icon, color = type_icons.get(frame_type, ("•", THEME['dim']))
+        session = result.get("session", "?")
+
+        # Build summary based on type
+        if frame_type == "turn_state":
+            summary = result.get("narrative_summary", "Turn state")
+        elif frame_type == "hinge_moment":
+            summary = result.get("choice", "Hinge moment")
+        elif frame_type == "npc_interaction":
+            npc = result.get("npc_name", "Unknown")
+            action = result.get("player_action", "")[:40]
+            summary = f"{npc}: {action}"
+        elif frame_type == "faction_shift":
+            faction = result.get("faction", "Unknown")
+            summary = f"{faction} standing changed"
+        elif frame_type == "dormant_thread":
+            summary = result.get("origin", "Thread")[:50]
+        else:
+            summary = str(result)[:60]
+
+        console.print(f"  [{color}]{icon}[/{color}] S{session}: {summary}...")
+
+    console.print(f"\n[{THEME['dim']}]Found {len(results)} results.[/{THEME['dim']}]")
+
+
+# -----------------------------------------------------------------------------
 # Simulation Commands
 # -----------------------------------------------------------------------------
 
@@ -906,6 +1169,7 @@ def create_commands(manager: CampaignManager, agent: SentinelAgent, conversation
         "/debrief": cmd_debrief,
         "/history": cmd_history,
         "/simulate": cmd_simulate,
+        "/timeline": cmd_timeline,
         "/help": lambda m, a, args: show_help(),
         "/quit": lambda m, a, args: sys.exit(0),
         "/exit": lambda m, a, args: sys.exit(0),
