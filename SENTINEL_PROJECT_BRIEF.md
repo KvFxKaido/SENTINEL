@@ -519,6 +519,66 @@ Note: Speculative. Actual outcomes depend on choices not yet made.
 
 ---
 
+## Campaign Memory (Memvid)
+
+Optional semantic search over campaign history using [memvid](https://github.com/Olow304/memvid-sdk).
+
+### What It Stores
+
+The `MemvidAdapter` automatically captures:
+- **Hinge moments** — irreversible choices with situation, choice, reasoning
+- **Faction shifts** — standing changes with reason and cascade effects
+- **NPC interactions** — encounters, disposition changes, memories formed
+- **Dormant threads** — queued consequences with trigger conditions
+- **Session summaries** — auto-generated recaps on `/debrief`
+
+### How It Works
+
+```
+Player action → Manager logs event → Memvid stores frame
+                                          ↓
+                          Semantic embedding created
+                                          ↓
+Player asks "/timeline Nexus" → Vector search → Relevant history returned
+```
+
+### Design Philosophy
+
+- **Evidence, not memory** — Raw frames are GM-only; player queries filter through faction bias
+- **Append-only** — History is immutable; no retroactive changes
+- **Graceful degradation** — All features work without memvid; it's purely additive
+- **Semantic, not keyword** — "betrayal" finds "broke promise" and "double-crossed"
+
+### Example Query
+
+```
+> /timeline "that time I helped Ember"
+
+CAMPAIGN MEMORY SEARCH: "that time I helped Ember"
+
+[Session 3] FACTION SHIFT
+  Ember Colonies: Neutral → Friendly
+  "Shared supplies during the drought"
+
+[Session 3] NPC INTERACTION
+  Elder Kara (Ember): wary → warm
+  "Remembered: player shared rations without asking for anything"
+
+[Session 5] HINGE MOMENT
+  "Chose to warn Ember about Nexus surveillance"
+  Consequence: Nexus standing -10, queued "Nexus suspicion" thread
+```
+
+### Installation
+
+```bash
+pip install memvid-sdk  # Optional dependency
+```
+
+When installed, memvid auto-initializes on campaign load. Without it, `/timeline` gracefully reports "memvid not available."
+
+---
+
 ## Campaign MCP Server
 
 External MCP server providing faction knowledge, campaign tracking, and history search:
