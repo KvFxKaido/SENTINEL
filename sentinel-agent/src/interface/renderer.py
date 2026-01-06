@@ -15,7 +15,7 @@ from rich.text import Text
 from prompt_toolkit.styles import Style as PTStyle
 
 from .glyphs import (
-    g, energy_bar,
+    g, energy_bar, standing_indicator,
     format_context_meter, estimate_conversation_tokens,
     CONTEXT_LIMITS,
 )
@@ -47,6 +47,34 @@ pt_style = PTStyle.from_dict({
     "scrollbar.background": "bg:#1e3a5f",
     "scrollbar.button": "bg:#3a6a9f",
 })
+
+# -----------------------------------------------------------------------------
+# Faction Colors (for codec boxes)
+# Each faction has a distinct visual identity
+# -----------------------------------------------------------------------------
+
+FACTION_COLORS = {
+    "nexus": "steel_blue",           # Cold, data-driven
+    "ember_colonies": "orange3",     # Warm, community
+    "lattice": "grey70",             # Industrial, practical
+    "convergence": "medium_purple",  # Enhancement, transcendence
+    "covenant": "gold3",             # Traditional, formal
+    "wanderers": "dark_sea_green",   # Freedom, movement
+    "cultivators": "green3",         # Growth, sustainability
+    "steel_syndicate": "dark_red",   # Power, leverage
+    "witnesses": "cyan",             # Observation, truth
+    "architects": "wheat1",          # Pre-collapse, authority
+    "ghost_networks": "grey50",      # Hidden, ephemeral
+}
+
+# Disposition colors
+DISPOSITION_COLORS = {
+    "hostile": "red",
+    "wary": "dark_orange",
+    "neutral": "grey70",
+    "warm": "green3",
+    "loyal": "cyan",
+}
 
 
 # -----------------------------------------------------------------------------
@@ -312,3 +340,152 @@ def show_choices(choices):
         console.print(Panel(choice_text, title=title, border_style=box_style))
     else:
         console.print(Panel(choice_text, border_style=box_style, padding=(0, 1)))
+
+
+# -----------------------------------------------------------------------------
+# NPC Codec Boxes (MGS-style dialogue frames)
+# -----------------------------------------------------------------------------
+
+def render_codec_box(
+    npc_name: str,
+    faction: str,
+    dialogue: str,
+    role: str | None = None,
+    disposition: str = "neutral",
+    memory_tag: str | None = None,
+    show_disposition: bool = True,
+) -> None:
+    """
+    Render an MGS codec-style dialogue box for NPC speech.
+
+    Args:
+        npc_name: NPC's display name
+        faction: Faction ID (e.g., 'nexus', 'ember_colonies')
+        dialogue: The NPC's speech text
+        role: Optional role/title (e.g., 'Analyst', 'Cell Leader')
+        disposition: Current disposition toward player
+        memory_tag: Optional tag if NPC is referencing stored memory
+        show_disposition: Whether to show disposition indicator
+    """
+    # Normalize faction ID
+    faction_key = faction.lower().replace(" ", "_")
+    faction_color = FACTION_COLORS.get(faction_key, THEME["secondary"])
+    faction_glyph = g(faction_key) if faction_key in FACTION_COLORS else "◈"
+
+    # Build header line
+    header = Text()
+    header.append(f"  {faction_glyph}  ", style=f"bold {faction_color}")
+    header.append(npc_name.upper(), style=f"bold {THEME['secondary']}")
+
+    # Build subtitle (faction + role + disposition)
+    subtitle_parts = []
+
+    # Faction display name
+    faction_display = faction.replace("_", " ").title()
+    if role:
+        subtitle_parts.append(f"[{faction_display} — {role}]")
+    else:
+        subtitle_parts.append(f"[{faction_display}]")
+
+    # Disposition indicator
+    if show_disposition:
+        disp_color = DISPOSITION_COLORS.get(disposition.lower(), "grey70")
+        disp_indicator = _disposition_bar(disposition)
+        subtitle_parts.append(f"[Disposition: {disposition.title()} {disp_indicator}]")
+
+    subtitle = Text()
+    subtitle.append("  ", style="dim")
+    subtitle.append("  ".join(subtitle_parts), style=f"{THEME['dim']}")
+
+    # Format dialogue with proper indentation
+    dialogue_text = Text()
+    dialogue_text.append("\n")
+
+    # Wrap dialogue in quotes, indent
+    lines = dialogue.split("\n")
+    for i, line in enumerate(lines):
+        if i == 0:
+            dialogue_text.append(f'  "{line}', style=THEME["secondary"])
+        else:
+            dialogue_text.append(f"\n   {line}", style=THEME["secondary"])
+    dialogue_text.append('"', style=THEME["secondary"])
+
+    # Memory tag if present
+    if memory_tag:
+        dialogue_text.append(f"\n{'':>40}", style="dim")
+        dialogue_text.append(f"[⚡ {memory_tag}]", style=f"italic {THEME['warning']}")
+
+    # Combine all parts
+    content = Text()
+    content.append_text(header)
+    content.append("\n")
+    content.append_text(subtitle)
+    content.append_text(dialogue_text)
+
+    # Render the panel with faction-colored border
+    console.print(Panel(
+        content,
+        border_style=faction_color,
+        box=CODEC_BOX,
+        padding=(0, 1),
+    ))
+
+
+def _disposition_bar(disposition: str, width: int = 5) -> str:
+    """Generate a visual disposition indicator."""
+    levels = ["hostile", "wary", "neutral", "warm", "loyal"]
+    try:
+        level_idx = levels.index(disposition.lower())
+    except ValueError:
+        level_idx = 2  # Default to neutral
+
+    filled = level_idx + 1
+    return "▰" * filled + "▱" * (width - filled)
+
+
+# Custom box style for codec boxes (double-line border)
+from rich.box import Box, DOUBLE
+
+# Use Rich's built-in DOUBLE box for codec frames
+CODEC_BOX = DOUBLE
+
+
+def render_codec_dialogue(
+    npc_name: str,
+    faction: str,
+    exchanges: list[dict],
+    role: str | None = None,
+    disposition: str = "neutral",
+) -> None:
+    """
+    Render a multi-turn codec dialogue sequence.
+
+    Args:
+        npc_name: NPC's display name
+        faction: Faction ID
+        exchanges: List of dicts with 'speaker' and 'text' keys
+        role: Optional role/title
+        disposition: Current disposition
+    """
+    for exchange in exchanges:
+        speaker = exchange.get("speaker", "npc")
+        text = exchange.get("text", "")
+        memory = exchange.get("memory_tag")
+
+        if speaker == "npc":
+            render_codec_box(
+                npc_name=npc_name,
+                faction=faction,
+                dialogue=text,
+                role=role,
+                disposition=disposition,
+                memory_tag=memory,
+            )
+        else:
+            # Player speech - simpler box
+            console.print(Panel(
+                f'[{THEME["accent"]}]> {text}[/{THEME["accent"]}]',
+                border_style=THEME["primary"],
+                padding=(0, 1),
+            ))
+        console.print()  # Spacing between exchanges
