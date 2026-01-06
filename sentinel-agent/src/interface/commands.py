@@ -323,10 +323,29 @@ def cmd_lore(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
         results = retriever.retrieve(query=query, factions=factions_arg, limit=3 if faction_filter else 2)
 
         if results:
-            for r in results:
-                console.print(f"\n[cyan]{r.chunk.title}[/cyan] ({r.chunk.source})")
+            # Source type labels
+            source_labels = {
+                "canon": "CANON",
+                "case_file": "CASE FILE",
+                "character": "CHARACTER",
+                "session": "SESSION",
+                "default": "LORE",
+            }
 
-                # Show arc/date/location if present
+            for r in results:
+                # Header: relevance + source type + title
+                source_label = source_labels.get(r.source_type, "LORE")
+                console.print(
+                    f"\n[{THEME['accent']}]{r.relevance_indicator}[/{THEME['accent']}] "
+                    f"[dim]{source_label}[/dim] — "
+                    f"[cyan]{r.chunk.title}[/cyan]"
+                )
+
+                # Section if available
+                if r.chunk.section:
+                    console.print(f"  [{THEME['secondary']}]§ {r.chunk.section}[/{THEME['secondary']}]")
+
+                # Arc/date/location metadata
                 meta_parts = []
                 if r.chunk.arc:
                     meta_parts.append(r.chunk.arc)
@@ -335,17 +354,27 @@ def cmd_lore(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
                 if r.chunk.location:
                     meta_parts.append(r.chunk.location)
                 if meta_parts:
-                    console.print(f"  [{THEME['secondary']}]{' · '.join(meta_parts)}[/{THEME['secondary']}]")
+                    console.print(f"  [{THEME['dim']}]{' · '.join(meta_parts)}[/{THEME['dim']}]")
 
-                console.print(f"  Score: {r.score:.1f} — {', '.join(r.match_reasons)}")
+                # Match reasons (concise)
+                if r.match_reasons:
+                    console.print(f"  [{THEME['dim']}]{', '.join(r.match_reasons)}[/{THEME['dim']}]")
 
-                # Show perspective/bias prominently
-                if r.chunk.factions:
-                    faction_tags = ", ".join(r.chunk.factions)
-                    console.print(f"  [{THEME['warning']}]Perspective: {faction_tags}[/{THEME['warning']}]")
+                # Snippet: prefer keyword context, fallback to start of content
+                snippet = r.get_keyword_snippet(max_len=180)
+                if not snippet:
+                    # Fallback: clean truncation of content start
+                    import re
+                    preview = re.sub(r'\s+', ' ', r.chunk.content[:180]).strip()
+                    if len(r.chunk.content) > 180:
+                        # Truncate at word boundary
+                        last_space = preview.rfind(' ')
+                        if last_space > 120:
+                            preview = preview[:last_space]
+                        preview += "..."
+                    snippet = preview
 
-                preview = r.chunk.content[:200].replace('\n', ' ')
-                console.print(f"  [dim]{preview}...[/dim]")
+                console.print(f"  [italic]{snippet}[/italic]")
         else:
             console.print("[dim]No matches found[/dim]")
     else:
