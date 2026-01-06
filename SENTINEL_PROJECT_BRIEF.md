@@ -581,7 +581,9 @@ When installed, memvid auto-initializes on campaign load. Without it, `/timeline
 
 ## Campaign MCP Server
 
-External MCP server providing faction knowledge, campaign tracking, and history search:
+External MCP server providing faction knowledge and state tracking.
+
+> **Note:** Campaign history search is handled by memvid (see above). Use `/timeline` in the CLI.
 
 ### Faction Resources
 | URI | Returns |
@@ -591,13 +593,6 @@ External MCP server providing faction knowledge, campaign tracking, and history 
 | `faction://{id}/operations` | Goals, methods, tensions |
 | `faction://relationships` | Inter-faction dynamics |
 
-### Campaign History Resources
-| URI | Returns |
-|-----|---------|
-| `campaign://{id}/sessions` | Session summaries grouped by session |
-| `campaign://{id}/hinges` | All hinge moments in chronological order |
-| `campaign://{id}/npc/{name}` | All history related to a specific NPC |
-
 ### Faction Tools
 | Tool | Purpose |
 |------|---------|
@@ -606,13 +601,6 @@ External MCP server providing faction knowledge, campaign tracking, and history 
 | `log_faction_event` | Record faction-related event |
 | `get_faction_intel` | What does faction know about topic? |
 | `query_faction_npcs` | NPCs by faction in campaign |
-
-### History Tools
-| Tool | Purpose |
-|------|---------|
-| `search_history` | Keyword search with filters (NPC, faction, type, session) |
-| `get_npc_timeline` | Chronological events involving an NPC |
-| `get_session_summary` | Condensed summary of a specific session |
 
 ### Intel Domains
 Each faction knows different things:
