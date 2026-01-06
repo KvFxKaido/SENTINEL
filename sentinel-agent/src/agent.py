@@ -18,6 +18,7 @@ from .tools.hinge_detector import detect_hinge, get_hinge_context
 from .llm.base import LLMClient, Message
 from .llm import create_llm_client
 from .lore import UnifiedRetriever
+from .lore.quotes import get_relevant_quotes, format_quote_for_gm, get_faction_motto
 
 
 @dataclass
@@ -1038,6 +1039,45 @@ class SentinelAgent:
             return self.manager.current.session.mission_type.value
         return None
 
+    def _get_relevant_quotes(self, user_message: str) -> str:
+        """
+        Get relevant lore quotes for GM context.
+
+        Provides curated faction quotes and world truths that NPCs
+        can weave into their dialogue to reinforce lore continuity.
+        """
+        # Get primary faction from context
+        primary_faction = None
+        active_factions = self._get_active_factions()
+        if active_factions:
+            primary_faction = active_factions[0]
+
+        # Find relevant quotes
+        quotes = get_relevant_quotes(
+            text=user_message,
+            faction=primary_faction,
+            limit=3,
+        )
+
+        if not quotes:
+            return ""
+
+        # Format for GM context
+        lines = [
+            "[LORE QUOTES - NPC Dialogue Flavor]",
+            "Weave these naturally into NPC speech when thematically appropriate:",
+            "",
+        ]
+
+        for quote in quotes:
+            lines.append(format_quote_for_gm(quote))
+            lines.append("")
+
+        lines.append("Use sparingly. One quote per scene maximum.")
+        lines.append("NPCs should sound like themselves — quotes are seasoning, not scripts.")
+
+        return "\n".join(lines)
+
     def _format_thread_hints(self, matches: list[dict]) -> str:
         """Format thread match hints for injection into system prompt."""
         lines = [
@@ -1210,6 +1250,11 @@ class SentinelAgent:
             if not unified_result.is_empty:
                 context_section = self.unified_retriever.format_for_prompt(unified_result)
                 system_prompt = system_prompt + "\n\n---\n\n" + context_section
+
+        # Add relevant lore quotes for NPC dialogue flavor
+        quote_context = self._get_relevant_quotes(user_message)
+        if quote_context:
+            system_prompt = system_prompt + "\n\n---\n\n" + quote_context
 
         # Use the client's tool loop
         def tool_executor(name: str, args: dict) -> dict:

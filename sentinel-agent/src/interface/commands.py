@@ -15,6 +15,10 @@ from rich.prompt import Prompt
 from ..state import CampaignManager, Character, Background
 from ..state.schema import SessionReflection, HistoryType
 from ..agent import SentinelAgent
+from ..lore.quotes import (
+    get_quotes_by_faction, get_quotes_by_category, get_all_mottos,
+    format_quote_for_dialogue, QuoteCategory, LORE_QUOTES,
+)
 from .renderer import console, THEME, show_status, show_backend_status, show_help
 from .config import set_model as save_model_config, set_animate_banner, load_config
 from .glyphs import g
@@ -270,8 +274,117 @@ def cmd_banner(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
     console.print("[dim]  (Saved for future sessions)[/dim]")
 
 
+# -----------------------------------------------------------------------------
+# Lore Quotes
+# -----------------------------------------------------------------------------
+
+FACTION_IDS = [
+    "nexus", "ember_colonies", "lattice", "convergence", "covenant",
+    "wanderers", "cultivators", "steel_syndicate", "witnesses",
+    "architects", "ghost_networks",
+]
+
+
+def _show_lore_quotes(args: list[str]):
+    """Show lore quotes, optionally filtered by faction."""
+    # Parse args for faction filter
+    faction_filter = None
+    show_mottos = False
+
+    if args:
+        arg = args[0].lower()
+        if arg == "mottos":
+            show_mottos = True
+        else:
+            # Match faction (flexible matching)
+            for faction_id in FACTION_IDS:
+                if faction_id.startswith(arg) or faction_id.replace("_", "").startswith(arg):
+                    faction_filter = faction_id
+                    break
+
+            if not faction_filter and arg not in ("all", "help"):
+                console.print(f"[yellow]Unknown faction: {args[0]}[/yellow]")
+                console.print(f"[dim]Available: {', '.join(FACTION_IDS)}[/dim]")
+                return
+
+    # Show mottos summary
+    if show_mottos:
+        console.print(f"\n[bold {THEME['primary']}]◈ FACTION MOTTOS ◈[/bold {THEME['primary']}]")
+        console.print()
+        mottos = get_all_mottos()
+        for faction_id, motto in mottos.items():
+            name = faction_id.replace("_", " ").title()
+            console.print(f"  [{THEME['accent']}]{name}[/{THEME['accent']}]")
+            console.print(f"    \"{motto}\"")
+            console.print()
+        return
+
+    # Show help if no args
+    if not args or (args and args[0].lower() == "help"):
+        console.print(f"\n[bold]Lore Quotes[/bold]")
+        console.print(f"  [dim]Curated quotes for NPC dialogue and world-building[/dim]")
+        console.print()
+        console.print(f"  /lore quotes mottos     — Show all faction mottos")
+        console.print(f"  /lore quotes <faction>  — Show quotes for a faction")
+        console.print(f"  /lore quotes all        — Show all quotes")
+        console.print()
+        console.print(f"  [dim]Total quotes: {len(LORE_QUOTES)}[/dim]")
+        console.print()
+
+        # Quick summary
+        console.print(f"  [bold]Categories:[/bold]")
+        for cat in QuoteCategory:
+            count = len(get_quotes_by_category(cat))
+            console.print(f"    {cat.value}: {count}")
+        return
+
+    # Show all or faction-specific quotes
+    if faction_filter:
+        quotes = get_quotes_by_faction(faction_filter)
+        title = faction_filter.replace("_", " ").title()
+        console.print(f"\n[bold {THEME['primary']}]◈ {title.upper()} QUOTES ◈[/bold {THEME['primary']}]")
+    else:
+        quotes = LORE_QUOTES
+        console.print(f"\n[bold {THEME['primary']}]◈ ALL LORE QUOTES ◈[/bold {THEME['primary']}]")
+
+    if not quotes:
+        console.print(f"[dim]No quotes found for {faction_filter}[/dim]")
+        return
+
+    console.print()
+
+    # Group by category
+    by_category: dict[QuoteCategory, list] = {}
+    for quote in quotes:
+        by_category.setdefault(quote.category, []).append(quote)
+
+    for category in QuoteCategory:
+        cat_quotes = by_category.get(category, [])
+        if not cat_quotes:
+            continue
+
+        # Category header
+        cat_label = category.value.replace("_", " ").upper()
+        console.print(f"[bold {THEME['secondary']}]{cat_label}[/bold {THEME['secondary']}]")
+
+        for quote in cat_quotes:
+            # Quote text
+            console.print(f"  \"{quote.text}\"")
+            console.print(f"    [{THEME['dim']}]— {quote.speaker}[/{THEME['dim']}]")
+            if quote.context:
+                console.print(f"    [{THEME['dim']}]({quote.context})[/{THEME['dim']}]")
+            console.print()
+
+        console.print()
+
+
 def cmd_lore(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
     """Show lore status and test retrieval. Use /lore <faction> to filter by perspective."""
+    # Handle /lore quotes subcommand
+    if args and args[0].lower() == "quotes":
+        _show_lore_quotes(args[1:])
+        return
+
     if not agent.lore_retriever:
         console.print("[yellow]No lore directory configured[/yellow]")
         return
