@@ -613,9 +613,10 @@ export class CampaignReader {
 
 This document incorporates suggestions from:
 - ChatGPT
-- Claude (Chrome Extension)
-- Claude Code
+- Claude Chrome Extension (initial consolidation)
+- Claude Code (integration, editing)
 - Deepseek
+- Gemini
 - Kimi
 
 ---
