@@ -19,7 +19,10 @@ from ..lore.quotes import (
     get_quotes_by_faction, get_quotes_by_category, get_all_mottos,
     format_quote_for_dialogue, QuoteCategory, LORE_QUOTES,
 )
-from .renderer import console, THEME, show_status, show_backend_status, show_help
+from .renderer import (
+    console, THEME, show_status, show_backend_status, show_help,
+    render_codec_box, FACTION_COLORS, DISPOSITION_COLORS,
+)
 from .config import set_model as save_model_config, set_animate_banner, load_config
 from .glyphs import g
 
@@ -661,12 +664,27 @@ def cmd_npc(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
         console.print(f"[{THEME['warning']}]Could not retrieve NPC status[/{THEME['warning']}]")
         return
 
-    # Display NPC details
-    console.print(f"\n[bold {THEME['primary']}]◈ {npc.name.upper()} ◈[/bold {THEME['primary']}]")
+    # Display NPC in codec box style
+    eff_disp = status["effective_disposition"]
+    faction_id = npc.faction.value if npc.faction else "unknown"
+    greeting = _generate_npc_greeting(npc, eff_disp)
 
-    # Faction
-    if status["faction"]:
-        console.print(f"[{THEME['secondary']}]Faction:[/{THEME['secondary']}] {status['faction']}")
+    # Check if NPC has relevant memories to show memory tag
+    memory_tag = None
+    if status["remembers"]:
+        memory_tag = "MEMORY"
+
+    console.print()  # Spacing before codec box
+    render_codec_box(
+        npc_name=npc.name,
+        faction=faction_id,
+        dialogue=greeting,
+        role=getattr(npc, 'role', None),
+        disposition=eff_disp,
+        memory_tag=memory_tag,
+    )
+
+    # Additional stats below codec box
 
     # Standing breakdown
     console.print(f"\n[bold {THEME['secondary']}]RELATIONSHIP[/bold {THEME['secondary']}]")
@@ -738,6 +756,42 @@ def cmd_npc(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
             console.print(f"  [{THEME['secondary']}]Outcome:[/{THEME['secondary']}] {inter.outcome}")
 
     return None
+
+
+def _generate_npc_greeting(npc, disposition: str) -> str:
+    """Generate a contextual greeting based on NPC disposition and agenda."""
+    # Disposition-based greeting templates
+    greetings = {
+        "hostile": [
+            f"What do you want? I've got nothing to say to you.",
+            f"You've got nerve showing your face here.",
+            f"We're done talking.",
+        ],
+        "wary": [
+            f"...Make it quick. I'm watching you.",
+            f"I don't trust you. Not yet.",
+            f"Speak. But choose your words carefully.",
+        ],
+        "neutral": [
+            f"Can I help you with something?",
+            f"You need something?",
+            f"What brings you here?",
+        ],
+        "warm": [
+            f"Good to see you. What can I do for you?",
+            f"Ah, it's you. Come in, come in.",
+            f"I was hoping you'd stop by.",
+        ],
+        "loyal": [
+            f"My friend. Whatever you need, I'm here.",
+            f"You know I've got your back. What's going on?",
+            f"Say the word. I'm with you.",
+        ],
+    }
+
+    import random
+    templates = greetings.get(disposition.lower(), greetings["neutral"])
+    return random.choice(templates)
 
 
 def _display_npc_summary(npc, manager: CampaignManager, dim: bool = False):
