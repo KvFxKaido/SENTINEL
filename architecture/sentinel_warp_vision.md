@@ -235,6 +235,61 @@ portraits/
 - **Lattice:** Technical augmentation visible, enhanced features
 - **Steel Syndicate:** Industrial, utilitarian, worn textures
 
+**Portrait as State Machine:**
+
+Treat portraits as emotional state, not decoration. The AI already tracks disposition, leverage, `lie_to_self`, and social energy — pipe those directly into the portrait renderer.
+
+```typescript
+type NPCVisualState =
+  | "neutral"
+  | "guarded"
+  | "hostile"
+  | "fractured"    // under pressure, conflicted
+  | "lying"        // triggered by lie_to_self
+  | "disconnecting"; // ending conversation, withdrawing
+```
+
+**Rule of thumb:** If the AI knows something emotionally, the UI should *leak* it visually.
+
+**CSS Filter Approach (MVP):**
+
+You don't need live animation. 3-5 portrait variants + CSS filters = high impact, low effort.
+
+```css
+/* Base portrait */
+.npc-portrait {
+  filter: none;
+  transition: filter 200ms ease;
+}
+
+/* Lying - subtle wrongness */
+[data-state="lying"] .npc-portrait {
+  filter: hue-rotate(12deg) contrast(1.1);
+  animation: micro-jitter 120ms steps(2) infinite;
+}
+
+/* Hostile - desaturated, harsh */
+[data-state="hostile"] .npc-portrait {
+  filter: saturate(0.6) contrast(1.2);
+}
+
+/* Fractured - glitch effect */
+[data-state="fractured"] .npc-portrait {
+  filter: hue-rotate(-5deg);
+  animation: glitch-slice 80ms steps(1) infinite;
+}
+
+/* Disconnecting - fading out */
+[data-state="disconnecting"] .npc-portrait {
+  filter: grayscale(0.8) opacity(0.7);
+}
+
+@keyframes micro-jitter {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(1px, -1px); }
+}
+```
+
 **Technical Implementation:**
 
 **Terminal (Kitty Protocol):**
@@ -298,6 +353,54 @@ def show_npc_dialogue(npc_name, faction, disposition, text, portrait_path=None):
 
 ---
 
+### 1.6 Dynamic Overlays & Indicators
+
+**Goal:** Surface hidden game state without breaking immersion
+
+**NPC Deception Indicators:**
+When an NPC's `lie_to_self` agenda triggers, subtle visual cues:
+- Slight color shift in portrait frame
+- Micro-glitch in text rendering
+- Optional: "[unreliable]" tag (toggle-able for players who want explicit info)
+
+**Memory Trigger Feedback:**
+When NPC dialogue references stored memory:
+```
+╔═══════════════════════════════════════╗
+║  ◆  MARCUS WEBB                       ║
+║  [EMBER - CELL LEADER]                ║
+║  [Disposition: Wary]                  ║
+║                                       ║
+║  "I remember what you did at the      ║
+║   depot. Words are cheap."            ║
+║                          [⚡ MEMORY]   ║
+╚═══════════════════════════════════════╝
+```
+The `[⚡ MEMORY]` tag indicates NPC is referencing a stored interaction.
+
+**Consequence Preview (Desktop App Only):**
+On hover/focus over choice options, show potential ramifications:
+```
+┌─────────────────────────────────────────────┐
+│ 2. Negotiate terms first                    │
+├─────────────────────────────────────────────┤
+│ ⚠ May affect:                               │
+│   • Ember standing (risk)                   │
+│   • Guard's disposition                     │
+│   • Time pressure                           │
+└─────────────────────────────────────────────┘
+```
+**Important:** Previews are hints, not guarantees. Preserve uncertainty.
+
+**Trust/Disposition Meter:**
+Optional inline indicator during NPC dialogue:
+```
+[Disposition: Wary ▰▰▱▱▱]
+```
+Updates in real-time as conversation progresses.
+
+---
+
 ## Phase 2: Desktop App (Terminal++, Not Replacement)
 
 **Goal:** Warp's lesson - "better terminal" not "replace terminal"
@@ -321,6 +424,31 @@ def show_npc_dialogue(npc_name, faction, disposition, text, portrait_path=None):
 - Same CLI commands
 - Same game logic
 - Can still run pure CLI version
+
+**Proposed Directory Structure:**
+```
+sentinel-ui/                    # COMPLETELY OPTIONAL
+├── src/
+│   ├── terminal/
+│   │   ├── cli_wrapper.ts      # Wraps Python CLI
+│   │   ├── command_palette.tsx # Warp-style command input
+│   │   └── block_renderer.tsx  # Choice blocks, outputs
+│   ├── portraits/
+│   │   ├── npc_display.tsx     # MGS-style portrait overlay
+│   │   ├── faction_overlay.tsx # Faction context display
+│   │   └── disposition_meter.tsx
+│   ├── visualization/
+│   │   ├── timeline_view.tsx   # Consequence chain visualization
+│   │   ├── faction_map.tsx     # Relationship graph
+│   │   └── memory_inspector.tsx # Browse campaign history
+│   └── bridge/
+│       ├── ipc.ts              # IPC to Python backend
+│       └── memvid_reader.ts    # Read .mv2 file directly
+└── assets/
+    ├── portraits/              # NPC portrait images
+    ├── faction_themes/         # Color schemes per faction
+    └── icons/                  # UI iconography
+```
 
 ---
 
@@ -357,6 +485,18 @@ When interacting with factions, subtle UI changes:
 - **Ghost Networks:** Glitch effects, ephemeral text
 
 ### 3.2 Moment-Driven UX
+
+**Core principle:** The UI should be *interruptible*, not polite.
+
+**Visual Modes (distinct behaviors, not just components):**
+
+| Mode | Visual Behavior |
+|------|-----------------|
+| Normal dialogue | Calm cadence, stable layout |
+| Choice block | Hard borders, no animation |
+| Hinge moment | Color inversion + subtle jitter |
+| Council | Split-pane, conflicting alignment |
+| Dormant thread surfacing | Brief UI interruption |
 
 **Routine moments:** Clean, minimal
 **High-stakes choices:** Visual weight increases
@@ -433,6 +573,12 @@ When interacting with factions, subtle UI changes:
 - Smooth scrolling is non-negotiable
 - Local LLM users shouldn't suffer
 
+**Stillness Is Power:**
+- If *everything* moves, nothing feels important
+- Stillness = confidence, Motion = stress
+- Reserve animation for moments that earn it
+- Let silence and static frames carry weight
+
 ---
 
 ## Success Metrics
@@ -446,6 +592,17 @@ When interacting with factions, subtle UI changes:
 
 ---
 
-**Version:** 1.0 - Planning Phase
+## Feedback Sources
+
+This document incorporates suggestions from:
+- ChatGPT
+- Claude (Chrome Extension)
+- Claude Code
+- Deepseek
+- Kimi
+
+---
+
+**Version:** 1.2 - Consolidated Feedback
 **Status:** Vision Document - Implementation TBD
 **Vibe Check:** Confident, polished, unapologetically terminal

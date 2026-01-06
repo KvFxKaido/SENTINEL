@@ -359,6 +359,267 @@ And if the answer is yes, the next question is: "How do we keep it from becoming
 
 ---
 
-**Version:** 1.0 - Design Draft  
-**Contributors:** Shawn Montgomery (framework), Claude (question resolution, roadmap)  
+## Appendix A: Implementation Sketches
+
+> **Note:** These are reference implementations, not production code. Actual implementation should follow SENTINEL's existing patterns.
+
+### A.1 Core State Adapter
+
+```python
+# sentinel-agent/src/state/memvid_adapter.py
+from memvid_sdk import Memvid, PutOptions, SearchRequest
+from datetime import datetime
+
+class MemvidGameState:
+    def __init__(self, campaign_file="campaign.mv2"):
+        self.mv = Memvid.create(campaign_file)
+
+    def save_turn(self, game_state, choices, npcs_affected):
+        """Save complete turn state as Smart Frame"""
+        frame_data = {
+            "turn": game_state.turn_number,
+            "session": game_state.session_number,
+            "player_state": game_state.player.__dict__,
+            "faction_standings": game_state.faction_standings,
+            "choices_made": choices,
+            "npc_changes": npcs_affected,
+            "active_threads": game_state.consequence_threads,
+        }
+
+        opts = PutOptions.builder() \
+            .title(f"Turn {game_state.turn_number}") \
+            .tag("session", str(game_state.session_number)) \
+            .tag("type", "turn_state") \
+            .build()
+
+        self.mv.put_json(frame_data, opts)
+        self.mv.commit()
+
+    def save_hinge_moment(self, choice, immediate_effects, dormant_threads):
+        """Tag major decisions for easy retrieval"""
+        frame_data = {
+            "choice": choice,
+            "immediate": immediate_effects,
+            "dormant": dormant_threads,
+            "timestamp": datetime.now().isoformat(),
+        }
+
+        opts = PutOptions.builder() \
+            .title(f"HINGE: {choice['description']}") \
+            .tag("type", "hinge_moment") \
+            .tag("severity", "high") \
+            .build()
+
+        self.mv.put_json(frame_data, opts)
+        self.mv.commit()
+
+    def query_timeline(self, query):
+        """Search campaign history"""
+        request = SearchRequest(
+            query=query,
+            top_k=10,
+            snippet_chars=200
+        )
+        return self.mv.search(request)
+```
+
+### A.2 NPC Memory System
+
+```python
+# sentinel-agent/src/memory/memvid_npc.py
+
+class MemvidNPCMemory:
+    def __init__(self, memvid_instance):
+        self.mv = memvid_instance
+
+    def record_interaction(self, npc_name, player_action, npc_reaction,
+                          disposition_change, context):
+        """Store NPC memory as frame"""
+        frame_data = {
+            "npc": npc_name,
+            "action": player_action,
+            "reaction": npc_reaction,
+            "disposition_delta": disposition_change,
+            "context": context,
+        }
+
+        opts = PutOptions.builder() \
+            .title(f"Interaction: {npc_name}") \
+            .tag("npc", npc_name) \
+            .tag("type", "npc_memory") \
+            .build()
+
+        self.mv.put_json(frame_data, opts)
+
+    def get_npc_history(self, npc_name):
+        """Retrieve all interactions with specific NPC"""
+        results = self.mv.search(SearchRequest(
+            query=f"npc:{npc_name}",
+            top_k=50
+        ))
+        return [hit.json_data for hit in results.hits]
+
+    def npc_remembers(self, npc_name, topic):
+        """Check if NPC remembers something - returns (bool, hits)"""
+        results = self.mv.search(SearchRequest(
+            query=f"npc:{npc_name} {topic}",
+            top_k=5
+        ))
+        return len(results.hits) > 0, results.hits
+```
+
+### A.3 Consequence Timeline
+
+```python
+# sentinel-agent/src/consequences/memvid_threads.py
+
+class ConsequenceTimeline:
+    def __init__(self, memvid_instance):
+        self.mv = memvid_instance
+
+    def create_thread(self, thread_id, trigger_choice, effects,
+                     activation_condition, current_turn):
+        """Create new consequence thread"""
+        frame_data = {
+            "thread_id": thread_id,
+            "status": "dormant",
+            "triggered_by": trigger_choice,
+            "effects": effects,
+            "activation": activation_condition,
+            "created_turn": current_turn,
+        }
+
+        opts = PutOptions.builder() \
+            .title(f"Thread: {thread_id}") \
+            .tag("type", "consequence_thread") \
+            .tag("status", "dormant") \
+            .build()
+
+        self.mv.put_json(frame_data, opts)
+
+    def get_active_threads(self):
+        """Get all currently active consequence threads"""
+        results = self.mv.search(SearchRequest(
+            query="type:consequence_thread status:active",
+            top_k=20
+        ))
+        return [hit.json_data for hit in results.hits]
+
+    def get_dormant_threads(self):
+        """Get all dormant consequence threads"""
+        results = self.mv.search(SearchRequest(
+            query="type:consequence_thread status:dormant",
+            top_k=20
+        ))
+        return [hit.json_data for hit in results.hits]
+```
+
+### A.4 CLI Commands
+
+```python
+# Add to sentinel-agent/src/interface/cli.py
+
+@command
+def timeline(args):
+    """View campaign timeline"""
+    if args.query:
+        results = memvid_state.query_timeline(args.query)
+        display_timeline_results(results)
+    else:
+        recent = memvid_state.query_timeline("type:turn_state")
+        display_timeline(recent[:10])
+
+@command
+def rewind(session_num, turn_num):
+    """Load earlier campaign state (requires confirmation)"""
+    confirm = input(f"Rewind to Session {session_num}, Turn {turn_num}? (yes/no): ")
+    if confirm.lower() == "yes":
+        memvid_state.rewind_to_turn(turn_num)
+        print("Campaign state restored.")
+
+@command
+def consequences():
+    """Display consequence threads"""
+    timeline = ConsequenceTimeline(memvid_state.mv)
+
+    active = timeline.get_active_threads()
+    dormant = timeline.get_dormant_threads()
+
+    print("\nACTIVE THREADS")
+    for thread in active:
+        print(f"├─ {thread['thread_id']}")
+        print(f"│  └─ Triggered by: {thread['triggered_by']}")
+
+    print("\nDORMANT THREADS")
+    for thread in dormant:
+        print(f"└─ {thread['thread_id']} ({thread['activation']})")
+        print(f"   └─ Triggered by: {thread['triggered_by']}")
+```
+
+### A.5 Frontend Bridge (TypeScript)
+
+```typescript
+// sentinel-ui/src/bridge/memvid_reader.ts
+import { Memvid } from '@memvid/sdk';
+
+export class CampaignReader {
+    private mv: Memvid;
+
+    constructor(campaignPath: string) {
+        this.mv = Memvid.open(campaignPath);
+    }
+
+    async getRecentTurns(count: number = 10) {
+        const results = await this.mv.search({
+            query: "type:turn_state",
+            topK: count
+        });
+        return results.hits.map(hit => hit.jsonData);
+    }
+
+    async getNPCInteractions(npcName: string) {
+        const results = await this.mv.search({
+            query: `npc:${npcName}`,
+            topK: 50
+        });
+        return results.hits.map(hit => hit.jsonData);
+    }
+
+    async getConsequenceThreads() {
+        const results = await this.mv.search({
+            query: "type:consequence_thread",
+            topK: 20
+        });
+        return results.hits.map(hit => hit.jsonData);
+    }
+}
+```
+
+---
+
+## Appendix B: Migration Checklist
+
+1. **Install SDK:** `pip install memvid-sdk`
+2. **Create adapter:** Implement `MemvidGameState` class
+3. **Parallel write:** Keep existing JSON saves, also write to `.mv2`
+4. **Verify integrity:** Compare JSON and memvid outputs
+5. **Add commands:** `/timeline`, `/consequences`
+6. **Test with existing campaigns**
+7. **(Optional) Build frontend** — only after CLI integration solid
+
+---
+
+## Feedback Sources
+
+This document incorporates suggestions from:
+- ChatGPT
+- Claude (Chrome Extension)
+- Claude Code
+- Deepseek
+- Kimi
+
+---
+
+**Version:** 1.1 - Implementation Sketches Added
+**Contributors:** Shawn Montgomery (framework), Claude (question resolution, roadmap, code sketches)
 **Status:** Awaiting decision on Phase 1 prototype
