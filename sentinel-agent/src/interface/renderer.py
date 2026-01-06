@@ -255,7 +255,7 @@ def show_help():
 | `/status` | Show current status |
 | `/backend` | Show/change LLM backend |
 | `/model` | List/switch LM Studio models |
-| `/lore` | Show lore status, test retrieval |
+| `/lore` | Show lore status, test retrieval (`/lore quotes` for faction quotes) |
 | `/npc [name]` | View NPC info and personal standing |
 | `/arc` | View and manage emergent character arcs |
 | `/simulate` | Explore hypotheticals (preview, npc, whatif) |
