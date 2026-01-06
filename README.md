@@ -217,7 +217,6 @@ pytest
 |----------|---------|
 | [Project Brief](SENTINEL_PROJECT_BRIEF.md) | Full project overview |
 | [Agent Architecture](architecture/AGENT_ARCHITECTURE.md) | Technical design |
-| [Mechanics Roadmap](architecture/MECHANICS_ROADMAP.md) | Feature roadmap (all complete ✓) |
 | [Campaign MCP Server](sentinel-campaign/README.md) | Faction server design |
 | [Agent Dev Guide](sentinel-agent/CLAUDE.md) | Contributor guide |
 

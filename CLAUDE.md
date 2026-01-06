@@ -10,8 +10,6 @@ SENTINEL/
 │   └── SENTINEL Playbook — Core Rules.md
 ├── architecture/            # Technical design
 │   ├── AGENT_ARCHITECTURE.md
-│   ├── MECHANICS_ROADMAP.md
-│   ├── memvid_integration_design.md
 │   ├── sentinel_warp_vision.md
 │   └── npc_codec_prototype.py
 ├── sentinel-agent/          # The AI GM implementation
@@ -39,8 +37,6 @@ SENTINEL is a tactical tabletop RPG about navigating political tension, ethical 
 |----------|---------|
 | `core/SENTINEL Playbook — Core Rules.md` | The complete game rules |
 | `architecture/AGENT_ARCHITECTURE.md` | Agent design, state schema, tools |
-| `architecture/MECHANICS_ROADMAP.md` | Game systems roadmap (factions, consequences, arcs) |
-| `architecture/memvid_integration_design.md` | Memory system design + implementation sketches |
 | `architecture/sentinel_warp_vision.md` | Terminal UI/UX roadmap (Warp + MGS inspired) |
 | `sentinel-agent/CLAUDE.md` | Dev guide for the agent codebase |
 | `sentinel-campaign/README.md` | Campaign MCP server (factions, history, tools) |
