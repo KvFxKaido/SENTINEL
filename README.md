@@ -18,6 +18,20 @@ python -m src.interface.cli
 
 Then: `/new` → `/char` → `/start` → play
 
+### Commands at a Glance
+
+| Command | What it does |
+|---------|--------------|
+| `/consult <question>` | Get competing perspectives from faction advisors |
+| `/factions` | View standings, relationships, cascade effects |
+| `/npc [name]` | View NPC info and personal history |
+| `/arc` | Manage emergent character arcs |
+| `/consequences` | View pending threads and avoided situations |
+| `/timeline <query>` | Search campaign memory (requires memvid) |
+| `/simulate preview <action>` | Preview consequences without committing |
+| `/lore quotes` | Browse faction mottos and world truths |
+| `/debrief` | End session with reflection prompts |
+
 ## Project Structure
 
 ```
@@ -85,35 +99,53 @@ Players choose one professional background. Backgrounds express capability, not 
 ### AI Game Master
 
 * Multiple LLM backends (LM Studio, Ollama, Claude, OpenRouter, Gemini, Codex)
-* Hot-reloadable prompts
-* Lore retrieval from novellas
+* Hot-reloadable prompts with phase-specific guidance
+* Lore retrieval from novellas + campaign memory search
 * `/consult` — get competing perspectives from faction advisors
-* `/simulate` — AI vs AI testing with 4 player personas
+* `/simulate` — preview consequences, predict NPC reactions, explore what-ifs
 
 ### NPC System
 
 * Agendas: wants, fears, leverage, owes, lie_to_self
+* Individual memory separate from faction standing
 * Memory triggers react to player actions
-* Disposition modifiers change behavior
+* Disposition modifiers change behavior per level
+* `/npc` command to view relationships and history
+
+### Faction Dynamics
+
+* 11 factions with inter-faction relationships
+* Cascading effects when you help or oppose factions
+* `/factions` command shows standings and relationship webs
+* Faction narrative corruption (GM language shifts with standing)
 
 ### Consequence Engine
 
 * Hinge moments (irreversible choices)
 * Dormant threads (delayed consequences)
-* Leverage escalation (factions call in favors)
-* Faction standing affects NPC behavior
+* Leverage escalation (factions call in favors with deadlines)
+* `/consequences` command to view pending threads
+* Avoidance tracking (not acting is also a choice)
 
-### Choice System
+### Character Development
 
-* GM always offers 2-4 options plus improvisation
-* High-stakes moments use formal choice blocks
-* Choices extracted and tracked for AI simulation
+* 8 emergent arc types detected from play patterns
+* `/arc` command to view, accept, or reject suggested arcs
+* Accepted arcs inform GM behavior and NPC recognition
+* Social energy with personalized restorers/drains
 
-### Social Energy
+### Campaign Memory (Memvid)
 
-* Tracks emotional bandwidth (0-100%)
-* Personalized restorers and drains
-* Affects social roll modifiers
+* Semantic search over campaign history
+* `/timeline` command finds relevant past events
+* Auto-captures hinges, faction shifts, NPC interactions
+* Optional dependency — works without it
+
+### Lore Integration
+
+* 44 curated faction quotes injected into GM context
+* `/lore quotes` command to browse mottos and world truths
+* Unified retrieval combines static lore + campaign history
 
 ## LLM Backends
 
@@ -164,7 +196,7 @@ pip install -e ".[dev]"
 pytest
 ```
 
-**197 tests** covering state, mechanics, simulation, and event queue.
+**197+ tests** covering state, mechanics, simulation, and event queue.
 
 ## Design Philosophy
 
@@ -174,19 +206,19 @@ pytest
 * Consequences bloom over time
 * Honor player choices — no "right answers"
 * Every faction is right about something
+* Refusal is a meaningful choice
+* Avoidance is content — the world doesn't wait
+* Emergent identity — arcs recognize patterns, not prescribe paths
+* Lore as texture — quotes are seasoning, not scripts
 
 ## Documentation
 
 | Document | Purpose |
-
 |----------|---------|
-
 | [Project Brief](SENTINEL_PROJECT_BRIEF.md) | Full project overview |
-
 | [Agent Architecture](architecture/AGENT_ARCHITECTURE.md) | Technical design |
-
+| [Mechanics Roadmap](architecture/MECHANICS_ROADMAP.md) | Feature roadmap (all complete ✓) |
 | [Campaign MCP Server](sentinel-campaign/README.md) | Faction server design |
-
 | [Agent Dev Guide](sentinel-agent/CLAUDE.md) | Contributor guide |
 
 ## License
