@@ -12,6 +12,7 @@ from rich.table import Table
 from rich.markdown import Markdown
 from rich.live import Live
 from rich.text import Text
+from rich.box import ROUNDED
 from prompt_toolkit.styles import Style as PTStyle
 
 from .glyphs import (
@@ -19,6 +20,7 @@ from .glyphs import (
     format_context_meter, estimate_conversation_tokens,
     CONTEXT_LIMITS,
 )
+from ..state.schema import Campaign, Character, MissionPhase
 
 
 # Shared console instance
@@ -283,6 +285,8 @@ def show_help():
 | `/status` | Show current status |
 | `/backend` | Show/change LLM backend |
 | `/model` | List/switch LM Studio models |
+| `/banner` | Toggle banner animation on startup |
+| `/statusbar` | Toggle persistent status bar |
 | `/lore` | Show lore status, test retrieval (`/lore quotes` for faction quotes) |
 | `/npc [name]` | View NPC info and personal standing |
 | `/arc` | View and manage emergent character arcs |
@@ -340,6 +344,134 @@ def show_choices(choices):
         console.print(Panel(choice_text, title=title, border_style=box_style))
     else:
         console.print(Panel(choice_text, border_style=box_style, padding=(0, 1)))
+
+
+# -----------------------------------------------------------------------------
+# Persistent Status Bar
+# -----------------------------------------------------------------------------
+
+class StatusBar:
+    """
+    Persistent status bar showing character, mission, and energy state.
+
+    Tracks previous values to show deltas (e.g., "68% → 53% ↓").
+    """
+
+    def __init__(self):
+        self._prev_energy: int | None = None
+        self._prev_credits: int | None = None
+        self._enabled: bool = True
+
+    @property
+    def enabled(self) -> bool:
+        return self._enabled
+
+    @enabled.setter
+    def enabled(self, value: bool):
+        self._enabled = value
+
+    def toggle(self) -> bool:
+        """Toggle status bar on/off. Returns new state."""
+        self._enabled = not self._enabled
+        return self._enabled
+
+    def format(self, campaign: Campaign | None) -> Text | None:
+        """
+        Format the status bar for display.
+
+        Returns None if disabled or no campaign loaded.
+        """
+        if not self._enabled or not campaign:
+            return None
+
+        text = Text()
+
+        # Character info
+        if campaign.characters:
+            char = campaign.characters[0]
+            display_name = char.callsign if char.callsign else char.name
+            text.append(f" {display_name}", style=f"bold {THEME['secondary']}")
+        else:
+            text.append(" No Character", style=f"{THEME['dim']}")
+
+        text.append(" │ ", style=THEME["dim"])
+
+        # Mission info
+        if campaign.session:
+            mission_title = campaign.session.mission_title
+            if len(mission_title) > 20:
+                mission_title = mission_title[:18] + "…"
+            phase = campaign.session.phase.value.title()
+            text.append(f"{mission_title}", style=THEME["primary"])
+            text.append(f" ({phase})", style=THEME["dim"])
+        else:
+            text.append("No Mission", style=THEME["dim"])
+
+        text.append(" │ ", style=THEME["dim"])
+
+        # Social energy with delta
+        if campaign.characters:
+            char = campaign.characters[0]
+            energy = char.social_energy
+            current = energy.current
+
+            # Energy color based on state
+            if current >= 51:
+                energy_color = THEME["accent"]
+            elif current >= 26:
+                energy_color = THEME["warning"]
+            else:
+                energy_color = THEME["danger"]
+
+            # Short name (max 12 chars)
+            energy_name = energy.name[:12] if len(energy.name) > 12 else energy.name
+
+            # Show delta if we have previous value
+            if self._prev_energy is not None and self._prev_energy != current:
+                delta = current - self._prev_energy
+                if delta > 0:
+                    delta_str = f" ↑{delta}"
+                    delta_style = THEME["accent"]
+                else:
+                    delta_str = f" ↓{abs(delta)}"
+                    delta_style = THEME["danger"]
+                text.append(f"{energy_name}: {current}%", style=energy_color)
+                text.append(delta_str, style=f"bold {delta_style}")
+            else:
+                text.append(f"{energy_name}: {current}%", style=energy_color)
+
+            # Update tracked value
+            self._prev_energy = current
+
+        text.append(" │ ", style=THEME["dim"])
+
+        # Session count
+        text.append(f"Session {campaign.meta.session_count}", style=THEME["dim"])
+        text.append(" ", style="")
+
+        return text
+
+    def render(self, campaign: Campaign | None) -> None:
+        """Render the status bar to console."""
+        content = self.format(campaign)
+        if content:
+            console.print(Panel(
+                content,
+                box=ROUNDED,
+                padding=(0, 0),
+                style=THEME["dim"],
+            ))
+
+    def reset_tracking(self) -> None:
+        """Reset delta tracking (call on campaign load)."""
+        self._prev_energy = None
+        self._prev_credits = None
+
+
+
+
+# Shared status bar instance
+status_bar = StatusBar()
 
 
 # -----------------------------------------------------------------------------

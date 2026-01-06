@@ -21,9 +21,12 @@ from ..lore.quotes import (
 )
 from .renderer import (
     console, THEME, show_status, show_backend_status, show_help,
-    render_codec_box, FACTION_COLORS, DISPOSITION_COLORS,
+    render_codec_box, FACTION_COLORS, DISPOSITION_COLORS, status_bar,
 )
-from .config import set_model as save_model_config, set_animate_banner, load_config
+from .config import (
+    set_model as save_model_config, set_animate_banner, set_show_status_bar,
+    load_config,
+)
 from .glyphs import g
 
 
@@ -69,6 +72,7 @@ def cmd_load(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
     campaign = manager.load_campaign(args[0])
     if campaign:
         console.print(f"[green]Loaded:[/green] {campaign.meta.name}")
+        status_bar.reset_tracking()  # Reset delta tracking for fresh campaign
         show_status(manager)
     else:
         console.print("[red]Campaign not found[/red]")
@@ -274,6 +278,35 @@ def cmd_banner(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
     set_animate_banner(new_value)
     status = "[green]on[/green]" if new_value else "[dim]off[/dim]"
     console.print(f"Banner animation: {status}")
+    console.print("[dim]  (Saved for future sessions)[/dim]")
+
+
+def cmd_statusbar(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
+    """Toggle persistent status bar."""
+    config = load_config()
+    current = config.get("show_status_bar", True)
+
+    if args:
+        # Set explicitly: /statusbar on, /statusbar off
+        arg = args[0].lower()
+        if arg in ("on", "true", "1", "yes"):
+            new_value = True
+        elif arg in ("off", "false", "0", "no"):
+            new_value = False
+        else:
+            console.print(f"[yellow]Unknown option: {arg}[/yellow]")
+            console.print("[dim]Use: /statusbar on, /statusbar off, or just /statusbar to toggle[/dim]")
+            return
+    else:
+        # Toggle
+        new_value = not current
+
+    # Update both config and runtime state
+    set_show_status_bar(new_value)
+    status_bar.enabled = new_value
+
+    status = "[green]on[/green]" if new_value else "[dim]off[/dim]"
+    console.print(f"Status bar: {status}")
     console.print("[dim]  (Saved for future sessions)[/dim]")
 
 
@@ -2525,6 +2558,7 @@ def create_commands(manager: CampaignManager, agent: SentinelAgent, conversation
         "/backend": cmd_backend,
         "/model": cmd_model,
         "/banner": cmd_banner,
+        "/statusbar": cmd_statusbar,
         "/lore": cmd_lore,
         "/char": cmd_char,
         "/npc": cmd_npc,
