@@ -442,6 +442,20 @@ class CampaignManager:
 
         return processed
 
+    def poll_events(self) -> int:
+        """
+        Poll and process pending MCP events.
+
+        Call this at the start of each input loop to ensure
+        faction events from MCP are processed immediately,
+        not just on campaign load.
+
+        Returns the number of events processed.
+        """
+        if not self.current:
+            return 0
+        return self._process_pending_events(self.current)
+
     def _process_single_event(self, campaign: Campaign, event) -> None:
         """Process a single event from the queue."""
         from .schema import HistoryEntry, HistoryType
@@ -454,14 +468,30 @@ class CampaignManager:
             session = payload.get("session", campaign.meta.session_count)
             is_permanent = payload.get("is_permanent", False)
 
-            # Create history entry (what log_faction_event used to do directly)
+            # Create history entry with provenance (event ID links MCP → history)
             entry = HistoryEntry(
                 session=session,
                 type=HistoryType.FACTION_SHIFT,
                 summary=f"[{faction.replace('_', ' ').title()}] {summary}",
                 is_permanent=is_permanent,
+                event_id=event.id,  # Provenance: links to MCP event
             )
             campaign.history.append(entry)
+
+            # Also save to memvid with same event_id for provenance tracking
+            if self._memvid:
+                from .schema import FactionName
+                try:
+                    faction_enum = FactionName(faction)
+                    self._memvid.save_faction_shift(
+                        faction=faction_enum,
+                        from_standing="Unknown",  # MCP doesn't track this
+                        to_standing="Unknown",
+                        cause=f"{summary} (event_id: {event.id})",
+                        session=session,
+                    )
+                except ValueError:
+                    pass  # Invalid faction name
 
         # Future: handle other event types here
         # elif event.event_type == "npc_update":

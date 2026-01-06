@@ -751,6 +751,9 @@ class HistoryEntry(BaseModel):
     # Marks entry as permanent world-change
     is_permanent: bool = False
 
+    # Provenance tracking (links to MCP event or memvid frame)
+    event_id: str | None = None
+
 
 class CampaignMeta(BaseModel):
     """Campaign metadata."""

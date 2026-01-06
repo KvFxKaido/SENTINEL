@@ -137,7 +137,12 @@ def get_faction_interactions(
     faction: str,
     limit: int = 10,
 ) -> dict:
-    """Get history of player interactions with a faction."""
+    """
+    Get history of player interactions with a faction.
+
+    DEPRECATED: Prefer /timeline (memvid semantic search) for richer queries.
+    This tool provides deterministic keyword fallback when memvid unavailable.
+    """
     campaign = _load_campaign(campaigns_dir, campaign_id)
     if not campaign:
         return {"error": f"Campaign not found: {campaign_id}"}
@@ -164,6 +169,8 @@ def get_faction_interactions(
     return {
         "faction": faction_name,
         "interactions": interactions,
+        "_deprecated": True,
+        "_note": "Prefer /timeline for semantic search. This is keyword fallback.",
     }
 
 
