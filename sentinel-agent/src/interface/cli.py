@@ -178,7 +178,7 @@ class SlashCommandCompleter(Completer):
 
         # Check character requirement
         if cmd in CONTEXT_REQUIREMENTS.get("character_required", []):
-            if not manager.current or not manager.current.character:
+            if not manager.current or not manager.current.characters:
                 return False
 
         # Check session requirement (session has been started)
