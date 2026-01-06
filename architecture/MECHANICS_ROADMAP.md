@@ -346,7 +346,89 @@ But we're the ones who keep it running. Remember that."
 
 ---
 
-## 8. Event-Driven UI Architecture
+## 8. API Boundary
+
+Before building any UI, formalize the API boundary so any frontend can connect:
+
+```python
+# sentinel-agent/src/interface/api.py
+class GameAPI:
+    """JSON-serializable interface for any frontend"""
+
+    def get_scene_state() -> Dict:
+        """NPCs, location, choices, current context"""
+        pass
+
+    def get_dialogue_history() -> List[Message]:
+        """Conversation history for current scene"""
+        pass
+
+    def submit_choice(choice_idx: int, custom_text: str = None):
+        """Player makes a choice or improvises"""
+        pass
+
+    def get_npc_data(npc_id: str) -> Dict:
+        """Portrait, disposition, agenda for specific NPC"""
+        pass
+
+    def get_player_state() -> Dict:
+        """Social energy, faction standings, active threads"""
+        pass
+```
+
+**Benefits:**
+- Keep CLI unchanged
+- Build web/desktop/mobile frontends simultaneously
+- Allow third-party UIs
+- Testable in isolation
+
+---
+
+## 9. Terminal UI Mockup
+
+Reference implementation for Warp-style terminal with SENTINEL data:
+
+```
+SENTINEL Terminal v1.0
+─────────────────────────────────────
+
+NPC: Cipher (Nexus Analyst)
+Disposition: Friendly [+12]
+Location: Archive Terminal 7A
+─────────────────────────────────────
+
+[You approach the terminal. Cipher looks up from her screens.]
+
+CIPHER: "The data doesn't match. Nexus records
+show the shipment arrived, but Witness archives
+say otherwise. Someone's rewriting history."
+
+─────────────────────────────────────
+Choices detected:
+[1] 🔍 Ask about the discrepancy (Investigation)
+    DC: 14, Energy: -10%
+
+[2] 🤝 Suggest collaborating with Witnesses (Diplomacy)
+    Faction: Nexus -2, Witnesses +1
+
+[3] ⚡ Push for immediate action (Combat Specialist)
+    Triggers: Leverage escalation with Steel Syndicate
+
+[4] 💭 Something else...
+─────────────────────────────────────
+> _
+```
+
+**Warp Features to Steal:**
+- Inline command preview — hover over choices to see consequences
+- Smart autocomplete — `/consult faction:` shows all 11 factions
+- Inline dice results — `🎲 17 + 5 = 22 (Success!)`
+- Session branching — like Warp's command tree, but for narrative
+- Inline lore tooltips — hover over faction names for quick info
+
+---
+
+## 10. Event-Driven UI Architecture
 
 **Principle:** The frontend should **never interpret meaning** — only display state.
 
@@ -478,13 +560,14 @@ Every GM output becomes a typed event:
 ## Feedback Sources
 
 This document incorporates suggestions from:
-- ChatGPT
-- Claude (Chrome Extension)
-- Claude Code
-- Deepseek
-- Kimi
+- ChatGPT (event-driven architecture)
+- Claude Chrome Extension (initial consolidation)
+- Claude Code (integration, editing)
+- Deepseek (API boundary, terminal mockup, Warp features)
+- Gemini (streaming patterns)
+- Kimi (practical implementation tips)
 
 ---
 
-**Version:** 1.0 - Initial Draft
+**Version:** 2.0 - Full AI Council Feedback
 **Status:** Proposal - Awaiting Prioritization

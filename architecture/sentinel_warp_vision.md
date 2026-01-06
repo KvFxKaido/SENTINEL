@@ -251,6 +251,31 @@ type NPCVisualState =
 
 **Rule of thumb:** If the AI knows something emotionally, the UI should *leak* it visually.
 
+**Portrait Data Schema:**
+
+```python
+{
+  "npc_id": "cipher",
+  "portrait": "data/portraits/cipher_base.png",
+  "emotions": {
+    "neutral": "cipher_neutral.png",
+    "tense": "cipher_tense.png",
+    "surprised": "cipher_surprise.png"
+  },
+  "faction_overlay": "nexus_frame.png",  # Faction-colored border
+  "disposition_indicator": "green",       # Color based on relationship
+  "speaking": true,
+  "active_effects": ["static", "low_battery"]  # For Ghost Network NPCs
+}
+```
+
+**Practical Portrait Tips:**
+
+- **Aspect-ratio lock:** Keep portraits 4:3 or 3:4 so you can hot-swap art without re-layout
+- **Two-state system:** Store `neutral` + `shift` (micro-expression) per NPC. Toggle shift layer for 200ms when text contains trigger words from their agenda (`lie_to_self`, `fears`, etc.). Instant personality without new art.
+- **Cheap cohesion:** Generate base face, then grayscale + color-overlay for faction tint. Minimal art, maximum consistency.
+- **"Lie to Self" indicator:** Barely visible double-exposure effect — two slightly offset copies of the portrait at 50% opacity
+
 **CSS Filter Approach (MVP):**
 
 You don't need live animation. 3-5 portrait variants + CSS filters = high impact, low effort.
@@ -401,23 +426,66 @@ Updates in real-time as conversation progresses.
 
 ---
 
+### 1.7 Social Energy Widget
+
+**Concept:** Reskin the social energy meter as a heartbeat trace on a mini canvas.
+
+**Implementation:**
+- Draw 120-point sine wave, clamp amplitude to current %
+- **Frayed:** Add `noise()` to the wave
+- **Overloaded:** Red overshoot spikes
+- One canvas element, 60fps, feels medical/clinical
+
+**Why this works:** Matches SENTINEL's "clinical precision" aesthetic while making an abstract stat feel visceral.
+
+---
+
+### 1.8 Glitch Effects Library
+
+**Banner Glitch Intro (Kimi):**
+Corrupt the canvas on load: slice the banner PNG into 8-pixel strips, jitter x-coordinates with `Math.sin(frame * 0.3) * corruption`, then converge to normal over ~90 frames. 30 lines of JS, instant aesthetic.
+
+**Frequency Jitter (Gemini):**
+When an NPC is lying or faction is hostile, jitter their portrait position by 1-2 pixels randomly. Subtle wrongness.
+
+**Signal Quality per Faction (Council Mode):**
+- **Nexus:** Clean, high-res signal
+- **Ember:** Analog fuzz, warm tones
+- **Ghost Networks:** Signal drops in and out, visual artifacts
+
+**Warp-Style Block Glow:**
+```css
+.block {
+  background: #111;
+  box-shadow: 0 0 0 1px #3a3a3a, 0 0 0 2px #1e1e1e;
+}
+.block:focus {
+  box-shadow: 0 0 0 1px #4a9eff, 0 0 8px #4a9eff40;
+}
+```
+
+---
+
 ## Phase 2: Desktop App (Terminal++, Not Replacement)
 
 **Goal:** Warp's lesson - "better terminal" not "replace terminal"
 
 ### 2.1 Tauri Wrapper
-**Why Tauri:**
-- Tiny bundle size (~3MB)
-- Uses system webview (no Electron bloat)
+**Why Tauri over Electron:**
+- Tiny bundle size (~3MB vs 150MB+)
+- Uses system webview (no Chromium bloat)
 - Rust backend can embed Python runtime
 - Native feel, terminal heart
+- Better security model
+- Plays nicely with local file systems for campaign saves
 
 **What It Adds:**
-- Better font rendering (ligatures, custom fonts)
+- Better font rendering (ligatures, custom fonts like JetBrains Mono, Fira Code)
 - Theme customization UI
 - Window management (split views for notes?)
 - File drag-and-drop for character import
 - System notifications for important moments
+- Subtle key-press sounds or visual flares (very MGS)
 
 **What It Doesn't Change:**
 - Still fundamentally terminal interaction
@@ -450,9 +518,58 @@ sentinel-ui/                    # COMPLETELY OPTIONAL
     └── icons/                  # UI iconography
 ```
 
+**Recommended Tech Stack:**
+```
+frontend/
+├── web/                     # Browser-based UI
+│   ├── vite + react         # Fast dev, good component model
+│   ├── tailwind             # Theme control, faction colors
+│   ├── xterm.js             # Terminal emulation (or custom)
+│   ├── pixi.js              # 2D canvas for portraits/effects
+│   └── framer-motion        # Animations, glitch reveals
+├── desktop/                 # Tauri wrapper
+│   └── shared web components
+└── mobile/                  # Future: React Native
+    └── touch-optimized dialogue
+```
+
 ---
 
-### 2.2 Visual Enhancements (App-Only)
+### 2.2 Backend Connection
+
+**Principle:** Keep Python CLI as single source of truth. Frontend is a view, not a rewrite.
+
+**Options:**
+1. **FastAPI + WebSocket** — Best for streaming text ("incoming transmission" feel)
+2. **Socket.IO** — Real-time state updates (social energy pushes to UI immediately)
+3. **REST polling** — Simplest, but less responsive
+
+**WebSocket Pattern:**
+```python
+# sentinel-agent/src/interface/websocket_server.py
+async def handle_connection(websocket):
+    game = load_campaign()
+
+    while True:
+        await websocket.send_json({
+            "type": "scene_update",
+            "npc_portraits": get_active_npcs(game),
+            "dialogue": current_dialogue,
+            "choices": formatted_choices,
+            "player_status": get_player_state(game)
+        })
+
+        # Wait for input from ANY interface (CLI, web, mobile)
+        choice = await get_next_choice()
+        game = process_choice(choice)
+```
+
+**Warp-Style Input Hinting:**
+Hidden `<span>` that mirrors text; measure width and absolutely-position the ghost hint. Easier than canvas math.
+
+---
+
+### 2.3 Visual Enhancements (App-Only)
 
 **Optional Sidebar:**
 - Faction standing visualization
@@ -514,6 +631,63 @@ When interacting with factions, subtle UI changes:
 - Distracting bounces
 - Unnecessary delays
 - Animations for animation's sake
+
+---
+
+### 3.4 Phase-Based UI Layers
+
+Different mission phases should feel visually distinct:
+
+| Phase | UI Theme | Interaction Pattern |
+|-------|----------|---------------------|
+| Briefing | Command center (blue tones, grids) | Scrollable intel, map view |
+| Planning | Whiteboard mode (yellow/orange) | Drag-n-drop assets, timeline |
+| Execution | First-person HUD (green/red) | Real-time choices, tension meter |
+| Debrief | After-action report (sepia) | Reflection prompts, consequence map |
+
+---
+
+### 3.5 Council as "Codec Mode"
+
+When `/consult` is invoked, trigger a distinct visual mode:
+- Screen dims
+- Two or three portrait boxes slide in
+- Each advisor has distinct signal quality (see §1.8)
+- Player's own portrait shows social energy state (glitch shader if Frayed/Overloaded)
+
+---
+
+## Development Tooling
+
+### Hot-Reload for Assets
+
+During dev, watch the `portraits/` folder with `chokidar`; when a file changes, send a `reload_sprite` event down the socket. Artists see updates instantly, no restart.
+
+### GPU Fallback Detection
+
+Detect terminal emulator via `$TERM_PROGRAM` or `process.env.WARP_IS_LOCAL`. If missing GPU support, fall back to Rich-themed ASCII frames (you already have glyphs). Same data layer, two renderers.
+
+### Platform Considerations
+
+**Steam Deck / Handheld:**
+- Build with Tauri + responsive web UI → deploys to Steam Deck easily
+- Controller mapping: D-pad scrolls through Choice Blocks, 'A' selects, 'Start' opens Codec/Council
+
+---
+
+## Development Pitfalls (Guardrails)
+
+**Avoid:**
+- ❌ Rebuilding AI logic in JS — keep it in Python
+- ❌ Making UI required — CLI must stay pristine
+- ❌ Visual complexity that breaks "calm surface, tension underneath"
+- ❌ UI creep — portrait + dialogue box first, ship that, *then* Warp blocks
+
+**Do:**
+- ✅ Make UI optional and modular
+- ✅ Use existing theme colors (twilight blue, radioactive yellow)
+- ✅ Maintain "if it looks calm, it's lying" design principle
+- ✅ Build as progressive enhancement (terminal → effects → advanced)
 
 ---
 
@@ -595,14 +769,15 @@ When interacting with factions, subtle UI changes:
 ## Feedback Sources
 
 This document incorporates suggestions from:
-- ChatGPT
-- Claude (Chrome Extension)
-- Claude Code
-- Deepseek
-- Kimi
+- ChatGPT (frontend architecture, event-driven UI)
+- Claude Chrome Extension (initial consolidation)
+- Claude Code (integration, editing)
+- Deepseek (phase-based UI, backend patterns, pitfalls)
+- Gemini (Tauri, Socket.IO streaming, controller mapping)
+- Kimi (portrait tips, glitch algorithms, hot-reload, heartbeat widget)
 
 ---
 
-**Version:** 1.2 - Consolidated Feedback
+**Version:** 2.0 - Full AI Council Feedback
 **Status:** Vision Document - Implementation TBD
 **Vibe Check:** Confident, polished, unapologetically terminal
