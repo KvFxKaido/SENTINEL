@@ -257,6 +257,7 @@ def show_help():
 | `/model` | List/switch LM Studio models |
 | `/lore` | Show lore status, test retrieval |
 | `/npc [name]` | View NPC info and personal standing |
+| `/arc` | View and manage emergent character arcs |
 | `/simulate` | Explore hypotheticals (preview, npc, whatif) |
 | `/roll <skill> <dc>` | Roll a skill check |
 | `/quit` | Exit the game |
