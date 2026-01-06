@@ -620,10 +620,11 @@ Every GM output becomes a typed event:
    - [x] Export to markdown
    - [x] Standalone `/summary` command for any session
 
-3. **NPC Individual Memory** — 1-2 weeks
-   - Separate NPC reputation from faction
-   - Personal interaction history
-   - Dialogue references to memories
+3. ~~**NPC Individual Memory**~~ — DONE
+   - [x] Separate NPC reputation from faction (`personal_standing`)
+   - [x] Personal interaction history (`NPCInteraction` model)
+   - [x] Effective disposition calculation (60% personal, 40% faction)
+   - [x] `/npc` command for viewing NPC relationships
 
 ### Mid-Term (System Expansion)
 
