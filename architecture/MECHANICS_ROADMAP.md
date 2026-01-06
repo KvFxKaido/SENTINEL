@@ -634,10 +634,10 @@ Every GM output becomes a typed event:
    - [x] `/factions` command showing standings and relationship webs
    - [x] Cascade effects visualized on faction shifts
 
-5. **Enhanced `/simulate`**
-   - What-if branching
-   - NPC reaction preview
-   - Consequence preview
+5. ~~**Enhanced `/simulate`**~~ — DONE
+   - [x] `/simulate preview <action>` — consequence preview without committing
+   - [x] `/simulate npc <name> <approach>` — NPC reaction prediction
+   - [x] `/simulate whatif <query>` — alternate timeline analysis
 
 6. ~~**Unified Lore + Campaign Memory**~~ — DONE
    - [x] `UnifiedRetriever` class combining both sources
