@@ -17,7 +17,7 @@ from .tools.dice import roll_check, tactical_reset, TOOL_SCHEMAS
 from .tools.hinge_detector import detect_hinge, get_hinge_context
 from .llm.base import LLMClient, Message
 from .llm import create_llm_client
-from .lore import LoreRetriever
+from .lore import LoreRetriever, UnifiedRetriever
 
 
 @dataclass
@@ -315,10 +315,17 @@ class SentinelAgent:
 
         # Initialize lore retriever if lore_dir provided
         self.lore_retriever: LoreRetriever | None = None
+        self.unified_retriever: UnifiedRetriever | None = None
         if lore_dir:
             lore_path = Path(lore_dir)
             if lore_path.exists():
                 self.lore_retriever = LoreRetriever(lore_path)
+                # Create unified retriever with memvid from manager
+                memvid = getattr(self.manager, 'memvid', None)
+                self.unified_retriever = UnifiedRetriever(
+                    self.lore_retriever,
+                    memvid=memvid,
+                )
 
         # Tool registry
         self.tools: dict[str, Callable] = {
@@ -1177,8 +1184,20 @@ class SentinelAgent:
             demand_context = self._format_demand_alerts(urgent_demands)
             system_prompt = system_prompt + "\n\n---\n\n" + demand_context
 
-        # Retrieve relevant lore if available
-        if self.lore_retriever:
+        # Retrieve relevant lore and campaign history if available
+        if self.unified_retriever:
+            # Use unified retriever for combined lore + campaign context
+            unified_result = self.unified_retriever.query(
+                topic=user_message,
+                factions=self._get_active_factions(),
+                limit_lore=2,
+                limit_campaign=5,
+            )
+            if not unified_result.is_empty:
+                context_section = self.unified_retriever.format_for_prompt(unified_result)
+                system_prompt = system_prompt + "\n\n---\n\n" + context_section
+        elif self.lore_retriever:
+            # Fallback to lore-only retriever
             results = self.lore_retriever.retrieve_for_context(
                 player_input=user_message,
                 active_factions=self._get_active_factions(),
