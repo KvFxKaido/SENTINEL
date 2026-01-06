@@ -54,6 +54,7 @@ COMMAND_META = {
     "/lore": "Search lore",
     "/npc": "View NPC info",
     "/factions": "View faction standings",
+    "/simulate": "Explore hypotheticals",
     "/timeline": "Search campaign memory",
     "/roll": "Roll dice",
     "/help": "Show help",
