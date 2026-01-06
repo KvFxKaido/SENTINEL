@@ -637,10 +637,10 @@ Every GM output becomes a typed event:
    - NPC reaction preview
    - Consequence preview
 
-6. **Unified Lore + Campaign Memory** — 1 week
-   - `UnifiedRetriever` class combining both sources
-   - Integration into GM context building
-   - `/consult` draws on campaign history
+6. ~~**Unified Lore + Campaign Memory**~~ — DONE
+   - [x] `UnifiedRetriever` class combining both sources
+   - [x] Integration into GM context building
+   - [x] `/consult` draws on campaign history
 
 ### Long-Term (Polish)
 
