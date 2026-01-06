@@ -1624,79 +1624,197 @@ def cmd_summary(manager: CampaignManager, agent: SentinelAgent, args: list[str])
 
 
 def cmd_history(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
-    """View campaign chronicle."""
+    """View campaign chronicle with filtering and search.
+
+    Usage:
+        /history              - Show all (last 20 entries)
+        /history hinges       - Filter to hinge moments only
+        /history faction      - Filter to faction shifts only
+        /history missions     - Filter to mission completions
+        /history session 3    - Filter to specific session
+        /history search <term> - Keyword search in summaries
+    """
     if not manager.current:
         console.print(f"[{THEME['warning']}]No campaign loaded[/{THEME['warning']}]")
         return
 
-    history = manager.current.history
+    history = list(manager.current.history)
     if not history:
         console.print(f"[{THEME['dim']}]No chronicle entries yet.[/{THEME['dim']}]")
         return
 
-    # Optional filter by type
-    filter_type = args[0].lower() if args else None
+    # Type glyphs and colors - using existing glyphs from glyphs.py
+    type_style = {
+        HistoryType.MISSION: (g("briefing"), THEME["accent"], "MISSION"),
+        HistoryType.HINGE: (g("hinge"), THEME["danger"], "HINGE"),
+        HistoryType.FACTION_SHIFT: (g("triggered"), THEME["warning"], "FACTION"),
+        HistoryType.CONSEQUENCE: (g("thread"), THEME["secondary"], "CONSEQUENCE"),
+        HistoryType.CANON: (g("canon"), THEME["primary"], "CANON"),
+    }
+
+    # Type filter mapping (allow plural forms)
     type_map = {
         "mission": HistoryType.MISSION,
+        "missions": HistoryType.MISSION,
         "hinge": HistoryType.HINGE,
+        "hinges": HistoryType.HINGE,
         "faction": HistoryType.FACTION_SHIFT,
+        "factions": HistoryType.FACTION_SHIFT,
         "consequence": HistoryType.CONSEQUENCE,
+        "consequences": HistoryType.CONSEQUENCE,
         "canon": HistoryType.CANON,
     }
 
-    if filter_type and filter_type in type_map:
-        history = [h for h in history if h.type == type_map[filter_type]]
-        if not history:
-            console.print(f"[{THEME['dim']}]No {filter_type} entries found.[/{THEME['dim']}]")
+    # Parse arguments
+    filter_type = None
+    filter_session = None
+    search_term = None
+    title_suffix = ""
+
+    if args:
+        first_arg = args[0].lower()
+
+        # Handle session filter: /history session 3
+        if first_arg == "session" and len(args) >= 2:
+            try:
+                filter_session = int(args[1])
+                title_suffix = f" - Session {filter_session}"
+            except ValueError:
+                console.print(f"[{THEME['warning']}]Invalid session number: {args[1]}[/{THEME['warning']}]")
+                return
+
+        # Handle search: /history search <term>
+        elif first_arg == "search":
+            if len(args) < 2:
+                console.print(f"[{THEME['warning']}]Usage: /history search <term>[/{THEME['warning']}]")
+                return
+            search_term = " ".join(args[1:]).lower()
+            title_suffix = f" - Search: '{search_term}'"
+
+        # Handle type filter: /history hinges, /history faction, etc.
+        elif first_arg in type_map:
+            filter_type = type_map[first_arg]
+            title_suffix = f" - {first_arg.title()}"
+
+        else:
+            # Unknown filter - show help
+            console.print(f"[{THEME['warning']}]Unknown filter: {first_arg}[/{THEME['warning']}]")
+            console.print()
+            console.print(f"[{THEME['dim']}]Usage:[/{THEME['dim']}]")
+            console.print(f"  /history              [{THEME['dim']}]Show all (last 20)[/{THEME['dim']}]")
+            console.print(f"  /history hinges       [{THEME['dim']}]Filter to hinge moments[/{THEME['dim']}]")
+            console.print(f"  /history faction      [{THEME['dim']}]Filter to faction shifts[/{THEME['dim']}]")
+            console.print(f"  /history missions     [{THEME['dim']}]Filter to mission completions[/{THEME['dim']}]")
+            console.print(f"  /history session 3    [{THEME['dim']}]Filter to specific session[/{THEME['dim']}]")
+            console.print(f"  /history search <term> [{THEME['dim']}]Keyword search[/{THEME['dim']}]")
             return
 
-    console.print(f"\n[bold {THEME['primary']}]◈ CHRONICLE ◈[/bold {THEME['primary']}]")
+    # Apply filters
     if filter_type:
-        console.print(f"[{THEME['dim']}]Filtered by: {filter_type}[/{THEME['dim']}]\n")
+        history = [h for h in history if h.type == filter_type]
+    if filter_session is not None:
+        history = [h for h in history if h.session == filter_session]
+    if search_term:
+        history = [h for h in history if search_term in h.summary.lower()]
 
-    # Type glyphs and colors
-    type_style = {
-        HistoryType.MISSION: (g("phase"), THEME["accent"]),
-        HistoryType.HINGE: (g("hinge"), THEME["danger"]),
-        HistoryType.FACTION_SHIFT: (g("faction"), THEME["warning"]),
-        HistoryType.CONSEQUENCE: (g("thread"), THEME["secondary"]),
-        HistoryType.CANON: (g("success"), THEME["primary"]),
-    }
+    if not history:
+        console.print(f"[{THEME['dim']}]No matching entries found.[/{THEME['dim']}]")
+        return
 
-    # Display entries (most recent first)
-    for entry in reversed(history[-20:]):  # Show last 20
-        glyph, color = type_style.get(entry.type, ("•", THEME["dim"]))
-        permanent_mark = " [bold]★[/bold]" if entry.is_permanent else ""
+    # Header
+    console.print(f"\n[bold {THEME['primary']}]{g('briefing')} CAMPAIGN HISTORY{title_suffix.upper()} {g('briefing')}[/bold {THEME['primary']}]")
+    console.print()
 
-        # Format timestamp
-        ts = entry.timestamp.strftime("%Y-%m-%d")
+    # Group entries by session (most recent sessions first)
+    from collections import defaultdict
+    by_session: dict[int, list] = defaultdict(list)
+    for entry in history:
+        by_session[entry.session].append(entry)
 
-        console.print(
-            f"[{THEME['dim']}]S{entry.session} {ts}[/{THEME['dim']}] "
-            f"[{color}]{glyph}[/{color}] {entry.summary}{permanent_mark}"
-        )
+    # Sort sessions descending, limit to last 20 entries total
+    sorted_sessions = sorted(by_session.keys(), reverse=True)
+    entries_shown = 0
+    max_entries = 20
 
-        # Show extra details for certain types
-        if entry.type == HistoryType.HINGE and entry.hinge:
-            console.print(f"  [{THEME['dim']}]Choice: {entry.hinge.choice}[/{THEME['dim']}]")
-            if entry.hinge.what_shifted:
-                console.print(f"  [{THEME['dim']}]Shifted: {entry.hinge.what_shifted}[/{THEME['dim']}]")
+    for session_num in sorted_sessions:
+        if entries_shown >= max_entries:
+            break
 
-        if entry.type == HistoryType.MISSION and entry.mission and entry.mission.reflections:
-            r = entry.mission.reflections
-            if r.cost:
-                console.print(f"  [{THEME['dim']}]Cost: {r.cost}[/{THEME['dim']}]")
-            if r.learned:
-                console.print(f"  [{THEME['dim']}]Learned: {r.learned}[/{THEME['dim']}]")
+        session_entries = by_session[session_num]
+        # Sort entries within session by timestamp (oldest first within session)
+        session_entries.sort(key=lambda e: e.timestamp)
 
-    # Show count
+        # Session header
+        console.print(f"[bold {THEME['secondary']}]Session {session_num}[/bold {THEME['secondary']}]")
+
+        for entry in session_entries:
+            if entries_shown >= max_entries:
+                break
+
+            glyph, color, type_label = type_style.get(
+                entry.type, (g("bullet"), THEME["dim"], "EVENT")
+            )
+            permanent_mark = " [bold]★[/bold]" if entry.is_permanent else ""
+
+            # Entry line with glyph, type label, and summary
+            console.print(
+                f"  [{color}]{glyph}[/{color}] "
+                f"[{THEME['dim']}][{type_label}][/{THEME['dim']}] "
+                f"{entry.summary}{permanent_mark}"
+            )
+
+            # Show extra details for certain types
+            if entry.type == HistoryType.HINGE and entry.hinge:
+                console.print(f"    [{THEME['dim']}]Choice: {entry.hinge.choice}[/{THEME['dim']}]")
+                if entry.hinge.what_shifted:
+                    console.print(f"    [{THEME['dim']}]Shifted: {entry.hinge.what_shifted}[/{THEME['dim']}]")
+
+            if entry.type == HistoryType.FACTION_SHIFT and entry.faction_shift:
+                fs = entry.faction_shift
+                console.print(
+                    f"    [{THEME['dim']}]{fs.faction.value}: "
+                    f"{fs.from_standing.value} {g('arrow')} {fs.to_standing.value}[/{THEME['dim']}]"
+                )
+
+            if entry.type == HistoryType.MISSION and entry.mission and entry.mission.reflections:
+                r = entry.mission.reflections
+                if r.cost:
+                    console.print(f"    [{THEME['dim']}]Cost: {r.cost}[/{THEME['dim']}]")
+                if r.learned:
+                    console.print(f"    [{THEME['dim']}]Learned: {r.learned}[/{THEME['dim']}]")
+
+            entries_shown += 1
+
+        console.print()  # Blank line between sessions
+
+    # Footer with counts and usage hints
     total = len(manager.current.history)
-    shown = min(20, len(history))
-    if total > 20:
-        console.print(f"\n[{THEME['dim']}]Showing {shown} of {total} entries. Filter with: /history <type>[/{THEME['dim']}]")
+    filtered_total = len(history)
 
-    console.print(f"\n[{THEME['dim']}]Types: mission, hinge, faction, consequence, canon[/{THEME['dim']}]")
+    if filtered_total > max_entries:
+        console.print(
+            f"[{THEME['dim']}]Showing {entries_shown} of {filtered_total} matching entries "
+            f"(total: {total})[/{THEME['dim']}]"
+        )
+    elif filter_type or filter_session is not None or search_term:
+        console.print(f"[{THEME['dim']}]Found {filtered_total} matching entries (total: {total})[/{THEME['dim']}]")
+
+    console.print(f"[{THEME['dim']}]Filters: hinges, faction, missions, session <n>, search <term>[/{THEME['dim']}]")
     return None
+
+
+def cmd_search(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
+    """Search campaign history for a term.
+
+    Alias for /history search <term>
+    """
+    if not args:
+        console.print(f"[{THEME['warning']}]Usage: /search <term>[/{THEME['warning']}]")
+        console.print(f"[{THEME['dim']}]Example: /search Nexus[/{THEME['dim']}]")
+        return
+
+    # Delegate to cmd_history with search prefix
+    return cmd_history(manager, agent, ["search"] + args)
 
 
 def cmd_consequences(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
@@ -2570,6 +2688,7 @@ def create_commands(manager: CampaignManager, agent: SentinelAgent, conversation
         "/consult": cmd_consult,
         "/debrief": cmd_debrief,
         "/history": cmd_history,
+        "/search": cmd_search,
         "/summary": cmd_summary,
         "/consequences": cmd_consequences,
         "/threads": cmd_consequences,  # Alias

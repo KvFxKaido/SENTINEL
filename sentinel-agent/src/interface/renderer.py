@@ -6,13 +6,15 @@ Handles theming, banners, status displays, and visual output.
 
 import time
 import random
+from datetime import datetime
+from enum import Enum
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich.markdown import Markdown
 from rich.live import Live
 from rich.text import Text
-from rich.box import ROUNDED
+from rich.box import ROUNDED, Box
 from prompt_toolkit.styles import Style as PTStyle
 
 from .glyphs import (
@@ -77,6 +79,42 @@ DISPOSITION_COLORS = {
     "warm": "green3",
     "loyal": "cyan",
 }
+
+
+# -----------------------------------------------------------------------------
+# Block Types for Output Formatting
+# -----------------------------------------------------------------------------
+
+class BlockType(Enum):
+    """Types of output blocks for visual differentiation."""
+    NARRATIVE = "NARRATIVE"
+    CHOICE = "CHOICE"
+    INTEL = "INTEL"
+    SYSTEM = "SYSTEM"
+
+
+# Block type colors and indicators
+BLOCK_STYLES = {
+    BlockType.NARRATIVE: {
+        "color": THEME["primary"],
+        "indicator": "",
+    },
+    BlockType.CHOICE: {
+        "color": THEME["accent"],
+        "indicator": "?",
+    },
+    BlockType.INTEL: {
+        "color": THEME["warning"],
+        "indicator": "i",
+    },
+    BlockType.SYSTEM: {
+        "color": THEME["dim"],
+        "indicator": "*",
+    },
+}
+
+
+# We use ROUNDED box for blocks (built-in, reliable)
 
 
 # -----------------------------------------------------------------------------
@@ -324,10 +362,10 @@ Use `/backend <name>` to switch (lmstudio, claude, openrouter, gemini, codex).
 
 
 def show_choices(choices):
-    """Display choice panel for player options."""
+    """Display choice panel for player options (legacy - use render_choice_block for new style)."""
     if choices.stakes == "high":
         # Rusted red for danger/hinge moments
-        title = f"[bold {THEME['danger']}]◈ DECISION ◈[/bold {THEME['danger']}]"
+        title = f"[bold {THEME['danger']}]DECISION[/bold {THEME['danger']}]"
         if choices.context:
             title += f" [{THEME['secondary']}]{choices.context}[/{THEME['secondary']}]"
         box_style = THEME["danger"]
@@ -344,6 +382,209 @@ def show_choices(choices):
         console.print(Panel(choice_text, title=title, border_style=box_style))
     else:
         console.print(Panel(choice_text, border_style=box_style, padding=(0, 1)))
+
+
+# -----------------------------------------------------------------------------
+# Block-Based Output (Phase 1.1)
+# -----------------------------------------------------------------------------
+
+def _format_block_title(block_type: BlockType, timestamp: datetime | None = None) -> str:
+    """
+    Format a block title with timestamp and type indicator.
+
+    Returns a string like: "[14:32] NARRATIVE"
+    """
+    style = BLOCK_STYLES[block_type]
+    color = style["color"]
+
+    # Format timestamp
+    if timestamp is None:
+        timestamp = datetime.now()
+    time_str = timestamp.strftime("%H:%M")
+
+    return f"[{time_str}] {block_type.value}"
+
+
+def detect_block_type(content: str) -> BlockType:
+    """
+    Detect the type of content block based on its contents.
+
+    Intel indicators: faction intel, data, reports, coordinates
+    Narrative: everything else (default)
+
+    Args:
+        content: The text content to analyze
+
+    Returns:
+        BlockType enum value
+    """
+    content_lower = content.lower()
+
+    # Intel indicators
+    intel_keywords = [
+        "intel:", "report:", "data:", "coordinates:",
+        "faction intel", "intelligence report",
+        "surveillance", "decoded message",
+        "transmission", "intercepted",
+        "classified", "dossier",
+    ]
+
+    for keyword in intel_keywords:
+        if keyword in content_lower:
+            return BlockType.INTEL
+
+    # Default to narrative
+    return BlockType.NARRATIVE
+
+
+def render_block(
+    content: str,
+    block_type: BlockType | None = None,
+    timestamp: datetime | None = None,
+    high_stakes: bool = False,
+    context: str | None = None,
+) -> None:
+    """
+    Render content as a discrete, timestamped block.
+
+    Args:
+        content: The text content to display
+        block_type: Type of block (auto-detected if None)
+        timestamp: Timestamp to display (uses current time if None)
+        high_stakes: Whether this is a high-stakes moment (affects styling)
+        context: Optional context string for the block title
+    """
+    if block_type is None:
+        block_type = detect_block_type(content)
+
+    if timestamp is None:
+        timestamp = datetime.now()
+
+    style = BLOCK_STYLES[block_type]
+    color = style["color"]
+
+    # High stakes overrides color
+    if high_stakes:
+        color = THEME["danger"]
+
+    # Build title
+    title = _format_block_title(block_type, timestamp)
+    if context:
+        title += f" - {context}"
+
+    # Create panel with block styling
+    console.print(Panel(
+        content,
+        title=f"[bold {color}]{title}[/bold {color}]",
+        title_align="left",
+        border_style=color,
+        box=ROUNDED,
+        padding=(0, 1),
+    ))
+
+
+def render_narrative_block(
+    content: str,
+    timestamp: datetime | None = None,
+) -> None:
+    """
+    Render GM narrative in a timestamped block.
+
+    Args:
+        content: The narrative text
+        timestamp: Optional timestamp (uses current time if None)
+    """
+    render_block(
+        content=content,
+        block_type=BlockType.NARRATIVE,
+        timestamp=timestamp,
+    )
+
+
+def render_intel_block(
+    content: str,
+    timestamp: datetime | None = None,
+    source: str | None = None,
+) -> None:
+    """
+    Render intelligence/data in a timestamped block.
+
+    Args:
+        content: The intel text
+        timestamp: Optional timestamp (uses current time if None)
+        source: Optional source identifier (e.g., faction name)
+    """
+    render_block(
+        content=content,
+        block_type=BlockType.INTEL,
+        timestamp=timestamp,
+        context=source,
+    )
+
+
+def render_choice_block(
+    choices,
+    timestamp: datetime | None = None,
+) -> None:
+    """
+    Render player choices in a timestamped block.
+
+    Args:
+        choices: ChoiceBlock object with options and stakes
+        timestamp: Optional timestamp (uses current time if None)
+    """
+    if timestamp is None:
+        timestamp = datetime.now()
+
+    # Determine styling based on stakes
+    if choices.stakes == "high":
+        color = THEME["danger"]
+        title_prefix = "DECISION"
+    else:
+        color = BLOCK_STYLES[BlockType.CHOICE]["color"]
+        title_prefix = "CHOICE"
+
+    # Build title
+    time_str = timestamp.strftime("%H:%M")
+    title = f"[{time_str}] {title_prefix}"
+    if choices.context:
+        title += f" - {choices.context}"
+
+    # Format choices
+    choice_text = "\n".join(
+        f"[{THEME['accent']}]{i}.[/{THEME['accent']}] {opt}"
+        for i, opt in enumerate(choices.options, 1)
+    )
+
+    console.print(Panel(
+        choice_text,
+        title=f"[bold {color}]{title}[/bold {color}]",
+        title_align="left",
+        border_style=color,
+        box=ROUNDED,
+        padding=(0, 1),
+    ))
+
+
+def render_system_block(
+    content: str,
+    timestamp: datetime | None = None,
+    context: str | None = None,
+) -> None:
+    """
+    Render system messages in a timestamped block.
+
+    Args:
+        content: The system message text
+        timestamp: Optional timestamp (uses current time if None)
+        context: Optional context string
+    """
+    render_block(
+        content=content,
+        block_type=BlockType.SYSTEM,
+        timestamp=timestamp,
+        context=context,
+    )
 
 
 # -----------------------------------------------------------------------------
