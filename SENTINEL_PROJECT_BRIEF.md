@@ -20,8 +20,9 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 
 **Core Systems**
 - CLI interface with Rich terminal UI + themed visuals
+- **Block-based output** — GM responses as timestamped blocks with type indicators (NARRATIVE, INTEL, CHOICE)
 - Animated hexagon banner with glitch reveal
-- Command autocomplete with descriptions
+- **Enhanced command palette** — category grouping, fuzzy search, context-aware filtering, recent commands
 - Campaign creation, save/load (JSON persistence)
 - Character creation with 7 backgrounds, personalized energy system
 - 11 factions with reputation tracking
@@ -59,7 +60,8 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 **Session & History Systems**
 - **Session summaries** — auto-generated on `/debrief`, exportable markdown
 - **`/summary [n]` command** — view any session summary
-- **Campaign history search** — MCP tools for searching history, NPC timelines, session summaries
+- **`/history` filters** — filter by type (hinges, faction, missions), session number, or keyword search
+- **`/search <term>` command** — quick keyword search across campaign history
 - **`/timeline` command** — search campaign memory via memvid semantic search
 - **Unified lore + campaign memory** — single query interface for both static lore and dynamic history
 
@@ -201,7 +203,8 @@ SENTINEL/
 | `/factions` | View faction standings, relationships, and cascade effects |
 | `/npc [name]` | View NPC info, personal standing, interaction history |
 | `/arc` | View and manage emergent character arcs |
-| `/history` | View campaign chronicle |
+| `/history [filter]` | View chronicle (hinges, faction, missions, session N, search) |
+| `/search <term>` | Search campaign history for keywords |
 | `/summary [n]` | View session summary (n = session number) |
 | `/consequences` | View pending threads and avoided situations |
 | `/timeline` | Search campaign memory (memvid semantic search) |
@@ -223,6 +226,7 @@ SENTINEL/
 | `/backend` | Show/change LLM backend |
 | `/model` | List/switch LM Studio models |
 | `/banner` | Toggle banner animation on startup |
+| `/statusbar` | Toggle persistent status bar |
 | `/help` | Show all commands |
 | `/quit` | Exit the game |
 
