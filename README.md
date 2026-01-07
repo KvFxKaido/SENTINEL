@@ -202,6 +202,19 @@ Both modes are intentionally supported. Models without tool calling work fine fo
 | **Llama 3.2** | ~5GB (8B) | Low-end rigs | Lightweight, good fallback / testing node | Forgets state mid-scene |
 | **Ministral 3** | ~8GB (14B) | Deterministic GM logic, trigger-heavy systems | Strong instruction following | Over-follows rules, rigid |
 
+### The Governability Curve
+
+Compliance with GM constraints doesn't scale linearly with model size.
+
+| Size | Nickname | Behavior | Risk |
+|------|----------|----------|------|
+| <7B | Goldfish | Eager but forgets constraints as context grows | Drift |
+| 8B–14B | Soldier | Follows literal instructions without "improving" them | **Ideal** |
+| 20B–70B | Midwit | Detects conflict between constraints and training, invents workarounds | Disobedience |
+| >70B | Academic | Can respect constraints but often requires heavy framing | Overhead |
+
+For GM work, **obedience > reasoning**. A model that cannot stop talking cannot listen.
+
 ## Development
 
 ```
