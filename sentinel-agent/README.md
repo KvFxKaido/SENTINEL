@@ -48,19 +48,39 @@ sentinel-agent/
 │   ├── agent.py           # Main agent orchestration
 │   ├── state/
 │   │   ├── schema.py      # Pydantic models (Campaign, Character, NPC, etc.)
-│   │   └── manager.py     # Campaign lifecycle (create/load/save)
+│   │   ├── manager.py     # Campaign lifecycle (create/load/save)
+│   │   └── memvid_adapter.py  # Optional semantic memory (memvid)
+│   ├── context/           # Engine-owned context control
+│   │   ├── packer.py      # Prompt packing with token budgets
+│   │   ├── window.py      # Rolling window with priority trimming
+│   │   ├── tokenizer.py   # Token counting (tiktoken + fallback)
+│   │   └── digest.py      # Campaign memory compression
 │   ├── tools/
 │   │   └── dice.py        # Dice rolling with advantage/disadvantage
+│   ├── lore/
+│   │   └── unified.py     # Unified retrieval (lore + history)
 │   └── interface/
 │       └── cli.py         # Rich-based CLI interface
 ├── prompts/
 │   ├── core.md            # Agent identity and principles
-│   ├── mechanics.md       # 50-line rules reference
-│   ├── gm_guidance.md     # Scene and NPC guidance
-│   └── examples/          # Example transcripts
+│   ├── mechanics.md       # Compact rules reference
+│   └── rules/             # Two-layer rules system
+│       ├── core_logic.md      # Decision triggers (always loaded)
+│       └── narrative_guidance.md  # Flavor (cut under strain)
 ├── campaigns/             # Saved game states (JSON)
 └── tests/                 # Test suites
 ```
+
+### Two-Layer Rules
+
+Rules are split for survivable truncation under memory strain:
+
+| Layer | Content | Behavior |
+|-------|---------|----------|
+| `core_logic.md` | If/then decision triggers | Always loaded, never cut |
+| `narrative_guidance.md` | Flavor, examples, tone | Cut under Strain II+ |
+
+When context pressure exceeds 85%, narrative guidance is dropped (~925 tokens saved) while core decision logic survives. The GM can still make correct decisions; it just loses the "how to phrase it beautifully" guidance.
 
 ## CLI Commands
 
