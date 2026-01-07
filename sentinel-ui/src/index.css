@@ -1,0 +1,106 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* SENTINEL Base Styles */
+:root {
+  font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color: #b3b3b3;
+  background-color: #0a0a0a;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #141414;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2a2a2a;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3a3a;
+}
+
+/* Selection */
+::selection {
+  background: #00d7ff33;
+  color: #00d7ff;
+}
+
+/* Custom utility classes */
+@layer components {
+  /* Codec box frame */
+  .codec-frame {
+    @apply border-2 rounded-sm bg-sentinel-surface;
+    border-color: var(--frame-color, theme('colors.sentinel.border'));
+    box-shadow:
+      0 0 0 1px var(--frame-color, theme('colors.sentinel.border')),
+      inset 0 0 30px rgba(0, 0, 0, 0.5);
+  }
+
+  /* Glowing border effect */
+  .glow-border {
+    box-shadow:
+      0 0 5px var(--glow-color, theme('colors.sentinel.accent')),
+      inset 0 0 15px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Scan line effect */
+  .scan-lines::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 0, 0, 0.1) 2px,
+      rgba(0, 0, 0, 0.1) 4px
+    );
+    pointer-events: none;
+  }
+
+  /* Terminal text styling */
+  .terminal-text {
+    @apply font-mono text-sentinel-secondary;
+    text-shadow: 0 0 5px rgba(179, 179, 179, 0.3);
+  }
+
+  /* Faction-colored elements */
+  .faction-nexus { --frame-color: theme('colors.faction.nexus'); --glow-color: theme('colors.faction.nexus'); }
+  .faction-ember { --frame-color: theme('colors.faction.ember'); --glow-color: theme('colors.faction.ember'); }
+  .faction-lattice { --frame-color: theme('colors.faction.lattice'); --glow-color: theme('colors.faction.lattice'); }
+  .faction-convergence { --frame-color: theme('colors.faction.convergence'); --glow-color: theme('colors.faction.convergence'); }
+  .faction-covenant { --frame-color: theme('colors.faction.covenant'); --glow-color: theme('colors.faction.covenant'); }
+  .faction-wanderers { --frame-color: theme('colors.faction.wanderers'); --glow-color: theme('colors.faction.wanderers'); }
+  .faction-cultivators { --frame-color: theme('colors.faction.cultivators'); --glow-color: theme('colors.faction.cultivators'); }
+  .faction-steel { --frame-color: theme('colors.faction.steel'); --glow-color: theme('colors.faction.steel'); }
+  .faction-witnesses { --frame-color: theme('colors.faction.witnesses'); --glow-color: theme('colors.faction.witnesses'); }
+  .faction-architects { --frame-color: theme('colors.faction.architects'); --glow-color: theme('colors.faction.architects'); }
+  .faction-ghost { --frame-color: theme('colors.faction.ghost'); --glow-color: theme('colors.faction.ghost'); }
+}
