@@ -97,6 +97,15 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 - **Player Push mechanic** — explicitly invite consequences for advantage (Devil's Bargain), queues dormant thread
 
 ### Not Yet Built
+
+**Next Up: Engine-Owned Context Control**
+- Prompt Pack system with token-budgeted sections (identity, rules, state, digest, transcript, retrieval)
+- Rolling window policy with priority-based trimming (hinges survive longer)
+- Memory Strain tiers (Normal → I → II → III) as deterministic game mechanic
+- Digest system for compressed durable memory (`/checkpoint`, `/compress`, `/clear`)
+- See: `architecture/Engine_Owned_Context_Control.md`
+
+**Future:**
 - Multi-character party support
 - Web/mobile interface
 
