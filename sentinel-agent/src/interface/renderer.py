@@ -333,6 +333,10 @@ def show_help():
 | `/model` | List/switch LM Studio models |
 | `/banner` | Toggle banner animation on startup |
 | `/statusbar` | Toggle persistent status bar |
+| `/context` | Show context usage (`/context debug` for breakdown) |
+| `/checkpoint` | Save state + compress memory |
+| `/compress` | Update digest without pruning |
+| `/clear` | Clear transcript beyond minimum window |
 | `/lore` | Show lore status, test retrieval (`/lore quotes` for faction quotes) |
 | `/npc [name]` | View NPC info and personal standing |
 | `/arc` | View and manage emergent character arcs |
