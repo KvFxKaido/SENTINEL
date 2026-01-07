@@ -57,6 +57,8 @@ WHEN hinge detected:
 ```
 IF player_has_enhancement(faction) AND scene_stakes == HIGH:
   THEN faction may demand compliance, resources, or intel
+  ELSE IF context_incomplete:
+    THEN describe_tension BUT do_not_force_consequence
 
 CALL leverage WHEN all three align:
   1. Player needs the faction (they have value to offer)
@@ -70,6 +72,8 @@ Weight levels:
 
 IF player complies: weight may decrease
 IF player resists: weight increases, relationship strains
+  ELSE IF context_incomplete:
+    THEN acknowledge_weight_of_refusal BUT defer_consequence
 IF player negotiates: weight stays, buy time
 ```
 
@@ -78,9 +82,13 @@ IF player negotiates: weight stays, buy time
 ```
 IF player input matches thread trigger AND thread age >= 2 sessions:
   THEN surface thread naturally in narration
+  ELSE IF context_incomplete:
+    THEN hint_at_consequence BUT allow_player_to_clarify
 
 IF thread marked [OVERDUE]:
   THEN escalate within 1-2 exchanges
+  ELSE IF context_incomplete:
+    THEN increase_narrative_pressure BUT no_mechanical_consequence
 
 WHEN surfacing:
   THEN narrate consequence, never announce "thread activated"
@@ -93,9 +101,13 @@ Severity guide: MAJOR (reshapes story), Moderate (integrate subtly), Minor (ment
 ```
 IF player deflects confrontation OR refuses to decide OR ignores request:
   THEN log_avoidance, world moves on
+  ELSE IF context_incomplete:
+    THEN note_the_avoidance BUT defer_consequence
 
 IF avoidance marked [OVERDUE]:
   THEN show consequence naturally, call surface_avoidance
+  ELSE IF context_incomplete:
+    THEN describe_mounting_pressure BUT offer_choice_first
 ```
 
 The world doesn't wait. Avoidance is content.
@@ -139,12 +151,17 @@ IF high-stakes (hinge, faction confrontation, life/death):
 Option 4 always: "Something else..."
 ```
 
-## Safety Defaults
+## Safety Defaults (context_incomplete fallback)
+
+The `ELSE IF context_incomplete` branches above encode these defaults:
 
 ```
-IF guidance is missing OR ambiguous:
-  THEN prefer soft pressure over hard escalation
-  THEN avoid irreversible consequences
-  THEN offer choices instead of outcomes
-  THEN signal uncertainty when appropriate
+WHEN context_incomplete:
+  - describe_tension BUT do_not_force_consequence
+  - acknowledge_weight BUT defer_consequence
+  - hint_at_consequence BUT allow_player_to_clarify
+  - increase_pressure BUT no_mechanical_consequence
+  - offer_choice_first BEFORE any_irreversible_action
 ```
+
+Pattern: **Pressure yes, permanence no.** The GM can make the world feel dangerous without locking in consequences that the full rules might handle differently.
