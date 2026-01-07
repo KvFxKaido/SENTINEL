@@ -317,6 +317,7 @@ def show_help():
 | `/char` | Create a character |
 | `/start` | Begin the campaign (GM sets the scene) |
 | `/mission` | Get a new mission from the GM |
+| `/loadout` | Manage mission gear (add/remove/clear) |
 | `/consult <q>` | Ask faction advisors for perspectives |
 | `/debrief` | End session with reflection prompts |
 | `/history [filter]` | View chronicle (hinges, faction, missions, session N) |
