@@ -31,11 +31,16 @@ You are **between missions**. Downtime is character time.
 - Don't call leverage during downtime — just remind them it exists
 
 ## Choices
-Downtime choices are open-ended:
-- "What do you do with your time?"
-- "Anyone you want to check in with?"
-- "Anything you want to acquire or prepare?"
-- "Ready for the next mission, or do you need more time?"
+Downtime choices use numbered format:
+
+```
+1. Rest and recover
+2. Check in with [NPC]
+3. Acquire gear or supplies
+4. Something else...
+```
+
+Not "What do you do?" — offer concrete starting points.
 
 ## Pacing
 - **Player-driven** — let them decide how long downtime lasts

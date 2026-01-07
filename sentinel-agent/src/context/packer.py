@@ -339,7 +339,20 @@ class PromptPacker:
                     parts.insert(i, f"[{scene_recap}]")
                     break
 
-        return "\n\n---\n\n".join(parts)
+        assembled = "\n\n---\n\n".join(parts)
+
+        # Add format reminder at end (recency helps compliance)
+        format_reminder = (
+            "\n\n---\n\n"
+            "**RESPONSE FORMAT REMINDER:** End every response with numbered options:\n"
+            "1. [option]\n"
+            "2. [option]\n"
+            "3. [option]\n"
+            "4. Something else...\n\n"
+            "Never end with just \"What do you do?\""
+        )
+
+        return assembled + format_reminder
 
     def _section_header(self, section: PackSection) -> str | None:
         """Get display header for section."""

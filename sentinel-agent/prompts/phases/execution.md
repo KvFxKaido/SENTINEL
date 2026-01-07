@@ -41,11 +41,16 @@ Do NOT add complications that:
 - Don't announce "a thread activated"
 
 ## Choices
-Execution choices are immediate:
-- "The alarm is sounding. What do you do?"
-- "She's offering you a way out, but it means leaving him behind."
-- "You can fight, talk, or run. Pick one."
-- Something else...
+Execution choices are immediate. Always use numbered format:
+
+```
+1. Fight through
+2. Talk your way out
+3. Run
+4. Something else...
+```
+
+Not "What do you do?" — give concrete options.
 
 ## Social Energy
 - Drain appropriately for interactions
