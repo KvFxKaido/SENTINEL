@@ -3333,6 +3333,186 @@ def cmd_clear(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
     console.print(f"[{THEME['dim']}]Consider running /compress to update digest with recent events.[/{THEME['dim']}]")
 
 
+# -----------------------------------------------------------------------------
+# Loadout Commands
+# -----------------------------------------------------------------------------
+
+def cmd_loadout(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
+    """
+    Manage mission loadout.
+
+    Usage:
+        /loadout            Show current loadout and available gear
+        /loadout add <item> Add item to loadout (by name or ID)
+        /loadout remove <item>  Remove item from loadout
+        /loadout clear      Clear all items from loadout
+    """
+    from ..state.schema import MissionPhase
+
+    if not manager.current:
+        console.print(f"[{THEME['warning']}]No campaign loaded[/{THEME['warning']}]")
+        return
+
+    if not manager.current.characters:
+        console.print(f"[{THEME['warning']}]Create a character first (/char)[/{THEME['warning']}]")
+        return
+
+    char = manager.current.characters[0]
+    session = manager.current.session
+
+    # Check if we have an active session
+    if not session:
+        console.print(f"[{THEME['warning']}]No active mission. Use /mission to start one.[/{THEME['warning']}]")
+        return
+
+    # Subcommand parsing
+    subcommand = args[0].lower() if args else "show"
+    item_query = " ".join(args[1:]) if len(args) > 1 else ""
+
+    # Check if loadout is locked (execution phase or later)
+    locked_phases = {MissionPhase.EXECUTION, MissionPhase.RESOLUTION}
+    is_locked = session.phase in locked_phases
+
+    if subcommand in ("add", "remove", "clear") and is_locked:
+        console.print(f"[{THEME['danger']}]Loadout is locked during {session.phase.value} phase[/{THEME['danger']}]")
+        console.print(f"[{THEME['dim']}]Gear must be selected during planning. Work with what you brought.[/{THEME['dim']}]")
+        return
+
+    # Build gear lookup by ID and name
+    gear_by_id = {g.id: g for g in char.gear}
+    gear_by_name = {g.name.lower(): g for g in char.gear}
+
+    # Get current loadout items
+    loadout_items = [gear_by_id[gid] for gid in session.loadout if gid in gear_by_id]
+
+    if subcommand == "add":
+        if not item_query:
+            console.print(f"[{THEME['warning']}]Specify item to add: /loadout add <item>[/{THEME['warning']}]")
+            return
+
+        # Find the item
+        item = None
+        query_lower = item_query.lower()
+
+        # Try exact ID match
+        if query_lower in gear_by_id:
+            item = gear_by_id[query_lower]
+        # Try name match (case-insensitive)
+        elif query_lower in gear_by_name:
+            item = gear_by_name[query_lower]
+        # Try partial name match
+        else:
+            matches = [g for g in char.gear if query_lower in g.name.lower()]
+            if len(matches) == 1:
+                item = matches[0]
+            elif len(matches) > 1:
+                console.print(f"[{THEME['warning']}]Multiple matches:[/{THEME['warning']}]")
+                for m in matches:
+                    console.print(f"  • {m.name} [{THEME['dim']}]{m.id}[/{THEME['dim']}]")
+                return
+
+        if not item:
+            console.print(f"[{THEME['warning']}]Item not found: {item_query}[/{THEME['warning']}]")
+            console.print(f"[{THEME['dim']}]Use /loadout to see available gear[/{THEME['dim']}]")
+            return
+
+        if item.id in session.loadout:
+            console.print(f"[{THEME['dim']}]{item.name} is already in loadout[/{THEME['dim']}]")
+            return
+
+        # Add to loadout
+        session.loadout.append(item.id)
+        manager.save_campaign()
+
+        use_note = " (single-use)" if item.single_use else ""
+        console.print(f"[{THEME['accent']}]{g('success')}[/{THEME['accent']}] Added {item.name}{use_note} to loadout")
+
+        # Soft limit warning
+        if len(session.loadout) > 5:
+            console.print(f"[{THEME['warning']}]Note: {len(session.loadout)} items. Travel light to move fast.[/{THEME['warning']}]")
+
+        return
+
+    elif subcommand == "remove":
+        if not item_query:
+            console.print(f"[{THEME['warning']}]Specify item to remove: /loadout remove <item>[/{THEME['warning']}]")
+            return
+
+        # Find the item in loadout
+        item = None
+        query_lower = item_query.lower()
+
+        for loaded_item in loadout_items:
+            if loaded_item.id == query_lower or loaded_item.name.lower() == query_lower:
+                item = loaded_item
+                break
+            elif query_lower in loaded_item.name.lower():
+                item = loaded_item
+                break
+
+        if not item:
+            console.print(f"[{THEME['warning']}]Item not in loadout: {item_query}[/{THEME['warning']}]")
+            return
+
+        session.loadout.remove(item.id)
+        manager.save_campaign()
+        console.print(f"[{THEME['accent']}]{g('success')}[/{THEME['accent']}] Removed {item.name} from loadout")
+        return
+
+    elif subcommand == "clear":
+        if not session.loadout:
+            console.print(f"[{THEME['dim']}]Loadout is already empty[/{THEME['dim']}]")
+            return
+
+        count = len(session.loadout)
+        session.loadout.clear()
+        manager.save_campaign()
+        console.print(f"[{THEME['accent']}]{g('success')}[/{THEME['accent']}] Cleared {count} item(s) from loadout")
+        return
+
+    # Default: show loadout and available gear
+    console.print(f"\n[bold {THEME['primary']}]MISSION LOADOUT[/bold {THEME['primary']}]")
+
+    # Phase indicator
+    phase_color = THEME['accent'] if session.phase == MissionPhase.PLANNING else THEME['dim']
+    lock_status = f"[{THEME['danger']}]LOCKED[/{THEME['danger']}]" if is_locked else f"[{THEME['accent']}]OPEN[/{THEME['accent']}]"
+    console.print(f"[{THEME['dim']}]Phase:[/{THEME['dim']}] [{phase_color}]{session.phase.value.upper()}[/{phase_color}] | {lock_status}")
+
+    # Current loadout
+    if loadout_items:
+        console.print(f"\n[bold {THEME['secondary']}]Packed ({len(loadout_items)} items)[/bold {THEME['secondary']}]")
+        for item in loadout_items:
+            use_tag = f" [{THEME['warning']}]ONE-USE[/{THEME['warning']}]" if item.single_use else ""
+            used_tag = f" [{THEME['danger']}]SPENT[/{THEME['danger']}]" if item.used else ""
+            console.print(f"  {g('bullet')} {item.name}{use_tag}{used_tag}")
+            if item.description:
+                console.print(f"      [{THEME['dim']}]{item.description}[/{THEME['dim']}]")
+    else:
+        console.print(f"\n[{THEME['dim']}]Loadout empty — nothing packed[/{THEME['dim']}]")
+
+    # Available gear (not in loadout)
+    available = [g_item for g_item in char.gear if g_item.id not in session.loadout]
+    if available:
+        console.print(f"\n[bold {THEME['secondary']}]Available at Base ({len(available)} items)[/bold {THEME['secondary']}]")
+
+        # Group by category
+        by_category: dict[str, list] = {}
+        for item in available:
+            cat = item.category or "General"
+            by_category.setdefault(cat, []).append(item)
+
+        for category, items in sorted(by_category.items()):
+            console.print(f"  [{THEME['accent']}]{category}[/{THEME['accent']}]")
+            for item in items:
+                use_tag = f" [{THEME['warning']}]one-use[/{THEME['warning']}]" if item.single_use else ""
+                console.print(f"    {g('bullet')} {item.name}{use_tag}")
+
+    # Help text
+    if not is_locked:
+        console.print(f"\n[{THEME['dim']}]Commands: /loadout add <item> | remove <item> | clear[/{THEME['dim']}]")
+        console.print(f"[{THEME['dim']}]Tip: Pack light (3-5 items). What's not packed stays at base.[/{THEME['dim']}]")
+
+
 # Command Registry
 # -----------------------------------------------------------------------------
 
@@ -3355,6 +3535,7 @@ def create_commands(manager: CampaignManager, agent: SentinelAgent, conversation
         "/factions": cmd_factions,
         "/arc": cmd_arc,
         "/roll": cmd_roll,
+        "/loadout": cmd_loadout,
         "/start": cmd_start,
         "/mission": cmd_mission,
         "/consult": cmd_consult,

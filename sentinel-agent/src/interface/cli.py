@@ -63,6 +63,7 @@ COMMAND_META = {
     "/simulate": "Explore hypotheticals",
     "/timeline": "Search campaign memory",
     "/roll": "Roll dice",
+    "/loadout": "Manage mission gear",
     "/help": "Show help",
     "/quit": "Exit",
     "/exit": "Exit",
@@ -72,7 +73,7 @@ COMMAND_META = {
 COMMAND_CATEGORIES = {
     "Campaign": ["/new", "/load", "/save", "/list", "/delete"],
     "Character": ["/char", "/arc", "/roll"],
-    "Mission": ["/start", "/mission", "/debrief"],
+    "Mission": ["/start", "/mission", "/loadout", "/debrief"],
     "Social": ["/consult", "/npc", "/factions"],
     "Info": ["/status", "/history", "/summary", "/consequences", "/threads", "/timeline"],
     "Simulation": ["/simulate"],
@@ -88,6 +89,7 @@ CONTEXT_REQUIREMENTS = {
         "/char", "/start", "/mission", "/consult", "/debrief", "/save",
         "/status", "/history", "/summary", "/consequences", "/threads",
         "/timeline", "/npc", "/factions", "/arc", "/simulate", "/roll",
+        "/loadout",
     ],
     # Requires a character to exist
     "character_required": ["/start", "/mission", "/consult", "/debrief", "/arc", "/roll"],
