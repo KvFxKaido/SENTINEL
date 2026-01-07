@@ -17,6 +17,11 @@ src/
 │   ├── schema.py         # Pydantic models — the source of truth
 │   ├── manager.py        # CRUD operations on campaign state
 │   └── memvid_adapter.py # Campaign memory via memvid (optional)
+├── context/              # Engine-owned context control
+│   ├── packer.py         # Prompt packing with token budgets
+│   ├── window.py         # Rolling window with priority trimming
+│   ├── tokenizer.py      # Token counting (tiktoken + fallback)
+│   └── digest.py         # Campaign memory compression
 ├── tools/
 │   ├── dice.py           # Game mechanics (rolls, tactical reset)
 │   └── hinge_detector.py # Detects irreversible choices in player input
@@ -30,9 +35,15 @@ src/
 │   └── ollama.py         # Local Ollama backend
 └── lore/
     ├── retriever.py      # Context-aware lore lookup
+    ├── unified.py        # Unified retrieval with budget control
     └── chunker.py        # Document chunking
 
 prompts/                  # Hot-reloadable prompt modules
+├── core.md               # GM identity and principles
+├── mechanics.md          # Compact rules reference
+├── rules/                # Two-layer rules system
+│   ├── core_logic.md         # Decision triggers (always loaded)
+│   └── narrative_guidance.md # Flavor (cut under strain)
 ├── advisors/             # Faction advisor prompts (for /consult)
 campaigns/                # JSON save files (gitignored)
 ```
@@ -97,6 +108,30 @@ result = retriever.query("topic", budget=RetrievalBudget(lore=2, campaign=3, sta
 ### Event polling for MCP sync
 The CLI polls `pending_events.json` at the start of each input loop. Call `manager.poll_events()` to process MCP events mid-session without reloading.
 
+### Two-layer rules for survivable truncation
+Rules are split into two layers to survive context pressure:
+
+| Layer | File | Content | Truncation |
+|-------|------|---------|------------|
+| **Core** | `rules/core_logic.md` | If/then decision triggers | Never cut |
+| **Narrative** | `rules/narrative_guidance.md` | Flavor, examples, tone | Cut at Strain II+ |
+
+**Core logic** contains trigger rules in pseudocode format:
+```
+IF player_has_enhancement(faction) AND scene_stakes == HIGH:
+  THEN faction may demand compliance, resources, or intel
+  ELSE IF context_incomplete:
+    THEN describe_tension BUT do_not_force_consequence
+```
+
+The `ELSE IF context_incomplete` branches encode SafetyNet behavior directly at decision points — "pressure yes, permanence no."
+
+**Strain tiers:**
+- Normal (<70%): Full rules loaded
+- Strain I (70-85%): Reduced window, minimal retrieval
+- Strain II (85-95%): Narrative guidance dropped
+- Strain III (≥95%): Minimal context, checkpoint suggested
+
 ## File Purposes
 
 | File | Purpose | When to modify |
@@ -105,13 +140,16 @@ The CLI polls `pending_events.json` at the start of each input loop. Call `manag
 | `manager.py` | State operations | Adding new CRUD operations |
 | `memvid_adapter.py` | Campaign memory | Adding new frame types or queries |
 | `agent.py` | API orchestration | Adding new tools, changing prompts |
+| `context/packer.py` | Token budgets | Changing section limits or strain tiers |
+| `context/window.py` | Rolling window | Changing trimming priority or anchors |
 | `cli.py` | User interface | Adding commands, changing display |
 | `glyphs.py` | Visual indicators | Adding new symbols, context meter |
 | `hinge_detector.py` | Choice detection | Adding hinge patterns |
 | `dice.py` | Game mechanics | Changing roll logic |
 | `prompts/core.md` | Agent identity | Changing GM personality |
 | `prompts/mechanics.md` | Rules reference | Changing game rules |
-| `prompts/gm_guidance.md` | Scene guidance | Changing narrative style |
+| `prompts/rules/core_logic.md` | Decision triggers | Changing when rules fire (survives truncation) |
+| `prompts/rules/narrative_guidance.md` | Flavor/examples | Changing GM tone (cut under strain) |
 | `prompts/advisors/*.md` | Faction voices | Changing /consult responses |
 
 ## Code Conventions
