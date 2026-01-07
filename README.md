@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/banner.png" alt="SENTINEL Tactical TTRPG" width="600">
+</p>
+
 # SENTINEL
 
 [![CI](https://github.com/KvFxKaido/SENTINEL/actions/workflows/ci.yml/badge.svg)](https://github.com/KvFxKaido/SENTINEL/actions/workflows/ci.yml)
