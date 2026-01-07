@@ -190,17 +190,17 @@ That said, players who supply the rules, tone, and constraints to a cloud model 
 | **Without** | Narrative-only (manual rolls, tracking, consequences) |
 | **With** | Full system integrity (dice, factions, hinges, simulation) |
 
-Both modes are intentionally supported. CLI-only models work fine for pure storytelling.
+Both modes are intentionally supported. Models without tool calling work fine for pure storytelling.
 
 ### Tested Models
 
-| Model | VRAM | Best For | Notes |
-|-------|------|----------|-------|
-| **Gemma 3** | ~12GB (27B) | Long-form play | Balanced, stable |
-| **GPT-OSS** | ~10GB (20B) | Open-source purists | Apache 2.0 |
-| **Qwen 3** | ~8GB (14B) | System-heavy play | Excellent tool calling |
-| **Llama 3.2** | ~5GB (8B) | Low-end rigs | Lightweight, weaker memory |
-| **Ministral 3** | ~8GB (14B) | Rules adherence | Strong instruction following |
+| Model | VRAM | Best For | Notes | Failure Mode |
+|-------|------|----------|-------|--------------|
+| **Gemma 3** | ~12GB (27B) | Long-form continuity, dialogue-heavy sessions | Stable tone, good narrative endurance | Plays it safe under pressure |
+| **GPT-OSS** | ~10GB (20B) | Auditability, constraint experiments | Apache 2.0, predictable behavior | Flat prose, mechanical pacing |
+| **Qwen 3** | ~8GB (14B) | System-heavy play | Excellent tool calling | Scaffolding becomes the game |
+| **Llama 3.2** | ~5GB (8B) | Low-end rigs | Lightweight, good fallback / testing node | Forgets state mid-scene |
+| **Ministral 3** | ~8GB (14B) | Deterministic GM logic, trigger-heavy systems | Strong instruction following | Over-follows rules, rigid |
 
 ## Development
 
