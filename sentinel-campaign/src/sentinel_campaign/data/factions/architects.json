@@ -92,5 +92,13 @@
     "infrastructure blueprints",
     "official agreements",
     "chain of command"
-  ]
+  ],
+  "territory": {
+    "primary": "Northeast Scar",
+    "description": "Boston to Washington D.C. The old power centers, now crumbling monuments to what was.",
+    "contested_by": ["Nexus"],
+    "contesting": ["Pacific Corridor"],
+    "hard_borders": "Architect-claimed archives, museums, government facilities",
+    "zone_of_influence": "Anywhere pre-collapse authority is still respected"
+  }
 }

@@ -81,5 +81,13 @@
     "integration success rates",
     "competitor capabilities",
     "pre-collapse corporate research"
-  ]
+  ],
+  "territory": {
+    "primary": "Pacific Corridor",
+    "description": "West Coast from Seattle to San Diego. Tech graveyards and enhancement clinics built in the bones of Silicon Valley.",
+    "contested_by": ["Architects"],
+    "contesting": [],
+    "hard_borders": "Convergence-controlled medical facilities and research compounds",
+    "zone_of_influence": "Anywhere the enhanced walk"
+  }
 }

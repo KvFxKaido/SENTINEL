@@ -81,5 +81,13 @@
     "communication patterns",
     "predictive models",
     "inter-faction relations"
-  ]
+  ],
+  "territory": {
+    "primary": null,
+    "description": "Nexus doesn't hold territory—they hold information. Their presence is felt everywhere through surveillance networks, information brokers, and predictive systems.",
+    "contested_by": [],
+    "contesting": ["Northeast Scar"],
+    "hard_borders": "None—Nexus is a presence, not a place",
+    "zone_of_influence": "Anywhere there's infrastructure, Nexus is watching"
+  }
 }

@@ -81,5 +81,13 @@
     "patterns over time",
     "pre-collapse records",
     "faction origins and contradictions"
-  ]
+  ],
+  "territory": {
+    "primary": "Sovereign South",
+    "description": "Deep South—Alabama, Mississippi, Louisiana interior. Oral histories and written records preserved in church basements and old courthouses.",
+    "contested_by": ["Covenant"],
+    "contesting": [],
+    "hard_borders": "Archive sites with sworn keepers",
+    "zone_of_influence": "Anywhere truth needs preserving"
+  }
 }
