@@ -19,6 +19,14 @@ from .llm.base import LLMClient, Message
 from .llm import create_llm_client
 from .lore import UnifiedRetriever
 from .lore.quotes import get_relevant_quotes, format_quote_for_gm, get_faction_motto
+from .context import (
+    PromptPacker,
+    PackInfo,
+    StrainTier,
+    RollingWindow,
+    TranscriptBlock,
+    format_strain_notice,
+)
 
 
 @dataclass
@@ -85,6 +93,41 @@ class PromptLoader:
             parts.append(self._format_state_summary(campaign, manager))
 
         return "\n\n---\n\n".join(filter(None, parts))
+
+    def get_sections(
+        self,
+        campaign: Campaign | None = None,
+        manager: "CampaignManager | None" = None,
+    ) -> dict[str, str]:
+        """
+        Get prompt sections separately for PromptPacker.
+
+        Returns dict with keys: system, rules, state
+        """
+        # System section: core identity
+        system = self.load("core")
+
+        # Rules section: mechanics + gm guidance + phase-specific
+        rules_parts = [
+            self.load("mechanics"),
+            self.load("gm_guidance"),
+        ]
+        if campaign and campaign.session:
+            phase_guidance = self.load_phase(campaign.session.phase.value)
+            if phase_guidance:
+                rules_parts.append(phase_guidance)
+        rules = "\n\n".join(filter(None, rules_parts))
+
+        # State section: campaign state summary
+        state = ""
+        if campaign:
+            state = self._format_state_summary(campaign, manager)
+
+        return {
+            "system": system,
+            "rules": rules,
+            "state": state,
+        }
 
     def load_advisor(self, advisor: str) -> str:
         """Load an advisor prompt."""
@@ -357,6 +400,11 @@ class SentinelAgent:
             "declare_push": self._handle_declare_push,
             "set_phase": self._handle_set_phase,
         }
+
+        # Initialize prompt packer for context control
+        self.packer = PromptPacker()
+        self._last_pack_info: PackInfo | None = None
+        self._conversation_window = RollingWindow()
 
         # Initialize client
         if client is not None:
@@ -1186,6 +1234,8 @@ class SentinelAgent:
         """
         Generate a response to the user message.
 
+        Uses PromptPacker for deterministic context control with token budgets.
+
         Args:
             user_message: The player's input
             conversation: Previous messages in the conversation
@@ -1193,62 +1243,80 @@ class SentinelAgent:
         Returns:
             The agent's response text
         """
+        from datetime import datetime
+        from uuid import uuid4
+
         if not self.client:
             return (
                 "[No LLM backend available]\n"
                 "Start LM Studio or Ollama with a model loaded.\n"
             )
 
-        # Build messages
+        # Build messages for LLM
         messages = list(conversation or [])
         messages.append(Message(role="user", content=user_message))
 
-        # Get system prompt with current state
-        system_prompt = self.prompt_loader.assemble_system_prompt(
+        # Update conversation window with new messages
+        self._update_conversation_window(messages)
+
+        # Get base sections from prompt loader
+        sections = self.prompt_loader.get_sections(
             self.manager.current,
             self.manager,
         )
 
-        # Detect hinge moments in player input
-        hinge_detection = detect_hinge(user_message)
-        if hinge_detection:
-            hinge_context = get_hinge_context(hinge_detection)
-            system_prompt = system_prompt + "\n\n---\n\n" + hinge_context
+        # Build dynamic hints (hinge detection, thread triggers, etc.)
+        dynamic_hints = self._build_dynamic_hints(user_message)
 
-        # Check for dormant thread triggers
-        thread_matches = self.manager.check_thread_triggers(user_message)
-        if thread_matches:
-            thread_context = self._format_thread_hints(thread_matches)
-            system_prompt = system_prompt + "\n\n---\n\n" + thread_context
+        # Calculate preliminary strain for retrieval budget
+        preliminary_pressure = self.packer.get_pressure(
+            system=sections["system"],
+            rules=sections["rules"],
+            state=sections["state"] + "\n\n" + dynamic_hints if dynamic_hints else sections["state"],
+        )
+        strain_tier = StrainTier.from_pressure(preliminary_pressure)
 
-        # Check for leverage hints
-        leverage_hints = self.manager.check_leverage_hints(user_message)
-        if leverage_hints:
-            leverage_context = self._format_leverage_hints(leverage_hints)
-            system_prompt = system_prompt + "\n\n---\n\n" + leverage_context
-
-        # Check for demand deadlines (overdue/urgent demands)
-        urgent_demands = self.manager.check_demand_deadlines()
-        if urgent_demands:
-            demand_context = self._format_demand_alerts(urgent_demands)
-            system_prompt = system_prompt + "\n\n---\n\n" + demand_context
-
-        # Retrieve relevant lore and campaign history if available
+        # Retrieve with strain-aware budget
+        retrieval_content = ""
         if self.unified_retriever:
             unified_result = self.unified_retriever.query(
                 topic=user_message,
                 factions=self._get_active_factions(),
-                limit_lore=2,
-                limit_campaign=5,
+                strain_tier=strain_tier,  # Pass strain for budget adjustment
             )
             if not unified_result.is_empty:
-                context_section = self.unified_retriever.format_for_prompt(unified_result)
-                system_prompt = system_prompt + "\n\n---\n\n" + context_section
+                retrieval_content = self.unified_retriever.format_for_prompt(unified_result)
 
-        # Add relevant lore quotes for NPC dialogue flavor
+        # Add lore quotes to retrieval
         quote_context = self._get_relevant_quotes(user_message)
         if quote_context:
-            system_prompt = system_prompt + "\n\n---\n\n" + quote_context
+            retrieval_content = (
+                retrieval_content + "\n\n" + quote_context
+                if retrieval_content else quote_context
+            )
+
+        # Combine state with dynamic hints
+        state_content = sections["state"]
+        if dynamic_hints:
+            state_content = state_content + "\n\n---\n\n" + dynamic_hints
+
+        # Pack everything with budget enforcement
+        system_prompt, pack_info = self.packer.pack(
+            system=sections["system"],
+            rules=sections["rules"],
+            state=state_content,
+            window=self._conversation_window,
+            retrieval=retrieval_content,
+            user_input=user_message,
+        )
+
+        # Store pack info for /context command
+        self._last_pack_info = pack_info
+
+        # Add strain notice if elevated
+        strain_notice = format_strain_notice(pack_info.strain_tier)
+        if strain_notice:
+            system_prompt = system_prompt + "\n\n---\n\n" + strain_notice
 
         # Use the client's tool loop
         def tool_executor(name: str, args: dict) -> dict:
@@ -1261,7 +1329,91 @@ class SentinelAgent:
             tool_executor=tool_executor,
         )
 
+        # Update window with assistant response
+        self._conversation_window.add_block(TranscriptBlock(
+            id=str(uuid4()),
+            timestamp=datetime.now(),
+            role="assistant",
+            content=response[:500],  # Truncate for window storage
+            block_type=self._detect_response_type(response),
+        ))
+
         return response
+
+    def _update_conversation_window(self, messages: list[Message]) -> None:
+        """Update the rolling window with conversation messages."""
+        from datetime import datetime
+        from uuid import uuid4
+
+        # Add any new messages not already in window
+        existing_ids = {b.id for b in self._conversation_window.blocks}
+
+        for i, msg in enumerate(messages):
+            # Create a stable ID based on position and content hash
+            msg_id = f"msg_{i}_{hash(msg.content[:50]) % 10000}"
+            if msg_id not in existing_ids:
+                # Detect block type for assistant messages
+                block_type = "NARRATIVE"
+                if msg.role == "user":
+                    block_type = "CHOICE"
+                elif msg.role == "assistant":
+                    block_type = self._detect_response_type(msg.content)
+
+                self._conversation_window.add_block(TranscriptBlock(
+                    id=msg_id,
+                    timestamp=datetime.now(),
+                    role=msg.role,
+                    content=msg.content[:500],  # Truncate long messages
+                    block_type=block_type,
+                ))
+
+    def _detect_response_type(self, content: str) -> str:
+        """Detect the type of GM response for block classification."""
+        content_lower = content.lower()
+
+        # Check for choice blocks
+        if "---choice---" in content_lower or (
+            any(f"{i}." in content for i in range(1, 5)) and
+            ("?" in content or "choose" in content_lower or "option" in content_lower)
+        ):
+            return "CHOICE"
+
+        # Check for intel blocks
+        intel_markers = ["[intel]", "[info]", "[data]", "faction standing", "reputation"]
+        if any(marker in content_lower for marker in intel_markers):
+            return "INTEL"
+
+        # Check for system blocks
+        if content.startswith("[") and "]" in content[:50]:
+            return "SYSTEM"
+
+        return "NARRATIVE"
+
+    def _build_dynamic_hints(self, user_message: str) -> str:
+        """Build dynamic context hints (hinge detection, thread triggers, etc.)."""
+        hints = []
+
+        # Detect hinge moments in player input
+        hinge_detection = detect_hinge(user_message)
+        if hinge_detection:
+            hints.append(get_hinge_context(hinge_detection))
+
+        # Check for dormant thread triggers
+        thread_matches = self.manager.check_thread_triggers(user_message)
+        if thread_matches:
+            hints.append(self._format_thread_hints(thread_matches))
+
+        # Check for leverage hints
+        leverage_hints = self.manager.check_leverage_hints(user_message)
+        if leverage_hints:
+            hints.append(self._format_leverage_hints(leverage_hints))
+
+        # Check for demand deadlines (overdue/urgent demands)
+        urgent_demands = self.manager.check_demand_deadlines()
+        if urgent_demands:
+            hints.append(self._format_demand_alerts(urgent_demands))
+
+        return "\n\n---\n\n".join(hints) if hints else ""
 
     # -------------------------------------------------------------------------
     # Council / Consult
