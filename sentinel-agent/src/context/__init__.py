@@ -10,7 +10,9 @@ from .packer import (
     PackSection,
     PackInfo,
     SectionBudget,
+    StrainTier,
     DEFAULT_BUDGETS,
+    format_strain_notice,
 )
 from .window import (
     RollingWindow,
@@ -35,7 +37,9 @@ __all__ = [
     "PackSection",
     "PackInfo",
     "SectionBudget",
+    "StrainTier",
     "DEFAULT_BUDGETS",
+    "format_strain_notice",
     # Window
     "RollingWindow",
     "TranscriptBlock",
