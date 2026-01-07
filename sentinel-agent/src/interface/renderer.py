@@ -216,7 +216,7 @@ def show_backend_status(agent):
             console.print(f"[{THEME['warning']}]  Tool calling not supported[/{THEME['warning']}]")
     else:
         console.print(f"[{THEME['warning']}]Backend:[/{THEME['warning']}] Not connected")
-        console.print(f"[{THEME['dim']}]  Start LM Studio or set ANTHROPIC_API_KEY[/{THEME['dim']}]")
+        console.print(f"[{THEME['dim']}]  Start LM Studio or Ollama[/{THEME['dim']}]")
 
 
 def show_status(
@@ -352,12 +352,9 @@ Examples:
 
 By default, the agent auto-detects in this order:
 1. **LM Studio** — Free, runs locally (localhost:1234)
-2. **Claude API** — Requires ANTHROPIC_API_KEY
-3. **OpenRouter** — Multi-model API, requires OPENROUTER_API_KEY
-4. **Gemini CLI** — Google AI, requires `gemini` installed
-5. **Codex CLI** — OpenAI, requires `codex` installed
+2. **Ollama** — Free, runs locally (localhost:11434)
 
-Use `/backend <name>` to switch (lmstudio, claude, openrouter, gemini, codex).
+Use `/backend <name>` to switch (lmstudio, ollama, auto).
 """
     console.print(Markdown(help_text))
 
