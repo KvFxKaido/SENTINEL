@@ -242,7 +242,7 @@ CONTEXT_LIMITS = {
     "small": 4096,         # 4k - older models
     "medium": 8192,        # 8k
     "large": 32768,        # 32k
-    "huge": 131072,        # 128k - Claude, etc.
+    "huge": 131072,        # 128k
 }
 
 # Narrative bands for context depth
