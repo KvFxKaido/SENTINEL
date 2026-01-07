@@ -77,13 +77,16 @@ def kitty_available() -> bool:
     term = os.environ.get("TERM", "").lower()
     term_program = os.environ.get("TERM_PROGRAM", "").lower()
 
-    # Strong signals for kitty itself.
+    # Strong signals - trust these environment variables directly
     if os.environ.get("KITTY_WINDOW_ID") or "kitty" in term:
         return True
 
-    # Other terminals may support KGP (e.g., WezTerm). Try a fast query; if it fails,
-    # treat as unsupported to avoid breaking input handling.
-    if "wezterm" in term_program or os.environ.get("WEZTERM_EXECUTABLE"):
+    # WezTerm supports Kitty protocol on all platforms (including Windows)
+    if os.environ.get("WEZTERM_EXECUTABLE") or "wezterm" in term_program:
+        return True
+
+    # Other terminals: try a fast query on POSIX (skip on Windows)
+    if sys.platform != "win32":
         return _query_kitty_support(timeout_s=0.05)
 
     return False
