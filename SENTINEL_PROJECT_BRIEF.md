@@ -84,7 +84,7 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 - **`/simulate whatif <query>`** — explore alternate timelines
 
 **Technical Infrastructure**
-- **Multi-backend LLM** — LM Studio, Ollama, Claude, OpenRouter, Gemini CLI, Codex CLI
+- **Multi-backend LLM** — LM Studio, Ollama (local only)
 - **Test suite** — 197 tests covering core mechanics
 - **Event queue** — MCP → Agent state sync via append-only queue (solves concurrency)
 - **CI/CD** — GitHub Actions (Python 3.10, 3.11, 3.12)
@@ -126,10 +126,7 @@ SENTINEL/
 │   │   ├── llm/
 │   │   │   ├── base.py           # Abstract LLM client
 │   │   │   ├── lmstudio.py       # Local LLM (OpenAI-compatible)
-│   │   │   ├── ollama.py         # Ollama (OpenAI-compatible)
-│   │   │   ├── claude.py         # Anthropic API
-│   │   │   ├── openrouter.py     # OpenRouter API
-│   │   │   └── cli_wrapper.py    # Gemini/Codex CLI wrappers
+│   │   │   └── ollama.py         # Ollama (OpenAI-compatible)
 │   │   ├── lore/
 │   │   │   ├── chunker.py        # Parse novellas → tagged chunks
 │   │   │   ├── retriever.py      # Keyword matching retrieval
@@ -676,7 +673,6 @@ MGS-style dialogue frames for NPC speech:
 - **prompt-toolkit** — Command autocomplete
 - **LM Studio** — Local LLM (free, OpenAI-compatible API at port 1234)
 - **Ollama** — Local LLM alternative (OpenAI-compatible API at port 11434)
-- **Anthropic SDK** — Claude API (optional)
 - **memvid-sdk** — Campaign memory semantic search (optional)
 - **pytest** — Test framework with 197+ tests
 - **GitHub Actions** — CI/CD pipeline
