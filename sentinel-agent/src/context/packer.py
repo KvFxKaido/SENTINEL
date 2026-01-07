@@ -25,7 +25,8 @@ from .window import RollingWindow, TranscriptBlock, WindowConfig
 class PackSection(str, Enum):
     """Sections of the prompt pack, in order."""
     SYSTEM = "system"           # GM identity and philosophy
-    RULES = "rules"             # Game mechanics reference
+    RULES_CORE = "rules_core"   # Core decision logic (always included)
+    RULES_NARRATIVE = "rules_narrative"  # Narrative guidance (strain-aware)
     STATE = "state"             # Current campaign state snapshot
     DIGEST = "digest"           # Campaign memory digest (compressed history)
     WINDOW = "window"           # Recent transcript blocks
@@ -42,13 +43,16 @@ class SectionBudget:
 
 
 # Default token budgets per section (~13,000 total for 16k context)
+# rules_core = mechanics.md (~1140) + core_logic.md (~930) = ~2070 tokens
+# rules_narrative = narrative_guidance.md (~925 tokens)
 DEFAULT_BUDGETS: dict[PackSection, SectionBudget] = {
     PackSection.SYSTEM: SectionBudget(tokens=1500, required=True, can_truncate=False),
-    PackSection.RULES: SectionBudget(tokens=2000, required=True, can_truncate=True),
+    PackSection.RULES_CORE: SectionBudget(tokens=2200, required=True, can_truncate=False),
+    PackSection.RULES_NARRATIVE: SectionBudget(tokens=1000, required=False, can_truncate=True),
     PackSection.STATE: SectionBudget(tokens=1500, required=True, can_truncate=True),
-    PackSection.DIGEST: SectionBudget(tokens=2500, required=False, can_truncate=True),
-    PackSection.WINDOW: SectionBudget(tokens=3500, required=True, can_truncate=True),
-    PackSection.RETRIEVAL: SectionBudget(tokens=2000, required=False, can_truncate=True),
+    PackSection.DIGEST: SectionBudget(tokens=2000, required=False, can_truncate=True),
+    PackSection.WINDOW: SectionBudget(tokens=3000, required=True, can_truncate=True),
+    PackSection.RETRIEVAL: SectionBudget(tokens=1800, required=False, can_truncate=True),
     PackSection.INPUT: SectionBudget(tokens=500, required=True, can_truncate=False),
 }
 
@@ -128,35 +132,63 @@ class PromptPacker:
     def pack(
         self,
         system: str = "",
-        rules: str = "",
+        rules_core: str = "",
+        rules_narrative: str = "",
         state: str = "",
         digest: str = "",
         window: RollingWindow | None = None,
         retrieval: str = "",
         user_input: str = "",
+        *,
+        rules: str = "",  # Deprecated: use rules_core + rules_narrative
     ) -> tuple[str, PackInfo]:
         """
         Pack content into a prompt with budget enforcement.
 
         Args:
             system: GM identity and philosophy
-            rules: Game mechanics reference
+            rules_core: Core decision logic (always included, never cut)
+            rules_narrative: Narrative guidance (strain-aware, cut under pressure)
             state: Current campaign state snapshot
             digest: Campaign memory digest
             window: Rolling window of transcript blocks
             retrieval: Lore/history retrieval content
             user_input: Current user input
+            rules: [Deprecated] Combined rules - use rules_core/rules_narrative
 
         Returns:
             Tuple of (packed_prompt, pack_info)
         """
+        # Handle deprecated 'rules' parameter for backwards compatibility
+        if rules and not rules_core:
+            rules_core = rules
+            rules_narrative = ""
+
         sections: list[SectionContent] = []
         warnings: list[str] = []
+
+        # Calculate preliminary pressure to determine strain tier early
+        preliminary_total = sum(
+            self._counter.count(content)
+            for content in [system, rules_core, rules_narrative, state, digest, retrieval, user_input]
+            if content
+        )
+        preliminary_pressure = preliminary_total / self.total_budget
+        strain_tier = StrainTier.from_pressure(preliminary_pressure)
+
+        # Skip narrative guidance under Strain II+
+        include_narrative = strain_tier in (StrainTier.NORMAL, StrainTier.STRAIN_I)
+        if not include_narrative and rules_narrative:
+            warnings.append(
+                f"Narrative guidance skipped due to {strain_tier.value} "
+                f"({self._counter.count(rules_narrative)} tokens saved)"
+            )
 
         # Process each section in order
         section_contents = [
             (PackSection.SYSTEM, system),
-            (PackSection.RULES, rules),
+            (PackSection.RULES_CORE, rules_core),
+            (PackSection.RULES_NARRATIVE, rules_narrative if include_narrative else ""),
             (PackSection.STATE, state),
             (PackSection.DIGEST, digest),
             (PackSection.RETRIEVAL, retrieval),
@@ -305,7 +337,8 @@ class PromptPacker:
         """Get display header for section."""
         headers = {
             PackSection.SYSTEM: None,  # System goes first without header
-            PackSection.RULES: "Game Rules Reference",
+            PackSection.RULES_CORE: "Core Decision Logic",
+            PackSection.RULES_NARRATIVE: "Narrative Guidance",
             PackSection.STATE: "Current State",
             PackSection.DIGEST: "Campaign Memory",
             PackSection.WINDOW: "Recent Conversation",
@@ -321,14 +354,14 @@ class PromptPacker:
         """
         Get adjusted budgets for a strain tier.
 
-        Strain I: Reduced window, minimal retrieval
-        Strain II: Scene recap instead of old window, no retrieval
-        Strain III: Minimal window only, digest prominent
+        Strain I: Reduced window, minimal retrieval, full narrative guidance
+        Strain II: Scene recap, no retrieval, NO narrative guidance
+        Strain III: Minimal window, digest prominent, NO narrative guidance
         """
         adjusted = self.budgets.copy()
 
         if strain_tier == StrainTier.STRAIN_I:
-            # Reduce window, cut retrieval
+            # Reduce window, cut retrieval - narrative still included
             adjusted[PackSection.WINDOW] = SectionBudget(
                 tokens=2500, required=True, can_truncate=True
             )
@@ -337,20 +370,26 @@ class PromptPacker:
             )
 
         elif strain_tier == StrainTier.STRAIN_II:
-            # Minimal window, no retrieval
+            # Minimal window, no retrieval, drop narrative guidance
             adjusted[PackSection.WINDOW] = SectionBudget(
                 tokens=1500, required=True, can_truncate=True
             )
             adjusted[PackSection.RETRIEVAL] = SectionBudget(
                 tokens=0, required=False, can_truncate=True
             )
+            adjusted[PackSection.RULES_NARRATIVE] = SectionBudget(
+                tokens=0, required=False, can_truncate=True
+            )
 
         elif strain_tier == StrainTier.STRAIN_III:
-            # Bare minimum window, digest gets more space
+            # Bare minimum window, digest gets more space, no narrative
             adjusted[PackSection.WINDOW] = SectionBudget(
                 tokens=1000, required=True, can_truncate=True
             )
             adjusted[PackSection.RETRIEVAL] = SectionBudget(
+                tokens=0, required=False, can_truncate=True
+            )
+            adjusted[PackSection.RULES_NARRATIVE] = SectionBudget(
                 tokens=0, required=False, can_truncate=True
             )
             adjusted[PackSection.DIGEST] = SectionBudget(
