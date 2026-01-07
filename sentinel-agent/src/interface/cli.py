@@ -2,7 +2,7 @@
 Command-line interface for SENTINEL.
 
 Main entry point and game loop.
-Supports LM Studio (local) and Claude (API) backends.
+Supports local backends: LM Studio and Ollama.
 """
 
 import sys
@@ -447,7 +447,7 @@ def main():
             if not agent.is_available:
                 console.print(
                     f"[{THEME['warning']}]No LLM backend available.[/{THEME['warning']}]\n"
-                    f"[{THEME['dim']}]Start LM Studio or set ANTHROPIC_API_KEY[/{THEME['dim']}]"
+                    f"[{THEME['dim']}]Start LM Studio or Ollama[/{THEME['dim']}]"
                 )
                 continue
 

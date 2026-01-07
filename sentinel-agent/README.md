@@ -16,9 +16,9 @@ python -m src.interface.cli
 
 ## LLM Backends
 
-The agent supports multiple backends:
+The agent supports local LLM backends only.
 
-### LM Studio (Recommended for local play)
+### LM Studio (Recommended)
 1. Download [LM Studio](https://lmstudio.ai/)
 2. Load a model (Mistral, Llama, Qwen recommended)
 3. Start the local server (Server tab)
@@ -30,14 +30,15 @@ The agent supports multiple backends:
 3. Ollama runs automatically after install
 4. Run the CLI — it auto-detects Ollama at localhost:11434
 
-### Claude API (Optional)
-```bash
-pip install -e ".[claude]"
-export ANTHROPIC_API_KEY=your-key
-python -m src.interface.cli
-```
+The agent auto-detects available backends, preferring LM Studio > Ollama.
 
-The agent auto-detects available backends, preferring local (LM Studio > Ollama) over API.
+### Cloud Models
+
+Cloud models are not officially supported.
+
+SENTINEL's mechanics rely on predictable context limits, rolling windows, and controlled degradation. These cannot be guaranteed with hosted models.
+
+That said, players who supply the rules, tone, and constraints to a cloud model may achieve a similar experience. Expect variance.
 
 ## Architecture
 
