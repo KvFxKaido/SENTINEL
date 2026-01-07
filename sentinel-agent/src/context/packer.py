@@ -168,11 +168,19 @@ class PromptPacker:
         warnings: list[str] = []
 
         # Calculate preliminary pressure to determine strain tier early
+        # Include window estimate for accurate strain calculation
         preliminary_total = sum(
             self._counter.count(content)
             for content in [system, rules_core, rules_narrative, state, digest, retrieval, user_input]
             if content
         )
+        # Estimate window contribution (use budget as upper bound)
+        if window:
+            window_estimate = min(
+                sum(self._counter.count(b.content) for b in window.blocks),
+                self.budgets[PackSection.WINDOW].tokens
+            )
+            preliminary_total += window_estimate
         preliminary_pressure = preliminary_total / self.total_budget
         strain_tier = StrainTier.from_pressure(preliminary_pressure)
 
