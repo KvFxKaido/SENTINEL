@@ -100,6 +100,21 @@ Each is right about something, dangerously wrong when taken too far.
 
 +5 modifier when acting within expertise.
 
+## Loadout
+
+During **planning phase**, players select gear for the mission.
+
+**Rules:**
+- Soft limit: 3-5 items (GM discretion)
+- Loadout is **locked during execution** — no swapping mid-mission
+- Gear not in loadout is back at base
+- Single-use items (Trauma Kit, Encryption Breaker) are consumed when used
+
+**Effect:**
+- Right tool = advantage on related rolls
+- Wrong loadout = improvisation (harder checks)
+- Over-packing = slower, more conspicuous
+
 ## Enhancements
 
 Faction-granted power with strings attached.
@@ -141,8 +156,8 @@ Compliance history affects future leverage calls. Repeated resistance escalates.
 ## Mission Flow
 
 1. **Briefing** — What's wrong, who's asking, what are the competing truths
-2. **Planning** — Decide approach and roles
-3. **Execution** — The plan meets reality
+2. **Planning** — Decide approach, roles, and **loadout**
+3. **Execution** — The plan meets reality (loadout locked)
 4. **Resolution** — Situation settles (for now)
 5. **Debrief** — Name the consequences, update standings
 
