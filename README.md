@@ -175,17 +175,32 @@ That said, players who supply the rules, tone, and constraints to a cloud model 
 |-------------|---------|-------------|
 | **Context window** | 8K tokens | 16K+ tokens |
 | **VRAM (local)** | 8GB | 16GB+ |
-| **Tool calling** | Optional | Required for full experience |
+| **Tool calling** | See below | See below |
+
+**Context window:** 8K is playable but limited memory and shorter scenes. 16K+ provides stable NPC memory, faction nuance, and longer missions.
+
+**VRAM:** 8GB is functional but expect smaller models and tighter budgets. 16GB+ gives smooth pacing, better NPC consistency, and fewer compromises.
+
+**Note:** SENTINEL prioritizes continuity and consequence over verbosity. Larger models and longer context windows improve memory, not just prose quality.
+
+### Tool Calling Modes
+
+| Mode | Experience |
+|------|------------|
+| **Without** | Narrative-only (manual rolls, tracking, consequences) |
+| **With** | Full system integrity (dice, factions, hinges, simulation) |
+
+Both modes are intentionally supported. CLI-only models work fine for pure storytelling.
 
 ### Tested Models
 
-| Model | VRAM | Notes |
-|-------|------|-------|
-| **Gemma 3** | ~12GB (27B) | Good balance of size and quality |
-| **GPT-OSS** | ~10GB (20B) | OpenAI's open source model, Apache 2.0 |
-| **Qwen 3** | ~8GB (14B) | Excellent tool calling |
-| **Llama 3.2** | ~5GB (8B) | Lightweight, decent roleplay |
-| **Ministral 3** | ~8GB (14B) | Strong instruction following |
+| Model | VRAM | Best For | Notes |
+|-------|------|----------|-------|
+| **Gemma 3** | ~12GB (27B) | Long-form play | Balanced, stable |
+| **GPT-OSS** | ~10GB (20B) | Open-source purists | Apache 2.0 |
+| **Qwen 3** | ~8GB (14B) | System-heavy play | Excellent tool calling |
+| **Llama 3.2** | ~5GB (8B) | Low-end rigs | Lightweight, weaker memory |
+| **Ministral 3** | ~8GB (14B) | Rules adherence | Strong instruction following |
 
 ## Development
 
