@@ -20,9 +20,16 @@ from prompt_toolkit.styles import Style as PTStyle
 from .glyphs import (
     g, energy_bar, standing_indicator,
     format_context_meter, estimate_conversation_tokens,
-    CONTEXT_LIMITS,
+    CONTEXT_LIMITS, format_strain_indicator, format_strain_display,
+    get_strain_info, STRAIN_TIER_INFO,
 )
 from ..state.schema import Campaign, Character, MissionPhase
+
+# Import StrainTier for type hints (lazy import to avoid circular deps)
+try:
+    from ..context.packer import StrainTier
+except ImportError:
+    StrainTier = None  # type: ignore
 
 
 # Shared console instance
@@ -591,15 +598,17 @@ def render_system_block(
 
 class StatusBar:
     """
-    Persistent status bar showing character, mission, and energy state.
+    Persistent status bar showing character, mission, energy state, and context strain.
 
-    Tracks previous values to show deltas (e.g., "68% → 53% ↓").
+    Tracks previous values to show deltas (e.g., "68% -> 53%").
+    Now includes strain tier indicator for context pressure visualization.
     """
 
     def __init__(self):
         self._prev_energy: int | None = None
         self._prev_credits: int | None = None
         self._enabled: bool = True
+        self._current_strain_tier: "StrainTier | None" = None
 
     @property
     def enabled(self) -> bool:
@@ -614,14 +623,29 @@ class StatusBar:
         self._enabled = not self._enabled
         return self._enabled
 
-    def format(self, campaign: Campaign | None) -> Text | None:
+    def set_strain_tier(self, tier: "StrainTier | None") -> None:
+        """Update the current strain tier for display."""
+        self._current_strain_tier = tier
+
+    def format(
+        self,
+        campaign: Campaign | None,
+        strain_tier: "StrainTier | None" = None,
+    ) -> Text | None:
         """
         Format the status bar for display.
+
+        Args:
+            campaign: Current campaign state
+            strain_tier: Optional strain tier (uses stored value if None)
 
         Returns None if disabled or no campaign loaded.
         """
         if not self._enabled or not campaign:
             return None
+
+        # Use provided tier or fall back to stored value
+        tier = strain_tier if strain_tier is not None else self._current_strain_tier
 
         text = Text()
 
@@ -633,20 +657,20 @@ class StatusBar:
         else:
             text.append(" No Character", style=f"{THEME['dim']}")
 
-        text.append(" │ ", style=THEME["dim"])
+        text.append(" | ", style=THEME["dim"])
 
         # Mission info
         if campaign.session:
             mission_title = campaign.session.mission_title
             if len(mission_title) > 20:
-                mission_title = mission_title[:18] + "…"
+                mission_title = mission_title[:18] + "..."
             phase = campaign.session.phase.value.title()
             text.append(f"{mission_title}", style=THEME["primary"])
             text.append(f" ({phase})", style=THEME["dim"])
         else:
             text.append("No Mission", style=THEME["dim"])
 
-        text.append(" │ ", style=THEME["dim"])
+        text.append(" | ", style=THEME["dim"])
 
         # Social energy with delta
         if campaign.characters:
@@ -669,10 +693,10 @@ class StatusBar:
             if self._prev_energy is not None and self._prev_energy != current:
                 delta = current - self._prev_energy
                 if delta > 0:
-                    delta_str = f" ↑{delta}"
+                    delta_str = f" +{delta}"
                     delta_style = THEME["accent"]
                 else:
-                    delta_str = f" ↓{abs(delta)}"
+                    delta_str = f" {delta}"
                     delta_style = THEME["danger"]
                 text.append(f"{energy_name}: {current}%", style=energy_color)
                 text.append(delta_str, style=f"bold {delta_style}")
@@ -682,7 +706,17 @@ class StatusBar:
             # Update tracked value
             self._prev_energy = current
 
-        text.append(" │ ", style=THEME["dim"])
+        text.append(" | ", style=THEME["dim"])
+
+        # Strain tier indicator (context pressure)
+        if tier is not None and StrainTier is not None:
+            glyph, color, description = get_strain_info(tier.value)
+            text.append(glyph, style=f"bold {color}")
+            # Show tier name only for non-normal tiers
+            if tier.value != "normal":
+                tier_label = tier.value.upper().replace("_", " ")
+                text.append(f" {tier_label}", style=color)
+            text.append(" | ", style=THEME["dim"])
 
         # Session count
         text.append(f"Session {campaign.meta.session_count}", style=THEME["dim"])
@@ -690,9 +724,19 @@ class StatusBar:
 
         return text
 
-    def render(self, campaign: Campaign | None) -> None:
-        """Render the status bar to console."""
-        content = self.format(campaign)
+    def render(
+        self,
+        campaign: Campaign | None,
+        strain_tier: "StrainTier | None" = None,
+    ) -> None:
+        """
+        Render the status bar to console.
+
+        Args:
+            campaign: Current campaign state
+            strain_tier: Optional strain tier for context pressure display
+        """
+        content = self.format(campaign, strain_tier=strain_tier)
         if content:
             console.print(Panel(
                 content,
@@ -705,6 +749,7 @@ class StatusBar:
         """Reset delta tracking (call on campaign load)."""
         self._prev_energy = None
         self._prev_credits = None
+        self._current_strain_tier = None
 
 
 
