@@ -2,7 +2,7 @@
 SENTINEL Agent Orchestrator.
 
 Coordinates LLM calls with game state and tools.
-Supports multiple backends: LM Studio (local), Claude (API).
+Supports local backends: LM Studio, Ollama.
 """
 
 import json
@@ -289,7 +289,7 @@ class SentinelAgent:
     """
 
     # Supported backends
-    BACKENDS = ["lmstudio", "claude", "openrouter", "gemini", "codex", "auto"]
+    BACKENDS = ["lmstudio", "ollama", "gemini", "codex", "auto"]
 
     def __init__(
         self,
@@ -299,8 +299,7 @@ class SentinelAgent:
         client: LLMClient | None = None,
         backend: str = "auto",
         lmstudio_url: str = "http://localhost:1234/v1",
-        claude_model: str = "claude-sonnet-4-20250514",
-        openrouter_model: str = "claude-3.5-sonnet",
+        ollama_url: str = "http://localhost:11434/v1",
     ):
         """
         Initialize the SENTINEL agent.
@@ -312,8 +311,7 @@ class SentinelAgent:
             client: Pre-configured LLM client (overrides backend param)
             backend: Backend to use if no client provided ("auto" for detection)
             lmstudio_url: URL for LM Studio server
-            claude_model: Model name for Claude API
-            openrouter_model: Model name for OpenRouter
+            ollama_url: URL for Ollama server
         """
         self.manager = campaign_manager
         self.prompt_loader = PromptLoader(prompts_dir)
@@ -321,8 +319,7 @@ class SentinelAgent:
         # Store config for backend switching
         self._config = {
             "lmstudio_url": lmstudio_url,
-            "claude_model": claude_model,
-            "openrouter_model": openrouter_model,
+            "ollama_url": ollama_url,
         }
 
         # Initialize unified retriever (lore + campaign memory) if lore_dir provided
@@ -371,8 +368,7 @@ class SentinelAgent:
             self.backend, self.client = create_llm_client(
                 backend=backend,
                 lmstudio_url=lmstudio_url,
-                claude_model=claude_model,
-                openrouter_model=openrouter_model,
+                ollama_url=ollama_url,
             )
 
     @property
@@ -1200,9 +1196,7 @@ class SentinelAgent:
         if not self.client:
             return (
                 "[No LLM backend available]\n"
-                "Options:\n"
-                "1. Start LM Studio with a model loaded\n"
-                "2. Set ANTHROPIC_API_KEY for Claude\n"
+                "Start LM Studio or Ollama with a model loaded.\n"
             )
 
         # Build messages
@@ -1424,7 +1418,7 @@ class SentinelAgent:
 def create_agent(
     campaigns_dir: str = "campaigns",
     prompts_dir: str = "prompts",
-    backend: Literal["lmstudio", "claude", "auto"] = "auto",
+    backend: Literal["lmstudio", "ollama", "auto"] = "auto",
 ) -> SentinelAgent:
     """
     Create a configured agent instance.

@@ -24,20 +24,6 @@ __all__ = [
     "detect_backend",
 ]
 
-# Optional Claude client
-try:
-    from .claude import ClaudeClient
-    __all__.append("ClaudeClient")
-except ImportError:
-    ClaudeClient = None
-
-# Optional OpenRouter client
-try:
-    from .openrouter import OpenRouterClient
-    __all__.append("OpenRouterClient")
-except ImportError:
-    OpenRouterClient = None
-
 
 # -----------------------------------------------------------------------------
 # Mock Client for Testing
@@ -131,7 +117,7 @@ class MockLLMClient(LLMClient):
 # Backend Detection and Factory
 # -----------------------------------------------------------------------------
 
-BackendType = Literal["lmstudio", "ollama", "claude", "openrouter", "gemini", "codex", "auto"]
+BackendType = Literal["lmstudio", "ollama", "gemini", "codex", "auto"]
 
 
 def detect_backend(
@@ -141,7 +127,7 @@ def detect_backend(
     """
     Auto-detect available LLM backend.
 
-    Preference order: LM Studio > Ollama > Claude > OpenRouter > Gemini CLI > Codex CLI
+    Preference order: LM Studio > Ollama > Gemini CLI > Codex CLI
 
     Returns:
         Tuple of (backend_name, client) or (None, None) if nothing available.
@@ -161,23 +147,6 @@ def detect_backend(
             return ("ollama", client)
     except Exception:
         pass
-
-    # Try Claude API (only if key is available)
-    if ClaudeClient is not None and os.environ.get("ANTHROPIC_API_KEY"):
-        try:
-            client = ClaudeClient()
-            return ("claude", client)
-        except Exception:
-            pass
-
-    # Try OpenRouter
-    if OpenRouterClient is not None and os.environ.get("OPENROUTER_API_KEY"):
-        try:
-            client = OpenRouterClient()
-            if client.is_available():
-                return ("openrouter", client)
-        except Exception:
-            pass
 
     # Try Gemini CLI
     try:
@@ -202,8 +171,6 @@ def create_llm_client(
     backend: BackendType = "auto",
     lmstudio_url: str = "http://localhost:1234/v1",
     ollama_url: str = "http://localhost:11434/v1",
-    claude_model: str = "claude-sonnet-4-20250514",
-    openrouter_model: str = "claude-3.5-sonnet",
 ) -> tuple[str, LLMClient | None]:
     """
     Create an LLM client for the specified backend.
@@ -212,8 +179,6 @@ def create_llm_client(
         backend: Backend to use ("auto" for auto-detection)
         lmstudio_url: URL for LM Studio server
         ollama_url: URL for Ollama server
-        claude_model: Model name for Claude API
-        openrouter_model: Model name for OpenRouter
 
     Returns:
         Tuple of (backend_name, client). Client may be None if unavailable.
@@ -237,26 +202,6 @@ def create_llm_client(
         except Exception as e:
             print(f"Ollama error: {e}")
             return ("ollama", None)
-
-    if backend == "claude":
-        if ClaudeClient is None:
-            print("Claude client not available (install anthropic package)")
-            return ("claude", None)
-        try:
-            return ("claude", ClaudeClient(model=claude_model))
-        except Exception as e:
-            print(f"Claude error: {e}")
-            return ("claude", None)
-
-    if backend == "openrouter":
-        if OpenRouterClient is None:
-            print("OpenRouter client not available")
-            return ("openrouter", None)
-        try:
-            return ("openrouter", OpenRouterClient(model=openrouter_model))
-        except Exception as e:
-            print(f"OpenRouter error: {e}")
-            return ("openrouter", None)
 
     if backend == "gemini":
         try:
