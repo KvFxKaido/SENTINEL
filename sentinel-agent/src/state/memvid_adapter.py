@@ -33,6 +33,27 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _extract_hits(results: Any) -> list:
+    """
+    Extract hits from memvid query results.
+
+    Handles both object-style (_extract_hits(results)) and dict-style (results['hits'])
+    return formats for compatibility across memvid-sdk versions.
+    """
+    if results is None:
+        return []
+    # Try object attribute first
+    if hasattr(results, 'hits'):
+        return _extract_hits(results)
+    # Try dict access
+    if isinstance(results, dict):
+        return results.get('hits', [])
+    # If it's already a list, return it
+    if isinstance(results, list):
+        return results
+    return []
+
+
 # -----------------------------------------------------------------------------
 # Check for memvid-sdk availability
 # -----------------------------------------------------------------------------
@@ -443,7 +464,7 @@ class MemvidAdapter:
                 search_query = f"type:{frame_type} {query_text}"
 
             results = self._mv.find(search_query, k=top_k, snippet_chars=500)
-            return [self._parse_frame_data(hit) for hit in results.hits]
+            return [self._parse_frame_data(hit) for hit in _extract_hits(results)]
 
         except Exception as e:
             logger.error(f"Query failed: {e}")
@@ -469,7 +490,7 @@ class MemvidAdapter:
                 k=limit,
                 snippet_chars=500,
             )
-            return [self._parse_frame_data(hit) for hit in results.hits]
+            return [self._parse_frame_data(hit) for hit in _extract_hits(results)]
 
         except Exception as e:
             logger.error(f"NPC history query failed: {e}")
@@ -495,7 +516,7 @@ class MemvidAdapter:
                 k=5,
                 snippet_chars=500,
             )
-            hits = [self._parse_frame_data(hit) for hit in results.hits]
+            hits = [self._parse_frame_data(hit) for hit in _extract_hits(results)]
             return len(hits) > 0, hits
 
         except Exception as e:
@@ -513,7 +534,7 @@ class MemvidAdapter:
                 k=limit,
                 snippet_chars=500,
             )
-            return [self._parse_frame_data(hit) for hit in results.hits]
+            return [self._parse_frame_data(hit) for hit in _extract_hits(results)]
 
         except Exception as e:
             logger.error(f"Hinge query failed: {e}")
@@ -530,7 +551,7 @@ class MemvidAdapter:
                 k=100,
                 snippet_chars=500,
             )
-            return [self._parse_frame_data(hit) for hit in results.hits]
+            return [self._parse_frame_data(hit) for hit in _extract_hits(results)]
 
         except Exception as e:
             logger.error(f"Session timeline query failed: {e}")
@@ -547,7 +568,7 @@ class MemvidAdapter:
                 k=50,
                 snippet_chars=500,
             )
-            return [self._parse_frame_data(hit) for hit in results.hits]
+            return [self._parse_frame_data(hit) for hit in _extract_hits(results)]
 
         except Exception as e:
             logger.error(f"Thread query failed: {e}")
