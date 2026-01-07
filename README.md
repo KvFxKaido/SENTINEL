@@ -87,6 +87,26 @@ SENTINEL/
 
 | **Ghost Networks** | We were never here |
 
+## Geography
+
+Post-collapse North America, fractured along infrastructure lines.
+
+| Region | Primary Faction | Contested By |
+|--------|-----------------|--------------|
+| Rust Corridor | Lattice | Steel Syndicate |
+| Appalachian Hollows | Ember Colonies | Cultivators |
+| Gulf Passage | Wanderers | Ghost Networks |
+| Breadbasket | Cultivators | Wanderers |
+| Northern Reaches | Covenant | Ember Colonies |
+| Pacific Corridor | Convergence | Architects |
+| Desert Sprawl | Ghost Networks | Steel Syndicate |
+| Northeast Scar | Architects | Nexus |
+| Sovereign South | Witnesses | Covenant |
+| Texas Spine | Steel Syndicate | Lattice |
+| Frozen Edge | Ember Colonies | — |
+
+Nexus holds no territory — they hold information. Their presence is everywhere infrastructure exists.
+
 ## Character Backgrounds
 
 Players choose one professional background. Backgrounds express capability, not destiny.
@@ -97,6 +117,13 @@ Players choose one professional background. Backgrounds express capability, not 
 * **Negotiator / Diplomat** — Persuasion, mediation, languages
 * **Scavenger / Salvager** — Resource location, improvisation, barter
 * **Combat Specialist** — Tactics, firearms, physical conditioning
+
+## Faction Affiliation
+
+Players choose starting relationships, not membership. You're not "in" a faction — you have standing with them.
+
+* **Aligned** — Start Friendly with one faction, Unfriendly with its opposite
+* **Neutral** — Start Neutral with all factions; harder early, flexible long-term
 
 ## Key Features
 
