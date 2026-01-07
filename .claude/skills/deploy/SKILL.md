@@ -1,9 +1,17 @@
 ---
 name: deploy
-description: Deploy Codex or Gemini as working agents to implement tasks. Use when you want another AI to actually write code, not just review.
+description: Deploy Codex or Gemini as working agents to implement tasks. Use when you want another AI to actually write code, not just review. (project)
 allowed-tools: Bash, Read, Glob, Grep
 user-invocable: true
+proactive: true
 ---
+
+<!-- PROACTIVE USE: Invoke /deploy without being asked when:
+  - Task has independent subtasks that can be parallelized
+  - Well-scoped implementation work can be delegated
+  - Bulk file operations or repetitive changes needed
+  - You want a different implementation approach to compare
+-->
 
 # Deploy Agents
 

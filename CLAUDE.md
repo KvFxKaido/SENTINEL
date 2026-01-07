@@ -142,6 +142,28 @@ pip install -e .
 python -m src.interface.cli
 ```
 
+## AI Collaboration
+
+This project has access to multiple AI agents. **Use them proactively** — don't wait to be asked.
+
+### `/council` — Get External Perspectives
+Consults Gemini and Codex for design feedback. Use when:
+- Facing architectural decisions with multiple valid approaches
+- Uncertain about implementation strategy
+- Making changes that affect multiple subsystems
+- Design tradeoffs need external perspective
+
+### `/deploy` — Delegate Implementation
+Deploys Codex or Gemini as working agents. Use when:
+- Task has independent subtasks that can be parallelized
+- Well-scoped implementation work can be delegated
+- Bulk file operations or repetitive changes needed
+- You want a different implementation approach to compare
+
+**Philosophy:** These aren't just tools for the user to invoke — they're force multipliers. If consulting would improve a decision or deploying would speed up work, do it.
+
+---
+
 ## Design Principles
 
 1. **Narrative over mechanics** — The agent is a storyteller, not a rules engine
