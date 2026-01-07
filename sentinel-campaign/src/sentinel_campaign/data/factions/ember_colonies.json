@@ -88,5 +88,14 @@
     "safe routes",
     "who can be trusted",
     "who has helped before"
-  ]
+  ],
+  "territory": {
+    "primary": "Appalachian Hollows",
+    "secondary": "Frozen Edge",
+    "description": "Mountain communities from Georgia to Pennsylvania, plus Alaska and Yukon. Insular survivor settlements in valleys and old coal towns.",
+    "contested_by": ["Cultivators"],
+    "contesting": ["Northern Reaches"],
+    "hard_borders": "Mountain passes, fortified hollers",
+    "zone_of_influence": "Any isolated community that values autonomy"
+  }
 }

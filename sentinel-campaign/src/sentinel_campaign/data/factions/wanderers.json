@@ -88,5 +88,13 @@
     "news from distant places",
     "who's traveling and why",
     "territorial changes"
-  ]
+  ],
+  "territory": {
+    "primary": "Gulf Passage",
+    "description": "Gulf Coast from Texas to Florida. Trade routes through flooded cities and coastal ruins.",
+    "contested_by": ["Ghost Networks"],
+    "contesting": ["Breadbasket"],
+    "hard_borders": "None—fluid territory",
+    "zone_of_influence": "Every trade route, every crossroads, every caravan stop"
+  }
 }

@@ -92,5 +92,13 @@
     "who's looking for whom",
     "safe houses",
     "who has successfully disappeared"
-  ]
+  ],
+  "territory": {
+    "primary": "Desert Sprawl",
+    "description": "Southwest—Arizona, Nevada, New Mexico. Empty highways, buried bunkers, places to disappear.",
+    "contested_by": ["Steel Syndicate"],
+    "contesting": ["Gulf Passage"],
+    "hard_borders": "None—Ghost Networks don't hold territory, they haunt it",
+    "zone_of_influence": "Safe houses scattered across the continent"
+  }
 }

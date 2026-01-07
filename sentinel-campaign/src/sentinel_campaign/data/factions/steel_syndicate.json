@@ -88,5 +88,13 @@
     "smuggling routes",
     "leverage and blackmail material",
     "who can be bought"
-  ]
+  ],
+  "territory": {
+    "primary": "Texas Spine",
+    "description": "Central Texas corridor from San Antonio to Dallas. Oil infrastructure, weapons manufacturing, raw capitalism.",
+    "contested_by": ["Lattice"],
+    "contesting": ["Rust Corridor", "Desert Sprawl"],
+    "hard_borders": "Syndicate-controlled refineries and trade posts",
+    "zone_of_influence": "Anywhere there's profit to extract"
+  }
 }

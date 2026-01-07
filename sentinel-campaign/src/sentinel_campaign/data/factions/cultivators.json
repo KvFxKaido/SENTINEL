@@ -81,5 +81,13 @@
     "who's hungry and why",
     "agricultural technology",
     "seed stock status"
-  ]
+  ],
+  "territory": {
+    "primary": "Breadbasket",
+    "description": "Great Plains—Kansas, Nebraska, the Dakotas. Reclaimed farmland, seed vaults, agrarian communes.",
+    "contested_by": ["Wanderers"],
+    "contesting": ["Appalachian Hollows"],
+    "hard_borders": "Defended granaries and water sources",
+    "zone_of_influence": "Anywhere food grows or people are hungry"
+  }
 }

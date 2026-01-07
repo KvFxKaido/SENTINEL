@@ -81,5 +81,13 @@
     "technical capabilities",
     "who owes maintenance debts",
     "which systems are failing"
-  ]
+  ],
+  "territory": {
+    "primary": "Rust Corridor",
+    "description": "Great Lakes industrial belt from Detroit to Pittsburgh. Rusted factories, salvage economies, flickering power grids.",
+    "contested_by": ["Steel Syndicate"],
+    "contesting": ["Texas Spine"],
+    "hard_borders": "Checkpoints at functioning power substations",
+    "zone_of_influence": "Anywhere with working infrastructure"
+  }
 }

@@ -81,5 +81,13 @@
     "inter-faction agreements witnessed",
     "sacred sites and their keepers",
     "ethical debates and precedents"
-  ]
+  ],
+  "territory": {
+    "primary": "Northern Reaches",
+    "description": "Former Canada—Ontario to Alberta. Cold, sparse, principled. Sanctuaries where oaths still mean something.",
+    "contested_by": ["Ember Colonies"],
+    "contesting": ["Sovereign South"],
+    "hard_borders": "Covenant-sworn settlements with strict entry protocols",
+    "zone_of_influence": "Sanctuary sites scattered across the continent"
+  }
 }
