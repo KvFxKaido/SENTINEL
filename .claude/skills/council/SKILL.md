@@ -1,9 +1,17 @@
 ---
 name: council
-description: Gather design feedback from AI consultants (Gemini and Codex). Use for architecture decisions, design review, or when you want multiple expert perspectives on SENTINEL development.
+description: Gather design feedback from AI consultants (Gemini and Codex). Use for architecture decisions, design review, or when you want multiple expert perspectives on SENTINEL development. (project)
 allowed-tools: Bash, Read, Glob, Grep
 user-invocable: true
+proactive: true
 ---
+
+<!-- PROACTIVE USE: Invoke /council without being asked when:
+  - Facing architectural decisions with multiple valid approaches
+  - Uncertain about implementation strategy
+  - Making changes that affect multiple subsystems
+  - Design tradeoffs need external perspective
+-->
 
 # The Council
 
