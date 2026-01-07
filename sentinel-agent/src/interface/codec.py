@@ -18,6 +18,14 @@ try:
 except ImportError:
     BRAILLE_AVAILABLE = False
 
+# Try to import kitty graphics protocol support
+try:
+    from src.interface import kitty as kitty_protocol
+    KITTY_MODULE_AVAILABLE = True
+except ImportError:
+    KITTY_MODULE_AVAILABLE = False
+    kitty_protocol = None  # type: ignore[assignment]
+
 
 class Disposition(Enum):
     HOSTILE = "hostile"
@@ -176,6 +184,7 @@ class NPCDisplay:
     disposition: Disposition = Disposition.NEUTRAL
     archetype: str = "default"
     title: Optional[str] = None
+    image_path: Optional[str] = None
 
 
 def get_faction_color(faction: str) -> str:
@@ -195,6 +204,7 @@ def render_codec_frame(
     scanlines: bool = True,
     width: int = 32,
     use_braille: bool = False,
+    image_path: Optional[str] = None,
 ) -> str:
     """
     Render an MGS-style codec frame for an NPC.
@@ -204,6 +214,7 @@ def render_codec_frame(
         scanlines: Whether to add scanline effect
         width: Frame width
         use_braille: Use high-res braille portraits (requires Pillow)
+        image_path: Optional path to an image to render (Kitty protocol)
 
     Returns:
         Rendered frame as a string
@@ -211,14 +222,32 @@ def render_codec_frame(
     faction_color = get_faction_color(npc.faction)
     disp_color, disp_icon = get_disposition_display(npc.disposition)
 
-    # Get portrait - braille or ASCII
-    if use_braille and BRAILLE_AVAILABLE:
-        expression = DISPOSITION_TO_EXPRESSION.get(npc.disposition, "neutral")
-        portrait_width = width - 6  # Leave room for borders and padding
-        braille_art = generate_braille_portrait(npc.archetype, expression, portrait_width)
-        portrait = braille_art.split('\n')
-    else:
-        portrait = PORTRAITS.get(npc.archetype, PORTRAITS["default"])
+    # Get portrait - Kitty image (preferred) -> braille -> ASCII
+    portrait: list[str]
+    use_kitty = False
+    kitty_escape = ""
+    resolved_image_path = image_path or npc.image_path
+
+    if resolved_image_path and KITTY_MODULE_AVAILABLE and kitty_protocol is not None:
+        try:
+            if kitty_protocol.kitty_available():
+                portrait_width = max(1, width - 6)  # Leave room for borders and padding
+                portrait_height = len(PORTRAITS.get(npc.archetype, PORTRAITS["default"]))
+                kitty_escape = kitty_protocol.display_image(resolved_image_path, portrait_width, portrait_height)
+                if kitty_escape:
+                    use_kitty = True
+                    portrait = [" " * portrait_width for _ in range(portrait_height)]
+        except Exception:
+            use_kitty = False
+
+    if not use_kitty:
+        if use_braille and BRAILLE_AVAILABLE:
+            expression = DISPOSITION_TO_EXPRESSION.get(npc.disposition, "neutral")
+            portrait_width = width - 6  # Leave room for borders and padding
+            braille_art = generate_braille_portrait(npc.archetype, expression, portrait_width)
+            portrait = braille_art.split('\n')
+        else:
+            portrait = PORTRAITS.get(npc.archetype, PORTRAITS["default"])
 
     lines = []
     reset = Colors.RESET
@@ -247,11 +276,14 @@ def render_codec_frame(
         left_pad = max(0, total_padding // 2)
         right_pad = max(0, total_padding - left_pad)
 
-        # Add scanline effect on alternating lines
-        if scanlines and i % 2 == 1:
-            styled_portrait = f"{Colors.SCANLINE}{portrait_line}{reset}"
+        if use_kitty:
+            styled_portrait = f"{kitty_escape}{portrait_line}" if i == 0 else portrait_line
         else:
-            styled_portrait = f"{faction_color}{portrait_line}{reset}"
+            # Add scanline effect on alternating lines
+            if scanlines and i % 2 == 1:
+                styled_portrait = f"{Colors.SCANLINE}{portrait_line}{reset}"
+            else:
+                styled_portrait = f"{faction_color}{portrait_line}{reset}"
 
         line = f"{faction_color}║{reset}{' ' * left_pad}{styled_portrait}{' ' * right_pad}{faction_color}║{reset}"
         lines.append(line)
