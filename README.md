@@ -134,7 +134,7 @@ Players choose one professional background. Backgrounds express capability, not 
 * Accepted arcs inform GM behavior and NPC recognition
 * Social energy with personalized restorers/drains
 
-### Campaign Memory (Memvid)
+### Campaign Memory ([Memvid](https://github.com/memvid/memvid))
 
 * Semantic search over campaign history
 * `/timeline` command finds relevant past events
