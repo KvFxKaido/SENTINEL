@@ -85,10 +85,13 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 
 **Context Management**
 - **Engine-owned context control** — deterministic prompt packing with token budgets
-- **Prompt Pack sections** — System (1.5k), Rules (2k), State (1.5k), Digest (2.5k), Window (3.5k), Retrieval (2k) tokens
+- **Two-layer rules** — core logic (2.2k, never cut) + narrative guidance (1k, cut under strain)
+- **Prompt Pack sections** — System (1.5k), Rules Core (2.2k), Rules Narrative (1k), State (1.5k), Digest (2k), Window (3k), Retrieval (1.8k) tokens
 - **Rolling window** — priority-based trimming (SYSTEM → NARRATIVE → INTEL → CHOICE)
 - **Anchor retention** — hinge-tagged blocks survive longer in context
 - **Memory Strain tiers** — Normal → I → II → III with visual indicators in status bar
+- **Strain II+ behavior** — narrative guidance dropped (~925 tokens saved), core decision logic survives
+- **SafetyNet fallbacks** — `ELSE IF context_incomplete` branches in trigger rules for graceful degradation
 - **Campaign digest** — compressed durable memory (`/checkpoint`, `/compress`, `/clear`)
 - **Strain-aware retrieval** — automatic budget adjustment, active queries bypass restrictions
 - **`/context` command** — show usage; `/context debug` for detailed section breakdown
@@ -162,7 +165,9 @@ SENTINEL/
 │   ├── prompts/                  # Hot-reloadable GM instructions
 │   │   ├── core.md               # Identity and principles
 │   │   ├── mechanics.md          # Rules reference
-│   │   ├── gm_guidance.md        # Narrative style + choice generation
+│   │   ├── rules/                # Two-layer rules system
+│   │   │   ├── core_logic.md         # Decision triggers (always loaded)
+│   │   │   └── narrative_guidance.md # Flavor/examples (cut under strain)
 │   │   ├── phases/               # Phase-specific GM guidance
 │   │   │   ├── briefing.md
 │   │   │   ├── planning.md
