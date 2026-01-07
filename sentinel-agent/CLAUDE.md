@@ -27,9 +27,7 @@ src/
 ├── llm/
 │   ├── base.py           # Abstract LLM client
 │   ├── lmstudio.py       # Local LM Studio backend
-│   ├── claude.py         # Claude API backend
-│   ├── openrouter.py     # OpenRouter API backend
-│   └── cli_wrapper.py    # Gemini/Codex CLI wrappers
+│   └── ollama.py         # Local Ollama backend
 └── lore/
     ├── retriever.py      # Context-aware lore lookup
     └── chunker.py        # Document chunking
