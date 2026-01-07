@@ -289,7 +289,7 @@ class SentinelAgent:
     """
 
     # Supported backends
-    BACKENDS = ["lmstudio", "ollama", "gemini", "codex", "auto"]
+    BACKENDS = ["lmstudio", "ollama", "auto"]
 
     def __init__(
         self,

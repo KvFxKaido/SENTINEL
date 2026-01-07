@@ -353,10 +353,8 @@ Examples:
 By default, the agent auto-detects in this order:
 1. **LM Studio** — Free, runs locally (localhost:1234)
 2. **Ollama** — Free, runs locally (localhost:11434)
-3. **Gemini CLI** — Google AI, requires `gemini` installed
-4. **Codex CLI** — OpenAI, requires `codex` installed
 
-Use `/backend <name>` to switch (lmstudio, ollama, gemini, codex).
+Use `/backend <name>` to switch (lmstudio, ollama, auto).
 """
     console.print(Markdown(help_text))
 
