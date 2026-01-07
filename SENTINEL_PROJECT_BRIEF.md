@@ -1,6 +1,6 @@
 # SENTINEL Project Brief
 
-*Last updated: January 6, 2026*
+*Last updated: January 7, 2026*
 
 ## What This Is
 
@@ -83,31 +83,35 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 - **`/simulate npc <name> <approach>`** — predict NPC reaction to planned interaction
 - **`/simulate whatif <query>`** — explore alternate timelines
 
+**Context Management**
+- **Engine-owned context control** — deterministic prompt packing with token budgets
+- **Prompt Pack sections** — System (1.5k), Rules (2k), State (1.5k), Digest (2.5k), Window (3.5k), Retrieval (2k) tokens
+- **Rolling window** — priority-based trimming (SYSTEM → NARRATIVE → INTEL → CHOICE)
+- **Anchor retention** — hinge-tagged blocks survive longer in context
+- **Memory Strain tiers** — Normal → I → II → III with visual indicators in status bar
+- **Campaign digest** — compressed durable memory (`/checkpoint`, `/compress`, `/clear`)
+- **Strain-aware retrieval** — automatic budget adjustment, active queries bypass restrictions
+- **`/context` command** — show usage; `/context debug` for detailed section breakdown
+
 **Technical Infrastructure**
 - **Multi-backend LLM** — LM Studio, Ollama (local only)
-- **Test suite** — 197 tests covering core mechanics
+- **Test suite** — 236 tests covering core mechanics
 - **Event queue** — MCP → Agent state sync via append-only queue (solves concurrency)
 - **CI/CD** — GitHub Actions (Python 3.10, 3.11, 3.12)
 - **Phase-based GM guidance** — different prompts per mission phase
 - **Config persistence** — remembers last used backend and model across sessions
 - **Context meter** — visual indicator of conversation depth
 - **Banner UX toggle** — `/banner` command to enable/disable startup animation (persists)
-- **Persistent status bar** — shows character, mission, phase, social energy with delta tracking (`/statusbar` to toggle)
+- **Persistent status bar** — shows character, mission, phase, social energy, strain tier with delta tracking (`/statusbar` to toggle)
 - **Social energy carrot** — spend 10% energy for advantage when acting in your element (matches restorers)
 - **Player Push mechanic** — explicitly invite consequences for advantage (Devil's Bargain), queues dormant thread
 
 ### Not Yet Built
 
-**Next Up: Engine-Owned Context Control**
-- Prompt Pack system with token-budgeted sections (identity, rules, state, digest, transcript, retrieval)
-- Rolling window policy with priority-based trimming (hinges survive longer)
-- Memory Strain tiers (Normal → I → II → III) as deterministic game mechanic
-- Digest system for compressed durable memory (`/checkpoint`, `/compress`, `/clear`)
-- See: `architecture/Engine_Owned_Context_Control.md`
-
 **Future:**
 - Multi-character party support
 - Web/mobile interface
+- Portrait system for NPCs (terminal image protocols)
 
 ---
 
@@ -136,10 +140,15 @@ SENTINEL/
 │   │   │   ├── base.py           # Abstract LLM client
 │   │   │   ├── lmstudio.py       # Local LLM (OpenAI-compatible)
 │   │   │   └── ollama.py         # Ollama (OpenAI-compatible)
+│   │   ├── context/
+│   │   │   ├── tokenizer.py      # Token counting (tiktoken + fallback)
+│   │   │   ├── window.py         # Rolling window with priority trimming
+│   │   │   ├── packer.py         # PromptPacker with section budgets
+│   │   │   └── digest.py         # Campaign memory digest
 │   │   ├── lore/
 │   │   │   ├── chunker.py        # Parse novellas → tagged chunks
 │   │   │   ├── retriever.py      # Keyword matching retrieval
-│   │   │   ├── unified.py        # Combined lore + campaign + state (RetrievalBudget)
+│   │   │   ├── unified.py        # Combined lore + campaign + state (strain-aware)
 │   │   │   └── quotes.py         # 44 curated faction/world quotes
 │   │   ├── tools/
 │   │   │   ├── dice.py           # Roll mechanics
@@ -224,6 +233,15 @@ SENTINEL/
 | `/simulate preview <action>` | Preview consequences without committing |
 | `/simulate npc <name> <approach>` | Predict NPC reaction to planned interaction |
 | `/simulate whatif <query>` | Explore alternate timelines |
+
+### Context Management
+| Command | Description |
+|---------|-------------|
+| `/context` | Show context usage and strain tier |
+| `/context debug` | Detailed breakdown of all sections |
+| `/checkpoint` | Save state + compress memory (use when strained) |
+| `/compress` | Update digest without pruning transcript |
+| `/clear` | Clear transcript beyond minimum window |
 
 ### Utility
 | Command | Description |
@@ -680,13 +698,14 @@ MGS-style dialogue frames for NPC speech:
 - **Pydantic** — State validation
 - **Rich** — Terminal UI with theming
 - **prompt-toolkit** — Command autocomplete
+- **tiktoken** — Accurate token counting for context management
 - **LM Studio** — Local LLM (free, OpenAI-compatible API at port 1234)
 - **Ollama** — Local LLM alternative (OpenAI-compatible API at port 11434)
 - **memvid-sdk** — Campaign memory semantic search (optional)
-- **pytest** — Test framework with 197+ tests
+- **pytest** — Test framework with 236 tests
 - **GitHub Actions** — CI/CD pipeline
 
-No heavy ML dependencies — lore retrieval uses keyword matching, memvid is optional.
+Lightweight dependencies — tiktoken for token counting, memvid optional.
 
 ---
 
