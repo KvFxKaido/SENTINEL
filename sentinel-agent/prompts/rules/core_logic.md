@@ -110,8 +110,6 @@ IF avoidance marked [OVERDUE]:
     THEN describe_mounting_pressure BUT offer_choice_first
 ```
 
-The world doesn't wait. Avoidance is content.
-
 ## Faction Pressure Application
 
 ```
@@ -137,8 +135,7 @@ IF player accepts:
   THEN call declare_push, grant advantage, queue dormant thread
 ```
 
-Good consequences create future complications (1-5 sessions out).
-Bad consequences are immediate punishments or vague threats.
+Good: future complications. Bad: immediate punishments.
 
 ## Player Choice Presentation
 
@@ -151,17 +148,6 @@ IF high-stakes (hinge, faction confrontation, life/death):
 Option 4 always: "Something else..."
 ```
 
-## Safety Defaults (context_incomplete fallback)
+## Safety Pattern
 
-The `ELSE IF context_incomplete` branches above encode these defaults:
-
-```
-WHEN context_incomplete:
-  - describe_tension BUT do_not_force_consequence
-  - acknowledge_weight BUT defer_consequence
-  - hint_at_consequence BUT allow_player_to_clarify
-  - increase_pressure BUT no_mechanical_consequence
-  - offer_choice_first BEFORE any_irreversible_action
-```
-
-Pattern: **Pressure yes, permanence no.** The GM can make the world feel dangerous without locking in consequences that the full rules might handle differently.
+`context_incomplete` branches above encode: **Pressure yes, permanence no.**
