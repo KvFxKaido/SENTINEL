@@ -1,6 +1,6 @@
 # SENTINEL Project Brief
 
-*Last updated: January 7, 2026*
+*Last updated: January 8, 2026*
 
 ## What This Is
 
@@ -109,12 +109,24 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 - **Social energy carrot** — spend 10% energy for advantage when acting in your element (matches restorers)
 - **Player Push mechanic** — explicitly invite consequences for advantage (Devil's Bargain), queues dormant thread
 
+**Portrait System**
+- **Kitty Graphics Protocol** — inline image display in supported terminals (WezTerm, Kitty)
+- **Graceful fallback** — Kitty images → Braille art → ASCII portraits
+- **33 faction portraits** — 3 archetypes per faction (scout/elder/etc), comic book style
+- **Art style anchor** — "Comic book style with clean character lines, dramatic lighting"
+- **Faction-colored accents** — each faction has distinct color lighting (Nexus blue, Ember orange, etc.)
+- **Portrait prompt template** — standardized generation via NanoBanana/Gemini CLI
+
+**AI Collaboration Skills**
+- **`/council`** — consult Gemini and Codex for design feedback (read-only perspectives)
+- **`/deploy`** — deploy Codex or Gemini as working agents to implement tasks
+- **Proactive usage** — skills can be invoked without user request when appropriate
+
 ### Not Yet Built
 
 **Future:**
 - Multi-character party support
 - Web/mobile interface
-- Portrait system for NPCs (terminal image protocols)
 
 ---
 
@@ -160,6 +172,9 @@ SENTINEL/
 │   │       ├── cli.py            # Terminal UI with theming
 │   │       ├── commands.py       # Command handlers (simulate, arc, factions, etc.)
 │   │       ├── renderer.py       # Display helpers, banners, status
+│   │       ├── codec.py          # MGS-style NPC portrait frames
+│   │       ├── kitty.py          # Kitty Graphics Protocol support
+│   │       ├── braille.py        # High-res braille art portraits
 │   │       ├── glyphs.py         # Unicode/ASCII visual indicators
 │   │       └── choices.py        # Choice parsing
 │   ├── prompts/                  # Hot-reloadable GM instructions
@@ -183,6 +198,14 @@ SENTINEL/
 │       ├── resources/            # Lore, NPCs, operations, history
 │       ├── tools/                # Standing, interactions, intel, history search
 │       └── data/factions/        # 11 faction JSON files
+├── assets/
+│   ├── ART_STYLE.md              # Visual house style guide
+│   ├── PORTRAIT_PROMPT_TEMPLATE.md # NPC portrait generation prompts
+│   ├── braille_portraits/        # 33 text-based braille portraits
+│   └── portraits/                # Generated PNG portraits (gitignored)
+├── .claude/skills/               # Claude Code skills
+│   ├── council/SKILL.md          # Consult Gemini/Codex for feedback
+│   └── deploy/SKILL.md           # Deploy agents for implementation
 └── architecture/
     └── AGENT_ARCHITECTURE.md     # Design document
 ```
@@ -677,9 +700,19 @@ Based on design concept: *"If it looks calm, it's lying."*
 
 Applied throughout CLI: banners, panels, status displays, choice blocks.
 
+### Portrait Art Style
+
+NPC portraits use a consistent comic book aesthetic documented in `assets/ART_STYLE.md`:
+
+- **Core style:** "Comic book style with clean character lines, dramatic lighting"
+- **Faction differentiation:** Each faction has distinct accent lighting color
+- **Expression mapping:** Disposition (hostile→loyal) determines facial expression
+- **33 portraits:** 3 archetypes per faction (e.g., scout, elder, defender)
+- **Generation:** NanoBanana extension via Gemini CLI with standardized prompts
+
 ### NPC Codec Boxes
 
-MGS-style dialogue frames for NPC speech:
+MGS-style dialogue frames for NPC speech with portrait support:
 
 ```
 ╔══════════════════════════════════════════════════════════════╗
@@ -694,6 +727,7 @@ MGS-style dialogue frames for NPC speech:
 - **Faction-colored border** — visual identity at a glance
 - **Disposition bar** — ▰▰▰▱▱ shows relationship state
 - **Memory tags** — [⚡ remembers: shared intel] when referencing past events
+- **Portrait display** — Kitty protocol images in WezTerm/Kitty, braille fallback elsewhere
 
 ---
 
