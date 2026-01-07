@@ -48,10 +48,13 @@ class GameStateSnapshot:
 
 def extract_game_state(manager: CampaignManager) -> GameStateSnapshot:
     """Extract current game state for UI consumption."""
+    logger.info(f"extract_game_state: manager.current = {manager.current}")
     if not manager.current:
+        logger.warning("No current campaign loaded!")
         return GameStateSnapshot()
 
     campaign = manager.current
+    logger.info(f"Campaign: {campaign.meta.name}, chars: {len(campaign.characters)}")
     snapshot = GameStateSnapshot()
 
     # Campaign info
@@ -84,9 +87,14 @@ def extract_game_state(manager: CampaignManager) -> GameStateSnapshot:
                 if gid in gear_map
             ]
 
-    # Faction standings
-    for standing in campaign.faction_standings:
-        snapshot.factions[standing.faction_id] = standing.standing.value
+    # Faction standings - iterate over FactionRegistry fields
+    if campaign.factions:
+        for faction_id in ['nexus', 'ember_colonies', 'lattice', 'convergence',
+                           'covenant', 'wanderers', 'cultivators', 'steel_syndicate',
+                           'witnesses', 'architects', 'ghost_networks']:
+            standing = getattr(campaign.factions, faction_id, None)
+            if standing:
+                snapshot.factions[faction_id] = standing.standing.value
 
     # Session info
     if campaign.session:
@@ -220,11 +228,18 @@ class SentinelWebSocketServer:
 
         try:
             # Send initial state
-            state = extract_game_state(self.manager)
-            await websocket.send(json.dumps({
-                "type": "state",
-                "data": state.to_dict(),
-            }))
+            try:
+                state = extract_game_state(self.manager)
+                state_dict = state.to_dict()
+                logger.info(f"Sending state: {state_dict}")
+                await websocket.send(json.dumps({
+                    "type": "state",
+                    "data": state_dict,
+                }))
+            except Exception as e:
+                logger.error(f"Error extracting/sending state: {e}")
+                import traceback
+                traceback.print_exc()
 
             # Handle incoming messages
             async for message in websocket:

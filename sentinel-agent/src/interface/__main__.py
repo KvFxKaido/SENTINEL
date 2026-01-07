@@ -36,8 +36,14 @@ async def main():
     campaigns = manager.list_campaigns()
     if campaigns:
         most_recent = campaigns[0]
-        manager.load_campaign(most_recent["name"])
-        logger.info(f"Loaded campaign: {most_recent['name']}")
+        # load_campaign takes index (1-based) or campaign ID
+        campaign = manager.load_campaign("1")  # Load first campaign
+        if campaign:
+            logger.info(f"Loaded campaign: {campaign.meta.name}")
+            logger.info(f"  Characters: {len(campaign.characters)}")
+            logger.info(f"  Session: {campaign.session is not None}")
+        else:
+            logger.warning(f"Failed to load campaign")
     else:
         logger.info("No campaigns found. Create one via CLI first.")
 
