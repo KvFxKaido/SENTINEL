@@ -178,15 +178,13 @@ def cmd_delete(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
 
 def cmd_backend(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
     """Show or change backend."""
-    valid_backends = ["lmstudio", "ollama", "gemini", "codex", "auto"]
+    valid_backends = ["lmstudio", "ollama", "auto"]
 
     if not args:
         show_backend_status(agent)
         console.print(f"\n[{THEME['dim']}]Available backends:[/{THEME['dim']}]")
         console.print(f"  [{THEME['accent']}]lmstudio[/{THEME['accent']}]   - Local LLM (free, requires LM Studio)")
         console.print(f"  [{THEME['accent']}]ollama[/{THEME['accent']}]     - Local LLM (free, requires Ollama)")
-        console.print(f"  [{THEME['accent']}]gemini[/{THEME['accent']}]     - Google CLI (requires gemini installed)")
-        console.print(f"  [{THEME['accent']}]codex[/{THEME['accent']}]      - OpenAI CLI (requires codex installed)")
         console.print(f"  [{THEME['accent']}]auto[/{THEME['accent']}]       - Auto-detect best available")
         console.print(f"\n[{THEME['dim']}]Use /backend <name> to switch[/{THEME['dim']}]")
         return

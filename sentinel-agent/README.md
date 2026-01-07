@@ -16,7 +16,7 @@ python -m src.interface.cli
 
 ## LLM Backends
 
-The agent supports local LLM backends only.
+SENTINEL requires a local LLM backend.
 
 ### LM Studio (Recommended)
 1. Download [LM Studio](https://lmstudio.ai/)
@@ -24,15 +24,15 @@ The agent supports local LLM backends only.
 3. Start the local server (Server tab)
 4. Run the CLI — it auto-detects LM Studio at localhost:1234
 
-### Ollama (Alternative local option)
+### Ollama
 1. Install [Ollama](https://ollama.ai/)
 2. Pull a model: `ollama pull llama3.2`
 3. Ollama runs automatically after install
 4. Run the CLI — it auto-detects Ollama at localhost:11434
 
-The agent auto-detects available backends, preferring LM Studio > Ollama.
+The agent auto-detects available backends in order: LM Studio → Ollama.
 
-### Cloud Models
+### Why Local Only?
 
 Cloud models are not officially supported.
 

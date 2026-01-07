@@ -6,7 +6,6 @@ from typing import Callable, Literal
 from .base import LLMClient, LLMResponse, Message, ToolCall, ToolResult
 from .lmstudio import LMStudioClient
 from .ollama import OllamaClient
-from .cli_wrapper import GeminiCLI, CodexCLI, CLIWrapperClient
 
 __all__ = [
     "LLMClient",
@@ -16,9 +15,6 @@ __all__ = [
     "ToolResult",
     "LMStudioClient",
     "OllamaClient",
-    "GeminiCLI",
-    "CodexCLI",
-    "CLIWrapperClient",
     "MockLLMClient",
     "create_llm_client",
     "detect_backend",
@@ -117,7 +113,7 @@ class MockLLMClient(LLMClient):
 # Backend Detection and Factory
 # -----------------------------------------------------------------------------
 
-BackendType = Literal["lmstudio", "ollama", "gemini", "codex", "auto"]
+BackendType = Literal["lmstudio", "ollama", "auto"]
 
 
 def detect_backend(
@@ -127,7 +123,7 @@ def detect_backend(
     """
     Auto-detect available LLM backend.
 
-    Preference order: LM Studio > Ollama > Gemini CLI > Codex CLI
+    Preference order: LM Studio > Ollama
 
     Returns:
         Tuple of (backend_name, client) or (None, None) if nothing available.
@@ -145,22 +141,6 @@ def detect_backend(
         client = OllamaClient(base_url=ollama_url)
         if client.is_available():
             return ("ollama", client)
-    except Exception:
-        pass
-
-    # Try Gemini CLI
-    try:
-        client = GeminiCLI()
-        if client.is_available:
-            return ("gemini", client)
-    except Exception:
-        pass
-
-    # Try Codex CLI
-    try:
-        client = CodexCLI()
-        if client.is_available:
-            return ("codex", client)
     except Exception:
         pass
 
@@ -202,28 +182,6 @@ def create_llm_client(
         except Exception as e:
             print(f"Ollama error: {e}")
             return ("ollama", None)
-
-    if backend == "gemini":
-        try:
-            client = GeminiCLI()
-            if client.is_available:
-                return ("gemini", client)
-            print("Gemini CLI not found")
-            return ("gemini", None)
-        except Exception as e:
-            print(f"Gemini error: {e}")
-            return ("gemini", None)
-
-    if backend == "codex":
-        try:
-            client = CodexCLI()
-            if client.is_available:
-                return ("codex", client)
-            print("Codex CLI not found")
-            return ("codex", None)
-        except Exception as e:
-            print(f"Codex error: {e}")
-            return ("codex", None)
 
     print(f"Unknown backend: {backend}")
     return (backend, None)
