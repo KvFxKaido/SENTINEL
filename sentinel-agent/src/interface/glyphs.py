@@ -5,6 +5,12 @@ Uses Unicode symbols with ASCII fallbacks.
 Toggle USE_UNICODE based on terminal support.
 """
 
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..context.packer import StrainTier
+
 USE_UNICODE = True  # Set False for basic terminals
 
 
@@ -347,3 +353,97 @@ def context_warning(usage_ratio: float) -> str | None:
     elif usage_ratio >= 0.75:
         return "Context deep — older details may blur"
     return None
+
+
+# -----------------------------------------------------------------------------
+# Strain Tier Indicators
+# -----------------------------------------------------------------------------
+
+# Strain tier visual configuration
+# Format: (glyph, color, description)
+STRAIN_TIER_INFO = {
+    "normal": ("●", "green", "Full context"),
+    "strain_i": ("◐", "yellow", "Reduced window"),
+    "strain_ii": ("◑", "orange1", "Scene recap"),
+    "strain_iii": ("○", "red", "Critical"),
+}
+
+# ASCII fallbacks for strain tiers
+STRAIN_TIER_INFO_ASCII = {
+    "normal": ("[*]", "green", "Full context"),
+    "strain_i": ("[~]", "yellow", "Reduced window"),
+    "strain_ii": ("[-]", "orange1", "Scene recap"),
+    "strain_iii": ("[ ]", "red", "Critical"),
+}
+
+
+def get_strain_info(tier_value: str) -> tuple[str, str, str]:
+    """
+    Get strain tier display info (glyph, color, description).
+
+    Args:
+        tier_value: The strain tier value (e.g., "normal", "strain_i")
+
+    Returns:
+        Tuple of (glyph, color, description)
+    """
+    info = STRAIN_TIER_INFO if USE_UNICODE else STRAIN_TIER_INFO_ASCII
+    return info.get(tier_value, ("?", "grey70", "Unknown"))
+
+
+def format_strain_indicator(tier: "StrainTier") -> str:
+    """
+    Format a strain tier indicator with Rich markup.
+
+    Args:
+        tier: StrainTier enum value
+
+    Returns:
+        Rich-formatted string like "[green]●[/green]"
+    """
+    glyph, color, _ = get_strain_info(tier.value)
+    return f"[{color}]{glyph}[/{color}]"
+
+
+def format_strain_display(tier: "StrainTier", expanded: bool = False) -> str:
+    """
+    Format strain tier display for status bar.
+
+    Args:
+        tier: StrainTier enum value
+        expanded: If True, include tier name
+
+    Returns:
+        Rich-formatted string like "[green]● NORMAL[/green]" or just "[green]●[/green]"
+    """
+    glyph, color, description = get_strain_info(tier.value)
+    if expanded:
+        tier_name = tier.value.upper().replace("_", " ")
+        return f"[{color}]{glyph} {tier_name}[/{color}]"
+    return f"[{color}]{glyph}[/{color}]"
+
+
+def context_warning_with_strain(
+    usage_ratio: float,
+    tier: "StrainTier | None" = None,
+) -> tuple[str | None, str | None]:
+    """
+    Get warning message and strain tier info for context usage.
+
+    Args:
+        usage_ratio: Current context usage (0.0-1.0)
+        tier: Optional StrainTier for strain-aware messaging
+
+    Returns:
+        Tuple of (warning_message, strain_display)
+        Either may be None if not applicable.
+    """
+    warning = context_warning(usage_ratio)
+
+    strain_display = None
+    if tier is not None:
+        glyph, color, description = get_strain_info(tier.value)
+        tier_name = tier.value.upper().replace("_", " ")
+        strain_display = f"[{color}]{glyph} {tier_name}: {description}[/{color}]"
+
+    return warning, strain_display

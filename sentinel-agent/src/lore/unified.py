@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from .retriever import LoreRetriever, RetrievalResult
     from ..state import MemvidAdapter
+    from ..context.packer import StrainTier
 
 
 @dataclass
@@ -42,6 +43,11 @@ class RetrievalBudget:
     def deep(cls) -> "RetrievalBudget":
         """For complex queries needing more context."""
         return cls(lore=3, campaign=5, state=True)
+
+    @classmethod
+    def none(cls) -> "RetrievalBudget":
+        """No retrieval — for high-strain situations."""
+        return cls(lore=0, campaign=0, state=False)
 
 
 # Default budget used when none specified
@@ -102,6 +108,33 @@ class UnifiedRetriever:
         self.lore = lore_retriever
         self.memvid = memvid
 
+    def _budget_for_strain(self, tier: "StrainTier") -> RetrievalBudget:
+        """
+        Get retrieval budget based on strain tier.
+
+        Reduces retrieval as context pressure increases:
+        - NORMAL: standard (2 lore + 2 campaign)
+        - STRAIN_I: minimal (1 lore + 1 campaign)
+        - STRAIN_II: none (0 lore + 0 campaign)
+        - STRAIN_III: none (0 lore + 0 campaign)
+
+        Args:
+            tier: Current memory strain tier
+
+        Returns:
+            Appropriate RetrievalBudget for the strain level
+        """
+        # Import here to avoid circular dependency
+        from ..context.packer import StrainTier
+
+        if tier == StrainTier.NORMAL:
+            return RetrievalBudget.standard()
+        elif tier == StrainTier.STRAIN_I:
+            return RetrievalBudget.minimal()
+        else:
+            # STRAIN_II and STRAIN_III: no retrieval
+            return RetrievalBudget.none()
+
     def query(
         self,
         topic: str,
@@ -112,6 +145,7 @@ class UnifiedRetriever:
         limit_campaign: int | None = None,
         faction_state: dict | None = None,
         budget: RetrievalBudget | None = None,
+        strain_tier: "StrainTier | None" = None,
     ) -> UnifiedResult:
         """
         Query both lore and campaign history.
@@ -125,10 +159,15 @@ class UnifiedRetriever:
             limit_campaign: Max campaign events (overrides budget if specified)
             faction_state: Current faction standings (injected for authoritative truth)
             budget: RetrievalBudget to control limits across layers
+            strain_tier: If provided, automatically adjust budget based on memory strain
 
         Returns:
             UnifiedResult with lore, campaign hits, and current state
         """
+        # If strain_tier provided, adjust budget automatically (unless explicit budget given)
+        if strain_tier and budget is None:
+            budget = self._budget_for_strain(strain_tier)
+
         # Apply budget (explicit limits override budget)
         budget = budget or DEFAULT_BUDGET
         lore_limit = limit_lore if limit_lore is not None else budget.lore
@@ -176,6 +215,45 @@ class UnifiedRetriever:
             result.campaign = campaign_hits
 
         return result
+
+    def query_active(
+        self,
+        topic: str,
+        factions: list[str] | None = None,
+        npc_id: str | None = None,
+        npc_name: str | None = None,
+        budget: RetrievalBudget | None = None,
+        faction_state: dict | None = None,
+    ) -> UnifiedResult:
+        """
+        Active retrieval via /timeline, /lore, /search commands.
+
+        Always attempts retrieval regardless of strain tier.
+        Results are returned out-of-band (not auto-injected into prompt).
+        Use this for explicit player commands where they're asking for information.
+
+        Args:
+            topic: Topic to search for (natural language)
+            factions: Factions to prioritize in lore search
+            npc_id: NPC ID for targeted campaign history
+            npc_name: NPC name for search fallback
+            budget: RetrievalBudget to control limits (defaults to standard)
+            faction_state: Current faction standings (optional)
+
+        Returns:
+            UnifiedResult with lore and campaign hits
+        """
+        # Active retrieval uses standard budget unless explicitly overridden
+        # Strain tier is intentionally ignored - player asked for this
+        return self.query(
+            topic=topic,
+            factions=factions,
+            npc_id=npc_id,
+            npc_name=npc_name,
+            faction_state=faction_state,
+            budget=budget or RetrievalBudget.standard(),
+            strain_tier=None,  # Explicitly ignore strain
+        )
 
     def query_for_npc(
         self,

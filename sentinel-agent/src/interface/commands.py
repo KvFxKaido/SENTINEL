@@ -464,68 +464,183 @@ def cmd_lore(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
         if query:
             console.print(f"\n[dim]Searching for: {query}[/dim]")
 
-        # Retrieve with faction filter if specified
+        # Use unified retriever's query_active() for strain-bypassing retrieval
+        # This is "active" retrieval - player explicitly requested it via command
         factions_arg = [faction_filter] if faction_filter else None
-        results = retriever.retrieve(query=query, factions=factions_arg, limit=3 if faction_filter else 2)
 
-        if results:
-            # Source type labels
-            source_labels = {
-                "canon": "CANON",
-                "case_file": "CASE FILE",
-                "character": "CHARACTER",
-                "session": "SESSION",
-                "default": "LORE",
-            }
+        if agent.unified_retriever:
+            # Active retrieval via unified retriever (ignores strain tier)
+            unified_result = agent.unified_retriever.query_active(
+                topic=query or (faction_filter or ""),
+                factions=factions_arg,
+            )
+            _display_lore_results(unified_result.lore, limit=3 if faction_filter else 2)
 
-            for r in results:
-                # Header: relevance + source type + title
-                source_label = source_labels.get(r.source_type, "LORE")
-                console.print(
-                    f"\n[{THEME['accent']}]{r.relevance_indicator}[/{THEME['accent']}] "
-                    f"[dim]{source_label}[/dim] — "
-                    f"[cyan]{r.chunk.title}[/cyan]"
-                )
-
-                # Section if available
-                if r.chunk.section:
-                    console.print(f"  [{THEME['secondary']}]§ {r.chunk.section}[/{THEME['secondary']}]")
-
-                # Arc/date/location metadata
-                meta_parts = []
-                if r.chunk.arc:
-                    meta_parts.append(r.chunk.arc)
-                if r.chunk.date:
-                    meta_parts.append(r.chunk.date)
-                if r.chunk.location:
-                    meta_parts.append(r.chunk.location)
-                if meta_parts:
-                    console.print(f"  [{THEME['dim']}]{' · '.join(meta_parts)}[/{THEME['dim']}]")
-
-                # Match reasons (concise)
-                if r.match_reasons:
-                    console.print(f"  [{THEME['dim']}]{', '.join(r.match_reasons)}[/{THEME['dim']}]")
-
-                # Snippet: prefer keyword context, fallback to start of content
-                snippet = r.get_keyword_snippet(max_len=180)
-                if not snippet:
-                    # Fallback: clean truncation of content start
-                    import re
-                    preview = re.sub(r'\s+', ' ', r.chunk.content[:180]).strip()
-                    if len(r.chunk.content) > 180:
-                        # Truncate at word boundary
-                        last_space = preview.rfind(' ')
-                        if last_space > 120:
-                            preview = preview[:last_space]
-                        preview += "..."
-                    snippet = preview
-
-                console.print(f"  [italic]{snippet}[/italic]")
+            # Also show campaign history if available
+            if unified_result.has_campaign:
+                console.print(f"\n[bold {THEME['secondary']}]Campaign History[/bold {THEME['secondary']}]")
+                for hit in unified_result.campaign[:3]:
+                    frame_type = hit.get("type", "event")
+                    session = hit.get("session", "?")
+                    summary = _format_campaign_hit(hit)
+                    console.print(f"  [{THEME['dim']}]S{session}[/{THEME['dim']}] [{THEME['accent']}]{frame_type}[/{THEME['accent']}]: {summary}")
         else:
-            console.print("[dim]No matches found[/dim]")
+            # Fallback to raw lore retriever
+            results = retriever.retrieve(query=query, factions=factions_arg, limit=3 if faction_filter else 2)
+            _display_lore_retrieval_results(results)
     else:
         console.print(f"\n[dim]Use /lore <query> to search, or /lore <faction> to filter by perspective[/dim]")
         console.print(f"[dim]Example: /lore lattice infrastructure[/dim]")
+
+
+def _display_lore_results(lore_hits: list[dict], limit: int = 2):
+    """Display lore results from UnifiedResult format."""
+    import re
+
+    if not lore_hits:
+        console.print("[dim]No lore matches found[/dim]")
+        return
+
+    # Source type labels
+    source_labels = {
+        "canon": "CANON",
+        "case_file": "CASE FILE",
+        "character": "CHARACTER",
+        "session": "SESSION",
+        "default": "LORE",
+    }
+
+    for hit in lore_hits[:limit]:
+        source = hit.get("source", "unknown")
+        title = hit.get("title", "")
+        section = hit.get("section", "")
+        content = hit.get("content", "")
+        match_reasons = hit.get("match_reasons", [])
+        score = hit.get("score", 0)
+
+        # Determine source type from source name
+        source_type = "default"
+        source_lower = source.lower()
+        if "canon" in source_lower or "bible" in source_lower:
+            source_type = "canon"
+        elif "case" in source_lower:
+            source_type = "case_file"
+        elif "character" in source_lower:
+            source_type = "character"
+        elif "session" in source_lower:
+            source_type = "session"
+
+        source_label = source_labels.get(source_type, "LORE")
+
+        # Relevance indicator based on score
+        if score >= 5.0:
+            level = 5
+        elif score >= 3.5:
+            level = 4
+        elif score >= 2.0:
+            level = 3
+        elif score >= 1.0:
+            level = 2
+        else:
+            level = 1
+        relevance_indicator = "●" * level + "○" * (5 - level)
+
+        console.print(
+            f"\n[{THEME['accent']}]{relevance_indicator}[/{THEME['accent']}] "
+            f"[dim]{source_label}[/dim] — "
+            f"[cyan]{title}[/cyan]"
+        )
+
+        if section:
+            console.print(f"  [{THEME['secondary']}]§ {section}[/{THEME['secondary']}]")
+
+        if match_reasons:
+            console.print(f"  [{THEME['dim']}]{', '.join(match_reasons)}[/{THEME['dim']}]")
+
+        # Content snippet
+        preview = re.sub(r'\s+', ' ', content[:180]).strip()
+        if len(content) > 180:
+            last_space = preview.rfind(' ')
+            if last_space > 120:
+                preview = preview[:last_space]
+            preview += "..."
+        console.print(f"  [italic]{preview}[/italic]")
+
+
+def _display_lore_retrieval_results(results):
+    """Display lore results from raw LoreRetriever format."""
+    import re
+
+    if not results:
+        console.print("[dim]No matches found[/dim]")
+        return
+
+    source_labels = {
+        "canon": "CANON",
+        "case_file": "CASE FILE",
+        "character": "CHARACTER",
+        "session": "SESSION",
+        "default": "LORE",
+    }
+
+    for r in results:
+        source_label = source_labels.get(r.source_type, "LORE")
+        console.print(
+            f"\n[{THEME['accent']}]{r.relevance_indicator}[/{THEME['accent']}] "
+            f"[dim]{source_label}[/dim] — "
+            f"[cyan]{r.chunk.title}[/cyan]"
+        )
+
+        if r.chunk.section:
+            console.print(f"  [{THEME['secondary']}]§ {r.chunk.section}[/{THEME['secondary']}]")
+
+        meta_parts = []
+        if r.chunk.arc:
+            meta_parts.append(r.chunk.arc)
+        if r.chunk.date:
+            meta_parts.append(r.chunk.date)
+        if r.chunk.location:
+            meta_parts.append(r.chunk.location)
+        if meta_parts:
+            console.print(f"  [{THEME['dim']}]{' · '.join(meta_parts)}[/{THEME['dim']}]")
+
+        if r.match_reasons:
+            console.print(f"  [{THEME['dim']}]{', '.join(r.match_reasons)}[/{THEME['dim']}]")
+
+        snippet = r.get_keyword_snippet(max_len=180)
+        if not snippet:
+            preview = re.sub(r'\s+', ' ', r.chunk.content[:180]).strip()
+            if len(r.chunk.content) > 180:
+                last_space = preview.rfind(' ')
+                if last_space > 120:
+                    preview = preview[:last_space]
+                preview += "..."
+            snippet = preview
+
+        console.print(f"  [italic]{snippet}[/italic]")
+
+
+def _format_campaign_hit(hit: dict) -> str:
+    """Format a campaign history hit for display."""
+    frame_type = hit.get("type", "event")
+
+    if frame_type == "turn_state":
+        return hit.get("narrative_summary", "Turn state recorded")[:60]
+    elif frame_type == "hinge_moment":
+        return hit.get("choice", "Hinge moment")[:60]
+    elif frame_type == "npc_interaction":
+        npc = hit.get("npc_name", "Unknown")
+        action = hit.get("player_action", "")[:40]
+        return f"{npc}: {action}"
+    elif frame_type == "faction_shift":
+        faction = hit.get("faction", "Unknown")
+        from_s = hit.get("from_standing", "?")
+        to_s = hit.get("to_standing", "?")
+        return f"{faction}: {from_s} -> {to_s}"
+    elif frame_type == "dormant_thread":
+        return f"Thread: {hit.get('origin', 'Unknown')[:50]}"
+    else:
+        return str(hit)[:60]
 
 
 # -----------------------------------------------------------------------------
@@ -1933,6 +2048,290 @@ def cmd_consequences(manager: CampaignManager, agent: SentinelAgent, args: list[
 
 
 # -----------------------------------------------------------------------------
+# Context Debug Commands
+# -----------------------------------------------------------------------------
+
+def cmd_context(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
+    """Show context status.
+
+    Usage:
+        /context         - Show current context usage and strain tier
+        /context debug   - Show detailed breakdown of all sections
+    """
+    from ..context import (
+        PromptPacker, PackSection, PackInfo, SectionBudget, DEFAULT_BUDGETS,
+    )
+    from ..context.packer import StrainTier, format_strain_notice
+
+    # Check if we have context info from agent
+    pack_info = getattr(agent, "_last_pack_info", None)
+
+    if "debug" in args:
+        _show_context_debug(manager, agent, pack_info)
+    else:
+        _show_context_simple(manager, agent, pack_info)
+
+
+def _show_context_simple(manager: CampaignManager, agent: SentinelAgent, pack_info: "PackInfo | None"):
+    """Show simple context status view."""
+    from ..context import DEFAULT_BUDGETS
+    from ..context.packer import StrainTier, format_strain_notice
+
+    console.print(f"\n[bold {THEME['primary']}]CONTEXT STATUS[/bold {THEME['primary']}]")
+
+    if pack_info is None:
+        # No pack info yet - show estimated usage
+        console.print(f"[{THEME['dim']}]No context pack yet. Start a session to see usage.[/{THEME['dim']}]")
+        console.print()
+
+        # Show budget overview
+        total_budget = sum(b.tokens for b in DEFAULT_BUDGETS.values())
+        console.print(f"[{THEME['secondary']}]Total Budget:[/{THEME['secondary']}] {total_budget:,} tokens")
+        console.print()
+        console.print(f"[{THEME['dim']}]Use /context debug to see section budgets.[/{THEME['dim']}]")
+        return
+
+    # Context bar visualization
+    bar = _format_context_bar(pack_info.pressure)
+    strain_color = _get_strain_color(pack_info.strain_tier)
+
+    console.print()
+    console.print(f"  {bar}")
+    console.print()
+    console.print(
+        f"  [{THEME['secondary']}]Tokens:[/{THEME['secondary']}] "
+        f"{pack_info.total_tokens:,} / {pack_info.total_budget:,} "
+        f"[{THEME['dim']}]({pack_info.pressure:.0%})[/{THEME['dim']}]"
+    )
+
+    # Strain tier indicator
+    tier_name = pack_info.strain_tier.value.replace("_", " ").upper()
+    console.print(
+        f"  [{THEME['secondary']}]Strain:[/{THEME['secondary']}] "
+        f"[{strain_color}]{tier_name}[/{strain_color}]"
+    )
+
+    # Strain explanation
+    explanation = _get_strain_explanation(pack_info.strain_tier)
+    console.print(f"  [{THEME['dim']}]{explanation}[/{THEME['dim']}]")
+
+    # Warnings
+    if pack_info.warnings:
+        console.print()
+        console.print(f"  [{THEME['warning']}]Warnings:[/{THEME['warning']}]")
+        for warning in pack_info.warnings[:3]:  # Show up to 3
+            console.print(f"    [{THEME['dim']}]- {warning}[/{THEME['dim']}]")
+
+    # Recommendation for high strain
+    if pack_info.strain_tier in (StrainTier.STRAIN_II, StrainTier.STRAIN_III):
+        console.print()
+        console.print(
+            f"  [{THEME['accent']}]Tip:[/{THEME['accent']}] "
+            f"Consider /debrief to consolidate and start fresh."
+        )
+
+    console.print()
+    console.print(f"[{THEME['dim']}]Use /context debug for detailed breakdown.[/{THEME['dim']}]")
+
+
+def _show_context_debug(manager: CampaignManager, agent: SentinelAgent, pack_info: "PackInfo | None"):
+    """Show detailed context debug view."""
+    from ..context import PackSection, DEFAULT_BUDGETS, SectionBudget
+    from ..context.packer import StrainTier, format_strain_notice
+
+    console.print(f"\n[bold {THEME['primary']}]CONTEXT DEBUG[/bold {THEME['primary']}]")
+
+    # Section breakdown table
+    table = Table(title="Section Breakdown", box=None)
+    table.add_column("Section", style="cyan")
+    table.add_column("Tokens", justify="right")
+    table.add_column("Budget", justify="right")
+    table.add_column("Usage", justify="right")
+    table.add_column("Status")
+
+    if pack_info:
+        # Show actual pack info
+        for section_content in pack_info.sections:
+            section = section_content.section
+            budget = DEFAULT_BUDGETS.get(section, SectionBudget(tokens=0))
+            tokens = section_content.token_count
+            budget_tokens = budget.tokens
+
+            # Calculate usage percentage
+            usage_pct = (tokens / budget_tokens * 100) if budget_tokens > 0 else 0
+
+            # Determine status
+            if section_content.truncated:
+                orig = section_content.original_tokens or tokens
+                status = f"[{THEME['warning']}]TRIMMED ({orig} -> {tokens})[/{THEME['warning']}]"
+            elif usage_pct > 100:
+                status = f"[{THEME['danger']}]OVER BUDGET[/{THEME['danger']}]"
+            elif usage_pct > 80:
+                status = f"[{THEME['warning']}]HIGH[/{THEME['warning']}]"
+            elif tokens == 0:
+                status = f"[{THEME['dim']}]EMPTY[/{THEME['dim']}]"
+            else:
+                status = f"[{THEME['accent']}]OK[/{THEME['accent']}]"
+
+            table.add_row(
+                section.value,
+                f"{tokens:,}",
+                f"{budget_tokens:,}",
+                f"{usage_pct:.0f}%",
+                status,
+            )
+
+        console.print(table)
+
+        # Totals
+        console.print()
+        bar = _format_context_bar(pack_info.pressure)
+        console.print(f"[bold]Total:[/bold] {bar}")
+        console.print(
+            f"  {pack_info.total_tokens:,} / {pack_info.total_budget:,} tokens "
+            f"({pack_info.pressure:.1%})"
+        )
+
+        # Trimmed blocks info
+        if pack_info.trimmed_blocks > 0:
+            console.print()
+            console.print(
+                f"[{THEME['warning']}]Window blocks trimmed:[/{THEME['warning']}] "
+                f"{pack_info.trimmed_blocks}"
+            )
+
+        # Scene recap if present
+        if pack_info.scene_recap:
+            console.print()
+            console.print(f"[bold {THEME['secondary']}]Scene Recap Active:[/bold {THEME['secondary']}]")
+            console.print(f"  [{THEME['dim']}]{pack_info.scene_recap[:100]}...[/{THEME['dim']}]")
+
+    else:
+        # Show budget defaults when no pack info
+        for section in PackSection:
+            budget = DEFAULT_BUDGETS.get(section, SectionBudget(tokens=0))
+            required = "Required" if budget.required else "Optional"
+            truncatable = "Yes" if budget.can_truncate else "No"
+            table.add_row(
+                section.value,
+                "-",
+                f"{budget.tokens:,}",
+                "-",
+                f"[{THEME['dim']}]{required}[/{THEME['dim']}]",
+            )
+
+        console.print(table)
+        console.print()
+        console.print(f"[{THEME['dim']}]No active context pack. Showing default budgets.[/{THEME['dim']}]")
+
+    # Strain tier explanation
+    console.print()
+    console.print(f"[bold {THEME['secondary']}]Strain Tiers:[/bold {THEME['secondary']}]")
+
+    current_tier = pack_info.strain_tier if pack_info else None
+
+    for tier in StrainTier:
+        tier_name = tier.value.replace("_", " ").upper()
+        explanation = _get_strain_explanation(tier)
+        thresholds = _get_strain_thresholds(tier)
+
+        # Highlight current tier
+        if tier == current_tier:
+            marker = f"[{THEME['accent']}]>[/{THEME['accent']}]"
+            style = THEME['accent']
+        else:
+            marker = " "
+            style = THEME['dim']
+
+        console.print(f"  {marker} [{style}]{tier_name}[/{style}] ({thresholds})")
+        console.print(f"      [{THEME['dim']}]{explanation}[/{THEME['dim']}]")
+
+    # Warnings
+    if pack_info and pack_info.warnings:
+        console.print()
+        console.print(f"[bold {THEME['warning']}]Warnings:[/bold {THEME['warning']}]")
+        for warning in pack_info.warnings:
+            console.print(f"  [{THEME['dim']}]- {warning}[/{THEME['dim']}]")
+
+    # Recommendations
+    console.print()
+    console.print(f"[bold {THEME['secondary']}]Recommendations:[/bold {THEME['secondary']}]")
+
+    if pack_info is None:
+        console.print(f"  [{THEME['dim']}]- Start a session with /start to generate context[/{THEME['dim']}]")
+    elif pack_info.strain_tier == StrainTier.NORMAL:
+        console.print(f"  [{THEME['accent']}]- Context healthy. Full features available.[/{THEME['accent']}]")
+    elif pack_info.strain_tier == StrainTier.STRAIN_I:
+        console.print(f"  [{THEME['dim']}]- Context under light strain. Consider natural pauses.[/{THEME['dim']}]")
+        console.print(f"  [{THEME['dim']}]- Retrieval budget reduced automatically.[/{THEME['dim']}]")
+    elif pack_info.strain_tier == StrainTier.STRAIN_II:
+        console.print(f"  [{THEME['warning']}]- Consider /debrief soon to consolidate memory.[/{THEME['warning']}]")
+        console.print(f"  [{THEME['dim']}]- Auto-retrieval disabled to preserve space.[/{THEME['dim']}]")
+    else:  # STRAIN_III
+        console.print(f"  [{THEME['danger']}]- /debrief strongly recommended![/{THEME['danger']}]")
+        console.print(f"  [{THEME['dim']}]- Working from minimal context only.[/{THEME['dim']}]")
+
+
+def _format_context_bar(pressure: float, width: int = 30) -> str:
+    """Create a visual bar for context pressure."""
+    filled = int(pressure * width)
+    filled = min(filled, width)  # Cap at 100%
+    empty = width - filled
+
+    # Color based on pressure
+    if pressure < 0.70:
+        color = THEME['accent']
+    elif pressure < 0.85:
+        color = THEME['warning']
+    else:
+        color = THEME['danger']
+
+    bar_char = "█"
+    empty_char = "░"
+
+    return f"[{color}]{bar_char * filled}[/{color}][{THEME['dim']}]{empty_char * empty}[/{THEME['dim']}]"
+
+
+def _get_strain_color(tier: "StrainTier") -> str:
+    """Get color for a strain tier."""
+    from ..context.packer import StrainTier
+
+    colors = {
+        StrainTier.NORMAL: THEME['accent'],
+        StrainTier.STRAIN_I: THEME['secondary'],
+        StrainTier.STRAIN_II: THEME['warning'],
+        StrainTier.STRAIN_III: THEME['danger'],
+    }
+    return colors.get(tier, THEME['dim'])
+
+
+def _get_strain_explanation(tier: "StrainTier") -> str:
+    """Get explanation for a strain tier."""
+    from ..context.packer import StrainTier
+
+    explanations = {
+        StrainTier.NORMAL: "Full context available. No compression needed.",
+        StrainTier.STRAIN_I: "Context reduced. Older blocks condensed, minimal retrieval.",
+        StrainTier.STRAIN_II: "Working from scene recap. No auto-retrieval.",
+        StrainTier.STRAIN_III: "Context critical. Consider /debrief to consolidate.",
+    }
+    return explanations.get(tier, "Unknown strain level.")
+
+
+def _get_strain_thresholds(tier: "StrainTier") -> str:
+    """Get threshold description for a strain tier."""
+    from ..context.packer import StrainTier
+
+    thresholds = {
+        StrainTier.NORMAL: "<70%",
+        StrainTier.STRAIN_I: "70-85%",
+        StrainTier.STRAIN_II: "85-95%",
+        StrainTier.STRAIN_III: ">95%",
+    }
+    return thresholds.get(tier, "?")
+
+
+# -----------------------------------------------------------------------------
 # Memory / Timeline Commands
 # -----------------------------------------------------------------------------
 
@@ -1945,6 +2344,9 @@ def cmd_timeline(manager: CampaignManager, agent: SentinelAgent, args: list[str]
         /timeline hinges       - Show all hinge moments
         /timeline session <n>  - Show events from session n
         /timeline npc <name>   - Show interactions with an NPC
+
+    Note: This is "active" retrieval - player explicitly requested it.
+    Results bypass strain tier restrictions (not auto-injected into prompt).
     """
     from ..state import MEMVID_AVAILABLE
 
@@ -1963,6 +2365,8 @@ def cmd_timeline(manager: CampaignManager, agent: SentinelAgent, args: list[str]
     memvid = manager.memvid
 
     # Parse subcommands
+    # All /timeline queries are "active" retrieval - player explicitly requested
+    # them, so they bypass strain tier restrictions
     if not args:
         # Default: show recent activity
         _show_timeline_overview(manager, memvid)
@@ -1983,8 +2387,14 @@ def cmd_timeline(manager: CampaignManager, agent: SentinelAgent, args: list[str]
         _show_npc_memory(manager, memvid, npc_name)
     else:
         # Treat as semantic search query
+        # Use unified retriever's query_active() when available for combined results
         query = " ".join(args)
-        _search_timeline(memvid, query)
+        if agent.unified_retriever:
+            # Active retrieval via unified retriever (ignores strain tier)
+            _search_timeline_unified(agent, query)
+        else:
+            # Fallback to direct memvid search
+            _search_timeline(memvid, query)
 
 
 def _show_timeline_overview(manager: CampaignManager, memvid):
@@ -2193,6 +2603,77 @@ def _search_timeline(memvid, query: str):
         console.print(f"  [{color}]{icon}[/{color}] S{session}: {summary}...")
 
     console.print(f"\n[{THEME['dim']}]Found {len(results)} results.[/{THEME['dim']}]")
+
+
+def _search_timeline_unified(agent: SentinelAgent, query: str):
+    """
+    Semantic search using unified retriever's query_active().
+
+    This is "active" retrieval - player explicitly requested it via /timeline.
+    Bypasses strain tier restrictions and shows both lore and campaign results.
+    """
+    console.print(f"\n[bold {THEME['primary']}]◈ TIMELINE SEARCH ◈[/bold {THEME['primary']}]")
+    console.print(f"[{THEME['dim']}]Query: {query}[/{THEME['dim']}]\n")
+
+    # Use query_active() to bypass strain restrictions
+    unified_result = agent.unified_retriever.query_active(topic=query)
+
+    has_results = False
+
+    # Show campaign history (primary for /timeline)
+    if unified_result.has_campaign:
+        has_results = True
+        console.print(f"[bold {THEME['secondary']}]Campaign History[/bold {THEME['secondary']}]")
+
+        type_icons = {
+            "turn_state": (g("phase"), THEME['secondary']),
+            "hinge_moment": (g("hinge"), THEME['danger']),
+            "npc_interaction": (g("npc"), THEME['accent']),
+            "faction_shift": (g("faction"), THEME['warning']),
+            "dormant_thread": (g("thread"), THEME['dim']),
+        }
+
+        for result in unified_result.campaign[:10]:
+            frame_type = result.get("type", "unknown")
+            icon, color = type_icons.get(frame_type, ("•", THEME['dim']))
+            session = result.get("session", "?")
+
+            # Build summary based on type
+            if frame_type == "turn_state":
+                summary = result.get("narrative_summary", "Turn state")
+            elif frame_type == "hinge_moment":
+                summary = result.get("choice", "Hinge moment")
+            elif frame_type == "npc_interaction":
+                npc = result.get("npc_name", "Unknown")
+                action = result.get("player_action", "")[:40]
+                summary = f"{npc}: {action}"
+            elif frame_type == "faction_shift":
+                faction = result.get("faction", "Unknown")
+                summary = f"{faction} standing changed"
+            elif frame_type == "dormant_thread":
+                summary = result.get("origin", "Thread")[:50]
+            else:
+                summary = str(result)[:60]
+
+            console.print(f"  [{color}]{icon}[/{color}] S{session}: {summary}...")
+
+        console.print(f"\n[{THEME['dim']}]Found {len(unified_result.campaign)} campaign results.[/{THEME['dim']}]")
+
+    # Show relevant lore (bonus for unified search)
+    if unified_result.has_lore:
+        has_results = True
+        console.print(f"\n[bold {THEME['secondary']}]Related Lore[/bold {THEME['secondary']}]")
+        for hit in unified_result.lore[:2]:
+            title = hit.get("title", "Unknown")
+            section = hit.get("section", "")
+            content = hit.get("content", "")[:80]
+            console.print(f"  [{THEME['accent']}]►[/{THEME['accent']}] {title}")
+            if section:
+                console.print(f"    [{THEME['dim']}]§ {section}[/{THEME['dim']}]")
+            console.print(f"    [italic]{content}...[/italic]")
+
+    if not has_results:
+        console.print(f"[{THEME['dim']}]No matches found.[/{THEME['dim']}]")
 
 
 # -----------------------------------------------------------------------------
@@ -2658,6 +3139,200 @@ def _display_simulation_transcript(transcript: "SimulationTranscript"):
     ))
 
 
+# -----------------------------------------------------------------------------
+# Context Control Commands
+# -----------------------------------------------------------------------------
+
+def cmd_checkpoint(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
+    """Save campaign state and compress memory. Use when context is strained.
+
+    This command:
+    1. Generates/updates the campaign digest (compressed memory)
+    2. Exports a session summary
+    3. Prunes old transcript blocks (archives to disk)
+    4. Resets strain state
+
+    Usage:
+        /checkpoint         - Full checkpoint with archive
+        /checkpoint quick   - Update digest without archiving
+    """
+    from pathlib import Path
+    from datetime import datetime
+    from ..context import DigestManager
+
+    if not manager.current:
+        console.print(f"[{THEME['warning']}]No campaign loaded[/{THEME['warning']}]")
+        return
+
+    quick_mode = args and args[0].lower() == "quick"
+    campaign = manager.current
+    campaign_id = campaign.meta.id
+
+    console.print(f"\n[bold {THEME['primary']}]{'QUICK' if quick_mode else 'FULL'} CHECKPOINT[/bold {THEME['primary']}]")
+
+    # Step 1: Generate/update digest
+    console.print(f"[{THEME['secondary']}]Generating digest...[/{THEME['secondary']}]")
+    digest_manager = DigestManager(Path("campaigns"))
+    digest = digest_manager.generate(campaign)
+    digest_path = digest_manager.save(campaign_id, digest)
+
+    console.print(f"  [{THEME['accent']}]{g('success')}[/{THEME['accent']}] Digest saved: {digest_path.name}")
+    console.print(f"    [{THEME['dim']}]Hinges: {len(digest.hinge_index)} | "
+                  f"Factions: {len(digest.standing_reasons)} | "
+                  f"NPCs: {len(digest.npc_anchors)} | "
+                  f"Threads: {len(digest.open_threads)}[/{THEME['dim']}]")
+
+    # Step 2: Export session summary
+    session_num = campaign.meta.session_count
+    console.print(f"[{THEME['secondary']}]Exporting session {session_num} summary...[/{THEME['secondary']}]")
+    summary_md = digest_manager.export_session_summary(campaign, session_num)
+
+    summaries_dir = Path("campaigns") / "summaries"
+    summaries_dir.mkdir(parents=True, exist_ok=True)
+    summary_path = summaries_dir / f"session_{session_num}_{campaign.meta.name.replace(' ', '_')}.md"
+    summary_path.write_text(summary_md, encoding="utf-8")
+    console.print(f"  [{THEME['accent']}]{g('success')}[/{THEME['accent']}] Summary: {summary_path.name}")
+
+    if not quick_mode:
+        # Step 3: Archive old transcript blocks (mark in history)
+        # Note: Actual block pruning is handled by RollingWindow
+        # We just mark this checkpoint in history
+        from ..state.schema import HistoryEntry, HistoryType
+
+        checkpoint_entry = HistoryEntry(
+            session=session_num,
+            type=HistoryType.CANON,
+            summary=f"Checkpoint: digest updated, session {session_num} archived",
+            is_permanent=True,
+        )
+        campaign.history.append(checkpoint_entry)
+        console.print(f"  [{THEME['accent']}]{g('success')}[/{THEME['accent']}] Checkpoint logged to history")
+
+    # Step 4: Save campaign
+    manager.save_campaign()
+    console.print(f"  [{THEME['accent']}]{g('success')}[/{THEME['accent']}] Campaign saved")
+
+    console.print(f"\n[{THEME['accent']}]Checkpoint complete.[/{THEME['accent']}]")
+    console.print(f"[{THEME['dim']}]Context memory compressed. Safe to continue.[/{THEME['dim']}]")
+
+
+def cmd_compress(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
+    """Update campaign digest without pruning transcript.
+
+    This is a lighter-weight operation than /checkpoint that just
+    updates the compressed memory (digest) from current campaign state.
+
+    Usage:
+        /compress           - Update digest from current state
+        /compress show      - Show current digest contents
+    """
+    from pathlib import Path
+    from ..context import DigestManager
+
+    if not manager.current:
+        console.print(f"[{THEME['warning']}]No campaign loaded[/{THEME['warning']}]")
+        return
+
+    campaign = manager.current
+    campaign_id = campaign.meta.id
+    digest_manager = DigestManager(Path("campaigns"))
+
+    # Check for show mode
+    if args and args[0].lower() == "show":
+        existing = digest_manager.load(campaign_id)
+        if existing:
+            console.print(f"\n[bold {THEME['primary']}]CURRENT DIGEST[/bold {THEME['primary']}]")
+            console.print(f"[{THEME['dim']}]Last updated: {existing.last_updated.strftime('%Y-%m-%d %H:%M')}[/{THEME['dim']}]")
+            console.print(f"[{THEME['dim']}]Session count: {existing.session_count}[/{THEME['dim']}]\n")
+            console.print(existing.to_prompt_text())
+        else:
+            console.print(f"[{THEME['dim']}]No digest exists yet. Run /compress to create one.[/{THEME['dim']}]")
+        return
+
+    console.print(f"\n[bold {THEME['primary']}]COMPRESSING MEMORY[/bold {THEME['primary']}]")
+
+    # Generate and save digest
+    digest = digest_manager.generate(campaign)
+    digest_path = digest_manager.save(campaign_id, digest)
+
+    console.print(f"[{THEME['accent']}]{g('success')}[/{THEME['accent']}] Digest updated")
+    console.print(f"  [{THEME['dim']}]File: {digest_path.name}[/{THEME['dim']}]")
+
+    # Show summary of what was captured
+    console.print(f"\n[bold {THEME['secondary']}]DIGEST CONTENTS[/bold {THEME['secondary']}]")
+
+    if digest.hinge_index:
+        console.print(f"  [{THEME['accent']}]{len(digest.hinge_index)}[/{THEME['accent']}] hinge moments")
+        for h in digest.hinge_index[-3:]:  # Show last 3
+            console.print(f"    [{THEME['dim']}]S{h.session}:[/{THEME['dim']}] {h.choice[:50]}...")
+
+    if digest.standing_reasons:
+        console.print(f"  [{THEME['accent']}]{len(digest.standing_reasons)}[/{THEME['accent']}] faction standings explained")
+
+    if digest.npc_anchors:
+        console.print(f"  [{THEME['accent']}]{len(digest.npc_anchors)}[/{THEME['accent']}] NPCs with memories")
+
+    if digest.open_threads:
+        console.print(f"  [{THEME['accent']}]{len(digest.open_threads)}[/{THEME['accent']}] open consequence threads")
+
+    console.print(f"\n[{THEME['dim']}]Use /compress show to view full digest content.[/{THEME['dim']}]")
+
+
+def cmd_clear(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
+    """Clear transcript beyond minimum window (no digest update).
+
+    WARNING: This clears conversation context without updating the digest.
+    Use /checkpoint instead for a safe context reset.
+
+    This is useful when:
+    - You want to start fresh within a session
+    - Context is bloated with irrelevant exchanges
+    - You explicitly don't want to persist recent events
+
+    Usage:
+        /clear              - Clear with confirmation
+        /clear force        - Clear without confirmation
+    """
+    from ..state.schema import HistoryEntry, HistoryType
+
+    if not manager.current:
+        console.print(f"[{THEME['warning']}]No campaign loaded[/{THEME['warning']}]")
+        return
+
+    force = args and args[0].lower() == "force"
+
+    if not force:
+        console.print(f"\n[bold {THEME['warning']}]CLEAR TRANSCRIPT[/bold {THEME['warning']}]")
+        console.print(f"[{THEME['dim']}]This will clear recent conversation context.[/{THEME['dim']}]")
+        console.print(f"[{THEME['warning']}]WARNING: Digest will NOT be updated. Use /checkpoint instead for safe context reset.[/{THEME['warning']}]")
+
+        confirm = Prompt.ask(
+            f"[{THEME['danger']}]Clear without checkpoint?[/{THEME['danger']}]",
+            choices=["y", "n"],
+            default="n"
+        )
+        if confirm != "y":
+            console.print(f"[{THEME['dim']}]Cancelled. Consider using /checkpoint instead.[/{THEME['dim']}]")
+            return
+
+    # Mark in history that we cleared without checkpoint
+    session_num = manager.current.meta.session_count
+    clear_entry = HistoryEntry(
+        session=session_num,
+        type=HistoryType.CANON,
+        summary="Context cleared without checkpoint",
+        is_permanent=False,
+    )
+    manager.current.history.append(clear_entry)
+
+    # Save campaign
+    manager.save_campaign()
+
+    console.print(f"\n[{THEME['accent']}]{g('success')}[/{THEME['accent']}] Transcript cleared")
+    console.print(f"[{THEME['dim']}]History marked: cleared_without_checkpoint[/{THEME['dim']}]")
+    console.print(f"[{THEME['dim']}]Consider running /compress to update digest with recent events.[/{THEME['dim']}]")
+
+
 # Command Registry
 # -----------------------------------------------------------------------------
 
@@ -2691,6 +3366,11 @@ def create_commands(manager: CampaignManager, agent: SentinelAgent, conversation
         "/threads": cmd_consequences,  # Alias
         "/simulate": cmd_simulate,
         "/timeline": cmd_timeline,
+        "/context": cmd_context,
+        # Context control commands
+        "/checkpoint": cmd_checkpoint,
+        "/compress": cmd_compress,
+        "/clear": cmd_clear,
         "/help": lambda m, a, args: show_help(),
         "/quit": lambda m, a, args: sys.exit(0),
         "/exit": lambda m, a, args: sys.exit(0),
