@@ -98,7 +98,7 @@ Players choose one professional background. Backgrounds express capability, not 
 
 ### AI Game Master
 
-* Multiple LLM backends (LM Studio, Ollama, Claude, OpenRouter, Gemini, Codex)
+* Local LLM backends (LM Studio, Ollama)
 * Hot-reloadable prompts with phase-specific guidance
 * Lore retrieval from novellas + campaign memory search
 * `/consult` — get competing perspectives from faction advisors
@@ -149,6 +149,8 @@ Players choose one professional background. Backgrounds express capability, not 
 
 ## LLM Backends
 
+SENTINEL requires a local LLM backend.
+
 | Backend | Setup |
 
 |---------|-------|
@@ -157,15 +159,15 @@ Players choose one professional background. Backgrounds express capability, not 
 
 | **Ollama** | `ollama pull llama3.2` — runs automatically (port 11434) |
 
-| **Claude** | `pip install -e ".[claude]"` + API key |
+The agent auto-detects available backends (LM Studio → Ollama).
 
-| **OpenRouter** | Set `OPENROUTER_API_KEY` |
+### Why Local Only?
 
-| **Gemini CLI** | Install `gemini` command |
+Cloud models are not officially supported.
 
-| **Codex CLI** | Install `codex` command |
+SENTINEL's mechanics rely on predictable context limits, rolling windows, and controlled degradation. These cannot be guaranteed with hosted models.
 
-The agent auto-detects available backends (prefers local: LM Studio > Ollama).
+That said, players who supply the rules, tone, and constraints to a cloud model may achieve a similar experience. Expect variance.
 
 ## Recommended Setup
 
@@ -184,9 +186,6 @@ The agent auto-detects available backends (prefers local: LM Studio > Ollama).
 | **Qwen 3** | ~8GB (14B) | Excellent tool calling |
 | **Llama 3.2** | ~5GB (8B) | Lightweight, decent roleplay |
 | **Ministral 3** | ~8GB (14B) | Strong instruction following |
-| **Claude Sonnet** | API | Best quality, requires API key |
-
-CLI-only backends (Gemini, Codex) work but skip tool calling — dice rolls, faction tracking, and hinge detection happen manually.
 
 ## Development
 
