@@ -204,6 +204,8 @@ class GearItem(BaseModel):
     category: str  # Surveillance, Hacking, Infiltration, etc.
     description: str = ""
     cost: int = 0
+    single_use: bool = False  # Consumed after one use (Trauma Kit, Encryption Breaker)
+    used: bool = False  # Has this been expended? (reset between missions for non-single-use)
 
 
 class SocialEnergy(BaseModel):
@@ -709,6 +711,10 @@ class SessionState(BaseModel):
     briefing: MissionBriefing
 
     active_npc_ids: list[str] = Field(default_factory=list)
+
+    # Gear selected for this mission (subset of character.gear IDs)
+    # Selected during planning phase, locked during execution
+    loadout: list[str] = Field(default_factory=list)
 
 
 class SessionReflection(BaseModel):
