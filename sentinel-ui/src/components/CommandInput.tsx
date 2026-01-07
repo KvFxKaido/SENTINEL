@@ -2,9 +2,10 @@ import { useState, useRef, useEffect } from 'react';
 
 interface CommandInputProps {
   onSubmit: (input: string) => void;
+  disabled?: boolean;
 }
 
-export function CommandInput({ onSubmit }: CommandInputProps) {
+export function CommandInput({ onSubmit, disabled = false }: CommandInputProps) {
   const [input, setInput] = useState('');
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -17,7 +18,7 @@ export function CommandInput({ onSubmit }: CommandInputProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim()) return;
+    if (!input.trim() || disabled) return;
 
     onSubmit(input.trim());
     setHistory(prev => [input.trim(), ...prev]);
@@ -63,14 +64,16 @@ export function CommandInput({ onSubmit }: CommandInputProps) {
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Type a response or /command..."
-          className="flex-1 bg-transparent border-none outline-none text-sentinel-secondary placeholder-sentinel-dim font-mono"
+          placeholder={disabled ? "Connecting to server..." : "Type a response or /command..."}
+          className={`flex-1 bg-transparent border-none outline-none placeholder-sentinel-dim font-mono ${disabled ? 'text-sentinel-dim cursor-not-allowed' : 'text-sentinel-secondary'}`}
           autoComplete="off"
           spellCheck={false}
+          disabled={disabled}
         />
         <button
           type="submit"
-          className="px-4 py-1 bg-sentinel-accent text-sentinel-bg font-bold text-sm rounded hover:bg-opacity-80 transition-colors"
+          disabled={disabled}
+          className={`px-4 py-1 font-bold text-sm rounded transition-colors ${disabled ? 'bg-sentinel-dim text-sentinel-bg cursor-not-allowed' : 'bg-sentinel-accent text-sentinel-bg hover:bg-opacity-80'}`}
         >
           SEND
         </button>
