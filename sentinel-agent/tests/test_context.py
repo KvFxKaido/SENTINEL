@@ -300,7 +300,7 @@ class TestPromptPacker:
         packer = PromptPacker()
         prompt, info = packer.pack(
             system="You are the GM.",
-            rules="Roll d20.",
+            rules_core="Roll d20.",
             state="Current mission: Test.",
             user_input="What happens next?",
         )
@@ -309,17 +309,41 @@ class TestPromptPacker:
         assert "Current mission: Test" in prompt
         assert info.total_tokens > 0
 
+    def test_pack_with_narrative_guidance(self):
+        """Pack includes narrative guidance when not under strain."""
+        packer = PromptPacker(total_budget=20000)  # Large budget = no strain
+        prompt, info = packer.pack(
+            system="You are the GM.",
+            rules_core="Core decision logic.",
+            rules_narrative="Narrative flavor guidance.",
+        )
+        assert "Core decision logic" in prompt
+        assert "Narrative flavor guidance" in prompt
+        assert info.strain_tier == StrainTier.NORMAL
+
+    def test_pack_skips_narrative_under_strain(self):
+        """Pack skips narrative guidance under high strain."""
+        packer = PromptPacker(total_budget=50)  # Very tiny budget = extreme strain
+        prompt, info = packer.pack(
+            system="system " * 50,
+            rules_core="core " * 50,
+            rules_narrative="narrative " * 50,
+        )
+        # Should skip narrative and log warning (strain II+ skips narrative)
+        assert info.strain_tier in [StrainTier.STRAIN_II, StrainTier.STRAIN_III]
+        assert any("Narrative guidance skipped" in w for w in info.warnings)
+
     def test_pack_respects_budgets(self):
         """Pack respects section budgets."""
-        # Create packer with small rules budget
+        # Create packer with small rules_core budget
         custom_budgets = DEFAULT_BUDGETS.copy()
-        custom_budgets[PackSection.RULES] = SectionBudget(
+        custom_budgets[PackSection.RULES_CORE] = SectionBudget(
             tokens=50, required=True, can_truncate=True
         )
         packer = PromptPacker(budgets=custom_budgets, total_budget=1000)
         # Create content that exceeds the small budget
         long_rules = "rule " * 500  # Much more than 50 tokens
-        prompt, info = packer.pack(rules=long_rules)
+        prompt, info = packer.pack(rules_core=long_rules)
         # Should have truncation warning
         assert any("truncated" in w for w in info.warnings)
 
@@ -338,7 +362,7 @@ class TestPromptPacker:
         # Create content that will cause high pressure
         prompt, info = packer.pack(
             system="system " * 50,
-            rules="rules " * 50,
+            rules_core="rules " * 50,
         )
         # Should be high strain with this much content in small budget
         assert info.strain_tier in [StrainTier.STRAIN_II, StrainTier.STRAIN_III]
@@ -389,7 +413,7 @@ class TestPromptPacker:
         packer = PromptPacker()
         prompt, info = packer.pack(
             system="System content",
-            rules="Rules content",
+            rules_core="Rules content",
         )
         system_section = info.get_section(PackSection.SYSTEM)
         assert system_section is not None

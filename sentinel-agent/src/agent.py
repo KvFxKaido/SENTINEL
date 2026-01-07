@@ -102,21 +102,28 @@ class PromptLoader:
         """
         Get prompt sections separately for PromptPacker.
 
-        Returns dict with keys: system, rules, state
+        Returns dict with keys: system, rules_core, rules_narrative, state
+
+        Rules are split into two tiers:
+        - rules_core: Decision logic that must survive truncation (always included)
+        - rules_narrative: Flavor/examples that can be cut under strain
         """
         # System section: core identity
         system = self.load("core")
 
-        # Rules section: mechanics + gm guidance + phase-specific
-        rules_parts = [
+        # Rules core: mechanics + core decision logic (always included, never cut)
+        core_parts = [
             self.load("mechanics"),
-            self.load("gm_guidance"),
+            self._load_rules_file("core_logic"),
         ]
         if campaign and campaign.session:
             phase_guidance = self.load_phase(campaign.session.phase.value)
             if phase_guidance:
-                rules_parts.append(phase_guidance)
-        rules = "\n\n".join(filter(None, rules_parts))
+                core_parts.append(phase_guidance)
+        rules_core = "\n\n".join(filter(None, core_parts))
+
+        # Rules narrative: flavor/examples (strain-aware, cut under pressure)
+        rules_narrative = self._load_rules_file("narrative_guidance")
 
         # State section: campaign state summary
         state = ""
@@ -125,9 +132,17 @@ class PromptLoader:
 
         return {
             "system": system,
-            "rules": rules,
+            "rules_core": rules_core,
+            "rules_narrative": rules_narrative,
             "state": state,
         }
+
+    def _load_rules_file(self, name: str) -> str:
+        """Load a rules file from prompts/rules/ directory."""
+        path = self.prompts_dir / "rules" / f"{name}.md"
+        if not path.exists():
+            return ""
+        return path.read_text(encoding="utf-8")
 
     def load_advisor(self, advisor: str) -> str:
         """Load an advisor prompt."""
@@ -1271,7 +1286,8 @@ class SentinelAgent:
         # Calculate preliminary strain for retrieval budget
         preliminary_pressure = self.packer.get_pressure(
             system=sections["system"],
-            rules=sections["rules"],
+            rules_core=sections["rules_core"],
+            rules_narrative=sections["rules_narrative"],
             state=sections["state"] + "\n\n" + dynamic_hints if dynamic_hints else sections["state"],
         )
         strain_tier = StrainTier.from_pressure(preliminary_pressure)
@@ -1301,9 +1317,12 @@ class SentinelAgent:
             state_content = state_content + "\n\n---\n\n" + dynamic_hints
 
         # Pack everything with budget enforcement
+        # rules_core (decision logic) is always included
+        # rules_narrative (flavor) is cut under strain II+
         system_prompt, pack_info = self.packer.pack(
             system=sections["system"],
-            rules=sections["rules"],
+            rules_core=sections["rules_core"],
+            rules_narrative=sections["rules_narrative"],
             state=state_content,
             window=self._conversation_window,
             retrieval=retrieval_content,
