@@ -12,12 +12,9 @@ import sys
 import argparse
 from pathlib import Path
 from rich.console import Console
-from rich.live import Live
-from rich.layout import Layout
 from rich.panel import Panel
 from rich.text import Text
 from prompt_toolkit import PromptSession
-from prompt_toolkit.key_binding import KeyBindings
 
 from ..state import CampaignManager
 from ..agent import SentinelAgent
@@ -82,294 +79,191 @@ class EnhancedCLI:
         # Commands
         self.commands = create_commands(manager, agent, self.conversation)
 
-    def create_layout(self) -> Layout:
-        """
-        Build the persistent display layout
-
-        Structure:
-        ┌─ status (3 lines) - Character info, energy, phase
-        ├─ factions (5 lines) - Top 4 faction standings
-        └─ buttons (1 line) - Keyboard shortcuts
-        """
-        layout = Layout()
-
-        layout.split_column(
-            Layout(name="status", size=3),
-            Layout(name="factions", size=5),
-            Layout(name="buttons", size=1)
-        )
-
-        return layout
-
-    def update_panels(self, layout: Layout):
-        """
-        Refresh panels with current campaign state
-        Called after every command to keep panels in sync
-        """
+    def print_panels(self):
+        """Print status panels (called before each prompt)."""
         if not self.panels_enabled:
             return
 
         if not self.manager.current:
             # No campaign loaded - show minimal info
-            layout["status"].update(Panel(
-                Text("[dim]No campaign loaded - use /new or /load[/dim]"),
-                style="on #001100",
-                border_style="blue",
-                padding=(0, 1)
-            ))
-            layout["factions"].update(Panel(
-                Text("[dim]---[/dim]"),
-                title="[bold]FACTIONS[/bold]",
+            self.console.print(Panel(
+                Text.from_markup("[dim]No campaign loaded - use /new or /load[/dim]"),
+                title="[bold]STATUS[/bold]",
                 title_align="left",
-                style="on #001100",
                 border_style="blue",
                 padding=(0, 1)
             ))
         else:
-            try:
-                layout["status"].update(render_status_panel(self.manager.current))
-                layout["factions"].update(render_faction_panel(self.manager.current))
-            except Exception as e:
-                # Graceful degradation if panel rendering fails
-                self.console.print(f"[dim red]Panel update error: {e}[/dim red]")
+            # Print status and faction panels
+            self.console.print(render_status_panel(self.manager.current))
 
-        layout["buttons"].update(render_button_bar())
+            # Only show factions if there are non-neutral standings
+            faction_panel = render_faction_panel(self.manager.current)
+            self.console.print(faction_panel)
 
-    def create_keybindings(self) -> KeyBindings:
-        """
-        Keyboard shortcuts for common commands
-
-        Ctrl+S = /save
-        Ctrl+H = /help
-        Ctrl+Q = /quit
-        """
-        kb = KeyBindings()
-
-        @kb.add('c-s')
-        def save_command(event):
-            """Ctrl+S: Save campaign"""
-            event.app.exit(result='/save')
-
-        @kb.add('c-h')
-        def help_command(event):
-            """Ctrl+H: Help"""
-            event.app.exit(result='/help')
-
-        @kb.add('c-q')
-        def quit_command(event):
-            """Ctrl+Q: Quit"""
-            event.app.exit(result='/quit')
-
-        return kb
-
-    def expand_shortcuts(self, user_input: str) -> str:
-        """
-        Expand single-letter shortcuts to full commands
-
-        c = /save (checkpoint)
-        s = /status
-        f = /factions
-        h = /help
-        q = /quit
-        """
-        shortcuts = {
-            'c': '/save',
-            's': '/status',
-            'f': '/factions',
-            'h': '/help',
-            'q': '/quit'
-        }
-
-        # Only expand if it's exactly one letter
-        if len(user_input) == 1 and user_input.lower() in shortcuts:
-            return shortcuts[user_input.lower()]
-
-        return user_input
+        # Button bar
+        self.console.print(render_button_bar())
 
     def run(self):
         """
-        Main loop with Live Display
+        Main loop - simple reprint approach (no Live display).
 
         Flow:
-        1. Display persistent panels
-        2. Get user input (prompt stays below panels)
-        3. Expand shortcuts if needed
-        4. Process through game logic
-        5. Update panels
-        6. Repeat
+        1. Print status panels
+        2. Get user input
+        3. Process command/action
+        4. Repeat
         """
-        layout = self.create_layout()
+        self.console.print(f"[{THEME['dim']}]Type /help for commands, or just start playing.[/{THEME['dim']}]\n")
 
-        self.console.print(f"[{THEME['dim']}]Enhanced CLI with persistent panels[/{THEME['dim']}]")
-        self.console.print(f"[{THEME['dim']}]Single-letter shortcuts: C=Save | S=Status | F=Factions | H=Help | Q=Quit[/{THEME['dim']}]\n")
+        while self.running:
+            # Print panels before prompt
+            self.print_panels()
 
-        with Live(
-            layout,
-            console=self.console,
-            refresh_per_second=2,
-            screen=False  # Don't clear screen, allow scrollback
-        ):
-            while self.running:
-                # Update panels with current state
-                self.update_panels(layout)
+            # Show choice-aware prompt
+            if self.last_choices:
+                prompt_text = "1-4 or action > "
+            else:
+                prompt_text = "> "
 
-                # Build prompt
-                if self.conversation:
-                    tokens = estimate_conversation_tokens(self.conversation)
-                    usage_ratio = min(tokens / self.context_limit, 1.0)
-                    meter = format_context_meter(self.conversation, self.context_limit)
-                    context_display = f"[{THEME['dim']}]{meter}[/{THEME['dim']}] "
-                else:
-                    context_display = ""
+            # Get user input with autocomplete
+            try:
+                user_input = self.session.prompt(
+                    prompt_text,
+                    completer=command_completer,
+                ).strip()
+            except KeyboardInterrupt:
+                self.console.print(f"\n[{THEME['dim']}]Use /quit or Q to exit[/{THEME['dim']}]")
+                continue
+            except EOFError:
+                break
 
-                # Show choice-aware prompt
-                if self.last_choices:
-                    prompt_text = "\n1-4 or action > "
-                else:
-                    prompt_text = "\n> "
+            if not user_input:
+                continue
 
-                # Get user input with autocomplete
-                try:
-                    user_input = self.session.prompt(
-                        prompt_text,
-                        completer=command_completer,
-                        key_bindings=self.create_keybindings()
-                    ).strip()
-                except KeyboardInterrupt:
-                    self.console.print(f"\n[{THEME['dim']}]Use /quit or Q to exit[/{THEME['dim']}]")
-                    continue
-                except EOFError:
-                    break
-
-                if not user_input:
-                    continue
-
-                # Expand shortcuts (c -> /save, etc.)
-                user_input = self.expand_shortcuts(user_input)
-
-                # Handle numbered choice selection
-                if self.last_choices and user_input.isdigit():
-                    choice_num = int(user_input)
-                    if 1 <= choice_num <= len(self.last_choices.options):
-                        selected = self.last_choices.options[choice_num - 1]
-                        if "something else" in selected.lower():
-                            from rich.prompt import Prompt
-                            user_input = Prompt.ask("[dim]What do you do?[/dim]")
-                        else:
-                            user_input = selected if selected.startswith("I ") else f"I {selected.lower()}"
-                        self.last_choices = None
-
-                # Handle exit
-                if user_input in ['/quit', '/exit', 'quit', 'exit']:
-                    self.console.print("\n[cyan]Exiting SENTINEL...[/cyan]")
-                    break
-
-                # Handle commands
-                if user_input.startswith("/"):
-                    parts = user_input.split()
-                    cmd = parts[0].lower()
-                    cmd_args = parts[1:]
-
-                    if cmd in self.commands:
-                        # Record command usage
-                        command_completer.record_command(cmd)
-
-                        result = self.commands[cmd](self.manager, self.agent, cmd_args)
-
-                        # Handle backend switch
-                        if cmd == "/backend" and result:
-                            self.console.print(f"[dim]Switching to {result}...[/dim]")
-                            set_backend(result, self.campaigns_dir)
-                            self.agent = SentinelAgent(
-                                self.manager,
-                                prompts_dir=self.prompts_dir,
-                                lore_dir=self.lore_dir if self.lore_dir and self.lore_dir.exists() else None,
-                                backend=result,
-                            )
-                            self.commands = create_commands(self.manager, self.agent, self.conversation)
-                            show_backend_status(self.agent)
-                            continue
-
-                        # Handle GM prompt (from /start, /mission, etc.)
-                        if isinstance(result, tuple) and result[0] == "gm_prompt":
-                            user_input = result[1]
-                            # Fall through to agent processing below
-                        else:
-                            continue
+            # Handle numbered choice selection
+            if self.last_choices and user_input.isdigit():
+                choice_num = int(user_input)
+                if 1 <= choice_num <= len(self.last_choices.options):
+                    selected = self.last_choices.options[choice_num - 1]
+                    if "something else" in selected.lower():
+                        from rich.prompt import Prompt
+                        user_input = Prompt.ask("[dim]What do you do?[/dim]")
                     else:
-                        self.console.print(f"[{THEME['warning']}]Unknown command: {cmd}[/{THEME['warning']}]")
+                        user_input = selected if selected.startswith("I ") else f"I {selected.lower()}"
+                    self.last_choices = None
+
+            # Handle exit
+            if user_input in ['/quit', '/exit', 'quit', 'exit']:
+                self.console.print("\n[cyan]Exiting SENTINEL...[/cyan]")
+                break
+
+            # Handle commands
+            if user_input.startswith("/"):
+                parts = user_input.split()
+                cmd = parts[0].lower()
+                cmd_args = parts[1:]
+
+                if cmd in self.commands:
+                    # Record command usage
+                    command_completer.record_command(cmd)
+
+                    result = self.commands[cmd](self.manager, self.agent, cmd_args)
+
+                    # Handle backend switch
+                    if cmd == "/backend" and result:
+                        self.console.print(f"[dim]Switching to {result}...[/dim]")
+                        set_backend(result, self.campaigns_dir)
+                        self.agent = SentinelAgent(
+                            self.manager,
+                            prompts_dir=self.prompts_dir,
+                            lore_dir=self.lore_dir if self.lore_dir and self.lore_dir.exists() else None,
+                            backend=result,
+                        )
+                        self.commands = create_commands(self.manager, self.agent, self.conversation)
+                        show_backend_status(self.agent)
                         continue
 
-                # Regular input - send to agent
-                if not self.manager.current:
-                    self.console.print(f"[{THEME['warning']}]Start or load a campaign first (/new or /load)[/{THEME['warning']}]")
-                    continue
-
-                if not self.agent.is_available:
-                    self.console.print(
-                        f"[{THEME['warning']}]No LLM backend available.[/{THEME['warning']}]\n"
-                        f"[{THEME['dim']}]Start LM Studio or Ollama[/{THEME['dim']}]"
-                    )
-                    continue
-
-                # Get response from agent
-                self.console.print()
-                with self.console.status(f"[{THEME['dim']}]...[/{THEME['dim']}]"):
-                    try:
-                        from ..tools.hinge_detector import detect_hinge
-
-                        # Detect potential hinge moments
-                        hinge = detect_hinge(user_input)
-                        if hinge:
-                            self.console.print(
-                                f"\n[{THEME['warning']}]{g('hinge')} HINGE MOMENT DETECTED[/{THEME['warning']}] "
-                                f"[{THEME['dim']}]({hinge.category.value}, {hinge.severity})[/{THEME['dim']}]"
-                            )
-
-                        response = self.agent.respond(user_input, self.conversation)
-                        self.conversation.append(Message(role="user", content=user_input))
-                        self.conversation.append(Message(role="assistant", content=response))
-
-                        # Auto-log hinge moment
-                        if hinge and self.manager.current:
-                            self.manager.log_hinge_moment(
-                                situation=f"Player declared: {user_input[:100]}",
-                                choice=hinge.matched_text,
-                                reasoning=f"Category: {hinge.category.value}, Severity: {hinge.severity}",
-                            )
-                            self.console.print(
-                                f"[{THEME['dim']}]{g('hinge')} Hinge logged to chronicle[/{THEME['dim']}]"
-                            )
-                    except Exception as e:
-                        response = f"[{THEME['danger']}]Error: {e}[/{THEME['danger']}]"
-                        self.last_choices = None
-                        self.console.print(Panel(response, border_style=THEME["danger"]))
-                        self.console.print()
+                    # Handle GM prompt (from /start, /mission, etc.)
+                    if isinstance(result, tuple) and result[0] == "gm_prompt":
+                        user_input = result[1]
+                        # Fall through to agent processing below
+                    else:
                         continue
+                else:
+                    self.console.print(f"[{THEME['warning']}]Unknown command: {cmd}[/{THEME['warning']}]")
+                    continue
 
-                # Parse response for choices
-                narrative, choices = parse_response(response)
-                self.last_choices = choices
+            # Regular input - send to agent
+            if not self.manager.current:
+                self.console.print(f"[{THEME['warning']}]Start or load a campaign first (/new or /load)[/{THEME['warning']}]")
+                continue
 
-                # Display narrative and choices
-                render_narrative_block(narrative)
+            if not self.agent.is_available:
+                self.console.print(
+                    f"[{THEME['warning']}]No LLM backend available.[/{THEME['warning']}]\n"
+                    f"[{THEME['dim']}]Start LM Studio or Ollama[/{THEME['dim']}]"
+                )
+                continue
 
-                if choices:
+            # Get response from agent
+            self.console.print()
+            with self.console.status(f"[{THEME['dim']}]...[/{THEME['dim']}]"):
+                try:
+                    from ..tools.hinge_detector import detect_hinge
+
+                    # Detect potential hinge moments
+                    hinge = detect_hinge(user_input)
+                    if hinge:
+                        self.console.print(
+                            f"\n[{THEME['warning']}]{g('hinge')} HINGE MOMENT DETECTED[/{THEME['warning']}] "
+                            f"[{THEME['dim']}]({hinge.category.value}, {hinge.severity})[/{THEME['dim']}]"
+                        )
+
+                    response = self.agent.respond(user_input, self.conversation)
+                    self.conversation.append(Message(role="user", content=user_input))
+                    self.conversation.append(Message(role="assistant", content=response))
+
+                    # Auto-log hinge moment
+                    if hinge and self.manager.current:
+                        self.manager.log_hinge_moment(
+                            situation=f"Player declared: {user_input[:100]}",
+                            choice=hinge.matched_text,
+                            reasoning=f"Category: {hinge.category.value}, Severity: {hinge.severity}",
+                        )
+                        self.console.print(
+                            f"[{THEME['dim']}]{g('hinge')} Hinge logged to chronicle[/{THEME['dim']}]"
+                        )
+                except Exception as e:
+                    response = f"[{THEME['danger']}]Error: {e}[/{THEME['danger']}]"
+                    self.last_choices = None
+                    self.console.print(Panel(response, border_style=THEME["danger"]))
                     self.console.print()
-                    render_choice_block(choices)
+                    continue
 
-                # Show context meter
-                tokens = estimate_conversation_tokens(self.conversation)
-                usage_ratio = min(tokens / self.context_limit, 1.0)
-                meter = format_context_meter(self.conversation, self.context_limit)
-                self.console.print(f"[{THEME['dim']}]{meter}[/{THEME['dim']}]")
+            # Parse response for choices
+            narrative, choices = parse_response(response)
+            self.last_choices = choices
 
-                # Show warning if context is getting full
-                warning = context_warning(usage_ratio)
-                if warning:
-                    self.console.print(f"[{THEME['warning']}]{g('warning')} {warning}[/{THEME['warning']}]")
+            # Display narrative and choices
+            render_narrative_block(narrative)
 
+            if choices:
                 self.console.print()
+                render_choice_block(choices)
+
+            # Show context meter
+            tokens = estimate_conversation_tokens(self.conversation)
+            usage_ratio = min(tokens / self.context_limit, 1.0)
+            meter = format_context_meter(self.conversation, self.context_limit)
+            self.console.print(f"[{THEME['dim']}]{meter}[/{THEME['dim']}]")
+
+            # Show warning if context is getting full
+            warning = context_warning(usage_ratio)
+            if warning:
+                self.console.print(f"[{THEME['warning']}]{g('warning')} {warning}[/{THEME['warning']}]")
+
+            self.console.print()
 
 
 def main():
