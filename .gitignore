@@ -45,6 +45,8 @@ campaigns/
 simulations/
 *.json.bak
 assets/portraits/
+assets/braille_portraits/
+sentinel-agent/test_portrait.py
 
 # WIP / scratch files
 WARP.md
