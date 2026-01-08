@@ -19,7 +19,7 @@ def render_status_panel(campaign: Campaign) -> Panel:
     """
     if not campaign.characters:
         # No character created yet
-        status_text = Text(
+        status_text = Text.from_markup(
             f"[bold cyan]{campaign.meta.name}[/bold cyan] │ "
             f"Session: {campaign.meta.session_count} │ "
             f"[dim]No character yet - use /char to create[/dim]"
@@ -50,12 +50,12 @@ def render_status_panel(campaign: Campaign) -> Panel:
         parts = [
             f"[bold cyan]{char.name}[/bold cyan]",
             f"[dim]{char.background.value if char.background else 'Unknown'}[/dim]",
-            f"Energy: [{energy_color}]{energy}[/{energy_color}]",
+            f"Energy: [{energy_color}]{energy}%[/{energy_color}]",
             f"Session: {campaign.meta.session_count}",
             f"Phase: {phase_display}"
         ]
 
-        status_text = Text(" │ ".join(parts))
+        status_text = Text.from_markup(" │ ".join(parts))
 
     return Panel(
         status_text,
@@ -71,7 +71,7 @@ def render_faction_panel(campaign: Campaign, limit: int = 4) -> Panel:
     """
     if not campaign.factions:
         return Panel(
-            Text("[dim]No faction standings yet[/dim]"),
+            Text.from_markup("[dim]No faction standings yet[/dim]"),
             title="[bold]FACTIONS[/bold]",
             title_align="left",
             style="on #001100",
@@ -114,20 +114,26 @@ def render_faction_panel(campaign: Campaign, limit: int = 4) -> Panel:
     )
 
 
-def render_button_bar() -> Text:
+def render_button_bar() -> Panel:
     """
-    QoL shortcuts displayed at bottom
-    Shows available keyboard shortcuts
+    Quick reference bar showing common slash commands.
     """
-    shortcuts = [
-        "[cyan]C[/cyan]=Checkpoint",
-        "[cyan]S[/cyan]=Status",
-        "[cyan]F[/cyan]=Factions",
-        "[cyan]H[/cyan]=Help",
-        "[cyan]Q[/cyan]=Quit"
+    commands = [
+        "[cyan]/new[/cyan]",
+        "[cyan]/load[/cyan]",
+        "[cyan]/save[/cyan]",
+        "[cyan]/status[/cyan]",
+        "[cyan]/factions[/cyan]",
+        "[cyan]/help[/cyan]",
+        "[cyan]/quit[/cyan]",
     ]
 
-    return Text(" │ ".join(shortcuts), style="dim")
+    return Panel(
+        Text.from_markup(" │ ".join(commands)),
+        style="dim",
+        border_style="dim",
+        padding=(0, 1),
+    )
 
 
 # --- Helper Functions ---
