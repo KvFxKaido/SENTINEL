@@ -29,6 +29,7 @@ all = [
 
 [project.scripts]
 sentinel = "src.interface.cli:main"
+sentinel-enhanced = "src.interface.enhanced_cli:main"
 
 [build-system]
 requires = ["hatchling"]
