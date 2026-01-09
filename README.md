@@ -17,7 +17,8 @@ A tactical, relationship-driven tabletop RPG with an AI Game Master. Navigate po
 ```
 cd sentinel-agent
 pip install -e .
-python -m src.interface.cli
+python -m src.interface.cli   # Full CLI
+sentinel-tui                   # Textual TUI (panels, hotkeys)
 ```
 
 Then: `/new` → `/char` → `/start` → play
