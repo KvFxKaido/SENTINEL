@@ -104,8 +104,10 @@ async def list_resources() -> list[Resource]:
 
 
 @server.read_resource()
-async def read_resource(uri: str) -> str:
+async def read_resource(uri) -> str:
     """Read a resource by URI."""
+    # Convert AnyUrl to string if needed
+    uri = str(uri)
     # Faction resources: faction://{faction_id}/{resource_type}
     if uri.startswith("faction://"):
         path = uri[len("faction://"):]
