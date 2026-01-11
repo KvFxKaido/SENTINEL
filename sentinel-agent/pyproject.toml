@@ -29,8 +29,8 @@ all = [
 ]
 
 [project.scripts]
-sentinel = "src.interface.cli:main"
-sentinel-tui = "src.interface.tui:main"
+sentinel = "src.interface.tui:main"
+sentinel-cli = "src.interface.cli:main"
 
 [build-system]
 requires = ["hatchling"]
