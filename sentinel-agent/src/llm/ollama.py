@@ -239,11 +239,22 @@ class OllamaClient(LLMClient):
             finish_reason=choice.get("finish_reason", "stop"),
         )
 
-    def is_available(self) -> bool:
-        """Check if Ollama is running and has models available."""
+    def is_available(self, timeout: float = 1.0) -> bool:
+        """Check if Ollama is running and has models available.
+
+        Uses a short timeout for fast availability detection during startup.
+
+        Args:
+            timeout: Connection timeout in seconds (default 1.0 for fast checks)
+        """
+        # Quick connection test - only try the configured URL
+        url = f"{self.base_url}/models"
+        req = urllib.request.Request(url)
         try:
-            models = self._get_models()
-            return len(models) > 0
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                models = data.get("data", [])
+                return isinstance(models, list) and len(models) > 0
         except Exception:
             return False
 
