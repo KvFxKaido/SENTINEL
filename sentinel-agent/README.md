@@ -57,6 +57,17 @@ The agent auto-detects backends in this order:
 
 Local backends are preferred for privacy, cost, and predictable context handling. Use `/backend <name>` to switch manually.
 
+### Which Backend Should I Use?
+
+| Priority | Recommendation |
+|----------|----------------|
+| Best narrative quality | Claude (via Claude Code) |
+| Free + private | LM Studio or Ollama with 70B+ model |
+| Offline play | Local only |
+| Potato PC | Claude (offload compute to cloud) |
+
+Local models are fully playable — the mechanics work identically. Claude shines in nuanced NPC interactions, faction politics, and long-term consequence tracking. Think of it as a GM skill slider: local 7B models might forget context mid-scene, while Claude Opus will remember that throwaway comment you made three sessions ago and weave it into the plot.
+
 ## Architecture
 
 ```
