@@ -34,6 +34,10 @@ from .schema import (
 from .store import CampaignStore, JsonCampaignStore, EventQueueStore
 from .memvid_adapter import MemvidAdapter, create_memvid_adapter, MEMVID_AVAILABLE
 
+# Lazy import for systems to avoid circular imports
+_leverage_system = None
+_arc_system = None
+
 
 def _version_tuple(version: str) -> tuple[int, ...]:
     """Convert version string to tuple for proper numeric comparison.
@@ -99,6 +103,26 @@ class CampaignManager:
         self._enable_memvid = enable_memvid and MEMVID_AVAILABLE
         self._memvid: MemvidAdapter | None = None
         self._turn_counter: int = 0  # Track turns within session
+
+        # Game systems (lazily initialized)
+        self._leverage_system = None
+        self._arc_system = None
+
+    @property
+    def leverage(self):
+        """Get the leverage system (lazy initialization)."""
+        if self._leverage_system is None:
+            from ..systems.leverage import LeverageSystem
+            self._leverage_system = LeverageSystem(self)
+        return self._leverage_system
+
+    @property
+    def arcs(self):
+        """Get the arc system (lazy initialization)."""
+        if self._arc_system is None:
+            from ..systems.arcs import ArcSystem
+            self._arc_system = ArcSystem(self)
+        return self._arc_system
 
     # -------------------------------------------------------------------------
     # Memvid Integration
@@ -1575,10 +1599,10 @@ class CampaignManager:
         return pending
 
     # -------------------------------------------------------------------------
-    # Enhancement Leverage
+    # Enhancement Leverage (delegated to LeverageSystem)
     # -------------------------------------------------------------------------
 
-    # Factions that can grant enhancements (Wanderers and Cultivators don't)
+    # Backwards compatibility constant
     ENHANCEMENT_FACTIONS = [
         FactionName.NEXUS,
         FactionName.EMBER_COLONIES,
@@ -1591,894 +1615,72 @@ class CampaignManager:
         FactionName.GHOST_NETWORKS,
     ]
 
-    def grant_enhancement(
-        self,
-        character_id: str,
-        name: str,
-        source: FactionName,
-        benefit: str,
-        cost: str,
-    ) -> "Enhancement":
-        """
-        Grant an enhancement to a character.
+    def grant_enhancement(self, character_id: str, name: str, source: FactionName, benefit: str, cost: str):
+        """Grant an enhancement to a character. Delegates to LeverageSystem."""
+        return self.leverage.grant_enhancement(character_id, name, source, benefit, cost)
 
-        Sets up leverage tracking with session info.
-        Raises ValueError if faction doesn't offer enhancements.
-        """
-        from .schema import Enhancement
-
-        if not self.current:
-            raise ValueError("No campaign loaded")
-
-        if source not in self.ENHANCEMENT_FACTIONS:
-            raise ValueError(
-                f"{source.value} does not offer enhancements. "
-                "Wanderers and Cultivators resist permanent ties."
-            )
-
-        char = self.get_character(character_id)
-        if not char:
-            raise ValueError(f"Character not found: {character_id}")
-
-        # Extract keywords for hint matching
-        keywords = list(extract_keywords(
-            f"{name} {benefit} {source.value}"
-        ))[:8]
-
-        enhancement = Enhancement(
-            name=name,
-            source=source,
-            benefit=benefit,
-            cost=cost,
-            granted_session=self.current.meta.session_count,
-            leverage_keywords=keywords,
-        )
-
-        char.enhancements.append(enhancement)
-
-        # Log as hinge moment (enhancement acceptance is irreversible)
-        self.log_history(
-            type=HistoryType.HINGE,
-            summary=f"Accepted {source.value} enhancement: {name}",
-            is_permanent=True,
-        )
-
-        self.save_campaign()
-        return enhancement
-
-    def refuse_enhancement(
-        self,
-        character_id: str,
-        name: str,
-        source: FactionName,
-        benefit: str,
-        reason_refused: str,
-    ) -> "RefusedEnhancement":
-        """
-        Record a refused enhancement offer.
-
-        Refusal is meaningful — it builds reputation that NPCs react to.
-        """
-        from .schema import RefusedEnhancement
-
-        if not self.current:
-            raise ValueError("No campaign loaded")
-
-        char = self.get_character(character_id)
-        if not char:
-            raise ValueError(f"Character not found: {character_id}")
-
-        refusal = RefusedEnhancement(
-            name=name,
-            source=source,
-            benefit=benefit,
-            reason_refused=reason_refused,
-        )
-
-        char.refused_enhancements.append(refusal)
-
-        # Log as hinge moment (refusal is an identity-defining choice)
-        self.log_history(
-            type=HistoryType.HINGE,
-            summary=f"Refused {source.value} enhancement: {name}",
-            is_permanent=True,
-        )
-
-        self.save_campaign()
-        return refusal
+    def refuse_enhancement(self, character_id: str, name: str, source: FactionName, benefit: str, reason_refused: str):
+        """Record a refused enhancement. Delegates to LeverageSystem."""
+        return self.leverage.refuse_enhancement(character_id, name, source, benefit, reason_refused)
 
     def get_refusal_reputation(self, character_id: str) -> dict | None:
-        """
-        Calculate refusal reputation based on refused enhancements.
+        """Get refusal reputation. Delegates to LeverageSystem."""
+        return self.leverage.get_refusal_reputation(character_id)
 
-        Returns title, count, and faction breakdown for GM context.
-        """
-        char = self.get_character(character_id)
-        if not char:
-            return None
+    def call_leverage(self, character_id: str, enhancement_id: str, demand: str, weight: str = "medium",
+                      threat_basis: list[str] | None = None, deadline: str | None = None,
+                      deadline_sessions: int | None = None, consequences: list[str] | None = None) -> dict:
+        """Call leverage on an enhancement. Delegates to LeverageSystem."""
+        return self.leverage.call_leverage(character_id, enhancement_id, demand, weight,
+                                           threat_basis, deadline, deadline_sessions, consequences)
 
-        refusals = char.refused_enhancements
-        count = len(refusals)
-
-        if count == 0:
-            return {
-                "title": None,
-                "count": 0,
-                "by_faction": {},
-                "narrative_hint": None,
-            }
-
-        # Count by faction
-        by_faction: dict[str, int] = {}
-        for r in refusals:
-            faction = r.source.value
-            by_faction[faction] = by_faction.get(faction, 0) + 1
-
-        # Determine title
-        title = None
-        narrative_hint = None
-
-        # Check for faction-specific defiance (3+ from same faction)
-        max_faction = max(by_faction.items(), key=lambda x: x[1])
-        if max_faction[1] >= 3:
-            title = f"The {max_faction[0]} Defiant"
-            narrative_hint = f"Known for repeatedly refusing {max_faction[0]} offers"
-        elif count >= 3:
-            title = "The Undaunted"
-            narrative_hint = "Has refused multiple faction offers — values autonomy"
-        elif count >= 2:
-            title = "The Unbought"
-            narrative_hint = "Has turned down enhancement offers before"
-        else:
-            narrative_hint = "Refused an enhancement — some NPCs may notice"
-
-        return {
-            "title": title,
-            "count": count,
-            "by_faction": by_faction,
-            "narrative_hint": narrative_hint,
-        }
-
-    def call_leverage(
-        self,
-        character_id: str,
-        enhancement_id: str,
-        demand: str,
-        weight: str = "medium",
-        threat_basis: list[str] | None = None,
-        deadline: str | None = None,
-        deadline_sessions: int | None = None,
-        consequences: list[str] | None = None,
-    ) -> dict:
-        """
-        A faction calls in leverage on an enhancement.
-
-        Creates a LeverageDemand with optional threat basis, deadline, and consequences.
-        Player must respond.
-
-        Args:
-            character_id: Character being leveraged
-            enhancement_id: Enhancement being leveraged
-            demand: What the faction is asking
-            weight: Pressure level (light/medium/heavy)
-            threat_basis: Why leverage works (info or functional leverage)
-            deadline: Human-facing deadline ("Before the convoy leaves")
-            deadline_sessions: Sessions until must resolve (e.g., 2)
-            consequences: What happens if ignored
-        """
-        if not self.current:
-            return {"error": "No campaign loaded"}
-
-        char = self.get_character(character_id)
-        if not char:
-            return {"error": "Character not found"}
-
-        enhancement = next(
-            (e for e in char.enhancements if e.id == enhancement_id),
-            None
-        )
-        if not enhancement:
-            return {"error": "Enhancement not found"}
-
-        # Check for existing demand (new system) or obligation (legacy)
-        if enhancement.leverage.pending_demand or enhancement.leverage.pending_obligation:
-            return {"error": "Already has pending demand - resolve that first"}
-
-        # Calculate deadline session if relative deadline given
-        deadline_session = None
-        if deadline_sessions is not None:
-            deadline_session = self.current.meta.session_count + deadline_sessions
-
-        # Create rich demand object
-        leverage_demand = LeverageDemand(
-            faction=enhancement.source,
-            enhancement_id=enhancement.id,
-            enhancement_name=enhancement.name,
-            demand=demand,
-            threat_basis=threat_basis or [],
-            deadline=deadline,
-            deadline_session=deadline_session,
-            consequences=consequences or [],
-            created_session=self.current.meta.session_count,
-            weight=LeverageWeight(weight),
-        )
-
-        enhancement.leverage.pending_demand = leverage_demand
-        enhancement.leverage.last_called = datetime.now()
-        enhancement.leverage.weight = LeverageWeight(weight)
-
-        self.save_campaign()
-
-        return {
-            "enhancement": enhancement.name,
-            "faction": enhancement.source.value,
-            "demand": demand,
-            "demand_id": leverage_demand.id,
-            "weight": weight,
-            "threat_basis": threat_basis or [],
-            "deadline": deadline,
-            "deadline_session": deadline_session,
-            "consequences": consequences or [],
-            "compliance_history": enhancement.leverage.compliance_count,
-            "resistance_history": enhancement.leverage.resistance_count,
-        }
-
-    def resolve_leverage(
-        self,
-        character_id: str,
-        enhancement_id: str,
-        response: str,  # "comply", "resist", "negotiate"
-        outcome: str,
-    ) -> dict:
-        """
-        Resolve a pending leverage demand or obligation.
-
-        - Comply: weight may decrease
-        - Resist: weight increases
-        - Negotiate: weight stays, resets hint counter
-
-        Works with both new LeverageDemand system and legacy pending_obligation.
-        """
-        if not self.current:
-            return {"error": "No campaign loaded"}
-
-        char = self.get_character(character_id)
-        if not char:
-            return {"error": "Character not found"}
-
-        enhancement = next(
-            (e for e in char.enhancements if e.id == enhancement_id),
-            None
-        )
-        if not enhancement:
-            return {"error": "Enhancement not found"}
-
-        # Check for demand (new) or obligation (legacy)
-        demand = enhancement.leverage.pending_demand
-        legacy_obligation = enhancement.leverage.pending_obligation
-
-        if not demand and not legacy_obligation:
-            return {"error": "No pending demand or obligation"}
-
-        # Get the demand text for logging
-        old_demand_text = demand.demand if demand else legacy_obligation
-
-        weights = list(LeverageWeight)
-        current_weight_idx = weights.index(enhancement.leverage.weight)
-
-        if response == "comply":
-            enhancement.leverage.compliance_count += 1
-            # Compliance may reduce weight
-            if current_weight_idx > 0:
-                enhancement.leverage.weight = weights[current_weight_idx - 1]
-        elif response == "resist":
-            enhancement.leverage.resistance_count += 1
-            # Resistance escalates weight
-            if current_weight_idx < len(weights) - 1:
-                enhancement.leverage.weight = weights[current_weight_idx + 1]
-        # negotiate: weight stays same
-
-        # Clear both fields
-        enhancement.leverage.pending_demand = None
-        enhancement.leverage.pending_obligation = None
-        enhancement.leverage.hint_count = 0  # Reset hint counter
-
-        # Log to history
-        self.log_history(
-            type=HistoryType.CONSEQUENCE,
-            summary=f"Leverage {response}: {enhancement.source.value} demanded '{old_demand_text}', outcome: {outcome}",
-            is_permanent=False,
-        )
-
-        self.save_campaign()
-
-        return {
-            "enhancement": enhancement.name,
-            "response": response,
-            "outcome": outcome,
-            "new_weight": enhancement.leverage.weight.value,
-            "compliance_count": enhancement.leverage.compliance_count,
-            "resistance_count": enhancement.leverage.resistance_count,
-        }
+    def resolve_leverage(self, character_id: str, enhancement_id: str, response: str, outcome: str) -> dict:
+        """Resolve a leverage demand. Delegates to LeverageSystem."""
+        return self.leverage.resolve_leverage(character_id, enhancement_id, response, outcome)
 
     def check_leverage_hints(self, player_input: str) -> list[dict]:
-        """
-        Check if player input should trigger leverage hints.
-
-        Returns hints for GM injection, not auto-calls.
-        Requires 2+ keyword matches (like dormant threads).
-        """
-        if not self.current:
-            return []
-
-        hints = []
-        input_keywords = extract_keywords(player_input)
-        if not input_keywords:
-            return []
-
-        current_session = self.current.meta.session_count
-
-        for char in self.current.characters:
-            for enhancement in char.enhancements:
-                # Skip if already has pending demand or obligation
-                if enhancement.leverage.pending_demand or enhancement.leverage.pending_obligation:
-                    continue
-
-                # Skip if hinted this session already
-                if enhancement.leverage.last_hint_session == current_session:
-                    continue
-
-                # Check keyword match
-                enh_keywords = set(enhancement.leverage_keywords)
-                matched = enh_keywords & input_keywords
-
-                # Require 2+ matches
-                if len(matched) >= 2:
-                    sessions_since = current_session - enhancement.granted_session
-
-                    hints.append({
-                        "character_id": char.id,
-                        "character_name": char.name,
-                        "enhancement_id": enhancement.id,
-                        "enhancement_name": enhancement.name,
-                        "faction": enhancement.source.value,
-                        "weight": enhancement.leverage.weight.value,
-                        "matched_keywords": list(matched),
-                        "sessions_since_grant": sessions_since,
-                        "hint_count": enhancement.leverage.hint_count,
-                        "compliance_count": enhancement.leverage.compliance_count,
-                        "resistance_count": enhancement.leverage.resistance_count,
-                    })
-
-        return hints
-
-    def _compute_urgency_score(
-        self,
-        demand: LeverageDemand,
-        current_session: int,
-    ) -> tuple[str, int]:
-        """
-        Compute urgency tier and score for a demand.
-
-        Returns (urgency_tier, numeric_score) where:
-        - "critical": past deadline
-        - "urgent": deadline this session
-        - "pending": no deadline or future deadline
-
-        Score is for sorting: higher = more urgent.
-        """
-        age = current_session - demand.created_session
-
-        if demand.deadline_session is not None:
-            if current_session > demand.deadline_session:
-                return ("critical", 1000 + age)  # Past deadline
-            elif current_session == demand.deadline_session:
-                return ("urgent", 500 + age)  # Deadline is now
-
-        # Weight adds urgency even without deadline
-        weight_bonus = {"light": 0, "medium": 50, "heavy": 100}
-        return ("pending", weight_bonus.get(demand.weight.value, 0) + age)
+        """Check for leverage hints. Delegates to LeverageSystem."""
+        return self.leverage.check_leverage_hints(player_input)
 
     def get_pending_demands(self) -> list[dict]:
-        """
-        Get all pending leverage demands for GM context.
-
-        Returns demands sorted by urgency (critical > urgent > pending).
-        Does NOT auto-escalate - returns hints for GM judgment.
-        """
-        if not self.current:
-            return []
-
-        demands = []
-        current_session = self.current.meta.session_count
-
-        for char in self.current.characters:
-            for enh in char.enhancements:
-                demand = enh.leverage.pending_demand
-                if not demand:
-                    continue
-
-                urgency, score = self._compute_urgency_score(demand, current_session)
-                age = current_session - demand.created_session
-                overdue = (
-                    demand.deadline_session is not None
-                    and current_session > demand.deadline_session
-                )
-
-                demands.append({
-                    "id": demand.id,
-                    "character_id": char.id,
-                    "character_name": char.name,
-                    "enhancement_id": enh.id,
-                    "enhancement_name": demand.enhancement_name,
-                    "faction": demand.faction.value,
-                    "demand": demand.demand,
-                    "threat_basis": demand.threat_basis,
-                    "deadline": demand.deadline,
-                    "deadline_session": demand.deadline_session,
-                    "consequences": demand.consequences,
-                    "weight": demand.weight.value,
-                    "age_sessions": age,
-                    "overdue": overdue,
-                    "urgency": urgency,
-                    "_score": score,  # For sorting
-                })
-
-        # Sort by score descending (most urgent first)
-        demands.sort(key=lambda d: -d["_score"])
-
-        # Remove internal score field
-        for d in demands:
-            del d["_score"]
-
-        return demands
+        """Get pending leverage demands. Delegates to LeverageSystem."""
+        return self.leverage.get_pending_demands()
 
     def check_demand_deadlines(self) -> list[dict]:
-        """
-        Check for demands past their deadline.
+        """Check demand deadlines. Delegates to LeverageSystem."""
+        return self.leverage.check_demand_deadlines()
 
-        Returns list of overdue/urgent demands for GM attention.
-        Does NOT auto-escalate - the GM decides how to handle.
-        """
-        all_demands = self.get_pending_demands()
-        return [d for d in all_demands if d["urgency"] in ("critical", "urgent")]
-
-    def escalate_demand(
-        self,
-        character_id: str,
-        enhancement_id: str,
-        escalation_type: str,  # "queue_consequence" | "increase_weight" | "faction_action"
-        narrative: str = "",
-    ) -> dict:
-        """
-        Escalate an unresolved leverage demand.
-
-        Called by GM when a deadline passes or player ignores faction pressure.
-
-        escalation_type:
-        - queue_consequence: Creates dormant thread from demand consequences
-        - increase_weight: Bumps demand weight (light→medium→heavy)
-        - faction_action: Logs faction taking independent action
-
-        All types log to history. Does NOT auto-resolve the demand.
-        """
-        if not self.current:
-            return {"error": "No campaign loaded"}
-
-        char = self.get_character(character_id)
-        if not char:
-            return {"error": "Character not found"}
-
-        enhancement = next(
-            (e for e in char.enhancements if e.id == enhancement_id),
-            None
-        )
-        if not enhancement:
-            return {"error": "Enhancement not found"}
-
-        demand = enhancement.leverage.pending_demand
-        if not demand:
-            return {"error": "No pending demand to escalate"}
-
-        result = {
-            "success": True,
-            "enhancement": enhancement.name,
-            "faction": enhancement.source.value,
-            "escalation_type": escalation_type,
-        }
-
-        if escalation_type == "queue_consequence":
-            # Create dormant thread from consequences
-            consequence_text = (
-                "; ".join(demand.consequences)
-                if demand.consequences
-                else f"Faction {demand.faction.value} acts on ignored demand"
-            )
-            thread = self.queue_dormant_thread(
-                origin=f"DEMAND IGNORED: {demand.demand}",
-                trigger_condition="When the faction's patience runs out",
-                consequence=consequence_text,
-                severity="moderate",
-            )
-            result["thread_id"] = thread.id
-            result["consequence"] = consequence_text
-
-        elif escalation_type == "increase_weight":
-            # Bump weight on both demand and leverage
-            weights = list(LeverageWeight)
-            current_idx = weights.index(enhancement.leverage.weight)
-            if current_idx < len(weights) - 1:
-                new_weight = weights[current_idx + 1]
-                enhancement.leverage.weight = new_weight
-                demand.weight = new_weight
-                result["old_weight"] = weights[current_idx].value
-                result["new_weight"] = new_weight.value
-            else:
-                result["note"] = "Already at maximum weight (heavy)"
-                result["new_weight"] = enhancement.leverage.weight.value
-
-        elif escalation_type == "faction_action":
-            # Log faction taking action
-            action_desc = narrative or f"{demand.faction.value} acts on unmet demand"
-            self.log_history(
-                type=HistoryType.CONSEQUENCE,
-                summary=f"FACTION ACTION: {action_desc}",
-                is_permanent=False,
-            )
-            result["action"] = action_desc
-
-        else:
-            return {"error": f"Unknown escalation type: {escalation_type}"}
-
-        self.save_campaign()
-        return result
+    def escalate_demand(self, character_id: str, enhancement_id: str, escalation_type: str, narrative: str = "") -> dict:
+        """Escalate a demand. Delegates to LeverageSystem."""
+        return self.leverage.escalate_demand(character_id, enhancement_id, escalation_type, narrative)
 
     # -------------------------------------------------------------------------
-    # Character Arc Detection
+    # Character Arc Detection (delegated to ArcSystem)
     # -------------------------------------------------------------------------
 
     def detect_arcs(self, character_id: str | None = None) -> list[dict]:
-        """
-        Analyze campaign history to detect emergent character arcs.
-
-        Looks for patterns in hinge moments, faction shifts, and NPC interactions
-        to identify consistent behavioral themes.
-
-        Args:
-            character_id: Optional character ID (defaults to first character)
-
-        Returns:
-            List of detected arc candidates with strength scores
-        """
-        from .schema import ArcType, ARC_PATTERNS, CharacterArc, ArcStatus
-        import random
-
-        if not self.current:
-            return []
-
-        # Get character
-        char = None
-        if character_id:
-            for c in self.current.characters:
-                if c.id == character_id:
-                    char = c
-                    break
-        elif self.current.characters:
-            char = self.current.characters[0]
-
-        if not char:
-            return []
-
-        # Gather evidence from campaign
-        evidence_text = self._gather_arc_evidence()
-        if not evidence_text:
-            return []
-
-        # Analyze each arc type
-        candidates = []
-        for arc_type, pattern in ARC_PATTERNS.items():
-            score = self._score_arc_pattern(evidence_text, pattern, arc_type)
-
-            if score >= 0.4:  # Threshold for detection
-                # Check if this arc already exists
-                existing = next(
-                    (a for a in char.arcs if a.arc_type == arc_type),
-                    None
-                )
-
-                if existing:
-                    # Update existing arc
-                    if existing.status != ArcStatus.REJECTED:
-                        existing.strength = score
-                        existing.last_reinforced = self.current.meta.session_count
-                        existing.times_reinforced += 1
-                else:
-                    # New detection
-                    title = random.choice(pattern["title_templates"])
-                    candidates.append({
-                        "arc_type": arc_type.value,
-                        "title": title,
-                        "description": pattern["description"],
-                        "strength": score,
-                        "effects": pattern["effects"],
-                        "evidence": self._find_arc_evidence(evidence_text, pattern),
-                    })
-
-        return candidates
-
-    def _gather_arc_evidence(self) -> str:
-        """Gather text from campaign history for arc analysis."""
-        if not self.current:
-            return ""
-
-        lines = []
-
-        # Hinge moments (most important)
-        for entry in self.current.history:
-            if entry.hinge:
-                lines.append(f"HINGE S{entry.session}: {entry.hinge.choice}")
-                if entry.hinge.reasoning:
-                    lines.append(f"  Reasoning: {entry.hinge.reasoning}")
-
-        # Faction shifts
-        for entry in self.current.history:
-            if entry.faction_shift:
-                shift = entry.faction_shift
-                lines.append(f"FACTION S{entry.session}: {shift.faction.value} {shift.from_standing.value} -> {shift.to_standing.value} ({shift.cause})")
-
-        # NPC interactions
-        for npc in self.current.npcs.active + self.current.npcs.dormant:
-            for inter in npc.interactions:
-                lines.append(f"NPC S{inter.session}: {npc.name} - {inter.action}")
-
-        # Character's hinge history
-        for char in self.current.characters:
-            for hinge in char.hinge_history:
-                if f"HINGE S{hinge.session}:" not in "\n".join(lines):
-                    lines.append(f"HINGE S{hinge.session}: {hinge.choice}")
-
-        return "\n".join(lines)
-
-    def _score_arc_pattern(
-        self,
-        evidence: str,
-        pattern: dict,
-        arc_type,
-    ) -> float:
-        """Score how well evidence matches an arc pattern."""
-        from .schema import ArcType
-
-        evidence_lower = evidence.lower()
-        score = 0.0
-
-        # Keyword matching
-        keywords = pattern.get("keywords", [])
-        keyword_hits = sum(1 for kw in keywords if kw in evidence_lower)
-        if keywords:
-            score += (keyword_hits / len(keywords)) * 0.6  # 60% weight
-
-        # Anti-keyword penalty
-        anti_keywords = pattern.get("anti_keywords", [])
-        anti_hits = sum(1 for kw in anti_keywords if kw in evidence_lower)
-        if anti_keywords and anti_hits > 0:
-            score -= (anti_hits / len(anti_keywords)) * 0.3  # Penalty
-
-        # Faction focus check (for PARTISAN)
-        if pattern.get("faction_focus") and self.current:
-            faction_counts = {}
-            for entry in self.current.history:
-                if entry.faction_shift:
-                    faction = entry.faction_shift.faction.value
-                    faction_counts[faction] = faction_counts.get(faction, 0) + 1
-
-            if faction_counts:
-                max_faction = max(faction_counts.values())
-                total = sum(faction_counts.values())
-                if max_faction >= 3 and max_faction / total > 0.5:
-                    score += 0.3  # Bonus for faction focus
-
-        # Session spread bonus (pattern across multiple sessions)
-        sessions_mentioned = set()
-        for line in evidence.split("\n"):
-            if " S" in line:
-                parts = line.split(" S")
-                for p in parts[1:]:
-                    if p and p[0].isdigit():
-                        sessions_mentioned.add(p.split(":")[0].split()[0])
-
-        if len(sessions_mentioned) >= 3:
-            score += 0.2  # Bonus for consistency across sessions
-
-        return min(max(score, 0.0), 1.0)
-
-    def _find_arc_evidence(self, evidence: str, pattern: dict) -> list[str]:
-        """Find specific evidence lines that support an arc."""
-        results = []
-        keywords = pattern.get("keywords", [])
-
-        for line in evidence.split("\n"):
-            line_lower = line.lower()
-            if any(kw in line_lower for kw in keywords):
-                # Clean up the line
-                clean = line.strip()
-                if clean and clean not in results:
-                    results.append(clean)
-
-        return results[:5]  # Limit to 5 pieces of evidence
+        """Detect emergent character arcs. Delegates to ArcSystem."""
+        return self.arcs.detect_arcs(character_id)
 
     def suggest_arc(self, character_id: str | None = None) -> dict | None:
-        """
-        Get the strongest arc candidate for a character.
-
-        Returns the highest-scoring new arc that hasn't been suggested yet,
-        or None if no strong candidates exist.
-        """
-        from .schema import ArcStatus
-
-        if not self.current:
-            return None
-
-        char = None
-        if character_id:
-            for c in self.current.characters:
-                if c.id == character_id:
-                    char = c
-                    break
-        elif self.current.characters:
-            char = self.current.characters[0]
-
-        if not char:
-            return None
-
-        # Get candidates
-        candidates = self.detect_arcs(character_id)
-
-        # Filter out already-suggested arcs
-        existing_types = {a.arc_type.value for a in char.arcs}
-        new_candidates = [c for c in candidates if c["arc_type"] not in existing_types]
-
-        if not new_candidates:
-            return None
-
-        # Return strongest candidate above threshold
-        strongest = max(new_candidates, key=lambda x: x["strength"])
-        if strongest["strength"] >= 0.5:
-            return strongest
-
-        return None
+        """Get strongest arc candidate. Delegates to ArcSystem."""
+        return self.arcs.suggest_arc(character_id)
 
     def accept_arc(self, character_id: str, arc_type: str) -> CharacterArc | None:
-        """Accept a suggested character arc."""
-        from .schema import ArcType, CharacterArc, ArcStatus, ARC_PATTERNS
-        import random
-
-        if not self.current:
-            return None
-
-        char = None
-        for c in self.current.characters:
-            if c.id == character_id:
-                char = c
-                break
-
-        if not char:
-            return None
-
-        # Find or create the arc
-        try:
-            arc_enum = ArcType(arc_type)
-        except ValueError:
-            return None
-
-        existing = next((a for a in char.arcs if a.arc_type == arc_enum), None)
-
-        if existing:
-            existing.status = ArcStatus.ACCEPTED
-            self.save_campaign()
-            return existing
-
-        # Create new arc
-        pattern = ARC_PATTERNS.get(arc_enum, {})
-        evidence = self._gather_arc_evidence()
-
-        arc = CharacterArc(
-            arc_type=arc_enum,
-            title=random.choice(pattern.get("title_templates", [arc_type])),
-            description=pattern.get("description", ""),
-            detected_session=self.current.meta.session_count,
-            evidence=self._find_arc_evidence(evidence, pattern),
-            strength=0.6,
-            status=ArcStatus.ACCEPTED,
-            effects=pattern.get("effects", []),
-        )
-
-        char.arcs.append(arc)
-        self.save_campaign()
-        return arc
+        """Accept a character arc. Delegates to ArcSystem."""
+        return self.arcs.accept_arc(character_id, arc_type)
 
     def reject_arc(self, character_id: str, arc_type: str) -> bool:
-        """Reject a suggested character arc."""
-        from .schema import ArcType, ArcStatus
-
-        if not self.current:
-            return False
-
-        char = None
-        for c in self.current.characters:
-            if c.id == character_id:
-                char = c
-                break
-
-        if not char:
-            return False
-
-        try:
-            arc_enum = ArcType(arc_type)
-        except ValueError:
-            return False
-
-        existing = next((a for a in char.arcs if a.arc_type == arc_enum), None)
-
-        if existing:
-            existing.status = ArcStatus.REJECTED
-            self.save_campaign()
-            return True
-
-        # Create rejected placeholder so it won't be suggested again
-        from .schema import CharacterArc, ARC_PATTERNS
-        pattern = ARC_PATTERNS.get(arc_enum, {})
-
-        arc = CharacterArc(
-            arc_type=arc_enum,
-            title=pattern.get("title_templates", [arc_type])[0] if pattern.get("title_templates") else arc_type,
-            description=pattern.get("description", ""),
-            detected_session=self.current.meta.session_count,
-            strength=0.0,
-            status=ArcStatus.REJECTED,
-        )
-
-        char.arcs.append(arc)
-        self.save_campaign()
-        return True
+        """Reject a character arc. Delegates to ArcSystem."""
+        return self.arcs.reject_arc(character_id, arc_type)
 
     def get_active_arcs(self, character_id: str | None = None) -> list[CharacterArc]:
-        """Get all accepted arcs for a character."""
-        from .schema import ArcStatus
-
-        if not self.current:
-            return []
-
-        char = None
-        if character_id:
-            for c in self.current.characters:
-                if c.id == character_id:
-                    char = c
-                    break
-        elif self.current.characters:
-            char = self.current.characters[0]
-
-        if not char:
-            return []
-
-        return [a for a in char.arcs if a.status == ArcStatus.ACCEPTED]
+        """Get accepted arcs. Delegates to ArcSystem."""
+        return self.arcs.get_active_arcs(character_id)
 
     def format_arcs_for_gm(self, character_id: str | None = None) -> str:
-        """Format active arcs for inclusion in GM context."""
-        arcs = self.get_active_arcs(character_id)
-
-        if not arcs:
-            return ""
-
-        lines = ["## Character Arcs (recognized patterns)"]
-        for arc in arcs:
-            lines.append(f"\n**{arc.title}** ({arc.arc_type.value})")
-            lines.append(f"_{arc.description}_")
-            if arc.effects:
-                lines.append("Effects:")
-                for effect in arc.effects:
-                    lines.append(f"- {effect}")
-
-        return "\n".join(lines)
+        """Format arcs for GM context. Delegates to ArcSystem."""
+        return self.arcs.format_arcs_for_gm(character_id)
 
     # -------------------------------------------------------------------------
     # Utilities
