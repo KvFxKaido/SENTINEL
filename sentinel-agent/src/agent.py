@@ -356,8 +356,8 @@ class SentinelAgent:
         lore_dir: Path | str | None = None,
         client: LLMClient | None = None,
         backend: str = "auto",
-        lmstudio_url: str = "http://localhost:1234/v1",
-        ollama_url: str = "http://localhost:11434/v1",
+        lmstudio_url: str = "http://127.0.0.1:1234/v1",
+        ollama_url: str = "http://127.0.0.1:11434/v1",
     ):
         """
         Initialize the SENTINEL agent.

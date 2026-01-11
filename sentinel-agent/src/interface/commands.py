@@ -200,9 +200,9 @@ def cmd_backend(manager: CampaignManager, agent: SentinelAgent, args: list[str])
 
 
 def cmd_model(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
-    """List or switch LM Studio models."""
-    if agent.backend != "lmstudio":
-        console.print("[yellow]Model switching only available for LM Studio backend[/yellow]")
+    """List or switch models for backends that support it (LM Studio, Ollama)."""
+    if not agent.client:
+        console.print("[yellow]No LLM backend active[/yellow]")
         return
 
     # Get client and list models
@@ -213,7 +213,7 @@ def cmd_model(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
 
     models = client.list_models()
     if not models:
-        console.print("[yellow]No models available (is LM Studio running?)[/yellow]")
+        console.print(f"[yellow]No models available (is {agent.backend} running?)[/yellow]")
         return
 
     current = client.model_name
@@ -230,6 +230,10 @@ def cmd_model(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
     # Switch model
     selection = args[0]
 
+    if not hasattr(client, "set_model"):
+        console.print(f"[yellow]Model switching not supported for {agent.backend}[/yellow]")
+        return
+
     # Handle numeric selection
     if selection.isdigit():
         idx = int(selection) - 1
@@ -241,9 +245,11 @@ def cmd_model(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
 
     # Set the model
     client.set_model(selection)
-    save_model_config(selection)  # Save preference
+    if agent.backend in ("lmstudio", "ollama"):
+        save_model_config(selection)  # Save preference
     console.print(f"[green]Switched to:[/green] {selection}")
-    console.print("[dim]  (Saved as default)[/dim]")
+    if agent.backend in ("lmstudio", "ollama"):
+        console.print("[dim]  (Saved as default)[/dim]")
 
     # Check tool support
     if client.supports_tools:
@@ -251,6 +257,30 @@ def cmd_model(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
     else:
         console.print("[yellow]  Tool calling not supported by this model[/yellow]")
 
+
+def cmd_ping(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
+    """Lightweight backend/model connectivity check."""
+    if not agent.client:
+        console.print("[yellow]No LLM backend active[/yellow]")
+        return
+
+    backend = agent.backend
+    model = agent.client.model_name
+    console.print(f"[dim]Pinging {backend} ({model})...[/dim]")
+    try:
+        response = agent.client.chat(
+            messages=[Message(role="user", content="Reply with exactly: pong")],
+            system="Reply with exactly: pong",
+            tools=None,
+            temperature=0.0,
+            max_tokens=5,
+        )
+        text = response.content.strip()
+        console.print("[green]pong ✓[/green]")
+        if text.lower() != "pong" and text:
+            console.print(f"[dim]Got: {text}[/dim]")
+    except Exception as e:
+        console.print(f"[red]Ping failed: {e}[/red]")
 
 def cmd_banner(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
     """Toggle banner animation on startup."""
@@ -3527,6 +3557,7 @@ def create_commands(manager: CampaignManager, agent: SentinelAgent, conversation
         "/status": lambda m, a, args: show_status(m, a, conversation),
         "/backend": cmd_backend,
         "/model": cmd_model,
+        "/ping": cmd_ping,
         "/banner": cmd_banner,
         "/statusbar": cmd_statusbar,
         "/lore": cmd_lore,

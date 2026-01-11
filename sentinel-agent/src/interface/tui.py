@@ -5,6 +5,7 @@ Main stream in center, SELF dock (left) and WORLD dock (right) toggle with [ and
 """
 import asyncio
 import random
+import subprocess
 from datetime import datetime
 from difflib import get_close_matches
 from pathlib import Path
@@ -28,7 +29,7 @@ from ..context import StrainTier, format_strain_notice
 from ..llm.base import Message
 from ..tools.hinge_detector import detect_hinge
 from .choices import parse_response, ChoiceBlock
-from .config import load_config, set_backend
+from .config import load_config, set_backend, set_model as save_model
 from .glyphs import g, energy_bar
 
 
@@ -51,6 +52,8 @@ VALID_COMMANDS = [
     "/status", "/factions", "/threads", "/consequences", "/history",
     "/npc", "/arc", "/lore", "/search", "/summary", "/timeline", "/simulate",
     "/backend", "/model", "/clear", "/checkpoint", "/compress", "/context", "/dock",
+    "/copy",
+    "/ping",
     "/help", "/quit", "/exit",
 ]
 
@@ -945,6 +948,7 @@ class SentinelTUI(App):
                         with Container(id="button-bar"):
                             yield Button("Save", id="btn-save", classes="action-btn")
                             yield Button("Clear", id="btn-clear", classes="action-btn")
+                            yield Button("Copy", id="btn-copy", classes="action-btn")
             yield WorldDock(id="world-dock")
 
         yield BottomDock(id="bottom-dock")
@@ -1075,10 +1079,12 @@ class SentinelTUI(App):
         base_dir = Path(__file__).parent.parent.parent.parent
         self.prompts_dir = Path(__file__).parent.parent.parent / "prompts"
         campaigns_dir = Path("campaigns")
+        self.campaigns_dir = campaigns_dir
         self.lore_dir = base_dir / "lore"
 
         config = load_config(campaigns_dir)
         saved_backend = config.get("backend", "auto")
+        saved_model = config.get("model")
 
         self.manager = CampaignManager(campaigns_dir)
         self.agent = SentinelAgent(
@@ -1087,6 +1093,13 @@ class SentinelTUI(App):
             lore_dir=self.lore_dir if self.lore_dir.exists() else None,
             backend=saved_backend,
         )
+
+        if saved_model and self.agent and self.agent.client and self.agent.backend in ("lmstudio", "ollama"):
+            if hasattr(self.agent.client, "set_model"):
+                try:
+                    self.agent.client.set_model(saved_model)
+                except Exception:
+                    pass
 
     def refresh_all_panels(self):
         """Refresh all panels with current campaign state."""
@@ -1187,8 +1200,58 @@ class SentinelTUI(App):
             log.write(Text.from_markup(f"[{Theme.FRIENDLY}]Conversation cleared[/{Theme.FRIENDLY}]"))
             self.refresh_all_panels()
 
+        elif button_id == "btn-copy":
+            self._copy_last_output(log)
+
         # Refocus input after button click
         self.query_one("#main-input", CommandInput).focus()
+
+    def _copy_last_output(self, log: RichLog, *, tail_lines: int = 200) -> None:
+        """Copy the last chunk of output log to the clipboard."""
+        lines = getattr(log, "lines", None)
+        if not lines:
+            log.write(Text.from_markup(f"[{Theme.WARNING}]Nothing to copy[/{Theme.WARNING}]"))
+            return
+
+        tail = lines[-tail_lines:]
+        text = "\n".join(line.text.rstrip() for line in tail).rstrip()
+        if not text:
+            log.write(Text.from_markup(f"[{Theme.WARNING}]Nothing to copy[/{Theme.WARNING}]"))
+            return
+
+        try:
+            subprocess.run(["clip"], input=text.encode("utf-8"), check=True)
+            log.write(Text.from_markup(f"[{Theme.FRIENDLY}]Copied last output[/{Theme.FRIENDLY}]"))
+        except Exception as e:
+            log.write(Text.from_markup(f"[{Theme.DANGER}]Copy failed: {e}[/{Theme.DANGER}]"))
+
+    async def _ping_backend(self, log: RichLog) -> None:
+        """Send a tiny request to verify backend/model connectivity."""
+        if not self.agent or not self.agent.client:
+            log.write(Text.from_markup(f"[{Theme.WARNING}]No LLM backend active[/{Theme.WARNING}]"))
+            return
+
+        backend = self.agent.backend
+        model = getattr(self.agent.client, "model_name", "unknown")
+        log.write(Text.from_markup(f"[{Theme.DIM}]Pinging {backend} ({model})...[/{Theme.DIM}]"))
+
+        try:
+            # Keep it tiny to avoid confusing context-length issues with connectivity.
+            response = await asyncio.to_thread(
+                self.agent.client.chat_with_tools,
+                messages=[Message(role="user", content="Reply with exactly: pong")],
+                system="Reply with exactly: pong",
+                tools=None,
+                tool_executor=lambda n, a: {},
+                max_iterations=1,
+                temperature=0.0,
+                max_tokens=5,
+            )
+            log.write(Text.from_markup(f"[{Theme.FRIENDLY}]pong ✓[/{Theme.FRIENDLY}]"))
+            if response and response.strip().lower() != "pong":
+                log.write(Text.from_markup(f"[{Theme.DIM}]Got: {response.strip()}[/{Theme.DIM}]"))
+        except Exception as e:
+            log.write(Text.from_markup(f"[{Theme.DANGER}]Ping failed: {e}[/{Theme.DANGER}]"))
 
     def exit(self, *args, **kwargs):
         """Save history before exiting."""
@@ -1276,6 +1339,8 @@ class SentinelTUI(App):
                 f"\n[bold {Theme.TEXT}]System:[/bold {Theme.TEXT}]\n"
                 f"  [{Theme.ACCENT}]/backend[/{Theme.ACCENT}] [name] - Switch LLM backend\n"
                 f"  [{Theme.ACCENT}]/model[/{Theme.ACCENT}] [name] - Switch model\n"
+                f"  [{Theme.ACCENT}]/copy[/{Theme.ACCENT}] - Copy last output\n"
+                f"  [{Theme.ACCENT}]/ping[/{Theme.ACCENT}] - Test backend/model\n"
                 f"  [{Theme.ACCENT}]/checkpoint[/{Theme.ACCENT}] - Save & relieve memory pressure\n"
                 f"  [{Theme.ACCENT}]/compress[/{Theme.ACCENT}] - Update campaign digest\n"
                 f"  [{Theme.ACCENT}]/clear[/{Theme.ACCENT}] - Clear conversation\n"
@@ -1284,6 +1349,14 @@ class SentinelTUI(App):
                 f"\n[bold {Theme.TEXT}]Hotkeys:[/bold {Theme.TEXT}]\n"
                 f"  [{Theme.ACCENT}]F2[/{Theme.ACCENT}] - Toggle panels | [{Theme.ACCENT}]Ctrl+Q[/{Theme.ACCENT}] - Quit | [{Theme.ACCENT}]1-9[/{Theme.ACCENT}] - Select choice"
             ))
+            return
+
+        if cmd == "/copy":
+            self._copy_last_output(log)
+            return
+
+        if cmd == "/ping":
+            await self._ping_backend(log)
             return
 
         if cmd == "/dock":
@@ -1671,6 +1744,8 @@ class SentinelTUI(App):
                 log.write(Text.from_markup(f"[{Theme.DIM}]Switching to {model_arg}...[/{Theme.DIM}]"))
                 try:
                     client.set_model(model_arg)
+                    if backend in ("lmstudio", "ollama"):
+                        save_model(model_arg, campaigns_dir=getattr(self, "campaigns_dir", "campaigns"))
                     log.write(Text.from_markup(
                         f"[{Theme.FRIENDLY}]Now using: {client.model_name}[/{Theme.FRIENDLY}]"
                     ))
