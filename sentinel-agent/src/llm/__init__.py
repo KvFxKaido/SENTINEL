@@ -117,8 +117,8 @@ BackendType = Literal["lmstudio", "ollama", "auto"]
 
 
 def detect_backend(
-    lmstudio_url: str = "http://localhost:1234/v1",
-    ollama_url: str = "http://localhost:11434/v1",
+    lmstudio_url: str = "http://127.0.0.1:1234/v1",
+    ollama_url: str = "http://127.0.0.1:11434/v1",
 ) -> tuple[str, LLMClient] | tuple[None, None]:
     """
     Auto-detect available LLM backend.
@@ -128,6 +128,9 @@ def detect_backend(
     Returns:
         Tuple of (backend_name, client) or (None, None) if nothing available.
     """
+    lmstudio_url = os.environ.get("LMSTUDIO_BASE_URL", lmstudio_url)
+    ollama_url = os.environ.get("OLLAMA_BASE_URL", ollama_url)
+
     # Try LM Studio first (free, local)
     try:
         client = LMStudioClient(base_url=lmstudio_url)
@@ -149,8 +152,8 @@ def detect_backend(
 
 def create_llm_client(
     backend: BackendType = "auto",
-    lmstudio_url: str = "http://localhost:1234/v1",
-    ollama_url: str = "http://localhost:11434/v1",
+    lmstudio_url: str = "http://127.0.0.1:1234/v1",
+    ollama_url: str = "http://127.0.0.1:11434/v1",
 ) -> tuple[str, LLMClient | None]:
     """
     Create an LLM client for the specified backend.
@@ -163,6 +166,9 @@ def create_llm_client(
     Returns:
         Tuple of (backend_name, client). Client may be None if unavailable.
     """
+    lmstudio_url = os.environ.get("LMSTUDIO_BASE_URL", lmstudio_url)
+    ollama_url = os.environ.get("OLLAMA_BASE_URL", ollama_url)
+
     if backend == "auto":
         name, client = detect_backend(lmstudio_url, ollama_url)
         return (name or "none", client)

@@ -85,13 +85,19 @@ class JsonCampaignStore:
         if not campaign_file.exists():
             # Try partial match
             for f in self.campaigns_dir.glob("*.json"):
+                # Skip non-campaign files stored alongside campaigns
+                if f.name.startswith(".") or f.name == "pending_events.json":
+                    continue
                 if f.stem.startswith(campaign_id):
                     campaign_file = f
                     break
 
         if campaign_file.exists():
-            data = json.loads(campaign_file.read_text())
-            return Campaign.model_validate(data)
+            try:
+                data = json.loads(campaign_file.read_text())
+                return Campaign.model_validate(data)
+            except Exception:
+                return None
 
         return None
 
@@ -120,7 +126,9 @@ class JsonCampaignStore:
         ):
             try:
                 data = json.loads(f.read_text())
-                meta = data.get("meta", {})
+                meta = data.get("meta")
+                if not isinstance(meta, dict):
+                    continue
 
                 updated = datetime.fromisoformat(
                     meta.get("updated_at", "2000-01-01")

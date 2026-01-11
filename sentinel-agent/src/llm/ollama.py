@@ -8,6 +8,7 @@ Supports tool calling with compatible models.
 import json
 import urllib.request
 import urllib.error
+from urllib.parse import urlparse, urlunparse
 from typing import Any
 
 from .base import LLMClient, LLMResponse, Message, ToolCall
@@ -25,7 +26,7 @@ class OllamaClient(LLMClient):
 
     def __init__(
         self,
-        base_url: str = "http://localhost:11434/v1",
+        base_url: str = "http://127.0.0.1:11434/v1",
         model: str | None = None,
         timeout: int = 120,
     ):
@@ -41,6 +42,29 @@ class OllamaClient(LLMClient):
         self._model = model
         self.timeout = timeout
         self._supports_tools: bool | None = None
+
+    def _candidate_base_urls(self) -> list[str]:
+        """Return base URL candidates (handles common localhost/IPv6 issues on Windows)."""
+        parsed = urlparse(self.base_url)
+        scheme = parsed.scheme or "http"
+        hostname = parsed.hostname or "127.0.0.1"
+        port = parsed.port
+        path = parsed.path or ""
+
+        host_candidates = [hostname]
+        if hostname in ("localhost", "127.0.0.1", "::1"):
+            host_candidates.extend(["localhost", "127.0.0.1", "::1"])
+
+        def netloc_for(host: str) -> str:
+            host_part = f"[{host}]" if ":" in host and not host.startswith("[") else host
+            return f"{host_part}:{port}" if port is not None else host_part
+
+        candidates = [
+            urlunparse((scheme, netloc_for(host), path, "", "", "")).rstrip("/")
+            for host in host_candidates
+        ]
+        candidates.insert(0, self.base_url)
+        return list(dict.fromkeys(candidates))
 
     @property
     def model_name(self) -> str:
@@ -97,27 +121,33 @@ class OllamaClient(LLMClient):
         method: str = "POST",
     ) -> dict:
         """Make HTTP request to Ollama API."""
-        url = f"{self.base_url}/{endpoint}"
+        last_error: Exception | None = None
+        for candidate_base_url in self._candidate_base_urls():
+            url = f"{candidate_base_url}/{endpoint}"
 
-        if method == "GET":
-            req = urllib.request.Request(url)
-        else:
-            req = urllib.request.Request(
-                url,
-                data=json.dumps(data).encode("utf-8") if data else None,
-                headers={"Content-Type": "application/json"},
-                method=method,
-            )
+            if method == "GET":
+                req = urllib.request.Request(url)
+            else:
+                req = urllib.request.Request(
+                    url,
+                    data=json.dumps(data).encode("utf-8") if data else None,
+                    headers={"Content-Type": "application/json"},
+                    method=method,
+                )
 
-        try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                return json.loads(resp.read().decode("utf-8"))
-        except urllib.error.URLError as e:
-            raise ConnectionError(
-                f"Cannot connect to Ollama at {self.base_url}. "
-                f"Make sure Ollama is running. "
-                f"Error: {e}"
-            )
+            try:
+                with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                    self.base_url = candidate_base_url.rstrip("/")
+                    return json.loads(resp.read().decode("utf-8"))
+            except (urllib.error.HTTPError, urllib.error.URLError) as e:
+                last_error = e
+                continue
+
+        raise ConnectionError(
+            f"Cannot connect to Ollama at {self.base_url}. "
+            f"Make sure Ollama is running. "
+            f"Error: {last_error}"
+        )
 
     def chat(
         self,

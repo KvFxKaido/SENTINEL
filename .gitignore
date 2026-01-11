@@ -39,6 +39,8 @@ env/
 htmlcov/
 .tox/
 .nox/
+sentinel-agent/.pytest_cache/
+sentinel-agent/tmp*/
 
 # Project specific
 campaigns/
@@ -51,6 +53,11 @@ sentinel-agent/test_portrait.py
 # WIP / scratch files
 WARP.md
 sentinel-agent/scripts/generate_braille_portraits.py
+
+# Personal workspace tools
+Vigil/
+workspace.cmd
+workspace.ps1
 
 # Environment
 .env
