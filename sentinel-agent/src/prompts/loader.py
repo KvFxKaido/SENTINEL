@@ -19,30 +19,46 @@ class PromptLoader:
 
     Loads prompt modules from disk and assembles them into system prompts.
     Watches file modification times to enable hot-reload without restart.
+
+    Local mode uses condensed prompts from prompts/local/ for 8B-12B models.
     """
 
-    def __init__(self, prompts_dir: Path | str = "prompts"):
+    def __init__(self, prompts_dir: Path | str = "prompts", local_mode: bool = False):
         self.prompts_dir = Path(prompts_dir)
+        self.local_mode = local_mode
         self._cache: dict[str, str] = {}
         self._cache_times: dict[str, float] = {}
 
     def load(self, name: str) -> str:
-        """Load a prompt module, using cache if file unchanged."""
-        path = self.prompts_dir / f"{name}.md"
+        """Load a prompt module, using cache if file unchanged.
 
+        In local mode, tries prompts/local/{name}.md first, falls back to standard.
+        """
+        # In local mode, try local/ subdirectory first
+        if self.local_mode:
+            local_path = self.prompts_dir / "local" / f"{name}.md"
+            if local_path.exists():
+                return self._load_file(local_path, f"local/{name}")
+
+        # Standard path
+        path = self.prompts_dir / f"{name}.md"
         if not path.exists():
             return ""
 
+        return self._load_file(path, name)
+
+    def _load_file(self, path: Path, cache_key: str) -> str:
+        """Load a file with caching."""
         mtime = path.stat().st_mtime
 
         # Check cache
-        if name in self._cache and self._cache_times.get(name) == mtime:
-            return self._cache[name]
+        if cache_key in self._cache and self._cache_times.get(cache_key) == mtime:
+            return self._cache[cache_key]
 
         # Load fresh
         content = path.read_text(encoding="utf-8")
-        self._cache[name] = content
-        self._cache_times[name] = mtime
+        self._cache[cache_key] = content
+        self._cache_times[cache_key] = mtime
 
         return content
 
@@ -83,6 +99,8 @@ class PromptLoader:
         Rules are split into two tiers:
         - rules_core: Decision logic that must survive truncation (always included)
         - rules_narrative: Flavor/examples that can be cut under strain
+
+        In local mode, rules_narrative is empty and phase guidance is skipped.
         """
         # System section: core identity
         system = self.load("core")
@@ -90,16 +108,21 @@ class PromptLoader:
         # Rules core: mechanics + core decision logic (always included, never cut)
         core_parts = [
             self.load("mechanics"),
-            self._load_rules_file("core_logic"),
         ]
-        if campaign and campaign.session:
-            phase_guidance = self.load_phase(campaign.session.phase.value)
-            if phase_guidance:
-                core_parts.append(phase_guidance)
+
+        # In local mode, skip core_logic and phase guidance to save tokens
+        if not self.local_mode:
+            core_parts.append(self._load_rules_file("core_logic"))
+            if campaign and campaign.session:
+                phase_guidance = self.load_phase(campaign.session.phase.value)
+                if phase_guidance:
+                    core_parts.append(phase_guidance)
+
         rules_core = "\n\n".join(filter(None, core_parts))
 
         # Rules narrative: flavor/examples (strain-aware, cut under pressure)
-        rules_narrative = self._load_rules_file("narrative_guidance")
+        # Skip entirely in local mode
+        rules_narrative = "" if self.local_mode else self._load_rules_file("narrative_guidance")
 
         # State section: campaign state summary
         state = ""
