@@ -14,6 +14,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from .state import CampaignManager, Campaign
 from .state.schema import FactionName, HistoryType, LeverageWeight
 from .tools.registry import get_all_schemas, create_default_registry, ToolRegistry
+from .tools.subsets import get_tools_for_phase, get_minimal_tools
 from .tools.hinge_detector import detect_hinge, get_hinge_context
 from .prompts import PromptLoader
 from .llm.base import LLMClient, Message
@@ -27,6 +28,7 @@ from .context import (
     RollingWindow,
     TranscriptBlock,
     format_strain_notice,
+    LOCAL_BUDGETS,
 )
 
 
@@ -62,6 +64,7 @@ class SentinelAgent:
         backend: str = "auto",
         lmstudio_url: str = "http://127.0.0.1:1234/v1",
         ollama_url: str = "http://127.0.0.1:11434/v1",
+        local_mode: bool = False,
     ):
         """
         Initialize the SENTINEL agent.
@@ -74,9 +77,11 @@ class SentinelAgent:
             backend: Backend to use if no client provided ("auto" for detection)
             lmstudio_url: URL for LM Studio server
             ollama_url: URL for Ollama server
+            local_mode: Use optimized prompts/budgets for 8B-12B local models
         """
         self.manager = campaign_manager
-        self.prompt_loader = PromptLoader(prompts_dir)
+        self.local_mode = local_mode
+        self.prompt_loader = PromptLoader(prompts_dir, local_mode=local_mode)
 
         # Store config for backend switching
         self._config = {
@@ -101,7 +106,11 @@ class SentinelAgent:
         self.tool_registry = create_default_registry(self.manager)
 
         # Initialize prompt packer for context control
-        self.packer = PromptPacker()
+        # Local mode uses reduced budgets for 8k context models
+        if local_mode:
+            self.packer = PromptPacker(budgets=LOCAL_BUDGETS, total_budget=5000)
+        else:
+            self.packer = PromptPacker()
         self._last_pack_info: PackInfo | None = None
         self._conversation_window = RollingWindow()
 
@@ -142,7 +151,16 @@ class SentinelAgent:
         return self.unified_retriever.lore if self.unified_retriever else None
 
     def get_tools(self) -> list[dict]:
-        """Get all tool schemas for the API."""
+        """Get tool schemas for the API.
+
+        In local mode, returns phase-specific subset to reduce token overhead.
+        """
+        if self.local_mode:
+            # Get current phase for tool filtering
+            phase = "execution"  # Default fallback
+            if self.manager.current and self.manager.current.session:
+                phase = self.manager.current.session.phase.value
+            return get_tools_for_phase(phase)
         return get_all_schemas()
 
     def execute_tool(self, name: str, arguments: dict) -> dict:
@@ -662,6 +680,7 @@ def create_agent(
     campaigns_dir: str = "campaigns",
     prompts_dir: str = "prompts",
     backend: Literal["lmstudio", "ollama", "auto"] = "auto",
+    local_mode: bool = False,
 ) -> SentinelAgent:
     """
     Create a configured agent instance.
@@ -670,24 +689,55 @@ def create_agent(
         campaigns_dir: Directory for campaign save files
         prompts_dir: Directory for prompt modules
         backend: Which LLM backend to use (auto-detects if "auto")
+        local_mode: Use optimized prompts/budgets for 8B-12B local models
 
     Returns:
         Configured SentinelAgent
     """
     manager = CampaignManager(campaigns_dir)
-    return SentinelAgent(manager, prompts_dir, backend=backend)
+    return SentinelAgent(manager, prompts_dir, backend=backend, local_mode=local_mode)
 
 
 def create_lmstudio_agent(
     campaigns_dir: str = "campaigns",
     prompts_dir: str = "prompts",
     url: str = "http://localhost:1234/v1",
+    local_mode: bool = False,
 ) -> SentinelAgent:
-    """Create an agent using LM Studio backend."""
+    """Create an agent using LM Studio backend.
+
+    Args:
+        campaigns_dir: Directory for campaign save files
+        prompts_dir: Directory for prompt modules
+        url: LM Studio server URL
+        local_mode: Use optimized prompts/budgets for 8B-12B local models
+    """
     manager = CampaignManager(campaigns_dir)
     return SentinelAgent(
         manager,
         prompts_dir,
         backend="lmstudio",
         lmstudio_url=url,
+        local_mode=local_mode,
     )
+
+
+def create_local_agent(
+    campaigns_dir: str = "campaigns",
+    prompts_dir: str = "prompts",
+    backend: Literal["lmstudio", "ollama", "auto"] = "auto",
+) -> SentinelAgent:
+    """Create an agent optimized for 8B-12B local models.
+
+    Uses condensed prompts, reduced token budgets, and phase-based tool subsets.
+
+    Args:
+        campaigns_dir: Directory for campaign save files
+        prompts_dir: Directory for prompt modules
+        backend: Which LLM backend to use
+
+    Returns:
+        SentinelAgent configured for local models
+    """
+    manager = CampaignManager(campaigns_dir)
+    return SentinelAgent(manager, prompts_dir, backend=backend, local_mode=True)

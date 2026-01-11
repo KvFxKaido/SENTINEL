@@ -12,6 +12,7 @@ from .packer import (
     SectionBudget,
     StrainTier,
     DEFAULT_BUDGETS,
+    LOCAL_BUDGETS,
     format_strain_notice,
 )
 from .window import (
@@ -39,6 +40,7 @@ __all__ = [
     "SectionBudget",
     "StrainTier",
     "DEFAULT_BUDGETS",
+    "LOCAL_BUDGETS",
     "format_strain_notice",
     # Window
     "RollingWindow",

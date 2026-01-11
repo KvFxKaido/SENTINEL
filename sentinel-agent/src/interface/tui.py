@@ -895,7 +895,7 @@ class SentinelTUI(App):
     # Reactive dock visibility
     docks_visible = reactive(True)
 
-    def __init__(self):
+    def __init__(self, local_mode: bool = False):
         super().__init__()
         self.manager: CampaignManager | None = None
         self.agent: SentinelAgent | None = None
@@ -903,6 +903,7 @@ class SentinelTUI(App):
         self.last_choices: ChoiceBlock | None = None
         self.prompts_dir: Path | None = None
         self.lore_dir: Path | None = None
+        self.local_mode = local_mode
         # Command history (for persistence)
         self._history: list[str] = []
         self._history_file = Path("campaigns") / ".tui_history"
@@ -1092,6 +1093,7 @@ class SentinelTUI(App):
             prompts_dir=self.prompts_dir,
             lore_dir=self.lore_dir if self.lore_dir.exists() else None,
             backend=saved_backend,
+            local_mode=self.local_mode,
         )
 
         if saved_model and self.agent and self.agent.client and self.agent.backend in ("lmstudio", "ollama"):
@@ -2410,7 +2412,16 @@ class SentinelTUI(App):
 
 def main():
     """Entry point for Textual TUI."""
-    app = SentinelTUI()
+    import argparse
+    parser = argparse.ArgumentParser(description="SENTINEL - AI Game Master (TUI)")
+    parser.add_argument(
+        "--local", "-l",
+        action="store_true",
+        help="Use local mode (optimized for 8B-12B models)"
+    )
+    args = parser.parse_args()
+
+    app = SentinelTUI(local_mode=args.local)
     app.run()
 
 
