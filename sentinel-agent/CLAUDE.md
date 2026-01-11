@@ -17,6 +17,7 @@ src/
 │   └── loader.py         # Hot-reloadable prompt assembly
 ├── tools/
 │   ├── registry.py       # Tool schemas + handlers (centralized)
+│   ├── subsets.py        # Phase-based tool filtering for local models
 │   ├── dice.py           # Game mechanics (rolls, tactical reset)
 │   └── hinge_detector.py # Detects irreversible choices in player input
 ├── systems/              # Domain logic (extracted from manager)
@@ -48,6 +49,9 @@ src/
 prompts/                  # Hot-reloadable prompt modules
 ├── core.md               # GM identity and principles
 ├── mechanics.md          # Compact rules reference
+├── local/                # Condensed prompts for 8B-12B models
+│   ├── core.md               # ~280 tokens (vs ~960 standard)
+│   └── mechanics.md          # ~375 tokens (vs ~1315 standard)
 ├── rules/                # Two-layer rules system
 │   ├── core_logic.md         # Decision triggers (always loaded)
 │   └── narrative_guidance.md # Flavor (cut under strain)
@@ -145,7 +149,9 @@ The `ELSE IF context_incomplete` branches encode SafetyNet behavior directly at 
 |------|---------|----------------|
 | `agent.py` | Orchestration | Changing LLM flow, adding council logic |
 | `tools/registry.py` | Tool schemas + handlers | Adding or modifying tools |
+| `tools/subsets.py` | Phase-based tool filtering | Changing which tools appear per phase |
 | `prompts/loader.py` | Prompt assembly | Changing how prompts are built |
+| `prompts/local/*.md` | Condensed prompts | Optimizing for smaller models |
 | `systems/leverage.py` | Enhancement mechanics | Modifying leverage, demands, escalation |
 | `systems/arcs.py` | Arc detection | Changing arc patterns or detection |
 | `state/schema.py` | Data models | Adding new state fields |
@@ -315,6 +321,79 @@ All backends support tools, but through different mechanisms:
 | Claude Code | Skill-based (prompt injection + parsing) |
 
 The skill system (`src/llm/skills.py`) injects tool descriptions into the prompt and parses `<tool>{"name": "...", "args": {...}}</tool>` tags from responses. This enables full tool support even for CLI-based backends.
+
+## Local Mode (8B-12B Models)
+
+For smaller local models (8B-12B parameters), use local mode to reduce context usage:
+
+```bash
+sentinel --local        # TUI with local mode
+sentinel-cli --local    # CLI with local mode
+```
+
+Or programmatically:
+```python
+from src.agent import create_local_agent, SentinelAgent
+
+# Factory function
+agent = create_local_agent()
+
+# Or explicit parameter
+agent = SentinelAgent(manager, prompts_dir, local_mode=True)
+```
+
+### What Local Mode Changes
+
+| Component | Standard | Local Mode |
+|-----------|----------|------------|
+| Total budget | ~13,000 tokens | ~5,000 tokens |
+| Prompts | `prompts/*.md` | `prompts/local/*.md` first |
+| Rules narrative | Included | Skipped |
+| Digest section | 2,000 tokens | Skipped |
+| Retrieval | 1,800 tokens | Skipped |
+| Tools | All 19 tools | Phase-specific (3-12) |
+
+### Token Budget Comparison
+
+| Section | Standard | Local |
+|---------|----------|-------|
+| System | 1,500 | 400 |
+| Rules Core | 2,200 | 600 |
+| Rules Narrative | 1,000 | 0 |
+| State | 1,500 | 800 |
+| Digest | 2,000 | 0 |
+| Window | 3,000 | 2,500 |
+| Retrieval | 1,800 | 0 |
+| Input | 500 | 400 |
+
+### Phase-Based Tool Subsets
+
+In local mode, tools are filtered by mission phase to reduce schema overhead:
+
+| Phase | Tools |
+|-------|-------|
+| Briefing | roll_check, set_phase, update_npc |
+| Planning | roll_check, set_phase, update_character |
+| Execution | 9 tools (most actions available) |
+| Resolution | 12 tools (full resolution capabilities) |
+| Debrief | 5 tools |
+| Between | 6 tools |
+
+Core tools (`roll_check`, `set_phase`) are always available.
+
+### Adding Local Prompts
+
+To add a condensed version of a prompt for local mode:
+
+1. Create `prompts/local/{name}.md` with condensed content
+2. PromptLoader automatically uses it when `local_mode=True`
+3. Falls back to standard `prompts/{name}.md` if no local version exists
+
+**Guidelines for condensed prompts:**
+- Remove examples and flavor text
+- Keep core decision logic
+- Use terse formatting (tables, bullet points)
+- Target 70-75% token reduction
 
 ## Related Files
 
