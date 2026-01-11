@@ -178,13 +178,14 @@ def cmd_delete(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
 
 def cmd_backend(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
     """Show or change backend."""
-    valid_backends = ["lmstudio", "ollama", "auto"]
+    valid_backends = ["lmstudio", "ollama", "claude", "auto"]
 
     if not args:
         show_backend_status(agent)
         console.print(f"\n[{THEME['dim']}]Available backends:[/{THEME['dim']}]")
         console.print(f"  [{THEME['accent']}]lmstudio[/{THEME['accent']}]   - Local LLM (free, requires LM Studio)")
         console.print(f"  [{THEME['accent']}]ollama[/{THEME['accent']}]     - Local LLM (free, requires Ollama)")
+        console.print(f"  [{THEME['accent']}]claude[/{THEME['accent']}]     - Claude via Claude Code CLI (uses existing auth)")
         console.print(f"  [{THEME['accent']}]auto[/{THEME['accent']}]       - Auto-detect best available")
         console.print(f"\n[{THEME['dim']}]Use /backend <name> to switch[/{THEME['dim']}]")
         return
@@ -200,7 +201,7 @@ def cmd_backend(manager: CampaignManager, agent: SentinelAgent, args: list[str])
 
 
 def cmd_model(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
-    """List or switch models for backends that support it (LM Studio, Ollama)."""
+    """List or switch models for the current backend."""
     if not agent.client:
         console.print("[yellow]No LLM backend active[/yellow]")
         return
@@ -245,11 +246,9 @@ def cmd_model(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
 
     # Set the model
     client.set_model(selection)
-    if agent.backend in ("lmstudio", "ollama"):
-        save_model_config(selection)  # Save preference
+    save_model_config(selection)  # Save preference
     console.print(f"[green]Switched to:[/green] {selection}")
-    if agent.backend in ("lmstudio", "ollama"):
-        console.print("[dim]  (Saved as default)[/dim]")
+    console.print("[dim]  (Saved as default)[/dim]")
 
     # Check tool support
     if client.supports_tools:
