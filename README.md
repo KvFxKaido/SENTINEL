@@ -14,12 +14,14 @@ A tactical, relationship-driven tabletop RPG with an AI Game Master. Navigate po
 
 ## Quick Start
 
-```
+```bash
 cd sentinel-agent
 pip install -e .
-python -m src.interface.cli   # Full CLI
-sentinel-tui                   # Textual TUI (panels, hotkeys)
+sentinel                       # Textual TUI (recommended)
+sentinel-cli                   # Dev CLI with simulation
 ```
+
+**For 8B-12B models:** Add `--local` for optimized context budgets.
 
 Then: `/new` → `/char` → `/start` → play
 
@@ -196,11 +198,28 @@ The agent auto-detects available backends (LM Studio → Ollama → Claude Code)
 | Priority | Recommendation |
 |----------|----------------|
 | Best narrative quality | Claude (via Claude Code) |
-| Free + private | LM Studio or Ollama with 70B+ model |
+| Free + private | LM Studio or Ollama with 14B+ model |
+| Budget hardware | 8B model with `--local` flag |
 | Offline play | Local only |
 | Potato PC | Claude (offload compute to cloud) |
 
-Local models are fully playable — the mechanics work identically. Claude shines in nuanced NPC interactions, faction politics, and long-term consequence tracking. Think of it as a GM skill slider: local 7B models might forget context mid-scene, while Claude Opus will remember that throwaway comment you made three sessions ago and weave it into the plot.
+Local models are fully playable — the mechanics work identically. Claude shines in nuanced NPC interactions, faction politics, and long-term consequence tracking.
+
+### Local Mode for Small Models
+
+8B-12B models are now playable with the `--local` flag:
+
+```bash
+sentinel --local        # TUI
+sentinel-cli --local    # CLI
+```
+
+Local mode reduces context from ~13K to ~5K tokens by:
+- Using condensed prompts (70% smaller)
+- Skipping narrative flavor, digest, and retrieval sections
+- Exposing only phase-relevant tools (3-12 instead of 19)
+
+This keeps smaller models focused and responsive. You lose some GM flavor text, but core mechanics and narrative quality remain intact.
 
 ### How Claude Code Works
 
@@ -238,7 +257,7 @@ Both modes are intentionally supported. Models without tool calling work fine fo
 | **Gemma 3** | ~12GB (27B) | Long-form continuity, dialogue-heavy sessions | Stable tone, good narrative endurance | Plays it safe under pressure |
 | **GPT-OSS** | ~10GB (20B) | Auditability, constraint experiments | Apache 2.0, predictable behavior | Flat prose, mechanical pacing |
 | **Qwen 3** | ~8GB (14B) | System-heavy play | Excellent tool calling | Scaffolding becomes the game |
-| **Llama 3.2** | ~5GB (8B) | Low-end rigs | Lightweight, good fallback / testing node | Forgets state mid-scene |
+| **Llama 3.2** | ~5GB (8B) | Low-end rigs | Use `--local` flag; lightweight, good fallback | Forgets state without local mode |
 | **Ministral 3** | ~8GB (14B) | Deterministic GM logic, trigger-heavy systems | Strong instruction following | Over-follows rules, rigid |
 
 ### The Governability Curve
@@ -254,6 +273,8 @@ Compliance with GM constraints doesn't scale linearly with model size.
 
 For GM work, **obedience > reasoning**. A model that cannot stop talking cannot listen.
 
+**8B sweet spot:** The "Soldier" tier (8B-14B) is ideal for SENTINEL because these models follow instructions precisely without trying to be clever. With `--local` mode keeping context tight, they stay focused and produce quality narrative output.
+
 ## Development
 
 ```
@@ -262,7 +283,7 @@ pip install -e ".[dev]"
 pytest
 ```
 
-**197+ tests** covering state, mechanics, simulation, and event queue.
+**250+ tests** covering state, mechanics, simulation, local mode, and event queue.
 
 ## Design Philosophy
 
