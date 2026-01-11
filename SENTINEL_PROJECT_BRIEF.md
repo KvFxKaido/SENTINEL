@@ -97,7 +97,7 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 - **`/context` command** — show usage; `/context debug` for detailed section breakdown
 
 **Technical Infrastructure**
-- **Multi-backend LLM** — LM Studio, Ollama (local only)
+- **Multi-backend LLM** — LM Studio, Ollama (local), Claude Code (cloud)
 - **Test suite** — 236 tests covering core mechanics
 - **Event queue** — MCP → Agent state sync via append-only queue (solves concurrency)
 - **CI/CD** — GitHub Actions (Python 3.10, 3.11, 3.12)
@@ -154,7 +154,9 @@ SENTINEL/
 │   │   ├── llm/
 │   │   │   ├── base.py           # Abstract LLM client
 │   │   │   ├── lmstudio.py       # Local LLM (OpenAI-compatible)
-│   │   │   └── ollama.py         # Ollama (OpenAI-compatible)
+│   │   │   ├── ollama.py         # Ollama (OpenAI-compatible)
+│   │   │   ├── claude_code.py    # Claude Code CLI backend
+│   │   │   └── skills.py         # Skill-based tool invocation
 │   │   ├── context/
 │   │   │   ├── tokenizer.py      # Token counting (tiktoken + fallback)
 │   │   │   ├── window.py         # Rolling window with priority trimming
@@ -740,6 +742,7 @@ MGS-style dialogue frames for NPC speech with portrait support:
 - **tiktoken** — Accurate token counting for context management
 - **LM Studio** — Local LLM (free, OpenAI-compatible API at port 1234)
 - **Ollama** — Local LLM alternative (OpenAI-compatible API at port 11434)
+- **Claude Code** — Cloud LLM via CLI (uses existing authentication)
 - **memvid-sdk** — Campaign memory semantic search (optional)
 - **pytest** — Test framework with 236 tests
 - **GitHub Actions** — CI/CD pipeline
