@@ -794,13 +794,6 @@ class CampaignManager:
         old_phase = self.current.session.phase
         self.current.session.phase = new_phase
 
-        # Log phase transition
-        self.log_history(
-            type=HistoryType.PHASE_CHANGE,
-            summary=f"Phase: {old_phase.value} → {new_phase.value}",
-            is_permanent=False,
-        )
-
         self.save_campaign()
 
         return {
