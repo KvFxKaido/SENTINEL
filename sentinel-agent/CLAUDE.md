@@ -269,13 +269,25 @@ memvid-sdk>=0.1.0   # Campaign memory (optional, pip install -e ".[memvid]")
 ## Backend Selection
 
 The agent auto-detects backends in this order:
-1. **LM Studio** (localhost:1234) — free, local
-2. **Claude API** — requires `ANTHROPIC_API_KEY`
-3. **OpenRouter** — requires `OPENROUTER_API_KEY`, multi-model
-4. **Gemini CLI** — requires `gemini` command installed
-5. **Codex CLI** — requires `codex` command installed
+1. **LM Studio** (localhost:1234) — free, local, native tool support
+2. **Ollama** (localhost:11434) — free, local, native tool support
+3. **Claude Code CLI** — uses existing `claude` auth, no API keys needed
 
-Use `/backend <name>` in the CLI to switch manually. Note: CLI backends (Gemini, Codex) don't support tool calling.
+Local backends are preferred for privacy and cost. The Claude Code backend piggybacks on existing CLI authentication — if you're logged into Claude Code, it just works.
+
+Use `/backend <name>` in the CLI to switch manually.
+
+### Tool Support
+
+All backends support tools, but through different mechanisms:
+
+| Backend | Tool Mechanism |
+|---------|---------------|
+| LM Studio | Native function calling |
+| Ollama | Native function calling |
+| Claude Code | Skill-based (prompt injection + parsing) |
+
+The skill system (`src/llm/skills.py`) injects tool descriptions into the prompt and parses `<tool>{"name": "...", "args": {...}}</tool>` tags from responses. This enables full tool support even for CLI-based backends.
 
 ## Related Files
 

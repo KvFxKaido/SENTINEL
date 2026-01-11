@@ -6,6 +6,8 @@ from typing import Callable, Literal
 from .base import LLMClient, LLMResponse, Message, ToolCall, ToolResult
 from .lmstudio import LMStudioClient
 from .ollama import OllamaClient
+from .claude_code import ClaudeCodeClient
+from .skills import parse_skills, format_tools_for_prompt, strip_skill_tags
 
 __all__ = [
     "LLMClient",
@@ -15,9 +17,14 @@ __all__ = [
     "ToolResult",
     "LMStudioClient",
     "OllamaClient",
+    "ClaudeCodeClient",
     "MockLLMClient",
     "create_llm_client",
     "detect_backend",
+    # Skill system
+    "parse_skills",
+    "format_tools_for_prompt",
+    "strip_skill_tags",
 ]
 
 
@@ -113,7 +120,7 @@ class MockLLMClient(LLMClient):
 # Backend Detection and Factory
 # -----------------------------------------------------------------------------
 
-BackendType = Literal["lmstudio", "ollama", "auto"]
+BackendType = Literal["lmstudio", "ollama", "claude", "auto"]
 
 
 def detect_backend(
@@ -123,7 +130,10 @@ def detect_backend(
     """
     Auto-detect available LLM backend.
 
-    Preference order: LM Studio > Ollama
+    Preference order: LM Studio > Ollama > Claude Code > Codex
+
+    Local backends are preferred over cloud for privacy and cost.
+    Cloud backends (Claude Code, Codex) use existing CLI authentication.
 
     Returns:
         Tuple of (backend_name, client) or (None, None) if nothing available.
@@ -144,6 +154,14 @@ def detect_backend(
         client = OllamaClient(base_url=ollama_url)
         if client.is_available():
             return ("ollama", client)
+    except Exception:
+        pass
+
+    # Try Claude Code CLI (uses existing auth)
+    try:
+        client = ClaudeCodeClient()
+        if client.is_available():
+            return ("claude", client)
     except Exception:
         pass
 
@@ -188,6 +206,14 @@ def create_llm_client(
         except Exception as e:
             print(f"Ollama error: {e}")
             return ("ollama", None)
+
+    if backend == "claude":
+        try:
+            from .claude_code import create_claude_code_client
+            return ("claude", create_claude_code_client())
+        except Exception as e:
+            print(f"Claude Code error: {e}")
+            return ("claude", None)
 
     print(f"Unknown backend: {backend}")
     return (backend, None)

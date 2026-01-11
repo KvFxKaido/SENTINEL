@@ -16,29 +16,46 @@ python -m src.interface.cli
 
 ## LLM Backends
 
-SENTINEL requires a local LLM backend.
+SENTINEL supports both local and cloud backends.
 
-### LM Studio (Recommended)
+### Local Backends (Recommended)
+
+#### LM Studio
 1. Download [LM Studio](https://lmstudio.ai/)
 2. Load a model (Mistral, Llama, Qwen recommended)
 3. Start the local server (Server tab)
 4. Run the CLI — it auto-detects LM Studio at localhost:1234
 
-### Ollama
+#### Ollama
 1. Install [Ollama](https://ollama.ai/)
 2. Pull a model: `ollama pull llama3.2`
 3. Ollama runs automatically after install
 4. Run the CLI — it auto-detects Ollama at localhost:11434
 
-The agent auto-detects available backends in order: LM Studio → Ollama.
+### Cloud Backend: Claude Code
 
-### Why Local Only?
+If you have [Claude Code](https://claude.ai/code) installed and authenticated, SENTINEL can use it as a backend.
 
-Cloud models are not officially supported.
+```bash
+# In the SENTINEL CLI
+/backend claude
+/model sonnet   # or opus, haiku
+```
 
-SENTINEL's mechanics rely on predictable context limits, rolling windows, and controlled degradation. These cannot be guaranteed with hosted models.
+**How it works:** We invoke the `claude` CLI in print mode (`claude -p "prompt"`), which is a documented, intended use of the tool. No OAuth tokens are extracted, no credentials are stolen, no terms of service are violated. If you're logged into Claude Code, it just works — the same way any CLI tool uses your existing authentication.
 
-That said, players who supply the rules, tone, and constraints to a cloud model may achieve a similar experience. Expect variance.
+This is explicitly *not* an exploit. We're using the CLI the way it was designed to be used.
+
+**Why this matters:** Some projects have extracted OAuth tokens from other tools to make unauthorized API calls. We don't do that. We simply shell out to the official CLI and let it handle authentication through its normal channels.
+
+### Backend Detection
+
+The agent auto-detects backends in this order:
+1. **LM Studio** (localhost:1234) — free, local, native tool support
+2. **Ollama** (localhost:11434) — free, local, native tool support
+3. **Claude Code CLI** — uses your existing authentication
+
+Local backends are preferred for privacy, cost, and predictable context handling. Use `/backend <name>` to switch manually.
 
 ## Architecture
 
@@ -50,6 +67,12 @@ sentinel-agent/
 │   │   ├── schema.py      # Pydantic models (Campaign, Character, NPC, etc.)
 │   │   ├── manager.py     # Campaign lifecycle (create/load/save)
 │   │   └── memvid_adapter.py  # Optional semantic memory (memvid)
+│   ├── llm/               # LLM backend abstraction
+│   │   ├── base.py        # Abstract client interface
+│   │   ├── lmstudio.py    # LM Studio backend
+│   │   ├── ollama.py      # Ollama backend
+│   │   ├── claude_code.py # Claude Code CLI backend
+│   │   └── skills.py      # Skill-based tool invocation for CLI backends
 │   ├── context/           # Engine-owned context control
 │   │   ├── packer.py      # Prompt packing with token budgets
 │   │   ├── window.py      # Rolling window with priority trimming
@@ -94,6 +117,8 @@ When context pressure exceeds 85%, narrative guidance is dropped (~925 tokens sa
 | `/char` | Create a character |
 | `/roll <skill> <dc>` | Roll a skill check |
 | `/mission` | Start a new mission |
+| `/backend [name]` | Show or switch LLM backend |
+| `/model [name]` | Show or switch model |
 | `/quit` | Exit the game |
 
 ## State Schema
