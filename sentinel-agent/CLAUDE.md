@@ -12,21 +12,28 @@ SENTINEL Agent is an AI Game Master for a tactical TTRPG. It runs narrative sess
 
 ```
 src/
-├── agent.py              # Orchestrates LLM, tools, and state
+├── agent.py              # Thin orchestration layer (~700 lines)
+├── prompts/
+│   └── loader.py         # Hot-reloadable prompt assembly
+├── tools/
+│   ├── registry.py       # Tool schemas + handlers (centralized)
+│   ├── dice.py           # Game mechanics (rolls, tactical reset)
+│   └── hinge_detector.py # Detects irreversible choices in player input
+├── systems/              # Domain logic (extracted from manager)
+│   ├── leverage.py       # Enhancements, demands, escalation
+│   └── arcs.py           # Character arc detection
 ├── state/
 │   ├── schema.py         # Pydantic models — the source of truth
-│   ├── manager.py        # CRUD operations on campaign state
+│   ├── manager.py        # Campaign CRUD + delegation to systems
 │   └── memvid_adapter.py # Campaign memory via memvid (optional)
 ├── context/              # Engine-owned context control
 │   ├── packer.py         # Prompt packing with token budgets
 │   ├── window.py         # Rolling window with priority trimming
 │   ├── tokenizer.py      # Token counting (tiktoken + fallback)
 │   └── digest.py         # Campaign memory compression
-├── tools/
-│   ├── dice.py           # Game mechanics (rolls, tactical reset)
-│   └── hinge_detector.py # Detects irreversible choices in player input
 ├── interface/
-│   ├── cli.py            # Player-facing terminal UI
+│   ├── cli.py            # Dev/simulation terminal UI
+│   ├── tui.py            # Primary Textual-based UI
 │   ├── glyphs.py         # Visual indicators (Unicode/ASCII)
 │   └── choices.py        # Multiple choice system
 ├── llm/
@@ -136,13 +143,18 @@ The `ELSE IF context_incomplete` branches encode SafetyNet behavior directly at 
 
 | File | Purpose | When to modify |
 |------|---------|----------------|
-| `schema.py` | Data models | Adding new state fields |
-| `manager.py` | State operations | Adding new CRUD operations |
+| `agent.py` | Orchestration | Changing LLM flow, adding council logic |
+| `tools/registry.py` | Tool schemas + handlers | Adding or modifying tools |
+| `prompts/loader.py` | Prompt assembly | Changing how prompts are built |
+| `systems/leverage.py` | Enhancement mechanics | Modifying leverage, demands, escalation |
+| `systems/arcs.py` | Arc detection | Changing arc patterns or detection |
+| `state/schema.py` | Data models | Adding new state fields |
+| `state/manager.py` | Campaign CRUD | Adding new persistence operations |
 | `memvid_adapter.py` | Campaign memory | Adding new frame types or queries |
-| `agent.py` | API orchestration | Adding new tools, changing prompts |
 | `context/packer.py` | Token budgets | Changing section limits or strain tiers |
 | `context/window.py` | Rolling window | Changing trimming priority or anchors |
-| `cli.py` | User interface | Adding commands, changing display |
+| `interface/tui.py` | Primary UI | Changing Textual-based interface |
+| `interface/cli.py` | Dev/simulation UI | Adding commands, simulation features |
 | `glyphs.py` | Visual indicators | Adding new symbols, context meter |
 | `hinge_detector.py` | Choice detection | Adding hinge patterns |
 | `dice.py` | Game mechanics | Changing roll logic |
@@ -162,14 +174,17 @@ class Example(BaseModel):
     optional_field: str | None = None  # Optional fields with defaults
 ```
 
-### Tool Handlers
+### Tool Handlers (in registry.py)
 ```python
-def _handle_tool_name(self, **kwargs) -> dict:
+def handle_tool_name(**kwargs) -> dict:
     """Handle tool_name tool call."""
     # Validate inputs
-    # Perform operation
+    # Perform operation via manager
     # Return dict (not Pydantic model)
     return {"result": "value", "narrative_hint": "..."}
+
+# Register in create_default_registry()
+registry.register("tool_name", handle_tool_name)
 ```
 
 ### CLI Commands
@@ -184,9 +199,9 @@ def cmd_name(manager: CampaignManager, args: list[str]):
 
 ### Adding a new tool
 
-1. Define the schema in `agent.py` → `get_tools()`
-2. Add handler method `_handle_<tool_name>` in `SentinelAgent`
-3. Register in `self.tools` dict in `__init__`
+1. Add schema to appropriate list in `tools/registry.py` (e.g., `CHARACTER_SCHEMAS`)
+2. Add handler function in `create_default_registry()`
+3. Register handler: `registry.register("tool_name", handle_tool_name)`
 4. Add to `prompts/mechanics.md` if player-facing
 
 ### Adding a new state field
@@ -195,6 +210,18 @@ def cmd_name(manager: CampaignManager, args: list[str]):
 2. Bump `_version` in `Campaign` model
 3. Add migration logic in `manager.py` if needed
 4. Update `prompts/` if it affects gameplay
+
+### Modifying leverage or enhancement mechanics
+
+1. Edit `systems/leverage.py` directly
+2. Manager delegates via `self.leverage.method_name()`
+3. Public API on manager unchanged — tests continue to work
+
+### Modifying arc detection
+
+1. Edit `systems/arcs.py` directly
+2. Modify patterns in `schema.py` → `ARC_PATTERNS` if needed
+3. Manager delegates via `self.arcs.method_name()`
 
 ### Adding a CLI command
 
