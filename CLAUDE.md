@@ -16,6 +16,7 @@ SENTINEL/
 │   ├── CLAUDE.md            # Detailed dev context
 │   ├── src/                 # Python source
 │   ├── prompts/             # Hot-reloadable prompts
+│   │   └── local/           # Condensed prompts for 8B-12B models
 │   └── campaigns/           # Save files
 ├── sentinel-campaign/       # Campaign MCP server
 │   ├── src/sentinel_campaign/
@@ -94,6 +95,15 @@ Semantic search over campaign history using [memvid](https://github.com/memvid/m
 - **Philosophy:** Evidence, not memory — raw frames are GM-only; player queries filter through faction bias
 - **Graceful degradation:** All ops are no-ops if SDK not installed
 
+### Local Mode (8B-12B Models)
+Optimized context for smaller local models. Run with `--local` flag.
+- **Context budget:** 5K tokens (vs 13K standard)
+- **Prompts:** Condensed versions in `prompts/local/` (70% smaller)
+- **Tools:** Phase-specific subsets (3-12 tools vs 19)
+- **Skipped:** Narrative guidance, digest, retrieval sections
+
+Core mechanics and narrative quality remain intact — you lose flavor text, not functionality.
+
 ## MCP Server: sentinel-campaign
 
 When enabled, provides faction tools and resources.
@@ -139,7 +149,9 @@ Edit JSON files in `sentinel-campaign/src/sentinel_campaign/data/factions/`.
 ```bash
 cd sentinel-agent
 pip install -e .
-python -m src.interface.cli
+sentinel                  # Textual TUI (recommended)
+sentinel-cli              # Dev CLI with simulation
+sentinel --local          # For 8B-12B models (reduced context)
 ```
 
 ## AI Collaboration
