@@ -56,6 +56,19 @@ DEFAULT_BUDGETS: dict[PackSection, SectionBudget] = {
     PackSection.INPUT: SectionBudget(tokens=500, required=True, can_truncate=False),
 }
 
+# Local model budgets (~5,000 total for 8k context with tool overhead)
+# Uses condensed prompts from prompts/local/
+LOCAL_BUDGETS: dict[PackSection, SectionBudget] = {
+    PackSection.SYSTEM: SectionBudget(tokens=400, required=True, can_truncate=False),
+    PackSection.RULES_CORE: SectionBudget(tokens=600, required=True, can_truncate=False),
+    PackSection.RULES_NARRATIVE: SectionBudget(tokens=0, required=False, can_truncate=True),  # Skip entirely
+    PackSection.STATE: SectionBudget(tokens=800, required=True, can_truncate=True),
+    PackSection.DIGEST: SectionBudget(tokens=0, required=False, can_truncate=True),  # Skip entirely
+    PackSection.WINDOW: SectionBudget(tokens=2500, required=True, can_truncate=True),
+    PackSection.RETRIEVAL: SectionBudget(tokens=0, required=False, can_truncate=True),  # Skip entirely
+    PackSection.INPUT: SectionBudget(tokens=400, required=True, can_truncate=False),
+}
+
 
 class StrainTier(Enum):
     """Memory strain tiers based on context pressure."""
