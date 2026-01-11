@@ -11,6 +11,7 @@ dependencies = [
     "rich>=13.0.0",
     "prompt-toolkit>=3.0.0",
     "tiktoken>=0.5.0",
+    "textual>=0.40.0",
 ]
 
 [project.optional-dependencies]
@@ -29,6 +30,7 @@ all = [
 
 [project.scripts]
 sentinel = "src.interface.cli:main"
+sentinel-tui = "src.interface.tui:main"
 
 [build-system]
 requires = ["hatchling"]
