@@ -90,34 +90,33 @@ class ClaudeCodeClient(LLMClient):
         """
         Send chat completion via Claude Code CLI.
 
-        Converts messages to a single prompt and calls claude -p.
+        Converts messages to a single prompt and passes via stdin to avoid
+        command-line argument length limits and Bun parsing issues.
         """
         claude_path = self._find_claude()
         if not claude_path:
             raise RuntimeError("Claude Code CLI not found. Install from https://claude.ai/code")
 
-        # Build the prompt from messages
-        prompt = self._messages_to_prompt(messages)
+        # Build the prompt from messages, embedding system prompt
+        prompt = self._messages_to_prompt(messages, system)
 
-        # Build command
+        # Build command - use stdin for prompt to avoid arg length limits
         cmd = [
             claude_path,
-            "-p", prompt,
+            "-p", "-",  # Read prompt from stdin
             "--output-format", "json",
             "--model", self._model,
         ]
 
-        if system:
-            cmd.extend(["--append-system-prompt", system])
-
-        # Execute
+        # Execute with prompt via stdin
         try:
             result = subprocess.run(
                 cmd,
+                input=prompt,
                 capture_output=True,
                 text=True,
                 timeout=self.timeout,
-                cwd=None,  # Use current directory
+                encoding="utf-8",
             )
         except subprocess.TimeoutExpired:
             raise TimeoutError(f"Claude Code request timed out after {self.timeout}s")
@@ -135,9 +134,17 @@ class ClaudeCodeClient(LLMClient):
             # Fall back to raw output if not JSON
             return LLMResponse(content=result.stdout.strip())
 
-    def _messages_to_prompt(self, messages: list[Message]) -> str:
-        """Convert message list to a single prompt string."""
+    def _messages_to_prompt(self, messages: list[Message], system: str | None = None) -> str:
+        """Convert message list to a single prompt string.
+
+        Embeds the system prompt at the start to avoid command-line argument issues.
+        """
         parts = []
+
+        # Embed system prompt at the start
+        if system:
+            parts.append(f"[System Instructions]\n{system}\n[End System Instructions]")
+
         for msg in messages:
             if msg.role == "user":
                 parts.append(f"User: {msg.content}")
