@@ -181,25 +181,32 @@ Players choose starting relationships, not membership. You're not "in" a faction
 
 ## LLM Backends
 
-SENTINEL requires a local LLM backend.
+SENTINEL supports both local and cloud backends.
 
 | Backend | Setup |
-
 |---------|-------|
-
 | **LM Studio** | Download app, load model, start server (port 1234) |
-
 | **Ollama** | `ollama pull llama3.2` — runs automatically (port 11434) |
+| **Claude Code** | Install [Claude Code](https://claude.ai/code), authenticate, done |
 
-The agent auto-detects available backends (LM Studio → Ollama).
+The agent auto-detects available backends (LM Studio → Ollama → Claude Code).
 
-### Why Local Only?
+### Which Backend Should I Use?
 
-Cloud models are not officially supported.
+| Priority | Recommendation |
+|----------|----------------|
+| Best narrative quality | Claude (via Claude Code) |
+| Free + private | LM Studio or Ollama with 70B+ model |
+| Offline play | Local only |
+| Potato PC | Claude (offload compute to cloud) |
 
-SENTINEL's mechanics rely on predictable context limits, rolling windows, and controlled degradation. These cannot be guaranteed with hosted models.
+Local models are fully playable — the mechanics work identically. Claude shines in nuanced NPC interactions, faction politics, and long-term consequence tracking. Think of it as a GM skill slider: local 7B models might forget context mid-scene, while Claude Opus will remember that throwaway comment you made three sessions ago and weave it into the plot.
 
-That said, players who supply the rules, tone, and constraints to a cloud model may achieve a similar experience. Expect variance.
+### How Claude Code Works
+
+We invoke the `claude` CLI in print mode (`claude -p -`), which is a documented, intended use of the tool. No OAuth tokens are extracted, no credentials are stolen, no terms of service are violated. If you're logged into Claude Code, it just works.
+
+This is explicitly *not* an exploit. We're using the CLI the way it was designed to be used.
 
 ## Recommended Setup
 
