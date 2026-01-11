@@ -290,6 +290,11 @@ def main():
         action="store_true",
         help="Skip banner animation"
     )
+    parser.add_argument(
+        "--local", "-l",
+        action="store_true",
+        help="Use local mode (optimized for 8B-12B models)"
+    )
     args = parser.parse_args()
 
     # Initialize paths
@@ -325,6 +330,7 @@ def main():
         prompts_dir=prompts_dir,
         lore_dir=lore_dir if lore_dir.exists() else None,
         backend=saved_backend,
+        local_mode=args.local,
     )
 
     # Restore saved model if using LM Studio/Ollama
@@ -337,6 +343,8 @@ def main():
 
     # Show backend status
     show_backend_status(agent)
+    if agent.local_mode:
+        console.print(f"[{THEME['highlight']}]Local mode enabled[/{THEME['highlight']}] (condensed prompts, reduced budgets)")
     if agent.lore_retriever:
         lore_status = f"Lore: {agent.lore_retriever.chunk_count} chunks"
         if agent.unified_retriever and agent.unified_retriever.memvid:
