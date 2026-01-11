@@ -1,6 +1,6 @@
 # SENTINEL Project Brief
 
-*Last updated: January 8, 2026*
+*Last updated: January 11, 2026*
 
 ## What This Is
 
@@ -95,10 +95,11 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 - **Campaign digest** — compressed durable memory (`/checkpoint`, `/compress`, `/clear`)
 - **Strain-aware retrieval** — automatic budget adjustment, active queries bypass restrictions
 - **`/context` command** — show usage; `/context debug` for detailed section breakdown
+- **Local mode (`--local`)** — optimized for 8B-12B models: 5K budget, condensed prompts, phase-based tool subsets
 
 **Technical Infrastructure**
 - **Multi-backend LLM** — LM Studio, Ollama (local), Claude Code (cloud)
-- **Test suite** — 236 tests covering core mechanics
+- **Test suite** — 252 tests covering core mechanics, local mode, simulation
 - **Event queue** — MCP → Agent state sync via append-only queue (solves concurrency)
 - **CI/CD** — GitHub Actions (Python 3.10, 3.11, 3.12)
 - **Phase-based GM guidance** — different prompts per mission phase
@@ -168,6 +169,8 @@ SENTINEL/
 │   │   │   ├── unified.py        # Combined lore + campaign + state (strain-aware)
 │   │   │   └── quotes.py         # 44 curated faction/world quotes
 │   │   ├── tools/
+│   │   │   ├── registry.py       # Tool schemas + handlers (centralized)
+│   │   │   ├── subsets.py        # Phase-based tool filtering for local mode
 │   │   │   ├── dice.py           # Roll mechanics
 │   │   │   └── hinge_detector.py # Detect irreversible choices
 │   │   └── interface/
@@ -182,6 +185,9 @@ SENTINEL/
 │   ├── prompts/                  # Hot-reloadable GM instructions
 │   │   ├── core.md               # Identity and principles
 │   │   ├── mechanics.md          # Rules reference
+│   │   ├── local/                # Condensed prompts for 8B-12B models
+│   │   │   ├── core.md               # ~280 tokens (vs ~960 standard)
+│   │   │   └── mechanics.md          # ~375 tokens (vs ~1315 standard)
 │   │   ├── rules/                # Two-layer rules system
 │   │   │   ├── core_logic.md         # Decision triggers (always loaded)
 │   │   │   └── narrative_guidance.md # Flavor/examples (cut under strain)
@@ -744,7 +750,7 @@ MGS-style dialogue frames for NPC speech with portrait support:
 - **Ollama** — Local LLM alternative (OpenAI-compatible API at port 11434)
 - **Claude Code** — Cloud LLM via CLI (uses existing authentication)
 - **memvid-sdk** — Campaign memory semantic search (optional)
-- **pytest** — Test framework with 236 tests
+- **pytest** — Test framework with 252 tests
 - **GitHub Actions** — CI/CD pipeline
 
 Lightweight dependencies — tiktoken for token counting, memvid optional.
