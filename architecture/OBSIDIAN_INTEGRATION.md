@@ -63,10 +63,10 @@ graph LR
 ## Phase 2: Campaign Integration (Code Changes)
 
 ### Daily Notes from Debrief
-- [ ] Modify `/debrief` to generate daily note in `wiki/campaigns/{id}/sessions/`
-- [ ] Format: `YYYY-MM-DD.md` with session number in frontmatter
-- [ ] Include links to NPCs, factions, locations mentioned
-- [ ] Auto-generate wikilinks from entity names
+- [x] Modify `/debrief` to generate daily note in `wiki/campaigns/{id}/sessions/`
+- [x] Format: `YYYY-MM-DD.md` with session number in frontmatter
+- [x] Include links to NPCs, factions, locations mentioned
+- [x] Auto-generate wikilinks from entity names
 
 **Template:**
 ```markdown
@@ -97,9 +97,9 @@ campaign: iron_winter
 ```
 
 ### Frontmatter Structure for Dataview
-- [ ] Define frontmatter schema for NPCs, factions, events
-- [ ] Update existing wiki pages with structured frontmatter
-- [ ] Create example Dataview queries
+- [x] Define frontmatter schema for NPCs, factions, events
+- [x] Update existing wiki pages with structured frontmatter
+- [x] Create example Dataview queries (see `canon/Dataview Queries.md`)
 
 **NPC Frontmatter:**
 ```yaml

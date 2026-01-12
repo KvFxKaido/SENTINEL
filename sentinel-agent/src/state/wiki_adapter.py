@@ -469,6 +469,164 @@ class WikiAdapter:
         return True
 
     # -------------------------------------------------------------------------
+    # Session Summary (Daily Notes)
+    # -------------------------------------------------------------------------
+
+    def save_session_summary(
+        self,
+        summary: dict,
+        reflections: dict | None = None,
+    ) -> Path | None:
+        """
+        Save session summary as a wiki daily note.
+
+        Creates wiki/campaigns/{id}/sessions/YYYY-MM-DD.md with:
+        - Frontmatter (session, date, campaign)
+        - Callouts for hinges, faction changes, threads
+        - Wikilinks for NPCs, factions
+
+        Args:
+            summary: Session summary dict from generate_session_summary()
+            reflections: Optional player reflections dict
+
+        Returns:
+            Path to created file, or None if failed
+        """
+        if not self.enabled:
+            return None
+
+        # Create sessions directory
+        sessions_dir = self.overlay_dir / "sessions"
+        try:
+            sessions_dir.mkdir(exist_ok=True)
+        except Exception as e:
+            logger.error(f"Failed to create sessions directory: {e}")
+            return None
+
+        # Generate filename from current date
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        session_num = summary.get("session", 0)
+        campaign_name = summary.get("campaign", self.campaign_id)
+
+        # Build daily note content
+        lines = [
+            "---",
+            f"session: {session_num}",
+            f"date: {date_str}",
+            f"campaign: {self.campaign_id}",
+            "type: session",
+            "---",
+            "",
+            f"# Session {session_num} — {datetime.now().strftime('%B %d, %Y')}",
+            "",
+        ]
+
+        # Hinges
+        if summary.get("hinges"):
+            lines.append("## Key Choices")
+            lines.append("")
+            for hinge in summary["hinges"]:
+                lines.append(f"> [!hinge] {hinge['choice']}")
+                if hinge.get("situation"):
+                    lines.append(f"> **Situation:** {hinge['situation']}")
+                if hinge.get("what_shifted"):
+                    lines.append(f"> **Shifted:** {hinge['what_shifted']}")
+                lines.append("")
+
+        # Faction Changes
+        if summary.get("faction_changes"):
+            lines.append("## Faction Changes")
+            lines.append("")
+            for change in summary["faction_changes"]:
+                # Try to extract faction name for wikilink
+                faction_link = self._extract_faction_link(change.get("summary", ""))
+                callout_type = "faction"
+                if change.get("is_permanent"):
+                    callout_type = "danger"
+                lines.append(f"> [!{callout_type}] {change['summary']}")
+                if faction_link:
+                    lines.append(f"> Related: {faction_link}")
+                lines.append("")
+
+        # Threads Created
+        if summary.get("threads_created"):
+            lines.append("## Threads Queued")
+            lines.append("")
+            for thread in summary["threads_created"]:
+                severity = thread.get("severity", "minor").upper()
+                lines.append(f"> [!thread] {thread['origin']}")
+                lines.append(f"> **Severity:** {severity}")
+                lines.append(f"> **Trigger:** {thread['trigger']}")
+                lines.append("")
+
+        # Threads Resolved
+        if summary.get("threads_resolved"):
+            lines.append("## Threads Resolved")
+            lines.append("")
+            for thread in summary["threads_resolved"]:
+                lines.append(f"- {thread['summary']}")
+            lines.append("")
+
+        # NPCs Encountered
+        if summary.get("npcs_encountered"):
+            lines.append("## NPCs Encountered")
+            lines.append("")
+            for npc in summary["npcs_encountered"]:
+                name = npc.get("name", "Unknown")
+                faction = npc.get("faction", "")
+                disp_change = npc.get("disposition_change", 0)
+
+                # Build NPC line with wikilink
+                npc_link = f"[[NPCs/{name}|{name}]]"
+                faction_link = f"([[{faction.replace('_', ' ').title()}]])" if faction else ""
+
+                if disp_change > 0:
+                    disposition = f"*(+{disp_change} disposition)*"
+                elif disp_change < 0:
+                    disposition = f"*({disp_change} disposition)*"
+                else:
+                    disposition = ""
+
+                lines.append(f"- {npc_link} {faction_link} {disposition}".strip())
+            lines.append("")
+
+        # Player Reflections
+        if reflections:
+            lines.append("## Player Reflections")
+            lines.append("")
+            if reflections.get("cost"):
+                lines.append(f"- **What it cost:** {reflections['cost']}")
+            if reflections.get("learned"):
+                lines.append(f"- **What I learned:** {reflections['learned']}")
+            if reflections.get("would_refuse"):
+                lines.append(f"- **What I'd refuse:** {reflections['would_refuse']}")
+            lines.append("")
+
+        # Write file
+        filename = f"{date_str}.md"
+        filepath = sessions_dir / filename
+
+        try:
+            filepath.write_text("\n".join(lines), encoding="utf-8")
+            logger.info(f"Saved session summary to wiki: {filepath}")
+            return filepath
+        except Exception as e:
+            logger.error(f"Failed to save session summary: {e}")
+            return None
+
+    def _extract_faction_link(self, summary_text: str) -> str | None:
+        """Extract faction wikilink from summary text if possible."""
+        factions = [
+            "Nexus", "Ember Colonies", "Lattice", "Convergence", "Covenant",
+            "Wanderers", "Cultivators", "Steel Syndicate", "Witnesses",
+            "Architects", "Ghost Networks",
+        ]
+        for faction in factions:
+            if faction.lower() in summary_text.lower():
+                return f"[[{faction}]]"
+        return None
+
+    # -------------------------------------------------------------------------
     # Utility
     # -------------------------------------------------------------------------
 

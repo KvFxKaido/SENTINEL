@@ -1607,6 +1607,19 @@ def cmd_debrief(manager: CampaignManager, agent: SentinelAgent, args: list[str])
     console.print(f"\n[{THEME['accent']}]Session {session_num} complete.[/{THEME['accent']}]")
     console.print(f"[{THEME['dim']}]Social energy reset. Chronicle updated. Campaign saved.[/{THEME['dim']}]")
 
+    # Auto-save to wiki as daily note
+    if manager.wiki and manager.wiki.is_enabled:
+        reflections_dict = None
+        if reflection_lines:
+            reflections_dict = {
+                "cost": cost,
+                "learned": learned,
+                "would_refuse": refuse,
+            }
+        wiki_path = manager.wiki.save_session_summary(summary_data, reflections_dict)
+        if wiki_path:
+            console.print(f"[{THEME['dim']}]Wiki daily note: {wiki_path.name}[/{THEME['dim']}]")
+
     # Offer to export summary
     export = Prompt.ask(f"\n[{THEME['dim']}]Export summary to markdown?[/{THEME['dim']}]", choices=["y", "n"], default="n")
     if export == "y":
