@@ -1,6 +1,6 @@
 # SENTINEL Project Brief
 
-*Last updated: January 11, 2026*
+*Last updated: January 12, 2026*
 
 ## What This Is
 
@@ -78,13 +78,17 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 - **Quote context injection** — GM receives relevant quotes for NPC dialogue flavor
 
 **Wiki Integration (Obsidian)**
+- **Live session updates** — game log written to `sessions/{date}/_game_log.md` during play
+- **Content separation** — game log separate from user notes via Obsidian transclusion (`![[_game_log]]`)
+- **Daily notes from `/debrief`** — auto-generated session summaries with callouts and wikilinks
+- **Auto-create NPC pages** — first encounter creates wiki page with faction link and interaction history
+- **Bi-directional sync** — edit NPC disposition or faction standing in Obsidian → game state updates
+- **MOC auto-generation** — index pages for campaign, NPCs, sessions updated on `/debrief`
+- **Template engine** — Jinja2 templates with custom filters; override in `wiki/templates/`
+- **Callout blocks** — `[!hinge]`, `[!faction]`, `[!thread]`, `[!npc]`, `[!intel]` for game events
 - **Mermaid diagrams** — faction relationship graphs with rivalry/alliance subgroups
 - **Dataview dashboards** — NPC tracker, thread tracker, faction overview (requires Dataview plugin)
 - **Canvas thread management** — visual urgency zones (urgent/soon/distant/resolved)
-- **Live session updates** — wiki appended during play (NPCs, hinges, threads)
-- **Daily notes from `/debrief`** — auto-generated session summaries with callouts and wikilinks
-- **Callout blocks** — `[!hinge]`, `[!faction]`, `[!thread]`, `[!npc]`, `[!intel]` for game events
-- **Auto-create NPC pages** — first encounter creates wiki page with faction link and interaction history
 
 **Simulation & Analysis**
 - **Simulation mode** — AI vs AI testing with 4 player personas (cautious, opportunist, principled, chaotic)
@@ -108,7 +112,7 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 
 **Technical Infrastructure**
 - **Multi-backend LLM** — LM Studio, Ollama (local), Claude Code (cloud)
-- **Test suite** — 321 tests covering core mechanics, local mode, simulation, lore retrieval
+- **Test suite** — 380 tests covering core mechanics, local mode, simulation, lore retrieval, wiki integration
 - **Event queue** — MCP → Agent state sync via append-only queue (solves concurrency)
 - **CI/CD** — GitHub Actions (Python 3.10, 3.11, 3.12)
 - **Phase-based GM guidance** — different prompts per mission phase
@@ -158,6 +162,9 @@ SENTINEL/
 │   │   │   │                     # Includes: ArcType, CharacterArc, ARC_PATTERNS
 │   │   │   ├── manager.py        # Campaign CRUD + arc detection + faction cascades
 │   │   │   ├── store.py          # Abstract storage interface
+│   │   │   ├── wiki_adapter.py   # Wiki page generation + hardened writes
+│   │   │   ├── wiki_watcher.py   # Bi-directional sync (file watcher)
+│   │   │   ├── templates.py      # Jinja2 template engine for wiki
 │   │   │   └── memvid_adapter.py # Campaign memory via memvid (optional)
 │   │   ├── rules/
 │   │   │   └── npc.py            # Pure functions for NPC behavior
@@ -237,6 +244,8 @@ SENTINEL/
 - **Event queue for concurrency** — MCP appends events to `pending_events.json`, Agent polls each input loop
 - **Retrieval budget** — `RetrievalBudget` controls lore/campaign/state limits to prevent context bloat
 - **Event provenance** — `event_id` links MCP events → history entries → memvid frames
+- **Wiki hardening** — atomic writes, write serialization, event IDs for idempotent appends, error buffering
+- **Bi-directional sync** — watchdog monitors frontmatter; mtime conflict resolution (newer wins)
 
 ---
 
@@ -762,11 +771,13 @@ MGS-style dialogue frames for NPC speech with portrait support:
 - **LM Studio** — Local LLM (free, OpenAI-compatible API at port 1234)
 - **Ollama** — Local LLM alternative (OpenAI-compatible API at port 11434)
 - **Claude Code** — Cloud LLM via CLI (uses existing authentication)
+- **Jinja2** — Template engine for wiki page generation
+- **watchdog** — File system monitoring for bi-directional wiki sync
 - **memvid-sdk** — Campaign memory semantic search (optional)
-- **pytest** — Test framework with 252 tests
+- **pytest** — Test framework with 380 tests
 - **GitHub Actions** — CI/CD pipeline
 
-Lightweight dependencies — tiktoken for token counting, memvid optional.
+Lightweight dependencies — tiktoken for token counting, Jinja2/watchdog for wiki, memvid optional.
 
 ---
 
