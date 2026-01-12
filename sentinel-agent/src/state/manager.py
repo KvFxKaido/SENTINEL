@@ -281,6 +281,17 @@ class CampaignManager:
                 context=context,
             )
 
+        # Also save to wiki (auto-creates NPC page on first encounter)
+        if self._wiki:
+            self._wiki.save_npc_interaction(
+                npc=npc,
+                player_action=player_action,
+                npc_reaction=npc_reaction,
+                disposition_change=standing_change,
+                session=session,
+                context=context,
+            )
+
         return {
             "npc_id": npc_id,
             "npc_name": npc.name,
@@ -1449,6 +1460,14 @@ class CampaignManager:
                     summary=f"THREAD ACTIVATED: {activated.consequence}",
                     is_permanent=activated.severity == "major",
                 )
+
+                # Log thread triggering to wiki
+                if self._wiki:
+                    self._wiki.save_thread_triggered(
+                        thread=activated,
+                        session=self.current.meta.session_count,
+                        outcome=activation_context,
+                    )
 
                 self.save_campaign()
                 return activated
