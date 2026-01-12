@@ -1,6 +1,7 @@
-"""Tool handlers for factions."""
+"""Tool handlers for factions and wiki search."""
 
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
@@ -315,4 +316,77 @@ def query_faction_npcs(
         "faction": faction_name,
         "npcs": faction_npcs,
         "count": len(faction_npcs),
+    }
+
+
+# -----------------------------------------------------------------------------
+# Wiki Search
+# -----------------------------------------------------------------------------
+
+def search_wiki(
+    wiki_dir: Path,
+    query: str,
+    limit: int = 5,
+) -> dict:
+    """
+    Search wiki pages for a query string.
+
+    Returns matching snippets with context from wiki markdown files.
+    """
+    if not wiki_dir.exists():
+        return {"error": "Wiki directory not found", "matches": []}
+
+    # Normalize query for case-insensitive search
+    query_lower = query.lower()
+    query_words = query_lower.split()
+
+    matches = []
+
+    for wiki_file in wiki_dir.glob("*.md"):
+        try:
+            content = wiki_file.read_text(encoding="utf-8")
+        except Exception:
+            continue
+
+        page_name = wiki_file.stem
+        content_lower = content.lower()
+
+        # Skip if no query words match
+        if not any(word in content_lower for word in query_words):
+            continue
+
+        # Find matching sections
+        lines = content.split("\n")
+        snippets = []
+
+        for i, line in enumerate(lines):
+            line_lower = line.lower()
+            if any(word in line_lower for word in query_words):
+                # Get context: 1 line before, matching line, 2 lines after
+                start = max(0, i - 1)
+                end = min(len(lines), i + 3)
+                snippet = "\n".join(lines[start:end]).strip()
+
+                # Avoid duplicate snippets
+                if snippet not in snippets:
+                    snippets.append(snippet)
+
+        if snippets:
+            # Score by number of query word matches
+            score = sum(1 for word in query_words if word in content_lower)
+
+            matches.append({
+                "page": page_name,
+                "score": score,
+                "snippets": snippets[:3],  # Max 3 snippets per page
+            })
+
+    # Sort by score (most relevant first)
+    matches.sort(key=lambda x: x["score"], reverse=True)
+    matches = matches[:limit]
+
+    return {
+        "query": query,
+        "matches": matches,
+        "total_found": len(matches),
     }

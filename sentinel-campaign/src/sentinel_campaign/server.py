@@ -29,6 +29,7 @@ from .tools import (
     log_faction_event,
     get_faction_intel,
     query_faction_npcs,
+    search_wiki,
 )
 
 # Setup logging
@@ -324,6 +325,25 @@ async def list_tools() -> list[Tool]:
                 "required": ["campaign_id", "faction"],
             },
         ),
+        Tool(
+            name="search_wiki",
+            description="Search wiki pages for lore, faction info, geography, or timeline events. Returns matching snippets with context.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query (keywords or phrases)",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of pages to return",
+                        "default": 5,
+                    },
+                },
+                "required": ["query"],
+            },
+        ),
     ]
 
 
@@ -369,6 +389,13 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             campaign_id=arguments["campaign_id"],
             faction=arguments["faction"],
             disposition_filter=arguments.get("disposition_filter"),
+        )
+
+    elif name == "search_wiki":
+        result = search_wiki(
+            wiki_dir=WIKI_DIR,
+            query=arguments["query"],
+            limit=arguments.get("limit", 5),
         )
 
     else:
