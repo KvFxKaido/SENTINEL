@@ -33,6 +33,7 @@ from .schema import (
 )
 from .store import CampaignStore, JsonCampaignStore, EventQueueStore
 from .memvid_adapter import MemvidAdapter, create_memvid_adapter, MEMVID_AVAILABLE
+from .wiki_adapter import WikiAdapter, create_wiki_adapter
 
 # Lazy import for systems to avoid circular imports
 _leverage_system = None
@@ -75,6 +76,8 @@ class CampaignManager:
         store: CampaignStore | Path | str = "campaigns",
         event_queue: EventQueueStore | None = None,
         enable_memvid: bool = True,
+        enable_wiki: bool = True,
+        wiki_dir: str | Path = "wiki",
     ):
         """
         Initialize with a store.
@@ -83,6 +86,8 @@ class CampaignManager:
             store: CampaignStore instance, or path for JsonCampaignStore
             event_queue: Optional EventQueueStore for MCP event processing
             enable_memvid: Whether to enable memvid memory (requires memvid-sdk)
+            enable_wiki: Whether to enable wiki event logging
+            wiki_dir: Path to wiki directory for event logging
         """
         if isinstance(store, (Path, str)):
             # Backwards compatible: path creates JsonCampaignStore
@@ -103,6 +108,11 @@ class CampaignManager:
         self._enable_memvid = enable_memvid and MEMVID_AVAILABLE
         self._memvid: MemvidAdapter | None = None
         self._turn_counter: int = 0  # Track turns within session
+
+        # Wiki adapter (lazily initialized per campaign)
+        self._enable_wiki = enable_wiki
+        self._wiki_dir = Path(wiki_dir)
+        self._wiki: WikiAdapter | None = None
 
         # Game systems (lazily initialized)
         self._leverage_system = None
@@ -150,6 +160,30 @@ class CampaignManager:
     def memvid(self) -> MemvidAdapter | None:
         """Access the memvid adapter (may be None if disabled)."""
         return self._memvid
+
+    # -------------------------------------------------------------------------
+    # Wiki Integration
+    # -------------------------------------------------------------------------
+
+    def _init_wiki_for_campaign(self, campaign_id: str) -> None:
+        """Initialize wiki adapter for a campaign."""
+        if self._enable_wiki:
+            self._wiki = create_wiki_adapter(
+                campaign_id,
+                wiki_dir=self._wiki_dir,
+                enabled=True,
+            )
+        else:
+            self._wiki = None
+
+    def _close_wiki(self) -> None:
+        """Close current wiki adapter."""
+        self._wiki = None
+
+    @property
+    def wiki(self) -> WikiAdapter | None:
+        """Access the wiki adapter (may be None if disabled)."""
+        return self._wiki
 
     def record_turn(
         self,
@@ -348,15 +382,17 @@ class CampaignManager:
         meta = CampaignMeta(name=name)
         campaign = Campaign(meta=meta)
 
-        # Close any existing memvid
+        # Close any existing adapters
         self._close_memvid()
+        self._close_wiki()
 
         self.current = campaign
         self._cache[meta.id] = campaign
         self.save_campaign()
 
-        # Initialize memvid for new campaign
+        # Initialize adapters for new campaign
         self._init_memvid_for_campaign(meta.id)
+        self._init_wiki_for_campaign(meta.id)
 
         return campaign
 
@@ -383,8 +419,9 @@ class CampaignManager:
         # Load from store
         campaign = self.store.load(campaign_id)
         if campaign:
-            # Close any existing memvid
+            # Close any existing adapters
             self._close_memvid()
+            self._close_wiki()
 
             # Run migrations if needed
             migrated = self._migrate_campaign(campaign)
@@ -399,8 +436,9 @@ class CampaignManager:
             if migrated or events_processed > 0:
                 self.save_campaign()
 
-            # Initialize memvid for this campaign
+            # Initialize adapters for this campaign
             self._init_memvid_for_campaign(campaign.meta.id)
+            self._init_wiki_for_campaign(campaign.meta.id)
 
             return campaign
 
@@ -512,6 +550,21 @@ class CampaignManager:
                         from_standing="Unknown",  # MCP doesn't track this
                         to_standing="Unknown",
                         cause=f"{summary} (event_id: {event.id})",
+                        session=session,
+                    )
+                except ValueError:
+                    pass  # Invalid faction name
+
+            # Also save to wiki
+            if self._wiki:
+                from .schema import FactionName
+                try:
+                    faction_enum = FactionName(faction)
+                    self._wiki.save_faction_shift(
+                        faction=faction_enum,
+                        from_standing="Unknown",
+                        to_standing="Unknown",
+                        cause=f"{summary} (via MCP)",
                         session=session,
                     )
                 except ValueError:
@@ -1097,6 +1150,16 @@ class CampaignManager:
                 session=self.current.meta.session_count,
             )
 
+        # Save to wiki
+        if self._wiki:
+            self._wiki.save_faction_shift(
+                faction=faction,
+                from_standing=before.value,
+                to_standing=after.value,
+                cause=reason,
+                session=self.current.meta.session_count,
+            )
+
         # Calculate and apply cascade effects
         cascades = []
         if apply_cascades and abs(delta) >= 1:
@@ -1311,6 +1374,15 @@ class CampaignManager:
                 dormant_threads_created=dormant_threads_created,
             )
 
+        # Save to wiki
+        if self._wiki:
+            self._wiki.save_hinge_moment(
+                hinge,
+                session=self.current.meta.session_count,
+                immediate_effects=immediate_effects,
+                dormant_threads_created=dormant_threads_created,
+            )
+
         return self.log_history(
             type=HistoryType.HINGE,
             summary=f"HINGE: {choice}",
@@ -1350,6 +1422,10 @@ class CampaignManager:
         # Save to memvid
         if self._memvid:
             self._memvid.save_dormant_thread(thread)
+
+        # Save to wiki
+        if self._wiki:
+            self._wiki.save_dormant_thread(thread)
 
         self.save_campaign()
 
