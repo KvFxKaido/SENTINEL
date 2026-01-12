@@ -190,12 +190,17 @@ Players choose starting relationships, not membership. You're not "in" a faction
 
 ### Wiki Integration (Obsidian)
 
-* Mermaid diagrams for faction relationships
-* Dataview dashboards for NPC, thread, and faction tracking
-* Canvas for visual thread management by urgency
-* Live session notes updated during play
-* Auto-generated daily notes from `/debrief`
-* Callout blocks for hinges, faction shifts, threads
+SENTINEL auto-generates a campaign wiki as you play:
+
+* **Live updates** — Game log written during play, separate from your notes
+* **Session summaries** — Auto-generated on `/debrief` with hinges, faction changes, NPCs
+* **NPC pages** — Created on first encounter with interaction history
+* **MOC indexes** — Campaign, NPC, and session indexes auto-updated
+* **Bi-directional sync** — Edit NPC disposition in Obsidian → game state updates
+* **Custom templates** — Override any template in `wiki/templates/`
+* **Obsidian callouts** — Styled blocks for hinges, faction shifts, threads
+* **Dataview ready** — YAML frontmatter on all pages for queries
+* **Canvas support** — Visual thread management by urgency
 
 ## LLM Backends
 
@@ -299,7 +304,7 @@ pip install -e ".[dev]"
 pytest
 ```
 
-**321 tests** covering state, mechanics, simulation, local mode, lore retrieval, and event queue.
+**380 tests** covering state, mechanics, simulation, local mode, lore retrieval, wiki integration, and event queue.
 
 ## Design Philosophy
 
@@ -320,7 +325,7 @@ pytest
 |----------|---------|
 | [Project Brief](SENTINEL_PROJECT_BRIEF.md) | Full project overview |
 | [Agent Architecture](architecture/AGENT_ARCHITECTURE.md) | Technical design |
-| [Obsidian Integration](architecture/OBSIDIAN_INTEGRATION.md) | Wiki features roadmap |
+| [Obsidian Integration](architecture/OBSIDIAN_INTEGRATION.md) | Wiki features (complete) |
 | [Campaign MCP Server](sentinel-campaign/README.md) | Faction server design |
 | [Agent Dev Guide](sentinel-agent/CLAUDE.md) | Contributor guide |
 
