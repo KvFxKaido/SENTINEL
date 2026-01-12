@@ -47,6 +47,7 @@ SENTINEL/
 ├── sentinel-campaign/  # Faction MCP Server
 ├── core/               # Game rules document
 ├── lore/               # Novellas and world-building
+├── wiki/               # Reference encyclopedia (Obsidian)
 └── architecture/       # Design documents
 ```
 
@@ -61,6 +62,8 @@ SENTINEL/
 | [Core Rules](core/) | Complete game rules |
 
 | [Lore](lore/) | Canon novellas for RAG retrieval |
+
+| [Wiki](wiki/) | Faction/geography reference (indexed for retrieval) |
 
 ## The Eleven Factions
 

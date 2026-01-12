@@ -50,6 +50,20 @@ Static faction information exposed as MCP resources.
 
 **Available factions:** nexus, ember_colonies, lattice, convergence, covenant, wanderers, cultivators, steel_syndicate, witnesses, architects, ghost_networks
 
+---
+
+## Wiki Resources
+
+Reference pages from the lore wiki, exposed as MCP resources.
+
+| URI | Description |
+|-----|-------------|
+| `wiki://{page_name}` | Wiki page content (markdown) |
+
+**Available pages:** Factions, Geography, Timeline, The Collapse, The Awakening, Judgment Hour, and all faction/region pages.
+
+Wiki pages are automatically discovered from the `wiki/` directory. Page names with spaces use underscores in URIs (e.g., `wiki://Steel_Syndicate`).
+
 ### Example: Faction Lore
 
 ```json
