@@ -1620,6 +1620,11 @@ def cmd_debrief(manager: CampaignManager, agent: SentinelAgent, args: list[str])
         if wiki_path:
             console.print(f"[{THEME['dim']}]Wiki daily note: {wiki_path.name}[/{THEME['dim']}]")
 
+        # Flush any buffered wiki writes
+        pending = manager.wiki.flush_buffer()
+        if pending > 0:
+            console.print(f"[{THEME['warning']}]Warning: {pending} wiki writes still pending[/{THEME['warning']}]")
+
     # Offer to export summary
     export = Prompt.ask(f"\n[{THEME['dim']}]Export summary to markdown?[/{THEME['dim']}]", choices=["y", "n"], default="n")
     if export == "y":
