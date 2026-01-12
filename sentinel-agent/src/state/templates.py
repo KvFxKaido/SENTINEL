@@ -20,6 +20,66 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_TEMPLATES = {
     # -------------------------------------------------------------------------
+    # Session Note with Transclusion
+    # -------------------------------------------------------------------------
+    "session_with_transclusion.md.j2": """---
+date: "{{ date }}"
+campaign: "{{ campaign }}"
+title: "Session: {{ date }}"
+---
+# Session Debrief: {{ date }}
+
+## Player Reflections
+
+{{ reflections }}
+
+## Summary
+
+{{ summary }}
+
+## Game Log
+
+![[_game_log]]
+""",
+
+    # -------------------------------------------------------------------------
+    # MOC: Campaign Index
+    # -------------------------------------------------------------------------
+    "moc_campaign.md.j2": """# {{ campaign_name }}
+
+[[_meta|Campaign Metadata]]
+
+## Maps of Content
+
+- [[sessions/_index|All Sessions]]
+- [[NPCs/_index|All NPCs]]
+- [[_events|Timeline of Events]]
+""",
+
+    # -------------------------------------------------------------------------
+    # MOC: NPCs Index
+    # -------------------------------------------------------------------------
+    "moc_npcs.md.j2": """# NPCs
+
+{% for faction, npcs in npcs_by_faction.items() %}
+## {{ faction | title }}
+{% for npc in npcs %}
+- [[{{ npc.path }}|{{ npc.name }}]]
+{% endfor %}
+{% endfor %}
+""",
+
+    # -------------------------------------------------------------------------
+    # MOC: Sessions Index
+    # -------------------------------------------------------------------------
+    "moc_sessions.md.j2": """# Sessions
+
+{% for session in sessions %}
+- [[{{ session.name }}]]
+{% endfor %}
+""",
+
+    # -------------------------------------------------------------------------
     # NPC Page Template
     # -------------------------------------------------------------------------
     "npc.md.j2": """\

@@ -34,6 +34,7 @@ from .schema import (
 from .store import CampaignStore, JsonCampaignStore, EventQueueStore
 from .memvid_adapter import MemvidAdapter, create_memvid_adapter, MEMVID_AVAILABLE
 from .wiki_adapter import WikiAdapter, create_wiki_adapter
+from .wiki_watcher import WikiWatcher
 
 # Lazy import for systems to avoid circular imports
 _leverage_system = None
@@ -113,6 +114,7 @@ class CampaignManager:
         self._enable_wiki = enable_wiki
         self._wiki_dir = Path(wiki_dir)
         self._wiki: WikiAdapter | None = None
+        self._wiki_watcher: WikiWatcher | None = None
 
         # Game systems (lazily initialized)
         self._leverage_system = None
@@ -173,17 +175,32 @@ class CampaignManager:
                 wiki_dir=self._wiki_dir,
                 enabled=True,
             )
+            self._wiki_watcher = WikiWatcher(
+                manager=self,
+                wiki_dir=self._wiki_dir,
+                campaign_id=campaign_id,
+            )
+            self._wiki_watcher.start_watching()
         else:
             self._wiki = None
+            self._wiki_watcher = None
 
     def _close_wiki(self) -> None:
         """Close current wiki adapter."""
+        if self._wiki_watcher:
+            self._wiki_watcher.stop_watching()
+            self._wiki_watcher = None
         self._wiki = None
 
     @property
     def wiki(self) -> WikiAdapter | None:
         """Access the wiki adapter (may be None if disabled)."""
         return self._wiki
+
+    @property
+    def wiki_watcher(self) -> WikiWatcher | None:
+        """Access the wiki watcher (may be None if disabled/unavailable)."""
+        return self._wiki_watcher
 
     def record_turn(
         self,

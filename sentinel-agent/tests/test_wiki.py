@@ -226,11 +226,11 @@ class TestEventIds:
             event_type="hinge",
         )
 
-        # Read file to verify first append
+        # Read file to verify first append (now in sessions/{date}/_game_log.md)
         sessions_dir = wiki_adapter.overlay_dir / "sessions"
-        session_files = list(sessions_dir.glob("*.md"))
-        assert len(session_files) == 1
-        content_after_first = session_files[0].read_text()
+        game_logs = list(sessions_dir.glob("*/_game_log.md"))
+        assert len(game_logs) == 1
+        content_after_first = game_logs[0].read_text()
 
         # Second append with same content (should be skipped)
         result2 = wiki_adapter.append_to_session_note(
@@ -240,7 +240,7 @@ class TestEventIds:
             event_type="hinge",
         )
 
-        content_after_second = session_files[0].read_text()
+        content_after_second = game_logs[0].read_text()
 
         assert result1 is True
         assert result2 is True  # Returns True even when skipped
@@ -402,16 +402,13 @@ class TestWikiAdapterIntegration:
             event_type="npc",
         )
 
-        # Verify file was created with all sections
+        # Verify game log was created with all content (now in _game_log.md)
         sessions_dir = wiki_adapter.overlay_dir / "sessions"
-        session_files = list(sessions_dir.glob("*.md"))
-        assert len(session_files) == 1
+        game_logs = list(sessions_dir.glob("*/_game_log.md"))
+        assert len(game_logs) == 1
 
-        content = session_files[0].read_text()
-        # First append uses "Live Updates" section by default for new files
-        assert "Live Updates" in content
-        assert "Faction Changes" in content
-        assert "NPCs Encountered" in content
+        content = game_logs[0].read_text()
+        # Content separation: all live updates go to game log
         assert "Made a choice" in content
         assert "Nexus" in content
         assert "Cipher" in content
@@ -428,8 +425,8 @@ class TestWikiAdapterIntegration:
             )
 
         sessions_dir = wiki_adapter.overlay_dir / "sessions"
-        session_files = list(sessions_dir.glob("*.md"))
-        content = session_files[0].read_text()
+        game_logs = list(sessions_dir.glob("*/_game_log.md"))
+        content = game_logs[0].read_text()
 
         # Should only appear once
         assert content.count("Same choice") == 1
