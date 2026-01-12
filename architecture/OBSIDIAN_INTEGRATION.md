@@ -203,9 +203,15 @@ SORT date DESC
 ## Phase 5: Advanced Integration (Future)
 
 ### Template Engine
-- [ ] User-customizable templates for auto-generated pages (NPC, session, etc.)
-- [ ] Jinja2 or simple string replacement for layouts
-- [ ] Template location: `wiki/templates/` with fallback defaults
+- [x] User-customizable templates for auto-generated pages (NPC, session, etc.)
+- [x] Jinja2 or simple string replacement for layouts
+- [x] Template location: `wiki/templates/` with fallback defaults
+
+**Implementation:**
+- `src/state/templates.py`: TemplateEngine class with WikiTemplateLoader
+- Built-in default templates: npc, session, callouts (hinge/faction/thread)
+- Custom Jinja2 filters: `wikilink`, `npc_link`, `upper`
+- User templates override defaults when placed in `wiki/templates/`
 
 ### Bi-Directional Sync
 - [ ] Watch wiki files for frontmatter changes
@@ -235,7 +241,7 @@ SORT date DESC
 | Canvas | Obsidian core (built-in) |
 | Auto-update | Event queue hooks |
 | Hardening | Refactor WikiAdapter |
-| Templates | Jinja2 or string templates |
+| Templates | Jinja2 (added as dependency) ✓ |
 | Bi-directional | File watcher + state reload |
 | MOCs | Index generation on /debrief |
 
@@ -248,8 +254,8 @@ SORT date DESC
 3. **Frontmatter + Dataview** — Enables powerful queries ✓
 4. **Canvas** — Visual thread management ✓
 5. **Auto-update** — Full integration ✓
-6. **Hardening** — Atomic writes, write queue (before heavy use)
-7. **Templates** — User-customizable page layouts
+6. **Hardening** — Atomic writes, write queue (before heavy use) ✓
+7. **Templates** — User-customizable page layouts ✓
 8. **Bi-directional sync** — Wiki edits update game state
 
 ---
