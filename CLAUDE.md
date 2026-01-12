@@ -96,6 +96,14 @@ Semantic search over campaign history using [memvid](https://github.com/memvid/m
 - **Philosophy:** Evidence, not memory — raw frames are GM-only; player queries filter through faction bias
 - **Graceful degradation:** All ops are no-ops if SDK not installed
 
+### Wiki Timeline
+Campaign events are auto-logged to wiki overlay files for persistent, readable history.
+- **View:** `/wiki` shows campaign timeline with color-coded events
+- **Page overlays:** `/wiki <page>` shows campaign-specific additions to canon pages
+- **Compare:** `/compare` analyzes multiple campaigns for faction divergence and design testing
+- **Location:** `wiki/campaigns/{campaign_id}/_events.md`
+- **Windows support:** Unicode sanitized to ASCII for terminal compatibility
+
 ### Local Mode (8B-12B Models)
 Optimized context for smaller local models. Run with `--local` flag.
 - **Context budget:** 5K tokens (vs 13K standard)

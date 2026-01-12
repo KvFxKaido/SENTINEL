@@ -34,6 +34,8 @@ Then: `/new` → `/char` → `/start` → play
 | `/npc [name]` | View NPC info and personal history |
 | `/arc` | Manage emergent character arcs |
 | `/consequences` | View pending threads and avoided situations |
+| `/wiki [page]` | View campaign timeline or page overlay |
+| `/compare` | Cross-campaign analysis (faction divergence, hinges) |
 | `/timeline <query>` | Search campaign memory (requires memvid) |
 | `/simulate preview <action>` | Preview consequences without committing |
 | `/lore quotes` | Browse faction mottos and world truths |

@@ -258,6 +258,8 @@ SENTINEL/
 | `/search <term>` | Search campaign history for keywords |
 | `/summary [n]` | View session summary (n = session number) |
 | `/consequences` | View pending threads and avoided situations |
+| `/wiki [page]` | View campaign wiki timeline or specific page overlay |
+| `/compare` | Cross-campaign comparison (faction divergence, hinges, design analysis) |
 | `/timeline` | Search campaign memory (memvid semantic search) |
 
 ### Lore & Simulation
