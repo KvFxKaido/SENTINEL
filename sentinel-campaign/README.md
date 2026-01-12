@@ -62,7 +62,23 @@ Reference pages from the lore wiki, exposed as MCP resources.
 
 **Available pages:** Factions, Geography, Timeline, The Collapse, The Awakening, Judgment Hour, and all faction/region pages.
 
-Wiki pages are automatically discovered from the `wiki/` directory. Page names with spaces use underscores in URIs (e.g., `wiki://Steel_Syndicate`).
+Wiki pages are automatically discovered from the `wiki/canon/` directory. Page names with spaces use underscores in URIs (e.g., `wiki://Steel_Syndicate`).
+
+### Wiki Structure
+
+```
+wiki/
+├── canon/           # Base lore (never modified by gameplay)
+│   ├── Factions.md
+│   ├── Nexus.md
+│   └── ...
+└── campaigns/       # Per-campaign overlays
+    └── {campaign_id}/
+        ├── _events.md    # Auto-generated timeline
+        └── Nexus.md      # Override or extend canon
+```
+
+Canon pages are the source of truth. Campaign overlays can extend or replace canon pages for campaign-specific changes.
 
 ### Example: Faction Lore
 
@@ -109,7 +125,10 @@ Dynamic operations for campaign-specific faction state.
 | `log_faction_event` | Record faction-related event |
 | `get_faction_intel` | What faction knows about topic |
 | `query_faction_npcs` | NPCs by faction in campaign |
-| `search_wiki` | Search wiki for lore, factions, geography |
+| `search_wiki` | Search wiki (canon + campaign overlay) |
+| `get_wiki_page` | Get page with overlay merging |
+| `update_wiki` | Update campaign wiki overlay |
+| `log_wiki_event` | Log event to campaign timeline |
 
 ### Example: get_faction_standing
 
@@ -161,6 +180,7 @@ Dynamic operations for campaign-specific faction state.
 ```json
 {
   "query": "Collapse infrastructure",
+  "campaign_id": "abc123",
   "limit": 3
 }
 ```
@@ -169,24 +189,71 @@ Dynamic operations for campaign-specific faction state.
 ```json
 {
   "query": "Collapse infrastructure",
+  "campaign_id": "abc123",
   "matches": [
     {
       "page": "The Collapse",
+      "source": "canon",
       "score": 2,
-      "snippets": [
-        "## Infrastructure Failure\nThe cascading failures began in the power grid...",
-        "Transportation infrastructure collapsed within 72 hours..."
-      ]
+      "snippets": ["..."]
     },
     {
-      "page": "Lattice",
-      "score": 1,
-      "snippets": [
-        "Lattice emerged from the engineers who kept critical infrastructure..."
-      ]
+      "page": "Nexus",
+      "source": "overlay",
+      "score": 12,
+      "snippets": ["Session 3: Infrastructure data leaked..."]
     }
   ],
   "total_found": 2
+}
+```
+
+### Example: update_wiki (extend mode)
+
+Extend a canon page with campaign-specific content:
+
+**Input:**
+```json
+{
+  "campaign_id": "abc123",
+  "page": "Nexus",
+  "content": "### Session 3 Events\n\n- Standing dropped after surveillance exposure",
+  "mode": "extend",
+  "section": "## History"
+}
+```
+
+**Output:**
+```json
+{
+  "success": true,
+  "page": "Nexus",
+  "mode": "extend",
+  "path": "wiki/campaigns/abc123/Nexus.md"
+}
+```
+
+When `get_wiki_page` is called with this campaign, the canon Nexus page will include the campaign additions in the History section.
+
+### Example: log_wiki_event
+
+**Input:**
+```json
+{
+  "campaign_id": "abc123",
+  "session": 5,
+  "event": "Player exposed Nexus surveillance of Ember Colonies",
+  "related_pages": ["Nexus", "Ember Colonies"]
+}
+```
+
+**Output:**
+```json
+{
+  "success": true,
+  "event": "Player exposed Nexus surveillance of Ember Colonies",
+  "session": 5,
+  "path": "wiki/campaigns/abc123/_events.md"
 }
 ```
 

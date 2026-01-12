@@ -107,13 +107,14 @@ Core mechanics and narrative quality remain intact — you lose flavor text, not
 
 ## MCP Server: sentinel-campaign
 
-When enabled, provides faction tools and resources.
+When enabled, provides faction tools, wiki resources, and campaign state.
 
 ### Resources
 - `faction://{id}/lore` — History, ideology, structure
 - `faction://{id}/npcs` — NPC archetypes with wants/fears/speech
 - `faction://{id}/operations` — Goals, methods, tensions
 - `faction://relationships` — Inter-faction dynamics
+- `wiki://{page}` — Wiki page from canon
 
 ### Tools
 | Tool | Purpose |
@@ -123,6 +124,23 @@ When enabled, provides faction tools and resources.
 | `log_faction_event` | Record faction-related event |
 | `get_faction_intel` | What does faction know about topic? |
 | `query_faction_npcs` | NPCs by faction in campaign |
+| `search_wiki` | Search wiki (canon + campaign overlay) |
+| `get_wiki_page` | Get page with overlay merging |
+| `update_wiki` | Update campaign wiki overlay |
+| `log_wiki_event` | Log event to campaign timeline |
+
+### Wiki Overlay System
+Wiki supports per-campaign overlays:
+```
+wiki/
+├── canon/           # Base lore (never modified)
+└── campaigns/{id}/  # Per-campaign additions
+```
+
+- **Canon pages:** Source of truth, shared across campaigns
+- **Overlay pages:** Campaign-specific additions or overrides
+- **Extend mode:** Use `extends:` frontmatter to merge into canon pages
+- **Event logging:** `log_wiki_event` creates chronological campaign timeline
 
 ### Setup
 ```bash

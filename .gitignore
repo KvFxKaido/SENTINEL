@@ -43,7 +43,8 @@ sentinel-agent/.pytest_cache/
 sentinel-agent/tmp*/
 
 # Project specific
-campaigns/
+sentinel-agent/campaigns/
+wiki/campaigns/*/
 simulations/
 *.json.bak
 assets/portraits/
