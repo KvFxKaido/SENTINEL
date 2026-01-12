@@ -11,9 +11,9 @@ The wiki (`wiki/`) serves as the reference encyclopedia for SENTINEL lore. These
 ## Phase 1: Markdown Enhancements (No Code Changes)
 
 ### Callout Blocks for Mechanics
-- [ ] Define callout types for game events
-- [ ] Add callouts to existing wiki pages where relevant
-- [ ] Document callout conventions in wiki README
+- [x] Define callout types for game events
+- [x] Add callouts to existing wiki pages where relevant
+- [x] Document callout conventions in wiki README
 
 **Callout Types:**
 ```markdown
@@ -41,9 +41,9 @@ The wiki (`wiki/`) serves as the reference encyclopedia for SENTINEL lore. These
 ```
 
 ### Mermaid Faction Relationships
-- [ ] Add relationship diagram to Factions.md hub
-- [ ] Add mini-diagrams to individual faction pages (allies/rivals)
-- [ ] Include diagram legend
+- [x] Add relationship diagram to Factions.md hub
+- [x] Add mini-diagrams to individual faction pages (allies/rivals)
+- [x] Include diagram legend
 
 **Example:**
 ```mermaid

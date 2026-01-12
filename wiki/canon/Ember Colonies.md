@@ -72,6 +72,15 @@ These insular survivor settlements formed in places where geography itself provi
 | [[Lattice]] | Hostile | Enhancement represents everything Ember fears |
 | [[Wanderers]] | Tolerant | Respect for self-reliance; occasional trade |
 
+```mermaid
+graph LR
+    Ember ===|"trust + stories"| Witnesses
+    Ember ===|"escape + sanctuary"| Ghost_Networks
+    Ember ---|"ideological war"| Convergence
+    Ember -.-|"surveillance friction"| Nexus
+    Ember -.-|"infrastructure dependency"| Lattice
+```
+
 ---
 
 ## Culture

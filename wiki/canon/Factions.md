@@ -39,6 +39,45 @@ By 2060, the original binary of "Humans vs AI" collapsed into **eleven distinct 
 
 No faction exists in isolation. Alliances shift, territories overlap, and philosophies clash.
 
+### Relationship Web
+
+```mermaid
+graph TB
+    subgraph Hostile
+        Nexus ---|"deep rivalry"| Ghost_Networks
+        Ember ---|"ideological war"| Convergence
+        Witnesses ---|"records dispute"| Architects
+    end
+
+    subgraph Tense
+        Nexus -.-|"surveillance friction"| Ember
+        Witnesses -.-|"opposed purposes"| Ghost_Networks
+    end
+
+    subgraph Cooperative
+        Nexus ===|"mutual dependency"| Lattice
+        Lattice ===|"infrastructure + food"| Cultivators
+        Ember ===|"trust + stories"| Witnesses
+        Ghost_Networks ===|"escape + sanctuary"| Ember
+        Wanderers ===|"story carriers"| Witnesses
+    end
+
+    subgraph Transactional
+        Steel_Syndicate -.-|"materials for access"| Lattice
+        Ember -.-|"infrastructure dependency"| Lattice
+    end
+
+    subgraph Competitive
+        Nexus -.-|"pre-collapse authority"| Architects
+        Convergence -.-|"child vs parent"| Architects
+    end
+```
+
+> [!info] Reading the Diagram
+> - **Solid lines (===)**: Cooperative/friendly relationships
+> - **Dashed lines (-.-)**: Tense, transactional, or competitive
+> - **Lines in "Hostile" group**: Active opposition
+
 ### Common Tensions
 
 - **Control vs Autonomy**: [[Nexus]] and [[Lattice]] vs [[Ember Colonies]] and [[Ghost Networks]]
