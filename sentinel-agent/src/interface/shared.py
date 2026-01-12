@@ -570,6 +570,7 @@ def get_campaign_status(manager: "CampaignManager") -> dict | None:
 def get_wiki_timeline(manager: "CampaignManager", wiki_dir: str = "wiki") -> dict | None:
     """Get campaign wiki timeline events."""
     from pathlib import Path
+    import re
 
     if not manager.current:
         return None
@@ -588,12 +589,28 @@ def get_wiki_timeline(manager: "CampaignManager", wiki_dir: str = "wiki") -> dic
 
     content = events_file.read_text(encoding="utf-8")
 
-    # Parse events from markdown
+    # Parse events from markdown (supports both formats)
     events = []
+    current_session = None
+
     for line in content.split("\n"):
         line = line.strip()
+
+        # Session header: ## Session N
+        session_match = re.match(r"^## Session (\d+)", line)
+        if session_match:
+            current_session = int(session_match.group(1))
+            continue
+
+        # Event line: - (date) [TYPE]: description
+        if line.startswith("- (") and current_session is not None:
+            # Format as "S{n}: {event}" for display
+            event_text = line[2:]  # Remove "- " prefix
+            events.append(f"S{current_session}: {event_text}")
+            continue
+
+        # Legacy format: - **Session N** (date) [TYPE]: description
         if line.startswith("- **Session"):
-            # Parse: - **Session N** (date) [TYPE]: description
             events.append(line[2:])  # Remove "- " prefix
 
     return {
