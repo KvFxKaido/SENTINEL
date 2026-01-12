@@ -22,6 +22,9 @@ SENTINEL is a tactical tabletop RPG plus an AI Game Master implementation. The r
   - `sentinel-agent/src/state/schema.py` (Pydantic source of truth)
   - `sentinel-agent/src/state/manager.py` (campaign CRUD + domain ops)
   - `sentinel-agent/src/state/store.py` (JsonCampaignStore + MemoryCampaignStore)
+  - `sentinel-agent/src/state/wiki_adapter.py` (Obsidian wiki generation + hardened writes)
+  - `sentinel-agent/src/state/wiki_watcher.py` (bi-directional sync via watchdog)
+  - `sentinel-agent/src/state/templates.py` (Jinja2 template engine for wiki pages)
   - `sentinel-agent/src/interface/cli.py` (Rich terminal UI + command loop)
   - `sentinel-agent/prompts/*.md` (hot-reloadable behavior modules)
   - `sentinel-agent/tests/` (golden/boundary; keep changes intentional)
@@ -46,6 +49,8 @@ SENTINEL is a tactical tabletop RPG plus an AI Game Master implementation. The r
 - Add/modify **game mechanics tools**: `sentinel-agent/src/tools/` and register schemas/handlers in `sentinel-agent/src/agent.py`.
 - Change **campaign state fields**: `sentinel-agent/src/state/schema.py`, then follow through in `manager.py` and any save/load expectations.
 - Change **CLI behavior/commands**: `sentinel-agent/src/interface/cli.py` (and supporting `commands.py`, `renderer.py`, `choices.py`, `glyphs.py`).
+- Change **wiki generation/templates**: `sentinel-agent/src/state/wiki_adapter.py`, `templates.py`; override templates in `wiki/templates/`.
+- Change **wiki sync behavior**: `sentinel-agent/src/state/wiki_watcher.py` (frontmatter parsing, conflict resolution).
 - Change **faction content**: `sentinel-campaign/src/sentinel_campaign/data/factions/*.json` and `sentinel-campaign/src/sentinel_campaign/data/relationships.json`.
 - Change **MCP behavior**: `sentinel-campaign/src/sentinel_campaign/server.py` and `sentinel-campaign/src/sentinel_campaign/tools/__init__.py`.
 

@@ -5,7 +5,7 @@ Context and guidelines for Gemini models working on the SENTINEL project.
 ## Project Overview
 
 SENTINEL is an AI-driven tabletop RPG engine focusing on political tension, ethical tradeoffs, and survival.
-The system is composed of a Python-based CLI agent (`sentinel-agent`) and a Model Context Protocol server (`sentinel-mcp`) that manages world state and faction dynamics.
+The system is composed of a Python-based CLI agent (`sentinel-agent`) and a Model Context Protocol server (`sentinel-campaign`) that manages world state and faction dynamics.
 
 ## System Architecture
 
@@ -13,9 +13,12 @@ The system is composed of a Python-based CLI agent (`sentinel-agent`) and a Mode
 *   **`sentinel-agent/`**: The primary executable and Orchestrator.
     *   **`src/agent.py`**: The main game loop (Input -> Retrieve -> Decide -> Render).
     *   **`src/state/`**: Pydantic models defining the game state. **Critical**: This is the single source of truth for runtime data.
+        *   `wiki_adapter.py`: Obsidian wiki generation with hardened writes (atomic, serialized, idempotent).
+        *   `wiki_watcher.py`: Bi-directional sync — frontmatter edits in Obsidian update game state.
+        *   `templates.py`: Jinja2 template engine for wiki pages (user-overridable in `wiki/templates/`).
     *   **`src/llm/`**: Abstraction layer for LLM providers (Claude, OpenAI, Local).
     *   **`src/interface/`**: Handles CLI rendering, glyphs, and user input.
-*   **`sentinel-mcp/`**: A specialized MCP server.
+*   **`sentinel-campaign/`**: A specialized MCP server.
     *   Serves faction data, relationships, and dynamic world updates as tools to the Agent.
     *   Maintains the simulation of the "living world" outside player view.
 *   **`core/` & `lore/`**: Static data and narrative constraints.
@@ -54,5 +57,5 @@ When analyzing or modifying this codebase, prioritize:
 ## Gemini-Specific Tips
 
 *   **Big Picture**: Use your large context window to ingest `architecture/AGENT_ARCHITECTURE.md` and `core/SENTINEL Playbook — Core Rules.md` simultaneously to ensure code changes align with game design.
-*   **Pattern Matching**: Look for discrepancies between `sentinel-mcp` tool definitions and `sentinel-agent` tool usage—this is a common drift point.
-*   **Refactoring**: Identify opportunities to move hardcoded logic from `agent.py` into data-driven structures in `sentinel-mcp`.
+*   **Pattern Matching**: Look for discrepancies between `sentinel-campaign` tool definitions and `sentinel-agent` tool usage—this is a common drift point.
+*   **Refactoring**: Identify opportunities to move hardcoded logic from `agent.py` into data-driven structures in `sentinel-campaign`.
