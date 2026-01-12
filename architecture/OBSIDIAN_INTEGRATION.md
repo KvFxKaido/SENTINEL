@@ -191,12 +191,12 @@ SORT date DESC
 *Note: Graph optimization requires manual Obsidian CSS configuration*
 
 ### Hardening (Council Review)
-- [ ] Atomic writes — write to temp file, then rename to prevent corruption
+- [x] Atomic writes — write to temp file, then rename to prevent corruption
 - [ ] Write queue — serialize wiki updates to prevent race conditions
 - [ ] Event IDs — idempotent appends to avoid duplicates on retry
 - [ ] Error buffering — queue failed writes for retry, don't silently drop
 
-*Note: Current live updates work for single-user play but need hardening for reliability*
+*Note: Atomic writes implemented via `_atomic_write()` helper*
 
 ---
 

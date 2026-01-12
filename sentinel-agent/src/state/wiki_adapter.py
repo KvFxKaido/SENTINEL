@@ -14,6 +14,8 @@ This adapter mirrors the MemvidAdapter interface for consistency.
 from __future__ import annotations
 
 import logging
+import os
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -84,6 +86,46 @@ class WikiAdapter:
         except Exception as e:
             logger.error(f"Failed to create overlay directory: {e}")
             self.enabled = False
+
+    def _atomic_write(self, filepath: Path, content: str) -> bool:
+        """
+        Write content to file atomically.
+
+        Uses write-to-temp-then-rename pattern to prevent corruption
+        from interrupted writes or concurrent access.
+
+        Args:
+            filepath: Target file path
+            content: Content to write
+
+        Returns:
+            True if successful
+        """
+        try:
+            # Create temp file in same directory (ensures same filesystem for rename)
+            fd, temp_path = tempfile.mkstemp(
+                dir=filepath.parent,
+                prefix=f".{filepath.stem}_",
+                suffix=".tmp",
+            )
+            try:
+                # Write content to temp file
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    f.write(content)
+                # Atomic rename (overwrites target on POSIX, may need replace on Windows)
+                temp_file = Path(temp_path)
+                temp_file.replace(filepath)
+                return True
+            except Exception:
+                # Clean up temp file on failure
+                try:
+                    os.unlink(temp_path)
+                except OSError:
+                    pass
+                raise
+        except Exception as e:
+            logger.error(f"Atomic write failed for {filepath}: {e}")
+            return False
 
     def _get_last_session_from_file(self, events_file: Path) -> int | None:
         """Parse the events file to find the last session number."""
@@ -167,7 +209,8 @@ class WikiAdapter:
                     f"{entry}\n"
                 )
 
-            events_file.write_text(new_content, encoding="utf-8")
+            if not self._atomic_write(events_file, new_content):
+                return False
             self._last_session = session
             logger.debug(f"Logged wiki event: {event[:50]}...")
             return True
@@ -225,7 +268,8 @@ class WikiAdapter:
                 frontmatter += "---\n\n"
                 new_content = frontmatter + content
 
-            page_file.write_text(new_content, encoding="utf-8")
+            if not self._atomic_write(page_file, new_content):
+                return False
             logger.debug(f"Extended wiki page: {page}")
             return True
 
@@ -450,7 +494,8 @@ class WikiAdapter:
                     f"**{npc.name}:** {npc_reaction}{change_text}\n"
                 )
 
-            npc_file.write_text(new_content, encoding="utf-8")
+            if not self._atomic_write(npc_file, new_content):
+                return False
             logger.debug(f"Updated NPC page: {npc.name}")
             return True
 
@@ -644,17 +689,14 @@ class WikiAdapter:
                 lines.append(f"- **What I'd refuse:** {reflections['would_refuse']}")
             lines.append("")
 
-        # Write file
+        # Write file atomically
         filename = f"{date_str}.md"
         filepath = sessions_dir / filename
 
-        try:
-            filepath.write_text("\n".join(lines), encoding="utf-8")
-            logger.info(f"Saved session summary to wiki: {filepath}")
-            return filepath
-        except Exception as e:
-            logger.error(f"Failed to save session summary: {e}")
+        if not self._atomic_write(filepath, "\n".join(lines)):
             return None
+        logger.info(f"Saved session summary to wiki: {filepath}")
+        return filepath
 
     def _extract_faction_link(self, summary_text: str) -> str | None:
         """Extract faction wikilink from summary text if possible."""
@@ -749,7 +791,8 @@ class WikiAdapter:
                     f"{content}\n"
                 )
 
-            filepath.write_text(new_content, encoding="utf-8")
+            if not self._atomic_write(filepath, new_content):
+                return False
             logger.debug(f"Appended to session note: {filepath.name}")
             return True
 
