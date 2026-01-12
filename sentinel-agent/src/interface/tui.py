@@ -1670,7 +1670,7 @@ class SentinelTUI(App):
                 log.write(Text.from_markup(
                     f"[{Theme.TEXT}]Current: {info.get('backend', 'none')}[/{Theme.TEXT}]"
                 ))
-                log.write(Text.from_markup(f"[{Theme.DIM}]Usage: /backend <lmstudio|ollama|claude|gemini|codex>[/{Theme.DIM}]"))
+                log.write(Text.from_markup(f"[{Theme.DIM}]Usage: /backend <lmstudio|ollama|claude>[/{Theme.DIM}]"))
             else:
                 backend = args[0].lower()
                 log.write(Text.from_markup(f"[{Theme.DIM}]Switching to {backend}...[/{Theme.DIM}]"))
@@ -1683,6 +1683,8 @@ class SentinelTUI(App):
                 )
                 info = self.agent.backend_info
                 if info["available"]:
+                    # Save backend preference
+                    set_backend(backend, campaigns_dir=getattr(self, "campaigns_dir", "campaigns"))
                     log.write(Text.from_markup(f"[{Theme.FRIENDLY}]Now using: {info['backend']} ({info['model']})[/{Theme.FRIENDLY}]"))
                 else:
                     log.write(Text.from_markup(f"[{Theme.DANGER}]Backend not available[/{Theme.DANGER}]"))
@@ -2119,25 +2121,25 @@ class SentinelTUI(App):
             # Apply filters
             filtered = history
             if filter_type:
-                filtered = [h for h in history if h.entry_type.value == filter_type]
+                filtered = [h for h in history if h.type.value == filter_type]
             if session_filter:
                 filtered = [h for h in history if h.session == session_filter]
             if search_term:
-                filtered = [h for h in history if search_term in h.content.lower()]
+                filtered = [h for h in history if search_term in h.summary.lower()]
 
             log.write(Text.from_markup(f"[bold {Theme.TEXT}]Campaign Chronicle[/bold {Theme.TEXT}]"))
             if not filtered:
                 log.write(Text.from_markup(f"[{Theme.DIM}]No matching entries[/{Theme.DIM}]"))
             else:
                 for entry in filtered[-15:]:  # Last 15
-                    etype = entry.entry_type.value
+                    etype = entry.type.value
                     if etype == "hinge":
                         icon = f"[{Theme.DANGER}]{g('hinge')}[/{Theme.DANGER}]"
                     elif etype == "faction_shift":
                         icon = f"[{Theme.WARNING}]{g('triggered')}[/{Theme.WARNING}]"
                     else:
                         icon = f"[{Theme.DIM}]•[/{Theme.DIM}]"
-                    log.write(Text.from_markup(f"  {icon} S{entry.session}: {entry.content[:60]}..."))
+                    log.write(Text.from_markup(f"  {icon} S{entry.session}: {entry.summary[:60]}..."))
             return
 
         if cmd == "/summary":

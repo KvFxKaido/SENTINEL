@@ -96,13 +96,14 @@ def get_faction_standings(manager: "CampaignManager") -> dict | None:
         return None
 
     standings = []
-    for faction_enum in manager.current.factions.standings:
-        state = manager.current.factions.get(faction_enum)
+    # Iterate over FactionRegistry fields
+    for field_name in manager.current.factions.model_fields:
+        faction_standing = getattr(manager.current.factions, field_name)
         standings.append({
-            "id": faction_enum.value,
-            "name": faction_enum.value.replace("_", " ").title(),
-            "standing": state.standing.value,
-            "reputation": state.reputation,
+            "id": field_name,
+            "name": faction_standing.faction.value,
+            "standing": faction_standing.standing.value,
+            "reputation": getattr(faction_standing, 'reputation', 0),
         })
 
     return {"standings": standings}
@@ -114,9 +115,9 @@ def format_faction_summary(manager: "CampaignManager") -> str:
         return "No campaign loaded"
 
     lines = []
-    for faction_enum in manager.current.factions.standings:
-        state = manager.current.factions.get(faction_enum)
-        lines.append(f"- {faction_enum.value}: {state.standing.value}")
+    for field_name in manager.current.factions.model_fields:
+        faction_standing = getattr(manager.current.factions, field_name)
+        lines.append(f"- {faction_standing.faction.value}: {faction_standing.standing.value}")
 
     return "\n".join(lines) if lines else "All Neutral"
 
@@ -253,7 +254,7 @@ def get_dormant_threads(manager: "CampaignManager") -> list[dict] | None:
             "origin": t.origin,
             "trigger_condition": t.trigger_condition,
             "severity": t.severity.value,
-            "queued_session": t.queued_session,
+            "created_session": t.created_session,
         })
 
     return threads
@@ -270,12 +271,22 @@ def get_hinge_history(manager: "CampaignManager", limit: int = 10) -> list[dict]
 
     hinges = []
     for entry in manager.current.history:
+        # Check for full hinge object or just hinge type
         if entry.hinge:
             hinges.append({
                 "session": entry.session,
                 "summary": entry.summary,
                 "choice": entry.hinge.choice,
                 "what_shifted": entry.hinge.what_shifted,
+                "timestamp": entry.timestamp.isoformat() if entry.timestamp else None,
+            })
+        elif entry.type.value == "hinge":
+            # Simplified hinge entry without full object
+            hinges.append({
+                "session": entry.session,
+                "summary": entry.summary,
+                "choice": entry.summary,  # Use summary as choice
+                "what_shifted": "",
                 "timestamp": entry.timestamp.isoformat() if entry.timestamp else None,
             })
 
