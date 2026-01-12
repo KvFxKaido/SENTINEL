@@ -44,7 +44,9 @@ sentinel-agent/tmp*/
 
 # Project specific
 sentinel-agent/campaigns/
+campaigns/
 wiki/campaigns/*/
+wiki/.obsidian/
 simulations/
 *.json.bak
 assets/portraits/
