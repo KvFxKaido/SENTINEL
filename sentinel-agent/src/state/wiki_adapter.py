@@ -248,6 +248,7 @@ class WikiAdapter:
         Log a hinge moment to wiki.
 
         Creates timeline entry and optionally extends related pages.
+        Also appends to live session note.
         """
         if not self.enabled:
             return False
@@ -265,6 +266,14 @@ class WikiAdapter:
             related_pages=None,  # Could extract from what_shifted
         )
 
+        # Append to live session note
+        callout = f"> [!hinge] {hinge.choice}\n"
+        if hinge.situation:
+            callout += f"> **Situation:** {hinge.situation}\n"
+        if immediate_effects:
+            callout += f"> **Effects:** {', '.join(immediate_effects[:3])}\n"
+        self.append_to_session_note(session, callout, section="Key Choices")
+
         return True
 
     def save_faction_shift(
@@ -278,7 +287,7 @@ class WikiAdapter:
         """
         Log a faction standing change to wiki.
 
-        Creates timeline entry and extends faction page.
+        Creates timeline entry, extends faction page, and appends to live session note.
         """
         if not self.enabled:
             return False
@@ -305,6 +314,11 @@ class WikiAdapter:
             content=content,
             section="## Campaign History",
         )
+
+        # Append to live session note
+        callout = f"> [!faction] [[{faction_name}]]: {from_standing} → {to_standing}\n"
+        callout += f"> {cause}\n"
+        self.append_to_session_note(session, callout, section="Faction Changes")
 
         return True
 
@@ -347,6 +361,18 @@ class WikiAdapter:
                 event_type="npc",
                 related_pages=[faction_name] if npc.faction else None,
             )
+
+        # Append to live session note
+        npc_link = f"[[NPCs/{npc.name}|{npc.name}]]"
+        faction_link = f"([[{faction_name}]])" if npc.faction else ""
+        if disposition_change > 0:
+            disp_text = f" *(+{disposition_change})*"
+        elif disposition_change < 0:
+            disp_text = f" *({disposition_change})*"
+        else:
+            disp_text = ""
+        npc_line = f"- {npc_link} {faction_link}{disp_text}\n"
+        self.append_to_session_note(session, npc_line, section="NPCs Encountered")
 
         return True
 
@@ -436,7 +462,7 @@ class WikiAdapter:
         self,
         thread: DormantThread,
     ) -> bool:
-        """Log a new dormant thread to wiki timeline."""
+        """Log a new dormant thread to wiki timeline and live session note."""
         if not self.enabled:
             return False
 
@@ -447,6 +473,16 @@ class WikiAdapter:
             event_type="thread",
         )
 
+        # Append to live session note
+        severity = thread.severity.value.upper()
+        callout = f"> [!thread] {thread.origin}\n"
+        callout += f"> **Severity:** {severity}\n"
+        if thread.trigger:
+            callout += f"> **Trigger:** {thread.trigger}\n"
+        self.append_to_session_note(
+            thread.created_session, callout, section="Threads Queued"
+        )
+
         return True
 
     def save_thread_triggered(
@@ -455,7 +491,7 @@ class WikiAdapter:
         session: int,
         outcome: str,
     ) -> bool:
-        """Log when a dormant thread triggers."""
+        """Log when a dormant thread triggers and append to live session note."""
         if not self.enabled:
             return False
 
@@ -465,6 +501,12 @@ class WikiAdapter:
             event=event,
             event_type="thread",
         )
+
+        # Append to live session note
+        callout = f"> [!success] {thread.origin}\n"
+        callout += f"> **Outcome:** {outcome}\n"
+        callout += f"> *Dormant since session {thread.created_session}*\n"
+        self.append_to_session_note(session, callout, section="Threads Resolved")
 
         return True
 
@@ -625,6 +667,95 @@ class WikiAdapter:
             if faction.lower() in summary_text.lower():
                 return f"[[{faction}]]"
         return None
+
+    def append_to_session_note(
+        self,
+        session: int,
+        content: str,
+        section: str | None = None,
+    ) -> bool:
+        """
+        Append content to today's session note during active play.
+
+        Creates the session note if it doesn't exist. Appends to the
+        specified section or creates a new "## Live Updates" section.
+
+        Args:
+            session: Session number
+            content: Content to append (markdown)
+            section: Optional section header to append under
+
+        Returns:
+            True if successful
+        """
+        if not self.enabled:
+            return False
+
+        sessions_dir = self.overlay_dir / "sessions"
+        try:
+            sessions_dir.mkdir(exist_ok=True)
+        except Exception:
+            return False
+
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        filepath = sessions_dir / f"{date_str}.md"
+
+        try:
+            if filepath.exists():
+                existing = filepath.read_text(encoding="utf-8")
+
+                # Find or create the target section
+                if section:
+                    section_header = f"## {section}"
+                    if section_header in existing:
+                        # Append under existing section
+                        parts = existing.split(section_header, 1)
+                        if len(parts) == 2:
+                            # Find next section or end of file
+                            rest = parts[1]
+                            next_section = rest.find("\n## ")
+                            if next_section != -1:
+                                insert_point = next_section
+                                new_content = (
+                                    parts[0] + section_header +
+                                    rest[:insert_point].rstrip() + "\n" + content + "\n" +
+                                    rest[insert_point:]
+                                )
+                            else:
+                                new_content = existing.rstrip() + "\n" + content + "\n"
+                        else:
+                            new_content = existing.rstrip() + f"\n\n{section_header}\n\n{content}\n"
+                    else:
+                        # Create new section
+                        new_content = existing.rstrip() + f"\n\n{section_header}\n\n{content}\n"
+                else:
+                    # Append to "Live Updates" section
+                    live_header = "## Live Updates"
+                    if live_header in existing:
+                        new_content = existing.rstrip() + "\n" + content + "\n"
+                    else:
+                        new_content = existing.rstrip() + f"\n\n{live_header}\n\n{content}\n"
+            else:
+                # Create new file with minimal structure
+                new_content = (
+                    "---\n"
+                    f"session: {session}\n"
+                    f"date: {date_str}\n"
+                    f"campaign: {self.campaign_id}\n"
+                    "type: session\n"
+                    "---\n\n"
+                    f"# Session {session} — {datetime.now().strftime('%B %d, %Y')}\n\n"
+                    "## Live Updates\n\n"
+                    f"{content}\n"
+                )
+
+            filepath.write_text(new_content, encoding="utf-8")
+            logger.debug(f"Appended to session note: {filepath.name}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to append to session note: {e}")
+            return False
 
     # -------------------------------------------------------------------------
     # Utility

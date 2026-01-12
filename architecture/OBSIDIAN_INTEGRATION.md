@@ -172,15 +172,23 @@ SORT date DESC
 ## Phase 4: Automation (Advanced)
 
 ### Auto-Update from Agent Events
-- [ ] Hook into event queue to update wiki on faction shifts
-- [ ] Auto-create NPC pages on first encounter
-- [ ] Update frontmatter when disposition changes
-- [ ] Append to daily note during session
+- [x] Hook into event queue to update wiki on faction shifts
+- [x] Auto-create NPC pages on first encounter
+- [x] Update frontmatter when disposition changes
+- [x] Append to daily note during session (live updates)
 
-### Graph View Optimization
+**Implementation:**
+- `WikiAdapter.save_*` methods now call `append_to_session_note()` for real-time updates
+- NPC pages created in `wiki/campaigns/{id}/NPCs/` with faction wikilinks
+- Manager hooks trigger wiki updates on NPC interactions, hinge moments, thread events
+- Session notes build incrementally during play, finalized at `/debrief`
+
+### Graph View Optimization (Optional)
 - [ ] Tag structure for meaningful clusters
 - [ ] Faction colors in graph (via CSS snippets)
 - [ ] Filter presets for campaign-specific views
+
+*Note: Graph optimization requires manual Obsidian CSS configuration*
 
 ---
 
