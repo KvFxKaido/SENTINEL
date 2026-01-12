@@ -7,8 +7,64 @@ from pathlib import Path
 from uuid import uuid4
 
 
+# -----------------------------------------------------------------------------
+# Path Security
+# -----------------------------------------------------------------------------
+
+def _validate_safe_name(name: str, allow_spaces: bool = True) -> str:
+    """
+    Validate that a name is safe for use in file paths.
+
+    Prevents path traversal attacks by rejecting:
+    - Path separators (/, \\)
+    - Parent directory references (..)
+    - Null bytes
+
+    Args:
+        name: The name to validate (campaign_id, page name, etc.)
+        allow_spaces: Whether to allow spaces in the name
+
+    Returns:
+        The validated name (unchanged if valid)
+
+    Raises:
+        ValueError: If the name contains unsafe characters
+    """
+    if not name:
+        raise ValueError("Name cannot be empty")
+
+    # Check for path traversal attempts
+    if ".." in name:
+        raise ValueError(f"Invalid name (contains '..'): {name}")
+
+    if "/" in name or "\\" in name:
+        raise ValueError(f"Invalid name (contains path separator): {name}")
+
+    # Check for null bytes (can truncate paths in some systems)
+    if "\x00" in name:
+        raise ValueError(f"Invalid name (contains null byte): {name}")
+
+    # Optional: restrict to safe characters
+    if not allow_spaces:
+        # Only allow alphanumeric, underscore, hyphen
+        if not re.match(r'^[\w\-]+$', name):
+            raise ValueError(f"Invalid name (unsafe characters): {name}")
+    else:
+        # Allow spaces too
+        if not re.match(r'^[\w\-\s]+$', name):
+            raise ValueError(f"Invalid name (unsafe characters): {name}")
+
+    return name
+
+
 def _load_campaign(campaigns_dir: Path, campaign_id: str) -> dict | None:
     """Load campaign JSON file."""
+    # Validate campaign_id to prevent path traversal
+    try:
+        _validate_safe_name(campaign_id, allow_spaces=False)
+    except ValueError as e:
+        return None  # Invalid campaign_id treated as not found
+
     # Try exact match
     campaign_file = campaigns_dir / f"{campaign_id}.json"
     if campaign_file.exists():
@@ -24,6 +80,12 @@ def _load_campaign(campaigns_dir: Path, campaign_id: str) -> dict | None:
 
 def _save_campaign(campaigns_dir: Path, campaign_id: str, data: dict) -> bool:
     """Save campaign JSON file."""
+    # Validate campaign_id to prevent path traversal
+    try:
+        _validate_safe_name(campaign_id, allow_spaces=False)
+    except ValueError as e:
+        return False  # Invalid campaign_id
+
     campaign_file = campaigns_dir / f"{campaign_id}.json"
 
     # Find the actual file if partial ID
@@ -237,6 +299,13 @@ def get_faction_intel(
     topic: str,
 ) -> dict:
     """Query what a faction knows about a topic."""
+    # Validate faction to prevent path traversal (defense-in-depth)
+    # Note: server.py also validates via enum, but we validate here too
+    try:
+        _validate_safe_name(faction, allow_spaces=False)
+    except ValueError as e:
+        return {"error": str(e)}
+
     # Load faction data for intel capabilities
     faction_file = data_dir / "factions" / f"{faction}.json"
     faction_data = {}
@@ -405,6 +474,14 @@ def get_wiki_page(
     Checks for campaign-specific overlay first, falls back to canon.
     Supports 'extends' frontmatter for section-level merging.
     """
+    # Validate inputs to prevent path traversal
+    try:
+        _validate_safe_name(page, allow_spaces=True)
+        if campaign_id:
+            _validate_safe_name(campaign_id, allow_spaces=False)
+    except ValueError as e:
+        return {"error": str(e)}
+
     canon_dir = wiki_dir / "canon"
     page_filename = f"{page}.md"
 
@@ -480,6 +557,13 @@ def search_wiki(
     Searches both canon and campaign overlay, with overlay results prioritized.
     Returns matching snippets with context.
     """
+    # Validate campaign_id to prevent path traversal
+    if campaign_id:
+        try:
+            _validate_safe_name(campaign_id, allow_spaces=False)
+        except ValueError as e:
+            return {"error": str(e)}
+
     canon_dir = wiki_dir / "canon"
 
     if not canon_dir.exists():
@@ -579,6 +663,13 @@ def update_wiki(
     - 'replace': Replace entire page content
     - 'extend': Create an extends overlay for a canon page
     """
+    # Validate inputs to prevent path traversal
+    try:
+        _validate_safe_name(campaign_id, allow_spaces=False)
+        _validate_safe_name(page, allow_spaces=True)
+    except ValueError as e:
+        return {"error": str(e)}
+
     overlay_dir = wiki_dir / "campaigns" / campaign_id
     overlay_dir.mkdir(parents=True, exist_ok=True)
 
@@ -646,6 +737,16 @@ def log_wiki_event(
     Creates/updates _events.md in the campaign overlay.
     Optionally links to related pages for cross-referencing.
     """
+    # Validate inputs to prevent path traversal
+    try:
+        _validate_safe_name(campaign_id, allow_spaces=False)
+        # Validate related page names too
+        if related_pages:
+            for page in related_pages:
+                _validate_safe_name(page, allow_spaces=True)
+    except ValueError as e:
+        return {"error": str(e)}
+
     overlay_dir = wiki_dir / "campaigns" / campaign_id
     overlay_dir.mkdir(parents=True, exist_ok=True)
 
