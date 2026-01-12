@@ -2706,6 +2706,102 @@ def _search_timeline_unified(agent: SentinelAgent, query: str):
 
 
 # -----------------------------------------------------------------------------
+# Wiki Commands
+# -----------------------------------------------------------------------------
+
+def cmd_wiki(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
+    """View campaign wiki timeline and page overlays.
+
+    Usage:
+        /wiki              - Show campaign event timeline
+        /wiki <page>       - Show overlay for a specific page (e.g., Nexus)
+
+    The wiki timeline shows significant campaign events:
+    - Hinge moments (irreversible choices)
+    - Faction standing changes
+    - Dormant threads created
+
+    Events are auto-logged during play and persist across sessions.
+    """
+    from .shared import get_wiki_timeline, get_wiki_page_overlay
+
+    if not manager.current:
+        console.print(f"[{THEME['warning']}]No campaign loaded[/{THEME['warning']}]")
+        return
+
+    # Determine wiki_dir from manager if available
+    wiki_dir = getattr(manager, '_wiki_dir', 'wiki')
+
+    if not args:
+        # Show timeline
+        result = get_wiki_timeline(manager, wiki_dir=str(wiki_dir))
+
+        if not result:
+            console.print(f"[{THEME['warning']}]Could not load wiki timeline[/{THEME['warning']}]")
+            return
+
+        console.print(f"\n[bold {THEME['primary']}]◈ CAMPAIGN WIKI ◈[/bold {THEME['primary']}]")
+        console.print(f"[{THEME['dim']}]{result['campaign_name']} ({result['campaign_id'][:8]})[/{THEME['dim']}]\n")
+
+        if not result['events']:
+            console.print(f"[{THEME['dim']}]{result.get('message', 'No events recorded yet.')}[/{THEME['dim']}]")
+            console.print(f"\n[{THEME['dim']}]Events are auto-logged during play:[/{THEME['dim']}]")
+            console.print(f"  [{THEME['secondary']}]{g('bullet')}[/{THEME['secondary']}] Hinge moments (irreversible choices)")
+            console.print(f"  [{THEME['secondary']}]{g('bullet')}[/{THEME['secondary']}] Faction standing changes")
+            console.print(f"  [{THEME['secondary']}]{g('bullet')}[/{THEME['secondary']}] Dormant threads queued")
+            return
+
+        # Show events grouped by type
+        console.print(f"[bold {THEME['accent']}]Timeline ({result['event_count']} events)[/bold {THEME['accent']}]\n")
+
+        for event in result['events']:
+            # Color-code by type
+            if "[HINGE]" in event:
+                color = THEME['danger']
+                icon = g('hinge')
+            elif "[FACTION]" in event:
+                color = THEME['accent']
+                icon = g('faction')
+            elif "[THREAD]" in event:
+                color = THEME['warning']
+                icon = g('thread')
+            elif "[NPC]" in event:
+                color = THEME['secondary']
+                icon = g('npc')
+            else:
+                color = THEME['text']
+                icon = g('bullet')
+
+            console.print(f"  [{color}]{icon}[/{color}] {event}")
+
+        console.print(f"\n[{THEME['dim']}]Use /wiki <page> to see campaign changes to a specific page[/{THEME['dim']}]")
+        return
+
+    # Show specific page overlay
+    page = " ".join(args)
+    result = get_wiki_page_overlay(manager, page, wiki_dir=str(wiki_dir))
+
+    if not result:
+        console.print(f"[{THEME['warning']}]Could not load wiki page[/{THEME['warning']}]")
+        return
+
+    if not result['exists']:
+        console.print(f"[{THEME['dim']}]No campaign overlay exists for '{page}'[/{THEME['dim']}]")
+        console.print(f"[{THEME['dim']}]Overlays are created when campaign events affect a page.[/{THEME['dim']}]")
+        return
+
+    console.print(f"\n[bold {THEME['primary']}]◈ WIKI OVERLAY: {page} ◈[/bold {THEME['primary']}]")
+    console.print(f"[{THEME['dim']}]Campaign-specific additions to canon[/{THEME['dim']}]\n")
+
+    # Display content with markdown-like formatting
+    from rich.markdown import Markdown
+    from rich.panel import Panel
+
+    md = Markdown(result['content'])
+    console.print(Panel(md, border_style=THEME['dim']))
+
+
+# -----------------------------------------------------------------------------
 # Simulation Commands
 # -----------------------------------------------------------------------------
 
@@ -3399,6 +3495,7 @@ def create_commands(manager: CampaignManager, agent: SentinelAgent, conversation
         "/threads": cmd_consequences,  # Alias
         "/simulate": cmd_simulate,
         "/timeline": cmd_timeline,
+        "/wiki": cmd_wiki,
         "/context": cmd_context,
         # Context control commands
         "/checkpoint": cmd_checkpoint,

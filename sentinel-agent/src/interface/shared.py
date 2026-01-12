@@ -550,3 +550,73 @@ def get_campaign_status(manager: "CampaignManager") -> dict | None:
         "session_count": c.meta.session_count,
         "character": c.characters[0].name if c.characters else None,
     }
+
+
+# =============================================================================
+# Wiki Operations
+# =============================================================================
+
+def get_wiki_timeline(manager: "CampaignManager", wiki_dir: str = "wiki") -> dict | None:
+    """Get campaign wiki timeline events."""
+    from pathlib import Path
+
+    if not manager.current:
+        return None
+
+    campaign_id = manager.current.meta.id
+    events_file = Path(wiki_dir) / "campaigns" / campaign_id / "_events.md"
+
+    if not events_file.exists():
+        return {
+            "campaign_id": campaign_id,
+            "campaign_name": manager.current.meta.name,
+            "events": [],
+            "raw_content": None,
+            "message": "No wiki events recorded yet for this campaign.",
+        }
+
+    content = events_file.read_text(encoding="utf-8")
+
+    # Parse events from markdown
+    events = []
+    for line in content.split("\n"):
+        line = line.strip()
+        if line.startswith("- **Session"):
+            # Parse: - **Session N** (date) [TYPE]: description
+            events.append(line[2:])  # Remove "- " prefix
+
+    return {
+        "campaign_id": campaign_id,
+        "campaign_name": manager.current.meta.name,
+        "events": events,
+        "raw_content": content,
+        "event_count": len(events),
+    }
+
+
+def get_wiki_page_overlay(
+    manager: "CampaignManager",
+    page: str,
+    wiki_dir: str = "wiki",
+) -> dict | None:
+    """Get a wiki page's campaign overlay if it exists."""
+    from pathlib import Path
+
+    if not manager.current:
+        return None
+
+    campaign_id = manager.current.meta.id
+    overlay_file = Path(wiki_dir) / "campaigns" / campaign_id / f"{page}.md"
+
+    if not overlay_file.exists():
+        return {
+            "page": page,
+            "exists": False,
+            "content": None,
+        }
+
+    return {
+        "page": page,
+        "exists": True,
+        "content": overlay_file.read_text(encoding="utf-8"),
+    }
