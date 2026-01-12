@@ -72,6 +72,14 @@ Unlike other factions, Nexus operates as a **zone of influence**, never a hard b
 | [[Steel Syndicate]] | Wary | Information vs resource control; occasional trades |
 | [[Witnesses]] | Respectful | Both value records; different philosophies on intervention |
 
+```mermaid
+graph LR
+    Nexus ===|"mutual dependency"| Lattice
+    Nexus -.-|"surveillance friction"| Ember
+    Nexus ---|"deep rivalry"| Ghost_Networks
+    Nexus -.-|"pre-collapse authority"| Architects
+```
+
 ---
 
 ## Notable Elements
