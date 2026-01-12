@@ -41,6 +41,7 @@ server = Server("sentinel-campaign")
 # Configuration
 DATA_DIR = Path(__file__).parent / "data"
 CAMPAIGNS_DIR = Path.cwd() / "campaigns"  # Can be overridden
+WIKI_DIR = Path.cwd() / "wiki"  # Wiki pages directory
 
 # Available factions
 FACTIONS = [
@@ -57,6 +58,24 @@ FACTIONS = [
     "ghost_networks",
 ]
 
+# Wiki pages (auto-discovered from wiki/ directory if it exists)
+WIKI_PAGES = [
+    # Hubs
+    "Home", "Factions", "Geography", "Timeline",
+    # Events
+    "The Awakening", "Judgment Hour", "The Collapse",
+    # Concepts
+    "Sentries", "Project BRIDGE",
+    # Factions
+    "Nexus", "Ember Colonies", "Lattice", "Convergence", "Covenant",
+    "Wanderers", "Cultivators", "Steel Syndicate", "Witnesses",
+    "Architects", "Ghost Networks",
+    # Regions
+    "Rust Corridor", "Appalachian Hollows", "Gulf Passage", "The Breadbasket",
+    "Northern Reaches", "Pacific Corridor", "Desert Sprawl", "Northeast Scar",
+    "Sovereign South", "Texas Spine", "Frozen Edge",
+]
+
 
 # -----------------------------------------------------------------------------
 # Resources
@@ -64,7 +83,7 @@ FACTIONS = [
 
 @server.list_resources()
 async def list_resources() -> list[Resource]:
-    """List all available faction resources."""
+    """List all available faction and wiki resources."""
     resources = []
 
     # Faction-specific resources
@@ -100,6 +119,31 @@ async def list_resources() -> list[Resource]:
         )
     )
 
+    # Wiki resources (if wiki directory exists)
+    if WIKI_DIR.exists():
+        for page in WIKI_PAGES:
+            page_file = WIKI_DIR / f"{page}.md"
+            if page_file.exists():
+                # Determine page type for description
+                page_lower = page.lower()
+                if page in ["Home", "Factions", "Geography", "Timeline"]:
+                    desc = f"Wiki hub page: {page}"
+                elif any(f in page_lower for f in ["nexus", "ember", "lattice", "convergence", "covenant", "wanderers", "cultivators", "syndicate", "witnesses", "architects", "ghost"]):
+                    desc = f"Faction reference: {page}"
+                elif any(r in page_lower for r in ["corridor", "hollows", "passage", "breadbasket", "reaches", "sprawl", "scar", "south", "spine", "edge"]):
+                    desc = f"Region reference: {page}"
+                else:
+                    desc = f"Lore reference: {page}"
+
+                resources.append(
+                    Resource(
+                        uri=f"wiki://{page.replace(' ', '_')}",
+                        name=page,
+                        description=desc,
+                        mimeType="text/markdown",
+                    )
+                )
+
     return resources
 
 
@@ -108,6 +152,19 @@ async def read_resource(uri) -> str:
     """Read a resource by URI."""
     # Convert AnyUrl to string if needed
     uri = str(uri)
+
+    # Wiki resources: wiki://{page_name}
+    if uri.startswith("wiki://"):
+        page_name = uri[len("wiki://"):].replace("_", " ")
+
+        # Find the wiki file
+        page_file = WIKI_DIR / f"{page_name}.md"
+        if not page_file.exists():
+            raise ValueError(f"Wiki page not found: {page_name}")
+
+        # Return raw markdown content
+        return page_file.read_text(encoding="utf-8")
+
     # Faction resources: faction://{faction_id}/{resource_type}
     if uri.startswith("faction://"):
         path = uri[len("faction://"):]

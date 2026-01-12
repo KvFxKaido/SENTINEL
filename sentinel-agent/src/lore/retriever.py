@@ -12,9 +12,10 @@ from pathlib import Path
 from .chunker import LoreChunk, index_lore, extract_keywords
 
 
-# Source type weights - prioritize canon lore over character sheets
+# Source type weights - prioritize canon lore and wiki over character sheets
 SOURCE_WEIGHTS = {
     "canon": 2.0,      # Canon Bible, core lore documents
+    "wiki": 1.8,       # Wiki reference pages (structured, authoritative)
     "case_file": 1.0,  # Example timelines, case studies
     "character": 0.3,  # Character sheets, sample characters
     "session": 0.5,    # Session logs
@@ -28,6 +29,20 @@ SOURCE_PATTERNS = [
     (r"character|sample.*char|subject.*file", "character"),
     (r"session.*log|session.*\d", "session"),
 ]
+
+
+def _get_source_type_from_dir(source_dir: str, source: str, title: str) -> str:
+    """Determine source type from source directory, filename, and title."""
+    # Wiki directory gets wiki type
+    if source_dir == "wiki":
+        return "wiki"
+
+    # Fall back to pattern matching
+    combined = f"{source} {title}".lower()
+    for pattern, source_type in SOURCE_PATTERNS:
+        if re.search(pattern, combined):
+            return source_type
+    return "default"
 
 
 def _get_source_type(source: str, title: str) -> str:
@@ -148,19 +163,31 @@ class LoreRetriever:
 
     Matches on:
     - Factions mentioned in current game state
+    - Regions relevant to current scene
     - Keywords in player input or mission context
     - Themes relevant to current situation
     """
 
-    def __init__(self, lore_dir: Path | str):
-        self.lore_dir = Path(lore_dir)
+    def __init__(self, lore_dirs: Path | str | list[Path | str]):
+        """
+        Initialize retriever with one or more lore directories.
+
+        Args:
+            lore_dirs: Single directory or list of directories to index
+                       e.g., ["lore", "wiki"] or just "lore"
+        """
+        # Normalize to list of Paths
+        if isinstance(lore_dirs, (str, Path)):
+            self.lore_dirs = [Path(lore_dirs)]
+        else:
+            self.lore_dirs = [Path(d) for d in lore_dirs]
         self._index: dict | None = None
 
     @property
     def index(self) -> dict:
         """Lazy-load the lore index."""
         if self._index is None:
-            self._index = index_lore(self.lore_dir)
+            self._index = index_lore(self.lore_dirs)
         return self._index
 
     def reload(self) -> None:
@@ -176,6 +203,7 @@ class LoreRetriever:
         self,
         query: str = "",
         factions: list[str] | None = None,
+        regions: list[str] | None = None,
         themes: list[str] | None = None,
         limit: int = 2,
     ) -> list[RetrievalResult]:
@@ -185,6 +213,7 @@ class LoreRetriever:
         Args:
             query: Free text to match against (player input, mission description)
             factions: Factions to prioritize (from current game state)
+            regions: Regions to prioritize (from current scene location)
             themes: Themes to prioritize
             limit: Max chunks to return
 
@@ -195,6 +224,7 @@ class LoreRetriever:
             return []
 
         factions = [f.lower() for f in (factions or [])]
+        regions = [r.lower() for r in (regions or [])]
         themes = themes or []
         query_keywords = extract_keywords(query) if query else set()
 
@@ -206,15 +236,21 @@ class LoreRetriever:
             reasons = []
             matched_kw = set()
 
-            # Source type weight multiplier
-            source_type = _get_source_type(chunk.source, chunk.title)
-            source_weight = _get_source_weight(chunk.source, chunk.title)
+            # Source type weight multiplier (now considers source_dir)
+            source_type = _get_source_type_from_dir(chunk.source_dir, chunk.source, chunk.title)
+            source_weight = SOURCE_WEIGHTS.get(source_type, SOURCE_WEIGHTS["default"])
 
             # Faction match (high weight)
             faction_matches = set(f.lower() for f in chunk.factions) & set(factions)
             if faction_matches:
                 score += 3.0 * len(faction_matches)
                 reasons.append(f"factions: {', '.join(faction_matches)}")
+
+            # Region match (high weight - same as faction)
+            region_matches = set(r.lower() for r in chunk.regions) & set(regions)
+            if region_matches:
+                score += 3.0 * len(region_matches)
+                reasons.append(f"regions: {', '.join(region_matches)}")
 
             # Theme match (medium weight)
             theme_matches = set(chunk.themes) & set(themes)
@@ -305,6 +341,23 @@ class LoreRetriever:
         return "\n".join(lines)
 
 
-def create_retriever(lore_dir: Path | str = "lore") -> LoreRetriever:
-    """Create a lore retriever instance."""
-    return LoreRetriever(lore_dir)
+def create_retriever(
+    lore_dirs: Path | str | list[Path | str] = "lore",
+    include_wiki: bool = True,
+) -> LoreRetriever:
+    """
+    Create a lore retriever instance.
+
+    Args:
+        lore_dirs: Directory or list of directories to index
+        include_wiki: If True and lore_dirs is a single "lore" dir,
+                      automatically include sibling "wiki" dir if it exists
+    """
+    # Auto-include wiki if requested and using default lore dir
+    if include_wiki and lore_dirs == "lore":
+        lore_path = Path("lore")
+        wiki_path = Path("wiki")
+        if wiki_path.exists():
+            lore_dirs = [lore_path, wiki_path]
+
+    return LoreRetriever(lore_dirs)
