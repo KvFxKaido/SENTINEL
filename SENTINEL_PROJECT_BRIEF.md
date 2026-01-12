@@ -77,6 +77,15 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 - **`/lore quotes` command** — browse mottos, faction quotes, world truths
 - **Quote context injection** — GM receives relevant quotes for NPC dialogue flavor
 
+**Wiki Integration (Obsidian)**
+- **Mermaid diagrams** — faction relationship graphs with rivalry/alliance subgroups
+- **Dataview dashboards** — NPC tracker, thread tracker, faction overview (requires Dataview plugin)
+- **Canvas thread management** — visual urgency zones (urgent/soon/distant/resolved)
+- **Live session updates** — wiki appended during play (NPCs, hinges, threads)
+- **Daily notes from `/debrief`** — auto-generated session summaries with callouts and wikilinks
+- **Callout blocks** — `[!hinge]`, `[!faction]`, `[!thread]`, `[!npc]`, `[!intel]` for game events
+- **Auto-create NPC pages** — first encounter creates wiki page with faction link and interaction history
+
 **Simulation & Analysis**
 - **Simulation mode** — AI vs AI testing with 4 player personas (cautious, opportunist, principled, chaotic)
 - **`/simulate preview <action>`** — preview consequences without committing
