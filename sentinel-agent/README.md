@@ -77,6 +77,9 @@ sentinel-agent/
 │   ├── state/
 │   │   ├── schema.py      # Pydantic models (Campaign, Character, NPC, etc.)
 │   │   ├── manager.py     # Campaign lifecycle (create/load/save)
+│   │   ├── wiki_adapter.py    # Obsidian wiki integration
+│   │   ├── wiki_watcher.py    # Bi-directional sync (file watcher)
+│   │   ├── templates.py       # Jinja2 template engine
 │   │   └── memvid_adapter.py  # Optional semantic memory (memvid)
 │   ├── llm/               # LLM backend abstraction
 │   │   ├── base.py        # Abstract client interface
@@ -117,6 +120,60 @@ Rules are split for survivable truncation under memory strain:
 | `narrative_guidance.md` | Flavor, examples, tone | Cut under Strain II+ |
 
 When context pressure exceeds 85%, narrative guidance is dropped (~925 tokens saved) while core decision logic survives. The GM can still make correct decisions; it just loses the "how to phrase it beautifully" guidance.
+
+## Obsidian Integration
+
+SENTINEL auto-generates a campaign wiki as you play, designed for [Obsidian](https://obsidian.md/).
+
+### What Gets Generated
+
+| Content | Location | Trigger |
+|---------|----------|---------|
+| Session notes | `sessions/{date}/{date}.md` | `/debrief` command |
+| Game log | `sessions/{date}/_game_log.md` | Live during play |
+| NPC pages | `NPCs/{name}.md` | First encounter |
+| Timeline | `_events.md` | Hinge moments, faction shifts |
+| Index pages | `_index.md`, `NPCs/_index.md`, `sessions/_index.md` | `/debrief` |
+
+### Features
+
+- **Obsidian callouts** — Hinge moments, faction shifts, and threads render as styled callouts
+- **Wikilinks** — NPCs, factions, and sessions are cross-linked automatically
+- **Frontmatter** — All pages have YAML frontmatter for Dataview queries
+- **Content separation** — Game log is separate from your notes (via transclusion)
+- **Bi-directional sync** — Edit NPC disposition in Obsidian → game state updates
+- **Custom templates** — Override any page template in `wiki/templates/`
+
+### Setup
+
+1. Point SENTINEL at your vault: set `wiki_dir` in config or use `--wiki` flag
+2. Create a `canon/` folder with core lore (factions, locations, rules)
+3. Campaign overlays go to `campaigns/{campaign_id}/`
+
+### Directory Structure
+
+```
+your-vault/
+├── canon/                    # Core lore (read-only reference)
+│   ├── Factions/
+│   ├── NPCs/
+│   └── Locations/
+├── campaigns/
+│   └── {campaign_id}/        # Auto-generated per campaign
+│       ├── _index.md         # Campaign MOC
+│       ├── _events.md        # Timeline
+│       ├── NPCs/
+│       │   ├── _index.md     # NPC index by faction
+│       │   └── {name}.md     # NPC overlay pages
+│       └── sessions/
+│           ├── _index.md     # Session index
+│           └── {date}/
+│               ├── {date}.md     # Session summary
+│               └── _game_log.md  # Live updates
+└── templates/                # Optional custom templates
+```
+
+See [OBSIDIAN_INTEGRATION.md](../architecture/OBSIDIAN_INTEGRATION.md) for full documentation.
 
 ## CLI Commands
 
@@ -178,7 +235,7 @@ pytest
 - [x] 50-line mechanical reference
 - [x] CLI interface
 - [x] NPC memory triggers and disposition modifiers
-- [x] Test suite (321 tests)
+- [x] Test suite (380 tests)
 - [x] CI/CD with GitHub Actions
 - [ ] One complete mission playable end-to-end
 - [ ] 3 golden transcripts for regression
@@ -188,6 +245,8 @@ pytest
 - [x] Save/load with migration support
 - [x] NPC memory across sessions
 - [x] Dormant thread triggering
+- [x] Obsidian wiki integration (auto-generated campaign notes)
+- [x] Bi-directional sync (wiki edits update game state)
 - [ ] Between-missions phase
 - [ ] 10 golden transcripts
 - [ ] Boundary test suite
