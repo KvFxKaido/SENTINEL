@@ -25,7 +25,8 @@ SENTINEL/
 │   │   ├── tools/           # Standing, interactions, intel
 │   │   └── data/factions/   # Faction JSON files
 │   └── README.md
-└── lore/                    # World-building documents
+├── lore/                    # World-building documents (novellas)
+└── wiki/                    # Reference encyclopedia (Obsidian vault)
 ```
 
 ## What This Is
