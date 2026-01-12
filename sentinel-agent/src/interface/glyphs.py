@@ -58,6 +58,8 @@ GLYPHS_UNICODE = {
     "thread": "◌",       # Dashed circle - dormant
     "triggered": "◉",    # Filled target - activated
     "canon": "▣",        # Filled square - permanent
+    "faction": "◆",      # Diamond - faction shift
+    "mission": "▶",      # Play - mission event
 
     # Enhancements
     "enhanced": "⚡",     # Lightning - power
@@ -137,6 +139,8 @@ GLYPHS_ASCII = {
     "thread": "[~]",
     "triggered": "[!]",
     "canon": "[#]",
+    "faction": "[F]",
+    "mission": "[M]",
 
     # Enhancements
     "enhanced": "[+]",
@@ -421,6 +425,78 @@ def format_strain_display(tier: "StrainTier", expanded: bool = False) -> str:
         tier_name = tier.value.upper().replace("_", " ")
         return f"[{color}]{glyph} {tier_name}[/{color}]"
     return f"[{color}]{glyph}[/{color}]"
+
+
+# -----------------------------------------------------------------------------
+# Windows Terminal Sanitization
+# -----------------------------------------------------------------------------
+
+# Unicode to ASCII replacements for Windows terminal compatibility
+UNICODE_TO_ASCII = {
+    # Punctuation
+    "—": "--",      # Em-dash
+    "–": "-",       # En-dash
+    "…": "...",     # Ellipsis
+    "'": "'",       # Smart quote
+    "'": "'",       # Smart quote
+    """: '"',       # Smart quote
+    """: '"',       # Smart quote
+
+    # Arrows
+    "→": "->",      # Right arrow
+    "←": "<-",      # Left arrow
+    "↔": "<->",     # Left-right arrow
+    "⇒": "=>",      # Double arrow
+    "⇐": "<=",      # Double arrow
+
+    # Symbols
+    "•": "*",       # Bullet
+    "·": ".",       # Middle dot
+    "×": "x",       # Multiplication
+    "÷": "/",       # Division
+    "±": "+/-",     # Plus-minus
+    "°": " deg",    # Degree
+
+    # Box drawing (common in markdown renders)
+    "│": "|",
+    "─": "-",
+    "┌": "+",
+    "┐": "+",
+    "└": "+",
+    "┘": "+",
+    "├": "+",
+    "┤": "+",
+    "┬": "+",
+    "┴": "+",
+    "┼": "+",
+}
+
+
+def sanitize_for_terminal(text: str, force_ascii: bool = False) -> str:
+    """
+    Sanitize text for terminal display, replacing problematic Unicode.
+
+    Args:
+        text: Text to sanitize
+        force_ascii: If True, always sanitize. If False, only on Windows.
+
+    Returns:
+        Sanitized text safe for display
+    """
+    import sys
+
+    # Only sanitize on Windows or if forced
+    if not force_ascii and sys.platform != "win32":
+        return text
+
+    # Also check if USE_UNICODE is disabled
+    if not USE_UNICODE or force_ascii or sys.platform == "win32":
+        result = text
+        for unicode_char, ascii_replacement in UNICODE_TO_ASCII.items():
+            result = result.replace(unicode_char, ascii_replacement)
+        return result
+
+    return text
 
 
 def context_warning_with_strain(

@@ -2226,6 +2226,7 @@ class SentinelTUI(App):
 
         if cmd == "/wiki":
             from .shared import get_wiki_timeline, get_wiki_page_overlay
+            from .glyphs import sanitize_for_terminal
 
             if not self.manager or not self.manager.current:
                 log.write(Text.from_markup(f"[{Theme.WARNING}]No campaign loaded[/{Theme.WARNING}]"))
@@ -2261,11 +2262,16 @@ class SentinelTUI(App):
                     elif "[THREAD]" in event:
                         color = Theme.WARNING
                         icon = g('thread')
-                    else:
+                    elif "[MISSION]" in event:
                         color = Theme.TEXT
+                        icon = g('mission')
+                    else:
+                        color = Theme.DIM
                         icon = g('bullet')
 
-                    log.write(Text.from_markup(f"  [{color}]{icon}[/{color}] {event}"))
+                    # Sanitize for Windows terminal
+                    event_text = sanitize_for_terminal(event)
+                    log.write(Text.from_markup(f"  [{color}]{icon}[/{color}] {event_text}"))
 
                 log.write(Text.from_markup(f"\n[{Theme.DIM}]/wiki <page> for specific page overlay[/{Theme.DIM}]"))
             else:
@@ -2280,8 +2286,8 @@ class SentinelTUI(App):
                 log.write(Text.from_markup(f"[bold {Theme.TEXT}]Wiki Overlay: {page}[/bold {Theme.TEXT}]"))
                 log.write(Text.from_markup(f"[{Theme.DIM}]Campaign-specific additions[/{Theme.DIM}]\n"))
 
-                # Display content (truncate if too long)
-                content = result['content']
+                # Display content (truncate if too long), sanitize for Windows
+                content = sanitize_for_terminal(result['content'])
                 lines = content.split('\n')
                 for line in lines[:30]:  # Max 30 lines
                     log.write(Text.from_markup(f"  {line}"))
