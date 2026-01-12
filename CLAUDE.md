@@ -15,6 +15,10 @@ SENTINEL/
 ├── sentinel-agent/          # The AI GM implementation
 │   ├── CLAUDE.md            # Detailed dev context
 │   ├── src/                 # Python source
+│   │   └── state/
+│   │       ├── wiki_adapter.py   # Wiki page generation
+│   │       ├── wiki_watcher.py   # Bi-directional sync
+│   │       └── templates.py      # Jinja2 template engine
 │   ├── prompts/             # Hot-reloadable prompts
 │   │   └── local/           # Condensed prompts for 8B-12B models
 │   └── campaigns/           # Save files
@@ -96,13 +100,42 @@ Semantic search over campaign history using [memvid](https://github.com/memvid/m
 - **Philosophy:** Evidence, not memory — raw frames are GM-only; player queries filter through faction bias
 - **Graceful degradation:** All ops are no-ops if SDK not installed
 
-### Wiki Timeline
-Campaign events are auto-logged to wiki overlay files for persistent, readable history.
-- **View:** `/wiki` shows campaign timeline with color-coded events
-- **Page overlays:** `/wiki <page>` shows campaign-specific additions to canon pages
-- **Compare:** `/compare` analyzes multiple campaigns for faction divergence and design testing
-- **Location:** `wiki/campaigns/{campaign_id}/_events.md`
-- **Windows support:** Unicode sanitized to ASCII for terminal compatibility
+### Wiki Integration (Obsidian)
+SENTINEL auto-generates a campaign wiki as you play, designed for Obsidian.
+
+**Live Updates:**
+- Game log written to `sessions/{date}/_game_log.md` during play
+- Session summary generated on `/debrief`
+- NPC pages created on first encounter
+- Timeline (`_events.md`) tracks hinges, faction shifts, threads
+
+**Commands:**
+- `/wiki` — Campaign timeline with color-coded events
+- `/wiki <page>` — Page overlay (campaign additions to canon)
+- `/compare` — Cross-campaign analysis for faction divergence
+
+**Features:**
+- **Content separation** — Game log separate from user notes via transclusion (`![[_game_log]]`)
+- **Bi-directional sync** — Edit NPC disposition or faction standing in Obsidian → game state updates
+- **MOC auto-generation** — Index pages for campaign, NPCs, sessions updated on `/debrief`
+- **Custom templates** — Override page layouts in `wiki/templates/` (Jinja2)
+- **Obsidian callouts** — Styled blocks for hinges, faction shifts, threads
+- **Dataview ready** — YAML frontmatter on all pages for queries
+
+**Directory Structure:**
+```
+wiki/campaigns/{id}/
+├── _index.md           # Campaign MOC
+├── _events.md          # Timeline
+├── NPCs/
+│   ├── _index.md       # NPC index by faction
+│   └── {name}.md       # NPC overlay pages
+└── sessions/
+    ├── _index.md       # Session index
+    └── {date}/
+        ├── {date}.md       # Session summary
+        └── _game_log.md    # Live updates
+```
 
 ### Local Mode (8B-12B Models)
 Optimized context for smaller local models. Run with `--local` flag.
@@ -138,16 +171,18 @@ When enabled, provides faction tools, wiki resources, and campaign state.
 | `log_wiki_event` | Log event to campaign timeline |
 
 ### Wiki Overlay System
-Wiki supports per-campaign overlays:
+Wiki supports per-campaign overlays with bi-directional sync:
 ```
 wiki/
 ├── canon/           # Base lore (never modified)
-└── campaigns/{id}/  # Per-campaign additions
+├── campaigns/{id}/  # Per-campaign additions (auto-generated)
+└── templates/       # User-overridable page templates
 ```
 
 - **Canon pages:** Source of truth, shared across campaigns
-- **Overlay pages:** Campaign-specific additions or overrides
-- **Extend mode:** Use `extends:` frontmatter to merge into canon pages
+- **Overlay pages:** Campaign-specific additions, auto-generated during play
+- **Bi-directional sync:** Edit frontmatter in Obsidian (disposition, standing) → game state updates
+- **Template engine:** Jinja2 templates with custom filters (`wikilink`, `npc_link`)
 - **Event logging:** `log_wiki_event` creates chronological campaign timeline
 
 ### Setup
