@@ -94,6 +94,22 @@ The `MemvidAdapter` provides semantic search over campaign history (hinges, NPC 
 
 Query with `/timeline` command or `manager.query_campaign_history()`.
 
+### Wiki adapter logs campaign events
+The `WikiAdapter` writes significant events to wiki overlay files for persistent, human-readable history:
+- **Timeline:** `wiki/campaigns/{id}/_events.md` with session headers
+- **NPC pages:** `wiki/campaigns/{id}/NPCs/{name}.md` with interaction history
+- **Faction overlays:** Extend canon pages with campaign-specific changes
+- **Auto-hooks:** Manager saves hinges, faction shifts, NPC interactions, dormant threads
+
+View with `/wiki` command. Compare campaigns with `/compare`.
+
+### Glyphs handle Unicode/ASCII and Windows terminals
+The `glyphs.py` module provides visual indicators with fallbacks:
+- `g("hinge")` → `⬡` (Unicode) or `[H]` (ASCII)
+- `USE_UNICODE` flag toggles between sets
+- `sanitize_for_terminal(text)` converts em-dashes, arrows, etc. to ASCII on Windows
+- Auto-detects Windows platform for sanitization
+
 ### Unified retrieval with budget control
 The `UnifiedRetriever` combines lore, campaign history, and current state into a single query interface:
 
@@ -161,9 +177,10 @@ The `ELSE IF context_incomplete` branches encode SafetyNet behavior directly at 
 | `context/window.py` | Rolling window | Changing trimming priority or anchors |
 | `interface/tui.py` | Primary UI | Changing Textual-based interface |
 | `interface/cli.py` | Dev/simulation UI | Adding commands, simulation features |
-| `glyphs.py` | Visual indicators | Adding new symbols, context meter |
+| `glyphs.py` | Visual indicators | Adding symbols, Windows sanitization |
 | `hinge_detector.py` | Choice detection | Adding hinge patterns |
 | `dice.py` | Game mechanics | Changing roll logic |
+| `wiki_adapter.py` | Wiki event logging | Adding new event types, NPC pages |
 | `prompts/core.md` | Agent identity | Changing GM personality |
 | `prompts/mechanics.md` | Rules reference | Changing game rules |
 | `prompts/rules/core_logic.md` | Decision triggers | Changing when rules fire (survives truncation) |
