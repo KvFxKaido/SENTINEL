@@ -1,108 +1,16 @@
 {
-  "nodes": [
-    {
-      "id": "zone-urgent",
-      "type": "group",
-      "x": -400,
-      "y": -200,
-      "width": 300,
-      "height": 400,
-      "label": "URGENT"
-    },
-    {
-      "id": "zone-soon",
-      "type": "group",
-      "x": -50,
-      "y": -200,
-      "width": 300,
-      "height": 400,
-      "label": "SOON"
-    },
-    {
-      "id": "zone-distant",
-      "type": "group",
-      "x": 300,
-      "y": -200,
-      "width": 300,
-      "height": 400,
-      "label": "DISTANT"
-    },
-    {
-      "id": "zone-resolved",
-      "type": "group",
-      "x": 650,
-      "y": -200,
-      "width": 300,
-      "height": 400,
-      "label": "RESOLVED"
-    },
-    {
-      "id": "instructions",
-      "type": "text",
-      "x": -400,
-      "y": -300,
-      "width": 950,
-      "height": 80,
-      "text": "# Thread Management Canvas\n\nDrag cards between zones as consequences approach or resolve. Color-code by faction."
-    },
-    {
-      "id": "example-nexus",
-      "type": "text",
-      "x": -380,
-      "y": -150,
-      "width": 260,
-      "height": 120,
-      "text": "## Nexus Retaliation\n\n**Trigger:** Return to Northeast Scar\n**Severity:** MAJOR\n\n*Session 5*",
-      "color": "1"
-    },
-    {
-      "id": "example-ember",
-      "type": "text",
-      "x": -30,
-      "y": -150,
-      "width": 260,
-      "height": 120,
-      "text": "## Ember Debt\n\n**Trigger:** Request faction aid\n**Severity:** MODERATE\n\n*Session 3*",
-      "color": "6"
-    },
-    {
-      "id": "example-ghost",
-      "type": "text",
-      "x": 320,
-      "y": -150,
-      "width": 260,
-      "height": 120,
-      "text": "## Ghost Watcher\n\n**Trigger:** 10 sessions pass\n**Severity:** MINOR\n\n*Session 1*",
-      "color": "4"
-    },
-    {
-      "id": "example-resolved",
-      "type": "text",
-      "x": 670,
-      "y": -150,
-      "width": 260,
-      "height": 120,
-      "text": "## ~~Syndicate Payment~~\n\n**Resolved:** Session 4\nPaid debt with intel trade\n\n✓ Complete",
-      "color": "5"
-    },
-    {
-      "id": "legend",
-      "type": "text",
-      "x": -400,
-      "y": 250,
-      "width": 400,
-      "height": 150,
-      "text": "## Color Legend\n\n- 🔴 Red (1): Nexus\n- 🟠 Orange (6): Ember Colonies\n- 🟡 Yellow (3): Lattice\n- 🟢 Green (5): Resolved\n- 🔵 Blue (4): Ghost Networks\n- 🟣 Purple (2): Convergence"
-    },
-    {
-      "id": "howto",
-      "type": "text",
-      "x": 50,
-      "y": 250,
-      "width": 400,
-      "height": 150,
-      "text": "## How to Use\n\n1. Add new threads as cards in DISTANT\n2. Move left as trigger conditions approach\n3. When triggered, move to RESOLVED\n4. Link cards to session notes with [[wikilinks]]"
-    }
-  ],
-  "edges": []
+	"nodes":[
+		{"id":"zone-urgent","type":"group","x":-400,"y":-200,"width":300,"height":400,"label":"URGENT"},
+		{"id":"zone-soon","type":"group","x":-50,"y":-200,"width":300,"height":400,"label":"SOON"},
+		{"id":"zone-distant","type":"group","x":300,"y":-200,"width":300,"height":400,"label":"DISTANT"},
+		{"id":"zone-resolved","type":"group","x":650,"y":-200,"width":300,"height":400,"label":"RESOLVED"},
+		{"id":"instructions","type":"text","x":-400,"y":-300,"width":950,"height":80,"text":"# Thread Management Canvas\n\nDrag cards between zones as consequences approach or resolve. Color-code by faction."},
+		{"id":"example-nexus","type":"text","x":-380,"y":-150,"width":260,"height":120,"text":"## Nexus Retaliation\n\n**Trigger:** Return to Northeast Scar\n**Severity:** MAJOR\n\n*Session 5*","color":"1"},
+		{"id":"example-ember","type":"text","x":-30,"y":-150,"width":260,"height":120,"text":"## Ember Debt\n\n**Trigger:** Request faction aid\n**Severity:** MODERATE\n\n*Session 3*","color":"6"},
+		{"id":"example-ghost","type":"text","x":320,"y":-150,"width":260,"height":120,"text":"## Ghost Watcher\n\n**Trigger:** 10 sessions pass\n**Severity:** MINOR\n\n*Session 1*","color":"4"},
+		{"id":"example-resolved","type":"text","x":670,"y":-150,"width":260,"height":120,"text":"## ~~Syndicate Payment~~\n\n**Resolved:** Session 4\nPaid debt with intel trade\n\n✓ Complete","color":"5"},
+		{"id":"legend","type":"text","x":-400,"y":250,"width":400,"height":150,"text":"## Color Legend\n\n- 🔴 Red (1): Nexus\n- 🟠 Orange (6): Ember Colonies\n- 🟡 Yellow (3): Lattice\n- 🟢 Green (5): Resolved\n- 🔵 Blue (4): Ghost Networks\n- 🟣 Purple (2): Convergence"},
+		{"id":"howto","type":"text","x":50,"y":250,"width":400,"height":150,"text":"## How to Use\n\n1. Add new threads as cards in DISTANT\n2. Move left as trigger conditions approach\n3. When triggered, move to RESOLVED\n4. Link cards to session notes with [[wikilinks]]"}
+	],
+	"edges":[]
 }

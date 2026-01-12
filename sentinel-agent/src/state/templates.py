@@ -87,9 +87,12 @@ title: "Session: {{ date }}"
 {% if extends %}extends: {{ extends }}
 {% endif %}type: npc
 faction: {{ faction }}
+portrait: "npcs/{{ name | lower | replace(' ', '_') | replace(\"'\", '') }}.png"
 ---
 
 # {{ name }}
+
+![[{{ name | lower | replace(' ', '_') | replace(\"'\", '') }}.png|portrait]]
 
 **Faction:** [[{{ faction }}]]
 **Current Disposition:** {{ disposition }}
