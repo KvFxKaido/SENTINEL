@@ -51,6 +51,7 @@ VALID_COMMANDS = [
     "/start", "/mission", "/consult", "/debrief",
     "/status", "/factions", "/threads", "/consequences", "/history",
     "/npc", "/arc", "/lore", "/search", "/summary", "/timeline", "/simulate",
+    "/wiki", "/compare",
     "/backend", "/model", "/clear", "/checkpoint", "/compress", "/context", "/dock",
     "/copy",
     "/ping",
@@ -1338,6 +1339,8 @@ class SentinelTUI(App):
                 f"  [{Theme.ACCENT}]/timeline[/{Theme.ACCENT}] [query] - Campaign memory (memvid)\n"
                 f"  [{Theme.ACCENT}]/lore[/{Theme.ACCENT}] [query] - Search lore\n"
                 f"  [{Theme.ACCENT}]/simulate[/{Theme.ACCENT}] - Explore hypotheticals\n"
+                f"  [{Theme.ACCENT}]/wiki[/{Theme.ACCENT}] [page] - Campaign wiki/timeline\n"
+                f"  [{Theme.ACCENT}]/compare[/{Theme.ACCENT}] - Cross-campaign analysis\n"
                 f"\n[bold {Theme.TEXT}]System:[/bold {Theme.TEXT}]\n"
                 f"  [{Theme.ACCENT}]/backend[/{Theme.ACCENT}] [name] - Switch LLM backend\n"
                 f"  [{Theme.ACCENT}]/model[/{Theme.ACCENT}] [name] - Switch model\n"
@@ -2282,6 +2285,86 @@ class SentinelTUI(App):
                 lines = content.split('\n')
                 for line in lines[:30]:  # Max 30 lines
                     log.write(Text.from_markup(f"  {line}"))
+            return
+
+        if cmd == "/compare":
+            # Cross-campaign comparison
+            from pathlib import Path
+            import sys
+
+            wiki_dir = Path(getattr(self.manager, '_wiki_dir', 'wiki')) if self.manager else Path('wiki')
+
+            # Try to import and run the comparison script
+            scripts_dir = Path(__file__).parent.parent.parent / "scripts"
+            if scripts_dir.exists():
+                sys.path.insert(0, str(scripts_dir))
+
+            try:
+                from compare_campaigns import discover_campaigns, generate_report
+
+                log.write(Text.from_markup(f"[{Theme.DIM}]Scanning campaigns...[/{Theme.DIM}]"))
+
+                campaigns = discover_campaigns(wiki_dir)
+
+                if not campaigns:
+                    log.write(Text.from_markup(f"[{Theme.WARNING}]No campaigns with events found[/{Theme.WARNING}]"))
+                    log.write(Text.from_markup(f"[{Theme.DIM}]Play some sessions to generate wiki events[/{Theme.DIM}]"))
+                    return
+
+                log.write(Text.from_markup(f"[bold {Theme.TEXT}]Cross-Campaign Analysis[/bold {Theme.TEXT}]"))
+                log.write(Text.from_markup(f"[{Theme.DIM}]{len(campaigns)} campaign(s) analyzed[/{Theme.DIM}]\n"))
+
+                # Campaign overview
+                log.write(Text.from_markup(f"[{Theme.ACCENT}]Campaigns:[/{Theme.ACCENT}]"))
+                for c in sorted(campaigns, key=lambda x: x.sessions, reverse=True):
+                    log.write(Text.from_markup(
+                        f"  [{Theme.TEXT}]{c.id}[/{Theme.TEXT}]: "
+                        f"{c.sessions} sessions, {len(c.hinges)} hinges, {len(c.faction_shifts)} shifts"
+                    ))
+
+                # Faction standings comparison
+                all_factions: set[str] = set()
+                for c in campaigns:
+                    for shift in c.faction_shifts:
+                        all_factions.add(shift.faction)
+
+                if all_factions and len(campaigns) > 1:
+                    log.write(Text.from_markup(f"\n[{Theme.ACCENT}]Faction Divergence:[/{Theme.ACCENT}]"))
+
+                    for faction in sorted(all_factions):
+                        standings = []
+                        for c in campaigns:
+                            standing = c.final_standings.get(faction, "Neutral")
+                            standings.append(f"{c.id}:{standing}")
+
+                        unique = set(s.split(":")[1] for s in standings)
+                        if len(unique) == 1:
+                            icon = f"[{Theme.WARNING}]![/{Theme.WARNING}]"  # Convergent
+                        else:
+                            icon = f"[{Theme.FRIENDLY}]~[/{Theme.FRIENDLY}]"  # Divergent
+
+                        log.write(Text.from_markup(f"  {icon} [{Theme.TEXT}]{faction}[/{Theme.TEXT}]: {', '.join(standings)}"))
+
+                elif all_factions:
+                    log.write(Text.from_markup(f"\n[{Theme.ACCENT}]Final Standings:[/{Theme.ACCENT}]"))
+                    c = campaigns[0]
+                    for faction in sorted(all_factions):
+                        standing = c.final_standings.get(faction, "Neutral")
+                        log.write(Text.from_markup(f"  [{Theme.TEXT}]{faction}[/{Theme.TEXT}]: {standing}"))
+
+                # Write full report
+                meta_dir = wiki_dir / "campaigns" / "_meta"
+                meta_dir.mkdir(exist_ok=True)
+                report = generate_report(campaigns, wiki_dir)
+                report_path = meta_dir / "comparison_report.md"
+                report_path.write_text(report, encoding="utf-8")
+
+                log.write(Text.from_markup(f"\n[{Theme.DIM}]Full report: {report_path}[/{Theme.DIM}]"))
+
+            except ImportError as e:
+                log.write(Text.from_markup(f"[{Theme.DANGER}]Could not load comparison script: {e}[/{Theme.DANGER}]"))
+            except Exception as e:
+                log.write(Text.from_markup(f"[{Theme.DANGER}]Comparison failed: {e}[/{Theme.DANGER}]"))
             return
 
         if cmd == "/simulate":
