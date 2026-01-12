@@ -2219,6 +2219,69 @@ class SentinelTUI(App):
                     log.write(Text.from_markup(f"[{Theme.DIM}]No matches found[/{Theme.DIM}]"))
             return
 
+        if cmd == "/wiki":
+            from .shared import get_wiki_timeline, get_wiki_page_overlay
+
+            if not self.manager or not self.manager.current:
+                log.write(Text.from_markup(f"[{Theme.WARNING}]No campaign loaded[/{Theme.WARNING}]"))
+                return
+
+            wiki_dir = getattr(self.manager, '_wiki_dir', 'wiki')
+
+            if not args:
+                # Show timeline
+                result = get_wiki_timeline(self.manager, wiki_dir=str(wiki_dir))
+
+                if not result:
+                    log.write(Text.from_markup(f"[{Theme.WARNING}]Could not load wiki timeline[/{Theme.WARNING}]"))
+                    return
+
+                log.write(Text.from_markup(f"[bold {Theme.TEXT}]Campaign Wiki[/bold {Theme.TEXT}]"))
+                log.write(Text.from_markup(f"[{Theme.DIM}]{result['campaign_name']}[/{Theme.DIM}]"))
+
+                if not result['events']:
+                    log.write(Text.from_markup(f"\n[{Theme.DIM}]{result.get('message', 'No events recorded yet.')}[/{Theme.DIM}]"))
+                    log.write(Text.from_markup(f"[{Theme.DIM}]Events are auto-logged during play.[/{Theme.DIM}]"))
+                    return
+
+                log.write(Text.from_markup(f"\n[{Theme.ACCENT}]Timeline ({result['event_count']} events)[/{Theme.ACCENT}]"))
+
+                for event in result['events'][-15:]:  # Show last 15
+                    if "[HINGE]" in event:
+                        color = Theme.DANGER
+                        icon = g('hinge')
+                    elif "[FACTION]" in event:
+                        color = Theme.ACCENT
+                        icon = g('faction')
+                    elif "[THREAD]" in event:
+                        color = Theme.WARNING
+                        icon = g('thread')
+                    else:
+                        color = Theme.TEXT
+                        icon = g('bullet')
+
+                    log.write(Text.from_markup(f"  [{color}]{icon}[/{color}] {event}"))
+
+                log.write(Text.from_markup(f"\n[{Theme.DIM}]/wiki <page> for specific page overlay[/{Theme.DIM}]"))
+            else:
+                # Show page overlay
+                page = " ".join(args)
+                result = get_wiki_page_overlay(self.manager, page, wiki_dir=str(wiki_dir))
+
+                if not result or not result['exists']:
+                    log.write(Text.from_markup(f"[{Theme.DIM}]No campaign overlay for '{page}'[/{Theme.DIM}]"))
+                    return
+
+                log.write(Text.from_markup(f"[bold {Theme.TEXT}]Wiki Overlay: {page}[/bold {Theme.TEXT}]"))
+                log.write(Text.from_markup(f"[{Theme.DIM}]Campaign-specific additions[/{Theme.DIM}]\n"))
+
+                # Display content (truncate if too long)
+                content = result['content']
+                lines = content.split('\n')
+                for line in lines[:30]:  # Max 30 lines
+                    log.write(Text.from_markup(f"  {line}"))
+            return
+
         if cmd == "/simulate":
             if not args:
                 # Show help
