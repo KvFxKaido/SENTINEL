@@ -92,7 +92,9 @@ sentinel-agent/
 │   ├── tools/
 │   │   └── dice.py        # Dice rolling with advantage/disadvantage
 │   ├── lore/
-│   │   └── unified.py     # Unified retrieval (lore + history)
+│   │   ├── chunker.py     # Parse markdown → tagged chunks
+│   │   ├── retriever.py   # Multi-directory keyword retrieval
+│   │   └── unified.py     # Combined lore + wiki + campaign history
 │   └── interface/
 │       └── cli.py         # Rich-based CLI interface
 ├── prompts/
@@ -176,7 +178,7 @@ pytest
 - [x] 50-line mechanical reference
 - [x] CLI interface
 - [x] NPC memory triggers and disposition modifiers
-- [x] Test suite (77 tests)
+- [x] Test suite (321 tests)
 - [x] CI/CD with GitHub Actions
 - [ ] One complete mission playable end-to-end
 - [ ] 3 golden transcripts for regression

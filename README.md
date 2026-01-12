@@ -290,7 +290,7 @@ pip install -e ".[dev]"
 pytest
 ```
 
-**250+ tests** covering state, mechanics, simulation, local mode, and event queue.
+**321 tests** covering state, mechanics, simulation, local mode, lore retrieval, and event queue.
 
 ## Design Philosophy
 
