@@ -190,6 +190,38 @@ SORT date DESC
 
 *Note: Graph optimization requires manual Obsidian CSS configuration*
 
+### Hardening (Council Review)
+- [ ] Atomic writes — write to temp file, then rename to prevent corruption
+- [ ] Write queue — serialize wiki updates to prevent race conditions
+- [ ] Event IDs — idempotent appends to avoid duplicates on retry
+- [ ] Error buffering — queue failed writes for retry, don't silently drop
+
+*Note: Current live updates work for single-user play but need hardening for reliability*
+
+---
+
+## Phase 5: Advanced Integration (Future)
+
+### Template Engine
+- [ ] User-customizable templates for auto-generated pages (NPC, session, etc.)
+- [ ] Jinja2 or simple string replacement for layouts
+- [ ] Template location: `wiki/templates/` with fallback defaults
+
+### Bi-Directional Sync
+- [ ] Watch wiki files for frontmatter changes
+- [ ] Reload game state when user edits NPC disposition, faction standing, etc.
+- [ ] Conflict resolution: game state vs wiki edits
+
+### Content Separation
+- [ ] Game log as separate file (`_game_log.md`) transcluded into session note
+- [ ] Keeps user's writing space separate from automated output
+- [ ] Reduces file conflict risk when user edits during play
+
+### Static Navigation (MOCs)
+- [ ] Map of Content pages for resilient navigation without Dataview
+- [ ] Auto-generate index pages for NPCs, factions, sessions
+- [ ] Update MOCs on /debrief
+
 ---
 
 ## Dependencies
@@ -202,16 +234,23 @@ SORT date DESC
 | Dataview | Dataview plugin |
 | Canvas | Obsidian core (built-in) |
 | Auto-update | Event queue hooks |
+| Hardening | Refactor WikiAdapter |
+| Templates | Jinja2 or string templates |
+| Bi-directional | File watcher + state reload |
+| MOCs | Index generation on /debrief |
 
 ---
 
 ## Priority Recommendation
 
-1. **Callouts + Mermaid** — Immediate visual improvement, no code
-2. **Daily Notes from Debrief** — Ties wiki to gameplay loop
-3. **Frontmatter + Dataview** — Enables powerful queries
-4. **Canvas** — Visual thread management
-5. **Auto-update** — Full integration (later phase)
+1. **Callouts + Mermaid** — Immediate visual improvement, no code ✓
+2. **Daily Notes from Debrief** — Ties wiki to gameplay loop ✓
+3. **Frontmatter + Dataview** — Enables powerful queries ✓
+4. **Canvas** — Visual thread management ✓
+5. **Auto-update** — Full integration ✓
+6. **Hardening** — Atomic writes, write queue (before heavy use)
+7. **Templates** — User-customizable page layouts
+8. **Bi-directional sync** — Wiki edits update game state
 
 ---
 
