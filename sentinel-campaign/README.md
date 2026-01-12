@@ -109,6 +109,7 @@ Dynamic operations for campaign-specific faction state.
 | `log_faction_event` | Record faction-related event |
 | `get_faction_intel` | What faction knows about topic |
 | `query_faction_npcs` | NPCs by faction in campaign |
+| `search_wiki` | Search wiki for lore, factions, geography |
 
 ### Example: get_faction_standing
 
@@ -151,6 +152,41 @@ Dynamic operations for campaign-specific faction state.
   "knowledge_level": "detailed",
   "note": "Witnesses have historical archives. They trade information for information.",
   "intel_domains": ["history", "records", "contradictions"]
+}
+```
+
+### Example: search_wiki
+
+**Input:**
+```json
+{
+  "query": "Collapse infrastructure",
+  "limit": 3
+}
+```
+
+**Output:**
+```json
+{
+  "query": "Collapse infrastructure",
+  "matches": [
+    {
+      "page": "The Collapse",
+      "score": 2,
+      "snippets": [
+        "## Infrastructure Failure\nThe cascading failures began in the power grid...",
+        "Transportation infrastructure collapsed within 72 hours..."
+      ]
+    },
+    {
+      "page": "Lattice",
+      "score": 1,
+      "snippets": [
+        "Lattice emerged from the engineers who kept critical infrastructure..."
+      ]
+    }
+  ],
+  "total_found": 2
 }
 ```
 
