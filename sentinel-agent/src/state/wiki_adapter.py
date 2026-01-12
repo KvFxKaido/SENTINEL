@@ -13,6 +13,7 @@ This adapter mirrors the MemvidAdapter interface for consistency.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import tempfile
@@ -132,6 +133,65 @@ class WikiAdapter:
             except Exception as e:
                 logger.error(f"Atomic write failed for {filepath}: {e}")
                 return False
+
+    def _generate_event_id(self, event_type: str, content: str, session: int) -> str:
+        """
+        Generate a unique event ID for idempotent appends.
+
+        ID is based on content hash + session + type, so identical events
+        in the same session produce the same ID (for deduplication).
+
+        Args:
+            event_type: Type of event (hinge, faction, npc, thread)
+            content: Event content
+            session: Session number
+
+        Returns:
+            Short hash string (12 chars)
+        """
+        # Combine identifying factors
+        id_source = f"{event_type}:{session}:{content}"
+        # Generate short hash
+        return hashlib.sha256(id_source.encode()).hexdigest()[:12]
+
+    def _has_event_id(self, filepath: Path, event_id: str) -> bool:
+        """
+        Check if an event ID already exists in a file.
+
+        Args:
+            filepath: File to check
+            event_id: Event ID to look for
+
+        Returns:
+            True if event ID found (duplicate)
+        """
+        if not filepath.exists():
+            return False
+        try:
+            content = filepath.read_text(encoding="utf-8")
+            # Look for event ID marker
+            return f"<!-- eid:{event_id} -->" in content
+        except Exception:
+            return False
+
+    def _add_event_id(self, content: str, event_id: str) -> str:
+        """
+        Add event ID marker to content.
+
+        Appends HTML comment that won't render but can be detected.
+
+        Args:
+            content: Original content
+            event_id: Event ID to embed
+
+        Returns:
+            Content with event ID marker
+        """
+        # Add marker at end of content (before trailing newline if present)
+        marker = f"<!-- eid:{event_id} -->"
+        if content.endswith("\n"):
+            return content.rstrip("\n") + f" {marker}\n"
+        return f"{content} {marker}"
 
     def _get_last_session_from_file(self, events_file: Path) -> int | None:
         """Parse the events file to find the last session number."""
@@ -322,7 +382,7 @@ class WikiAdapter:
             callout += f"> **Situation:** {hinge.situation}\n"
         if immediate_effects:
             callout += f"> **Effects:** {', '.join(immediate_effects[:3])}\n"
-        self.append_to_session_note(session, callout, section="Key Choices")
+        self.append_to_session_note(session, callout, section="Key Choices", event_type="hinge")
 
         return True
 
@@ -368,7 +428,7 @@ class WikiAdapter:
         # Append to live session note
         callout = f"> [!faction] [[{faction_name}]]: {from_standing} → {to_standing}\n"
         callout += f"> {cause}\n"
-        self.append_to_session_note(session, callout, section="Faction Changes")
+        self.append_to_session_note(session, callout, section="Faction Changes", event_type="faction")
 
         return True
 
@@ -422,7 +482,7 @@ class WikiAdapter:
         else:
             disp_text = ""
         npc_line = f"- {npc_link} {faction_link}{disp_text}\n"
-        self.append_to_session_note(session, npc_line, section="NPCs Encountered")
+        self.append_to_session_note(session, npc_line, section="NPCs Encountered", event_type="npc")
 
         return True
 
@@ -531,7 +591,7 @@ class WikiAdapter:
         if thread.trigger:
             callout += f"> **Trigger:** {thread.trigger}\n"
         self.append_to_session_note(
-            thread.created_session, callout, section="Threads Queued"
+            thread.created_session, callout, section="Threads Queued", event_type="thread"
         )
 
         return True
@@ -557,7 +617,7 @@ class WikiAdapter:
         callout = f"> [!success] {thread.origin}\n"
         callout += f"> **Outcome:** {outcome}\n"
         callout += f"> *Dormant since session {thread.created_session}*\n"
-        self.append_to_session_note(session, callout, section="Threads Resolved")
+        self.append_to_session_note(session, callout, section="Threads Resolved", event_type="thread")
 
         return True
 
@@ -721,17 +781,20 @@ class WikiAdapter:
         session: int,
         content: str,
         section: str | None = None,
+        event_type: str = "update",
     ) -> bool:
         """
         Append content to today's session note during active play.
 
         Creates the session note if it doesn't exist. Appends to the
         specified section or creates a new "## Live Updates" section.
+        Uses event IDs for idempotent appends (skips duplicates).
 
         Args:
             session: Session number
             content: Content to append (markdown)
             section: Optional section header to append under
+            event_type: Event type for ID generation (hinge, faction, npc, thread)
 
         Returns:
             True if successful
@@ -747,6 +810,15 @@ class WikiAdapter:
 
         date_str = datetime.now().strftime("%Y-%m-%d")
         filepath = sessions_dir / f"{date_str}.md"
+
+        # Generate event ID and check for duplicates
+        event_id = self._generate_event_id(event_type, content, session)
+        if self._has_event_id(filepath, event_id):
+            logger.debug(f"Skipping duplicate event: {event_id}")
+            return True  # Already exists, consider it success
+
+        # Add event ID marker to content
+        content_with_id = self._add_event_id(content, event_id)
 
         try:
             if filepath.exists():
@@ -766,23 +838,23 @@ class WikiAdapter:
                                 insert_point = next_section
                                 new_content = (
                                     parts[0] + section_header +
-                                    rest[:insert_point].rstrip() + "\n" + content + "\n" +
+                                    rest[:insert_point].rstrip() + "\n" + content_with_id + "\n" +
                                     rest[insert_point:]
                                 )
                             else:
-                                new_content = existing.rstrip() + "\n" + content + "\n"
+                                new_content = existing.rstrip() + "\n" + content_with_id + "\n"
                         else:
-                            new_content = existing.rstrip() + f"\n\n{section_header}\n\n{content}\n"
+                            new_content = existing.rstrip() + f"\n\n{section_header}\n\n{content_with_id}\n"
                     else:
                         # Create new section
-                        new_content = existing.rstrip() + f"\n\n{section_header}\n\n{content}\n"
+                        new_content = existing.rstrip() + f"\n\n{section_header}\n\n{content_with_id}\n"
                 else:
                     # Append to "Live Updates" section
                     live_header = "## Live Updates"
                     if live_header in existing:
-                        new_content = existing.rstrip() + "\n" + content + "\n"
+                        new_content = existing.rstrip() + "\n" + content_with_id + "\n"
                     else:
-                        new_content = existing.rstrip() + f"\n\n{live_header}\n\n{content}\n"
+                        new_content = existing.rstrip() + f"\n\n{live_header}\n\n{content_with_id}\n"
             else:
                 # Create new file with minimal structure
                 new_content = (
@@ -794,7 +866,7 @@ class WikiAdapter:
                     "---\n\n"
                     f"# Session {session} — {datetime.now().strftime('%B %d, %Y')}\n\n"
                     "## Live Updates\n\n"
-                    f"{content}\n"
+                    f"{content_with_id}\n"
                 )
 
             if not self._atomic_write(filepath, new_content):

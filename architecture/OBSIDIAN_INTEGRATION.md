@@ -193,10 +193,10 @@ SORT date DESC
 ### Hardening (Council Review)
 - [x] Atomic writes — write to temp file, then rename to prevent corruption
 - [x] Write queue — serialize wiki updates via threading lock
-- [ ] Event IDs — idempotent appends to avoid duplicates on retry
+- [x] Event IDs — idempotent appends via content hash (`<!-- eid:xxx -->`)
 - [ ] Error buffering — queue failed writes for retry, don't silently drop
 
-*Note: `_atomic_write()` uses lock + temp-rename pattern*
+*Note: `_atomic_write()` uses lock + temp-rename; `append_to_session_note()` deduplicates via event IDs*
 
 ---
 
