@@ -214,19 +214,35 @@ SORT date DESC
 - User templates override defaults when placed in `wiki/templates/`
 
 ### Bi-Directional Sync
-- [ ] Watch wiki files for frontmatter changes
-- [ ] Reload game state when user edits NPC disposition, faction standing, etc.
-- [ ] Conflict resolution: game state vs wiki edits
+- [x] Watch wiki files for frontmatter changes
+- [x] Reload game state when user edits NPC disposition, faction standing, etc.
+- [x] Conflict resolution: game state vs wiki edits
+
+**Implementation:**
+- `src/state/wiki_watcher.py`: WikiWatcher class with watchdog file monitoring
+- Parses YAML frontmatter, syncs NPC disposition/faction and faction standings
+- Conflict resolution via file mtime vs `campaign.saved_at`
+- Integrated into CampaignManager lifecycle (start/stop watching)
 
 ### Content Separation
-- [ ] Game log as separate file (`_game_log.md`) transcluded into session note
-- [ ] Keeps user's writing space separate from automated output
-- [ ] Reduces file conflict risk when user edits during play
+- [x] Game log as separate file (`_game_log.md`) transcluded into session note
+- [x] Keeps user's writing space separate from automated output
+- [x] Reduces file conflict risk when user edits during play
+
+**Implementation:**
+- Session structure: `sessions/{date}/{date}.md` + `_game_log.md`
+- Live updates go to `_game_log.md`, session summary to main note
+- Obsidian transclusion: `![[_game_log]]`
 
 ### Static Navigation (MOCs)
-- [ ] Map of Content pages for resilient navigation without Dataview
-- [ ] Auto-generate index pages for NPCs, factions, sessions
-- [ ] Update MOCs on /debrief
+- [x] Map of Content pages for resilient navigation without Dataview
+- [x] Auto-generate index pages for NPCs, factions, sessions
+- [x] Update MOCs on /debrief
+
+**Implementation:**
+- `_generate_mocs()` called from `save_session_summary()`
+- Creates: `_index.md`, `NPCs/_index.md`, `sessions/_index.md`
+- Templates: `moc_campaign.md.j2`, `moc_npcs.md.j2`, `moc_sessions.md.j2`
 
 ---
 
@@ -242,8 +258,8 @@ SORT date DESC
 | Auto-update | Event queue hooks |
 | Hardening | Refactor WikiAdapter |
 | Templates | Jinja2 (added as dependency) ✓ |
-| Bi-directional | File watcher + state reload |
-| MOCs | Index generation on /debrief |
+| Bi-directional | watchdog (added as dependency) ✓ |
+| MOCs | Template engine + /debrief hook ✓ |
 
 ---
 
@@ -256,7 +272,20 @@ SORT date DESC
 5. **Auto-update** — Full integration ✓
 6. **Hardening** — Atomic writes, write queue (before heavy use) ✓
 7. **Templates** — User-customizable page layouts ✓
-8. **Bi-directional sync** — Wiki edits update game state
+8. **Bi-directional sync** — Wiki edits update game state ✓
+
+---
+
+## Status: COMPLETE
+
+All phases of Obsidian integration have been implemented. The wiki system now provides:
+- Full markdown rendering with callouts, Mermaid diagrams, and wikilinks
+- Live session updates during play
+- Auto-generated NPC, faction, and session pages
+- Content separation (game log vs user notes)
+- Static navigation via MOCs
+- Bi-directional sync for frontmatter edits
+- User-customizable templates
 
 ---
 
