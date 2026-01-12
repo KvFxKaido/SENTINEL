@@ -188,6 +188,15 @@ Players choose starting relationships, not membership. You're not "in" a faction
 * `/lore quotes` command to browse mottos and world truths
 * Unified retrieval combines static lore + campaign history
 
+### Wiki Integration (Obsidian)
+
+* Mermaid diagrams for faction relationships
+* Dataview dashboards for NPC, thread, and faction tracking
+* Canvas for visual thread management by urgency
+* Live session notes updated during play
+* Auto-generated daily notes from `/debrief`
+* Callout blocks for hinges, faction shifts, threads
+
 ## LLM Backends
 
 SENTINEL supports both local and cloud backends.
@@ -311,6 +320,7 @@ pytest
 |----------|---------|
 | [Project Brief](SENTINEL_PROJECT_BRIEF.md) | Full project overview |
 | [Agent Architecture](architecture/AGENT_ARCHITECTURE.md) | Technical design |
+| [Obsidian Integration](architecture/OBSIDIAN_INTEGRATION.md) | Wiki features roadmap |
 | [Campaign MCP Server](sentinel-campaign/README.md) | Faction server design |
 | [Agent Dev Guide](sentinel-agent/CLAUDE.md) | Contributor guide |
 
