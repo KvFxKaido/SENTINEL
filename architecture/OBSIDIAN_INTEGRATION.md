@@ -129,10 +129,10 @@ last_shift: session 5
 ## Phase 3: Visual Management (New Features)
 
 ### Dataview Dashboards
-- [ ] Create `dashboards/` folder in wiki
-- [ ] NPC tracker: recent interactions, disposition
-- [ ] Thread tracker: active dormant threads by urgency
-- [ ] Faction overview: standings across campaigns
+- [x] Create `dashboards/` folder in wiki
+- [x] NPC tracker: recent interactions, disposition
+- [x] Thread tracker: active dormant threads by urgency
+- [x] Faction overview: standings across campaigns
 
 **Example Queries:**
 ```dataview
@@ -150,11 +150,11 @@ SORT date DESC
 ```
 
 ### Canvas for Active Threads
-- [ ] Create `threads.canvas` template
-- [ ] Position cards by urgency (left=soon, right=distant)
-- [ ] Color-code by faction
-- [ ] Link to trigger conditions
-- [ ] Archive zone for resolved threads
+- [x] Create `threads.canvas` template
+- [x] Position cards by urgency (left=soon, right=distant)
+- [x] Color-code by faction
+- [x] Link to trigger conditions
+- [x] Archive zone for resolved threads
 
 **Structure:**
 ```
