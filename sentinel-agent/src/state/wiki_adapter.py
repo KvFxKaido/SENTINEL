@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 import os
 import tempfile
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -72,6 +73,9 @@ class WikiAdapter:
         # Track last session for header insertion
         self._last_session: int | None = None
 
+        # Lock for serializing write operations
+        self._write_lock = threading.Lock()
+
         if self.enabled:
             self._init_overlay_dir()
 
@@ -89,10 +93,11 @@ class WikiAdapter:
 
     def _atomic_write(self, filepath: Path, content: str) -> bool:
         """
-        Write content to file atomically.
+        Write content to file atomically with serialization.
 
         Uses write-to-temp-then-rename pattern to prevent corruption
-        from interrupted writes or concurrent access.
+        from interrupted writes. Lock ensures only one write at a time
+        to prevent race conditions from rapid event firing.
 
         Args:
             filepath: Target file path
@@ -101,31 +106,32 @@ class WikiAdapter:
         Returns:
             True if successful
         """
-        try:
-            # Create temp file in same directory (ensures same filesystem for rename)
-            fd, temp_path = tempfile.mkstemp(
-                dir=filepath.parent,
-                prefix=f".{filepath.stem}_",
-                suffix=".tmp",
-            )
+        with self._write_lock:
             try:
-                # Write content to temp file
-                with os.fdopen(fd, "w", encoding="utf-8") as f:
-                    f.write(content)
-                # Atomic rename (overwrites target on POSIX, may need replace on Windows)
-                temp_file = Path(temp_path)
-                temp_file.replace(filepath)
-                return True
-            except Exception:
-                # Clean up temp file on failure
+                # Create temp file in same directory (ensures same filesystem for rename)
+                fd, temp_path = tempfile.mkstemp(
+                    dir=filepath.parent,
+                    prefix=f".{filepath.stem}_",
+                    suffix=".tmp",
+                )
                 try:
-                    os.unlink(temp_path)
-                except OSError:
-                    pass
-                raise
-        except Exception as e:
-            logger.error(f"Atomic write failed for {filepath}: {e}")
-            return False
+                    # Write content to temp file
+                    with os.fdopen(fd, "w", encoding="utf-8") as f:
+                        f.write(content)
+                    # Atomic rename (overwrites target on POSIX, may need replace on Windows)
+                    temp_file = Path(temp_path)
+                    temp_file.replace(filepath)
+                    return True
+                except Exception:
+                    # Clean up temp file on failure
+                    try:
+                        os.unlink(temp_path)
+                    except OSError:
+                        pass
+                    raise
+            except Exception as e:
+                logger.error(f"Atomic write failed for {filepath}: {e}")
+                return False
 
     def _get_last_session_from_file(self, events_file: Path) -> int | None:
         """Parse the events file to find the last session number."""
