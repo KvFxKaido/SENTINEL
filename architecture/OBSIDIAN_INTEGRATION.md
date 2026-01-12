@@ -194,9 +194,9 @@ SORT date DESC
 - [x] Atomic writes — write to temp file, then rename to prevent corruption
 - [x] Write queue — serialize wiki updates via threading lock
 - [x] Event IDs — idempotent appends via content hash (`<!-- eid:xxx -->`)
-- [ ] Error buffering — queue failed writes for retry, don't silently drop
+- [x] Error buffering — failed writes queued for retry on next operation
 
-*Note: `_atomic_write()` uses lock + temp-rename; `append_to_session_note()` deduplicates via event IDs*
+*Note: Full hardening complete. `flush_buffer()` available for forced retry at session end.*
 
 ---
 

@@ -77,6 +77,10 @@ class WikiAdapter:
         # Lock for serializing write operations
         self._write_lock = threading.Lock()
 
+        # Buffer for failed writes (retry on next operation)
+        self._write_buffer: list[tuple[Path, str]] = []
+        self._max_buffer_size = 50  # Prevent unbounded growth
+
         if self.enabled:
             self._init_overlay_dir()
 
@@ -92,13 +96,11 @@ class WikiAdapter:
             logger.error(f"Failed to create overlay directory: {e}")
             self.enabled = False
 
-    def _atomic_write(self, filepath: Path, content: str) -> bool:
+    def _do_atomic_write(self, filepath: Path, content: str) -> bool:
         """
-        Write content to file atomically with serialization.
+        Perform atomic write without locking or buffering.
 
-        Uses write-to-temp-then-rename pattern to prevent corruption
-        from interrupted writes. Lock ensures only one write at a time
-        to prevent race conditions from rapid event firing.
+        Low-level helper used by _atomic_write and _retry_buffered_writes.
 
         Args:
             filepath: Target file path
@@ -107,32 +109,104 @@ class WikiAdapter:
         Returns:
             True if successful
         """
-        with self._write_lock:
+        try:
+            # Create temp file in same directory (ensures same filesystem for rename)
+            fd, temp_path = tempfile.mkstemp(
+                dir=filepath.parent,
+                prefix=f".{filepath.stem}_",
+                suffix=".tmp",
+            )
             try:
-                # Create temp file in same directory (ensures same filesystem for rename)
-                fd, temp_path = tempfile.mkstemp(
-                    dir=filepath.parent,
-                    prefix=f".{filepath.stem}_",
-                    suffix=".tmp",
-                )
+                # Write content to temp file
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    f.write(content)
+                # Atomic rename (overwrites target on POSIX, may need replace on Windows)
+                temp_file = Path(temp_path)
+                temp_file.replace(filepath)
+                return True
+            except Exception:
+                # Clean up temp file on failure
                 try:
-                    # Write content to temp file
-                    with os.fdopen(fd, "w", encoding="utf-8") as f:
-                        f.write(content)
-                    # Atomic rename (overwrites target on POSIX, may need replace on Windows)
-                    temp_file = Path(temp_path)
-                    temp_file.replace(filepath)
-                    return True
-                except Exception:
-                    # Clean up temp file on failure
-                    try:
-                        os.unlink(temp_path)
-                    except OSError:
-                        pass
-                    raise
-            except Exception as e:
-                logger.error(f"Atomic write failed for {filepath}: {e}")
-                return False
+                    os.unlink(temp_path)
+                except OSError:
+                    pass
+                raise
+        except Exception as e:
+            logger.error(f"Atomic write failed for {filepath}: {e}")
+            return False
+
+    def _retry_buffered_writes(self) -> None:
+        """
+        Attempt to retry any buffered failed writes.
+
+        Called at start of each write operation. Successfully retried
+        writes are removed from buffer.
+        """
+        if not self._write_buffer:
+            return
+
+        # Try each buffered write
+        still_failed = []
+        for filepath, content in self._write_buffer:
+            if self._do_atomic_write(filepath, content):
+                logger.info(f"Retried buffered write succeeded: {filepath.name}")
+            else:
+                still_failed.append((filepath, content))
+
+        self._write_buffer = still_failed
+
+        if still_failed:
+            logger.warning(f"{len(still_failed)} buffered writes still pending")
+
+    def _buffer_failed_write(self, filepath: Path, content: str) -> None:
+        """
+        Add a failed write to the retry buffer.
+
+        Args:
+            filepath: Target file path
+            content: Content that failed to write
+        """
+        # Check if already buffered (same file) - update content
+        for i, (buf_path, _) in enumerate(self._write_buffer):
+            if buf_path == filepath:
+                self._write_buffer[i] = (filepath, content)
+                logger.debug(f"Updated buffered write: {filepath.name}")
+                return
+
+        # Add new entry if under limit
+        if len(self._write_buffer) < self._max_buffer_size:
+            self._write_buffer.append((filepath, content))
+            logger.warning(f"Buffered failed write for retry: {filepath.name}")
+        else:
+            logger.error(f"Write buffer full, dropping: {filepath.name}")
+
+    def _atomic_write(self, filepath: Path, content: str) -> bool:
+        """
+        Write content to file atomically with serialization and error buffering.
+
+        Uses write-to-temp-then-rename pattern to prevent corruption
+        from interrupted writes. Lock ensures only one write at a time
+        to prevent race conditions from rapid event firing. Failed writes
+        are buffered for retry on subsequent operations.
+
+        Args:
+            filepath: Target file path
+            content: Content to write
+
+        Returns:
+            True if successful (or buffered for retry)
+        """
+        with self._write_lock:
+            # First, try to flush any buffered writes
+            self._retry_buffered_writes()
+
+            # Now attempt this write
+            if self._do_atomic_write(filepath, content):
+                return True
+
+            # Failed - buffer for retry
+            self._buffer_failed_write(filepath, content)
+            return False
 
     def _generate_event_id(self, event_type: str, content: str, session: int) -> str:
         """
@@ -886,6 +960,25 @@ class WikiAdapter:
     def is_enabled(self) -> bool:
         """Check if wiki logging is enabled."""
         return self.enabled
+
+    @property
+    def pending_writes(self) -> int:
+        """Return number of buffered writes pending retry."""
+        return len(self._write_buffer)
+
+    def flush_buffer(self) -> int:
+        """
+        Force retry of all buffered writes.
+
+        Useful to call at session end (/debrief) to ensure all
+        writes are attempted before closing.
+
+        Returns:
+            Number of writes that still failed after retry
+        """
+        with self._write_lock:
+            self._retry_buffered_writes()
+            return len(self._write_buffer)
 
 
 # -----------------------------------------------------------------------------
