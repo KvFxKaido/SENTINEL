@@ -99,7 +99,7 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 
 **Technical Infrastructure**
 - **Multi-backend LLM** — LM Studio, Ollama (local), Claude Code (cloud)
-- **Test suite** — 252 tests covering core mechanics, local mode, simulation
+- **Test suite** — 321 tests covering core mechanics, local mode, simulation, lore retrieval
 - **Event queue** — MCP → Agent state sync via append-only queue (solves concurrency)
 - **CI/CD** — GitHub Actions (Python 3.10, 3.11, 3.12)
 - **Phase-based GM guidance** — different prompts per mission phase
@@ -164,9 +164,9 @@ SENTINEL/
 │   │   │   ├── packer.py         # PromptPacker with section budgets
 │   │   │   └── digest.py         # Campaign memory digest
 │   │   ├── lore/
-│   │   │   ├── chunker.py        # Parse novellas → tagged chunks
-│   │   │   ├── retriever.py      # Keyword matching retrieval
-│   │   │   ├── unified.py        # Combined lore + campaign + state (strain-aware)
+│   │   │   ├── chunker.py        # Parse markdown → tagged chunks (factions, regions, themes)
+│   │   │   ├── retriever.py      # Multi-directory retrieval with source weighting
+│   │   │   ├── unified.py        # Combined lore + wiki + campaign + state (strain-aware)
 │   │   │   └── quotes.py         # 44 curated faction/world quotes
 │   │   ├── tools/
 │   │   │   ├── registry.py       # Tool schemas + handlers (centralized)
@@ -499,10 +499,12 @@ Player types 1-4 to select, or types freely to improvise.
 
 ## Lore Retrieval System
 
-The GM draws from your novellas for narrative inspiration:
+The GM draws from novellas and wiki pages for narrative inspiration:
 
-- **9 documents** chunked into tagged segments
-- Auto-tagged with factions, characters, themes
+- **Multi-directory indexing** — lore/ (novellas) + wiki/ (reference pages)
+- **Source type weighting** — canon (2.0x), wiki (1.8x), case files (1.0x), character sheets (0.3x)
+- **Auto-tagging** — factions, regions, characters, themes extracted from content
+- **Region matching** — geographic queries prioritized alongside faction queries
 - Retrieved based on current faction standings + player input
 - Injected into GM context (up to 2 chunks per response)
 
