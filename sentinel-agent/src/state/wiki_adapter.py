@@ -13,9 +13,11 @@ This adapter mirrors the MemvidAdapter interface for consistency.
 
 from __future__ import annotations
 
+import collections
 import hashlib
 import logging
 import os
+import re
 import tempfile
 import threading
 from datetime import datetime
@@ -95,8 +97,9 @@ class WikiAdapter:
         self.overlay_dir = self.wiki_dir / "campaigns" / self.campaign_id
         try:
             self.overlay_dir.mkdir(parents=True, exist_ok=True)
-            # Also create NPCs subdirectory
+            # Also create subdirectories
             (self.overlay_dir / "NPCs").mkdir(exist_ok=True)
+            (self.overlay_dir / "sessions").mkdir(exist_ok=True)
             logger.debug(f"Wiki overlay directory: {self.overlay_dir}")
         except Exception as e:
             logger.error(f"Failed to create overlay directory: {e}")
@@ -721,7 +724,7 @@ class WikiAdapter:
         return True
 
     # -------------------------------------------------------------------------
-    # Session Summary (Daily Notes)
+    # Session Summary & MOCs
     # -------------------------------------------------------------------------
 
     def save_session_summary(
@@ -730,12 +733,11 @@ class WikiAdapter:
         reflections: dict | None = None,
     ) -> Path | None:
         """
-        Save session summary as a wiki daily note.
+        Save session summary and regenerate MOCs.
 
-        Creates wiki/campaigns/{id}/sessions/YYYY-MM-DD.md with:
-        - Frontmatter (session, date, campaign)
-        - Callouts for hinges, faction changes, threads
-        - Wikilinks for NPCs, factions
+        Creates wiki/campaigns/{id}/sessions/YYYY-MM-DD/YYYY-MM-DD.md and
+        the corresponding _game_log.md. After saving, it regenerates the
+        campaign's Maps of Content (_index.md files).
 
         Args:
             summary: Session summary dict from generate_session_summary()
@@ -744,164 +746,62 @@ class WikiAdapter:
         Returns:
             Path to created file, or None if failed
         """
-        if not self.enabled:
+        if not self.enabled or not self._templates:
             return None
 
-        # Create sessions directory
-        sessions_dir = self.overlay_dir / "sessions"
-        try:
-            sessions_dir.mkdir(exist_ok=True)
-        except Exception as e:
-            logger.error(f"Failed to create sessions directory: {e}")
-            return None
-
-        # Generate filename from current date
+        # Generate paths from current date
         date_str = datetime.now().strftime("%Y-%m-%d")
+        session_dir = self.overlay_dir / "sessions" / date_str
+        try:
+            session_dir.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            logger.error(f"Failed to create session directory: {e}")
+            return None
+
+        # Prepare context
         session_num = summary.get("session", 0)
         campaign_name = summary.get("campaign", self.campaign_id)
+        context = {
+            "date": date_str,
+            "campaign": campaign_name,
+            "summary": summary.get("text_summary", ""),
+            "reflections": reflections.get("text_summary", "") if reflections else "",
+        }
 
-        # Enrich faction changes with wikilinks
-        faction_changes = summary.get("faction_changes", [])
-        for change in faction_changes:
-            change["faction_link"] = self._extract_faction_link(change.get("summary", ""))
-
-        # Build session content using template
-        if self._templates:
-            content = self._templates.render("session.md.j2", {
-                "session": session_num,
-                "date": date_str,
-                "campaign": self.campaign_id,
-                "date_display": datetime.now().strftime('%B %d, %Y'),
-                "hinges": summary.get("hinges", []),
-                "faction_changes": faction_changes,
-                "threads_created": summary.get("threads_created", []),
-                "threads_resolved": summary.get("threads_resolved", []),
-                "npcs_encountered": summary.get("npcs_encountered", []),
-                "reflections": reflections,
-            })
-        else:
-            # Fallback to inline generation
-            lines = [
-                "---",
-                f"session: {session_num}",
-                f"date: {date_str}",
-                f"campaign: {self.campaign_id}",
-                "type: session",
-                "---",
-                "",
-                f"# Session {session_num} — {datetime.now().strftime('%B %d, %Y')}",
-                "",
-            ]
-
-            if summary.get("hinges"):
-                lines.append("## Key Choices")
-                lines.append("")
-                for hinge in summary["hinges"]:
-                    lines.append(f"> [!hinge] {hinge['choice']}")
-                    if hinge.get("situation"):
-                        lines.append(f"> **Situation:** {hinge['situation']}")
-                    if hinge.get("what_shifted"):
-                        lines.append(f"> **Shifted:** {hinge['what_shifted']}")
-                    lines.append("")
-
-            if faction_changes:
-                lines.append("## Faction Changes")
-                lines.append("")
-                for change in faction_changes:
-                    callout_type = "danger" if change.get("is_permanent") else "faction"
-                    lines.append(f"> [!{callout_type}] {change['summary']}")
-                    if change.get("faction_link"):
-                        lines.append(f"> Related: {change['faction_link']}")
-                    lines.append("")
-
-            if summary.get("threads_created"):
-                lines.append("## Threads Queued")
-                lines.append("")
-                for thread in summary["threads_created"]:
-                    severity = thread.get("severity", "minor").upper()
-                    lines.append(f"> [!thread] {thread['origin']}")
-                    lines.append(f"> **Severity:** {severity}")
-                    lines.append(f"> **Trigger:** {thread['trigger']}")
-                    lines.append("")
-
-            if summary.get("threads_resolved"):
-                lines.append("## Threads Resolved")
-                lines.append("")
-                for thread in summary["threads_resolved"]:
-                    lines.append(f"- {thread['summary']}")
-                lines.append("")
-
-            if summary.get("npcs_encountered"):
-                lines.append("## NPCs Encountered")
-                lines.append("")
-                for npc in summary["npcs_encountered"]:
-                    name = npc.get("name", "Unknown")
-                    faction = npc.get("faction", "")
-                    disp_change = npc.get("disposition_change", 0)
-                    npc_link = f"[[NPCs/{name}|{name}]]"
-                    faction_link = f"([[{faction.replace('_', ' ').title()}]])" if faction else ""
-                    if disp_change > 0:
-                        disposition = f"*(+{disp_change} disposition)*"
-                    elif disp_change < 0:
-                        disposition = f"*({disp_change} disposition)*"
-                    else:
-                        disposition = ""
-                    lines.append(f"- {npc_link} {faction_link} {disposition}".strip())
-                lines.append("")
-
-            if reflections:
-                lines.append("## Player Reflections")
-                lines.append("")
-                if reflections.get("cost"):
-                    lines.append(f"- **What it cost:** {reflections['cost']}")
-                if reflections.get("learned"):
-                    lines.append(f"- **What I learned:** {reflections['learned']}")
-                if reflections.get("would_refuse"):
-                    lines.append(f"- **What I'd refuse:** {reflections['would_refuse']}")
-                lines.append("")
-
-            content = "\n".join(lines)
+        # Build session content using the new transclusion template
+        content = self._templates.render("session_with_transclusion.md.j2", context)
 
         # Write file atomically
         filename = f"{date_str}.md"
-        filepath = sessions_dir / filename
+        filepath = session_dir / filename
 
         if not self._atomic_write(filepath, content):
             return None
         logger.info(f"Saved session summary to wiki: {filepath}")
-        return filepath
 
-    def _extract_faction_link(self, summary_text: str) -> str | None:
-        """Extract faction wikilink from summary text if possible."""
-        factions = [
-            "Nexus", "Ember Colonies", "Lattice", "Convergence", "Covenant",
-            "Wanderers", "Cultivators", "Steel Syndicate", "Witnesses",
-            "Architects", "Ghost Networks",
-        ]
-        for faction in factions:
-            if faction.lower() in summary_text.lower():
-                return f"[[{faction}]]"
-        return None
+        # After successful save, generate MOCs
+        self._generate_mocs()
+
+        return filepath
 
     def append_to_session_note(
         self,
         session: int,
         content: str,
-        section: str | None = None,
+        section: str | None = None,  # Section is less relevant for game log
         event_type: str = "update",
     ) -> bool:
         """
-        Append content to today's session note during active play.
+        Append content to today's game log file.
 
-        Creates the session note if it doesn't exist. Appends to the
-        specified section or creates a new "## Live Updates" section.
+        Creates the session directory and _game_log.md if they don't exist.
         Uses event IDs for idempotent appends (skips duplicates).
 
         Args:
             session: Session number
             content: Content to append (markdown)
-            section: Optional section header to append under
-            event_type: Event type for ID generation (hinge, faction, npc, thread)
+            section: No longer used, kept for interface compatibility.
+            event_type: Event type for ID generation
 
         Returns:
             True if successful
@@ -909,14 +809,16 @@ class WikiAdapter:
         if not self.enabled:
             return False
 
-        sessions_dir = self.overlay_dir / "sessions"
+        # Create session directory for today
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        session_dir = self.overlay_dir / "sessions" / date_str
         try:
-            sessions_dir.mkdir(exist_ok=True)
-        except Exception:
+            session_dir.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            logger.error(f"Failed to create session directory for game log: {e}")
             return False
 
-        date_str = datetime.now().strftime("%Y-%m-%d")
-        filepath = sessions_dir / f"{date_str}.md"
+        filepath = session_dir / "_game_log.md"
 
         # Generate event ID and check for duplicates
         event_id = self._generate_event_id(event_type, content, session)
@@ -930,69 +832,96 @@ class WikiAdapter:
         try:
             if filepath.exists():
                 existing = filepath.read_text(encoding="utf-8")
-
-                # Find or create the target section
-                if section:
-                    section_header = f"## {section}"
-                    if section_header in existing:
-                        # Append under existing section
-                        parts = existing.split(section_header, 1)
-                        if len(parts) == 2:
-                            # Find next section or end of file
-                            rest = parts[1]
-                            next_section = rest.find("\n## ")
-                            if next_section != -1:
-                                insert_point = next_section
-                                new_content = (
-                                    parts[0] + section_header +
-                                    rest[:insert_point].rstrip() + "\n" + content_with_id + "\n" +
-                                    rest[insert_point:]
-                                )
-                            else:
-                                new_content = existing.rstrip() + "\n" + content_with_id + "\n"
-                        else:
-                            new_content = existing.rstrip() + f"\n\n{section_header}\n\n{content_with_id}\n"
-                    else:
-                        # Create new section
-                        new_content = existing.rstrip() + f"\n\n{section_header}\n\n{content_with_id}\n"
-                else:
-                    # Append to "Live Updates" section
-                    live_header = "## Live Updates"
-                    if live_header in existing:
-                        new_content = existing.rstrip() + "\n" + content_with_id + "\n"
-                    else:
-                        new_content = existing.rstrip() + f"\n\n{live_header}\n\n{content_with_id}\n"
+                new_content = existing.rstrip() + "\n\n" + content_with_id
             else:
-                # Create new file with minimal structure using template
-                if self._templates:
-                    new_content = self._templates.render("session_live.md.j2", {
-                        "session": session,
-                        "date": date_str,
-                        "campaign": self.campaign_id,
-                        "date_display": datetime.now().strftime('%B %d, %Y'),
-                        "content": content_with_id,
-                    })
-                else:
-                    new_content = (
-                        "---\n"
-                        f"session: {session}\n"
-                        f"date: {date_str}\n"
-                        f"campaign: {self.campaign_id}\n"
-                        "type: session\n"
-                        "---\n\n"
-                        f"# Session {session} — {datetime.now().strftime('%B %d, %Y')}\n\n"
-                        "## Live Updates\n\n"
-                        f"{content_with_id}\n"
-                    )
+                new_content = f"# Game Log: {date_str}\n\n{content_with_id}"
 
             if not self._atomic_write(filepath, new_content):
                 return False
-            logger.debug(f"Appended to session note: {filepath.name}")
+            logger.debug(f"Appended to game log: {filepath.name}")
             return True
 
         except Exception as e:
-            logger.error(f"Failed to append to session note: {e}")
+            logger.error(f"Failed to append to game log: {e}")
             return False
+
+    def _generate_mocs(self) -> None:
+        """Generate Maps of Content (MOCs) for the campaign."""
+        if not self.enabled or not self._templates:
+            return
+
+        logger.info("Generating wiki MOCs...")
+        try:
+            self._generate_sessions_moc()
+            self._generate_npcs_moc()
+            self._generate_campaign_moc()
+        except Exception as e:
+            logger.error(f"Failed to generate MOCs: {e}", exc_info=True)
+
+    def _generate_campaign_moc(self):
+        """Generate the main _index.md for the campaign."""
+        moc_content = self._templates.render("moc_campaign.md.j2", {
+            "campaign_name": self.campaign_id.replace("_", " ").title()
+        })
+        moc_path = self.overlay_dir / "_index.md"
+        self._atomic_write(moc_path, moc_content)
+        logger.debug("Generated campaign MOC.")
+
+    def _generate_sessions_moc(self):
+        """Generate the sessions/_index.md MOC."""
+        sessions_dir = self.overlay_dir / "sessions"
+        session_entries = []
+        if sessions_dir.exists():
+            for session_path in sessions_dir.iterdir():
+                if session_path.is_dir():
+                    # Assumes YYYY-MM-DD directory name
+                    session_entries.append({"name": f"{session_path.name}/{session_path.name}"})
+
+        # Sort newest first
+        session_entries.sort(key=lambda x: x['name'], reverse=True)
+
+        moc_content = self._templates.render("moc_sessions.md.j2", {
+            "sessions": session_entries
+        })
+        moc_path = sessions_dir / "_index.md"
+        self._atomic_write(moc_path, moc_content)
+        logger.debug("Generated sessions MOC.")
+
+    def _generate_npcs_moc(self):
+        """Generate the NPCs/_index.md MOC, grouped by faction."""
+        npcs_dir = self.overlay_dir / "NPCs"
+        npcs_by_faction = collections.defaultdict(list)
+
+        if npcs_dir.exists():
+            for npc_file in npcs_dir.glob("*.md"):
+                if npc_file.name == "_index.md":
+                    continue
+                try:
+                    content = npc_file.read_text("utf-8")
+                    # Extract faction from frontmatter
+                    match = re.search(r"^faction:\s*(.*)$", content, re.MULTILINE | re.IGNORECASE)
+                    faction = match.group(1).strip() if match else "Unknown"
+                    
+                    npc_name = npc_file.stem
+                    npcs_by_faction[faction].append({
+                        "name": npc_name,
+                        "path": f"NPCs/{npc_file.name}"
+                    })
+                except Exception as e:
+                    logger.warning(f"Could not parse NPC file {npc_file.name}: {e}")
+        
+        # Sort factions and NPCs within factions
+        sorted_factions = dict(sorted(npcs_by_faction.items()))
+        for faction in sorted_factions:
+            sorted_factions[faction].sort(key=lambda x: x['name'])
+
+        moc_content = self._templates.render("moc_npcs.md.j2", {
+            "npcs_by_faction": sorted_factions
+        })
+        moc_path = npcs_dir / "_index.md"
+        self._atomic_write(moc_path, moc_content)
+        logger.debug("Generated NPCs MOC.")
+
 
     # -------------------------------------------------------------------------
     # Utility
