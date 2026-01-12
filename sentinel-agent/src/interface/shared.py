@@ -567,6 +567,28 @@ def get_campaign_status(manager: "CampaignManager") -> dict | None:
 # Wiki Operations
 # =============================================================================
 
+def _resolve_wiki_dir(wiki_dir: str = "wiki") -> "Path":
+    """Resolve wiki directory, checking multiple possible locations."""
+    from pathlib import Path
+
+    wiki_path = Path(wiki_dir)
+    if wiki_path.exists() and (wiki_path / "canon").exists():
+        return wiki_path
+
+    # Try parent directory (when running from sentinel-agent/)
+    parent_wiki = Path(__file__).parent.parent.parent.parent / "wiki"
+    if parent_wiki.exists() and (parent_wiki / "canon").exists():
+        return parent_wiki
+
+    # Try relative to cwd
+    cwd_wiki = Path.cwd() / "wiki"
+    if cwd_wiki.exists() and (cwd_wiki / "canon").exists():
+        return cwd_wiki
+
+    # Fall back to original
+    return wiki_path
+
+
 def get_wiki_timeline(manager: "CampaignManager", wiki_dir: str = "wiki") -> dict | None:
     """Get campaign wiki timeline events."""
     from pathlib import Path
@@ -575,8 +597,9 @@ def get_wiki_timeline(manager: "CampaignManager", wiki_dir: str = "wiki") -> dic
     if not manager.current:
         return None
 
+    resolved_wiki = _resolve_wiki_dir(wiki_dir)
     campaign_id = manager.current.meta.id
-    events_file = Path(wiki_dir) / "campaigns" / campaign_id / "_events.md"
+    events_file = resolved_wiki / "campaigns" / campaign_id / "_events.md"
 
     if not events_file.exists():
         return {
@@ -628,13 +651,12 @@ def get_wiki_page_overlay(
     wiki_dir: str = "wiki",
 ) -> dict | None:
     """Get a wiki page's campaign overlay if it exists."""
-    from pathlib import Path
-
     if not manager.current:
         return None
 
+    resolved_wiki = _resolve_wiki_dir(wiki_dir)
     campaign_id = manager.current.meta.id
-    overlay_file = Path(wiki_dir) / "campaigns" / campaign_id / f"{page}.md"
+    overlay_file = resolved_wiki / "campaigns" / campaign_id / f"{page}.md"
 
     if not overlay_file.exists():
         return {
