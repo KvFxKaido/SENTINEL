@@ -1,0 +1,215 @@
+# Obsidian Integration Roadmap
+
+*Enhancing the wiki with Obsidian-native features*
+
+## Overview
+
+The wiki (`wiki/`) serves as the reference encyclopedia for SENTINEL lore. These enhancements leverage Obsidian-specific features to improve navigation, visualization, and campaign tracking.
+
+---
+
+## Phase 1: Markdown Enhancements (No Code Changes)
+
+### Callout Blocks for Mechanics
+- [ ] Define callout types for game events
+- [ ] Add callouts to existing wiki pages where relevant
+- [ ] Document callout conventions in wiki README
+
+**Callout Types:**
+```markdown
+> [!hinge] Title
+> Irreversible choice with consequences
+
+> [!faction] Faction Standing Change
+> From → To (±delta)
+
+> [!thread] Dormant Thread
+> Trigger condition and consequence
+
+> [!npc] NPC Interaction
+> Disposition change, memories formed
+
+> [!intel] Intelligence
+> Faction-specific knowledge
+```
+
+**Example Usage:**
+```markdown
+> [!hinge] Betrayed Nexus Contact
+> Standing: Neutral → Unfriendly (-20)
+> Thread queued: Nexus Retaliation
+```
+
+### Mermaid Faction Relationships
+- [ ] Add relationship diagram to Factions.md hub
+- [ ] Add mini-diagrams to individual faction pages (allies/rivals)
+- [ ] Include diagram legend
+
+**Example:**
+```mermaid
+graph LR
+    subgraph Rivals
+        Nexus ---|deep rivalry| Ghost_Networks
+        Ember ---|tension| Architects
+    end
+    subgraph Allies
+        Nexus ---|cooperation| Lattice
+        Cultivators ---|trade| Wanderers
+    end
+```
+
+---
+
+## Phase 2: Campaign Integration (Code Changes)
+
+### Daily Notes from Debrief
+- [ ] Modify `/debrief` to generate daily note in `wiki/campaigns/{id}/sessions/`
+- [ ] Format: `YYYY-MM-DD.md` with session number in frontmatter
+- [ ] Include links to NPCs, factions, locations mentioned
+- [ ] Auto-generate wikilinks from entity names
+
+**Template:**
+```markdown
+---
+session: 5
+date: 2026-01-11
+campaign: iron_winter
+---
+
+# Session 5 — January 11, 2026
+
+## Events
+- [[Cipher]] revealed [[Nexus]] surveillance network
+- Player chose to warn [[Ember Colonies]]
+
+## Hinges
+> [!hinge] Warned Ember About Surveillance
+> [[Nexus]] standing: -10
+> Thread: [[Nexus Suspicion]]
+
+## NPCs Encountered
+- [[Cipher]] (Nexus) — disposition: neutral → wary
+- [[Elder Kara]] (Ember) — disposition: warm
+
+## Next Session
+- Dormant thread "Nexus Suspicion" may trigger
+- [[Elder Kara]] owes a favor
+```
+
+### Frontmatter Structure for Dataview
+- [ ] Define frontmatter schema for NPCs, factions, events
+- [ ] Update existing wiki pages with structured frontmatter
+- [ ] Create example Dataview queries
+
+**NPC Frontmatter:**
+```yaml
+---
+type: npc
+name: Cipher
+faction: Nexus
+disposition: neutral
+last_session: 5
+tags: [analyst, contact, nexus]
+---
+```
+
+**Faction Frontmatter:**
+```yaml
+---
+type: faction
+name: Nexus
+standing: Friendly
+standing_value: 20
+last_shift: session 5
+---
+```
+
+---
+
+## Phase 3: Visual Management (New Features)
+
+### Dataview Dashboards
+- [ ] Create `dashboards/` folder in wiki
+- [ ] NPC tracker: recent interactions, disposition
+- [ ] Thread tracker: active dormant threads by urgency
+- [ ] Faction overview: standings across campaigns
+
+**Example Queries:**
+```dataview
+TABLE disposition, faction, last_session
+FROM "campaigns/iron_winter/npcs"
+SORT last_session DESC
+LIMIT 10
+```
+
+```dataview
+LIST
+FROM "campaigns/iron_winter"
+WHERE contains(tags, "hinge")
+SORT date DESC
+```
+
+### Canvas for Active Threads
+- [ ] Create `threads.canvas` template
+- [ ] Position cards by urgency (left=soon, right=distant)
+- [ ] Color-code by faction
+- [ ] Link to trigger conditions
+- [ ] Archive zone for resolved threads
+
+**Structure:**
+```
+┌─────────────────────────────────────────────────────┐
+│  URGENT          SOON           DISTANT    RESOLVED │
+│  ┌─────┐        ┌─────┐        ┌─────┐    ┌─────┐  │
+│  │Nexus│        │Ember│        │Ghost│    │Done │  │
+│  │Retri│        │Debt │        │Watch│    │     │  │
+│  └─────┘        └─────┘        └─────┘    └─────┘  │
+└─────────────────────────────────────────────────────┘
+```
+
+---
+
+## Phase 4: Automation (Advanced)
+
+### Auto-Update from Agent Events
+- [ ] Hook into event queue to update wiki on faction shifts
+- [ ] Auto-create NPC pages on first encounter
+- [ ] Update frontmatter when disposition changes
+- [ ] Append to daily note during session
+
+### Graph View Optimization
+- [ ] Tag structure for meaningful clusters
+- [ ] Faction colors in graph (via CSS snippets)
+- [ ] Filter presets for campaign-specific views
+
+---
+
+## Dependencies
+
+| Feature | Requires |
+|---------|----------|
+| Callouts | Obsidian core (built-in) |
+| Mermaid | Obsidian core (built-in) |
+| Daily Notes | Code changes to `/debrief` |
+| Dataview | Dataview plugin |
+| Canvas | Obsidian core (built-in) |
+| Auto-update | Event queue hooks |
+
+---
+
+## Priority Recommendation
+
+1. **Callouts + Mermaid** — Immediate visual improvement, no code
+2. **Daily Notes from Debrief** — Ties wiki to gameplay loop
+3. **Frontmatter + Dataview** — Enables powerful queries
+4. **Canvas** — Visual thread management
+5. **Auto-update** — Full integration (later phase)
+
+---
+
+## Notes
+
+- All wiki content should work without plugins (graceful degradation)
+- Dataview queries are optional enhancement, not required
+- Canvas files are JSON-based, can be generated programmatically
+- Mermaid renders in GitHub too, not just Obsidian
