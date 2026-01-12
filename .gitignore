@@ -50,12 +50,13 @@ wiki/.obsidian/
 simulations/
 *.json.bak
 assets/portraits/
-assets/braille_portraits/
+assets/characters/
+nanobanana-output/
+sentinel-agent/generated_npcs/
 sentinel-agent/test_portrait.py
 
 # WIP / scratch files
 WARP.md
-sentinel-agent/scripts/generate_braille_portraits.py
 
 # Personal workspace tools
 Vigil/
@@ -78,3 +79,6 @@ Thumbs.db
 # Windows reserved names (can't be tracked)
 nul
 tmpclaude-*
+
+.gemini/
+gha-creds-*.json
