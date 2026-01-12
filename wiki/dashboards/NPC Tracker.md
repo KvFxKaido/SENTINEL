@@ -3,11 +3,34 @@ type: dashboard
 tags:
   - dashboard
   - npc
+cssclasses:
+  - cards
 ---
 
 # NPC Tracker
 
 Track NPC relationships across your campaign.
+
+> [!tip] Portraits
+> Generate portraits with: `python scripts/generate_portrait.py npc "Name" --campaign your_campaign`
+> Portraits are stored in `assets/portraits/npcs/` (gitignored).
+
+---
+
+## Portrait Gallery
+
+NPCs with generated portraits displayed as cards.
+
+```dataview
+TABLE WITHOUT ID
+  embed(link("assets/portraits/" + portrait, "100")) AS Portrait,
+  file.link AS Name,
+  faction AS Faction
+FROM "campaigns/*/NPCs"
+WHERE portrait
+SORT file.mtime DESC
+LIMIT 12
+```
 
 ---
 
