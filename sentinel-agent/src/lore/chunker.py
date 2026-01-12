@@ -16,6 +16,12 @@ FACTIONS = [
     "witnesses", "architects", "ghost networks", "ghost"
 ]
 
+REGIONS = [
+    "rust corridor", "appalachian hollows", "gulf passage", "breadbasket",
+    "northern reaches", "pacific corridor", "desert sprawl", "northeast scar",
+    "sovereign south", "texas spine", "frozen edge"
+]
+
 CHARACTERS = [
     "sentinel", "reese", "okoye", "lawson", "chen", "morrison",
     "marcus", "sarah", "rebecca"
@@ -28,6 +34,7 @@ THEMES = {
     "collapse": ["collapse", "fall", "destruction", "end", "catastrophe"],
     "resistance": ["resist", "rebel", "fight", "underground", "hide"],
     "ethics": ["moral", "choice", "right", "wrong", "decide", "conscience"],
+    "territory": ["region", "territory", "border", "zone", "corridor", "passage"],
 }
 
 
@@ -36,6 +43,7 @@ class LoreChunk:
     """A chunk of lore content with metadata."""
     id: str
     source: str  # filename
+    source_dir: str  # which directory it came from (lore, wiki, etc.)
     title: str  # document title
     section: str  # section header if any
     content: str
@@ -47,6 +55,7 @@ class LoreChunk:
 
     # Auto-extracted tags
     factions: list[str] = field(default_factory=list)
+    regions: list[str] = field(default_factory=list)
     characters: list[str] = field(default_factory=list)
     themes: list[str] = field(default_factory=list)
 
@@ -57,6 +66,7 @@ class LoreChunk:
         return {
             "id": self.id,
             "source": self.source,
+            "source_dir": self.source_dir,
             "title": self.title,
             "section": self.section,
             "content": self.content,
@@ -64,6 +74,7 @@ class LoreChunk:
             "date": self.date,
             "location": self.location,
             "factions": self.factions,
+            "regions": self.regions,
             "characters": self.characters,
             "themes": self.themes,
         }
@@ -113,8 +124,8 @@ def extract_frontmatter(content: str) -> dict[str, str]:
     return metadata
 
 
-def extract_tags(text: str) -> tuple[list[str], list[str], list[str]]:
-    """Extract faction, character, and theme tags from text."""
+def extract_tags(text: str) -> tuple[list[str], list[str], list[str], list[str]]:
+    """Extract faction, region, character, and theme tags from text."""
     text_lower = text.lower()
 
     # Find factions
@@ -127,6 +138,9 @@ def extract_tags(text: str) -> tuple[list[str], list[str], list[str]]:
         for f in factions
     ))
 
+    # Find regions
+    regions = [r for r in REGIONS if r in text_lower]
+
     # Find characters
     characters = [c for c in CHARACTERS if c in text_lower]
 
@@ -136,10 +150,10 @@ def extract_tags(text: str) -> tuple[list[str], list[str], list[str]]:
         if any(ind in text_lower for ind in indicators):
             themes.append(theme)
 
-    return factions, characters, themes
+    return factions, regions, characters, themes
 
 
-def parse_markdown(filepath: Path) -> list[LoreChunk]:
+def parse_markdown(filepath: Path, source_dir: str = "lore") -> list[LoreChunk]:
     """Parse a markdown file into chunks."""
     content = filepath.read_text(encoding="utf-8")
     filename = filepath.stem
@@ -166,12 +180,13 @@ def parse_markdown(filepath: Path) -> list[LoreChunk]:
         section_header = header_match.group(1) if header_match else ""
 
         # Extract tags
-        factions, characters, themes = extract_tags(section)
+        factions, regions, characters, themes = extract_tags(section)
         keywords = extract_keywords(section)
 
         chunk = LoreChunk(
-            id=f"{filename}_{i}",
+            id=f"{source_dir}_{filename}_{i}",
             source=filepath.name,
+            source_dir=source_dir,
             title=title,
             section=section_header,
             content=section,
@@ -179,6 +194,7 @@ def parse_markdown(filepath: Path) -> list[LoreChunk]:
             date=frontmatter["date"],
             location=frontmatter["location"],
             factions=factions,
+            regions=regions,
             characters=characters,
             themes=themes,
             keywords=keywords,
@@ -188,38 +204,53 @@ def parse_markdown(filepath: Path) -> list[LoreChunk]:
     return chunks
 
 
-def load_lore(lore_dir: Path | str) -> list[LoreChunk]:
-    """Load all lore from a directory."""
-    lore_dir = Path(lore_dir)
-    if not lore_dir.exists():
-        return []
+def load_lore(lore_dirs: Path | str | list[Path | str]) -> list[LoreChunk]:
+    """Load all lore from one or more directories."""
+    # Normalize to list
+    if isinstance(lore_dirs, (str, Path)):
+        lore_dirs = [lore_dirs]
 
     chunks = []
-    for filepath in lore_dir.glob("*.md"):
-        chunks.extend(parse_markdown(filepath))
+    for lore_dir in lore_dirs:
+        lore_dir = Path(lore_dir)
+        if not lore_dir.exists():
+            continue
+
+        # Use directory name as source identifier
+        source_dir = lore_dir.name
+
+        for filepath in lore_dir.glob("*.md"):
+            chunks.extend(parse_markdown(filepath, source_dir=source_dir))
 
     return chunks
 
 
-def index_lore(lore_dir: Path | str) -> dict:
+def index_lore(lore_dirs: Path | str | list[Path | str]) -> dict:
     """
     Build a searchable index of lore chunks.
 
+    Args:
+        lore_dirs: Single directory or list of directories to index
+
     Returns dict with:
-    - chunks: list of chunk dicts
+    - chunks: chunk_id -> LoreChunk
     - by_faction: faction -> chunk ids
+    - by_region: region -> chunk ids
     - by_character: character -> chunk ids
     - by_theme: theme -> chunk ids
     """
-    chunks = load_lore(lore_dir)
+    chunks = load_lore(lore_dirs)
 
     by_faction: dict[str, list[str]] = {}
+    by_region: dict[str, list[str]] = {}
     by_character: dict[str, list[str]] = {}
     by_theme: dict[str, list[str]] = {}
 
     for chunk in chunks:
         for f in chunk.factions:
             by_faction.setdefault(f, []).append(chunk.id)
+        for r in chunk.regions:
+            by_region.setdefault(r, []).append(chunk.id)
         for c in chunk.characters:
             by_character.setdefault(c, []).append(chunk.id)
         for t in chunk.themes:
@@ -228,6 +259,7 @@ def index_lore(lore_dir: Path | str) -> dict:
     return {
         "chunks": {c.id: c for c in chunks},
         "by_faction": by_faction,
+        "by_region": by_region,
         "by_character": by_character,
         "by_theme": by_theme,
     }
