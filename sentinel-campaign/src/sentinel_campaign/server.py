@@ -30,6 +30,9 @@ from .tools import (
     get_faction_intel,
     query_faction_npcs,
     search_wiki,
+    get_wiki_page,
+    update_wiki,
+    log_wiki_event,
 )
 
 # Setup logging
@@ -120,10 +123,11 @@ async def list_resources() -> list[Resource]:
         )
     )
 
-    # Wiki resources (if wiki directory exists)
-    if WIKI_DIR.exists():
+    # Wiki resources (canon pages)
+    canon_dir = WIKI_DIR / "canon"
+    if canon_dir.exists():
         for page in WIKI_PAGES:
-            page_file = WIKI_DIR / f"{page}.md"
+            page_file = canon_dir / f"{page}.md"
             if page_file.exists():
                 # Determine page type for description
                 page_lower = page.lower()
@@ -158,10 +162,14 @@ async def read_resource(uri) -> str:
     if uri.startswith("wiki://"):
         page_name = uri[len("wiki://"):].replace("_", " ")
 
-        # Find the wiki file
-        page_file = WIKI_DIR / f"{page_name}.md"
+        # Find the wiki file in canon directory
+        canon_dir = WIKI_DIR / "canon"
+        page_file = canon_dir / f"{page_name}.md"
         if not page_file.exists():
-            raise ValueError(f"Wiki page not found: {page_name}")
+            # Fallback to old location for compatibility
+            page_file = WIKI_DIR / f"{page_name}.md"
+            if not page_file.exists():
+                raise ValueError(f"Wiki page not found: {page_name}")
 
         # Return raw markdown content
         return page_file.read_text(encoding="utf-8")
@@ -327,13 +335,17 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="search_wiki",
-            description="Search wiki pages for lore, faction info, geography, or timeline events. Returns matching snippets with context.",
+            description="Search wiki pages for lore, faction info, geography, or timeline events. Searches both canon and campaign overlay.",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "query": {
                         "type": "string",
                         "description": "Search query (keywords or phrases)",
+                    },
+                    "campaign_id": {
+                        "type": "string",
+                        "description": "Campaign ID to include overlay pages (optional)",
                     },
                     "limit": {
                         "type": "integer",
@@ -342,6 +354,83 @@ async def list_tools() -> list[Tool]:
                     },
                 },
                 "required": ["query"],
+            },
+        ),
+        Tool(
+            name="get_wiki_page",
+            description="Get a wiki page with campaign overlay support. Returns merged content if campaign has extensions.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "page": {
+                        "type": "string",
+                        "description": "Page name (e.g., 'Nexus', 'The Collapse')",
+                    },
+                    "campaign_id": {
+                        "type": "string",
+                        "description": "Campaign ID to check for overlay (optional)",
+                    },
+                },
+                "required": ["page"],
+            },
+        ),
+        Tool(
+            name="update_wiki",
+            description="Update a campaign wiki overlay page. Use to add campaign-specific lore changes.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "campaign_id": {
+                        "type": "string",
+                        "description": "Campaign ID",
+                    },
+                    "page": {
+                        "type": "string",
+                        "description": "Page name to update",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Content to add/replace",
+                    },
+                    "mode": {
+                        "type": "string",
+                        "description": "Update mode",
+                        "enum": ["append", "replace", "extend"],
+                        "default": "append",
+                    },
+                    "section": {
+                        "type": "string",
+                        "description": "Section to append to (for extend mode)",
+                    },
+                },
+                "required": ["campaign_id", "page", "content"],
+            },
+        ),
+        Tool(
+            name="log_wiki_event",
+            description="Log a campaign event to the wiki timeline. Creates chronological record of significant happenings.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "campaign_id": {
+                        "type": "string",
+                        "description": "Campaign ID",
+                    },
+                    "session": {
+                        "type": "integer",
+                        "description": "Session number",
+                    },
+                    "event": {
+                        "type": "string",
+                        "description": "Event description",
+                    },
+                    "related_pages": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Related wiki pages to link (optional)",
+                    },
+                },
+                "required": ["campaign_id", "session", "event"],
             },
         ),
     ]
@@ -395,7 +484,34 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         result = search_wiki(
             wiki_dir=WIKI_DIR,
             query=arguments["query"],
+            campaign_id=arguments.get("campaign_id"),
             limit=arguments.get("limit", 5),
+        )
+
+    elif name == "get_wiki_page":
+        result = get_wiki_page(
+            wiki_dir=WIKI_DIR,
+            page=arguments["page"],
+            campaign_id=arguments.get("campaign_id"),
+        )
+
+    elif name == "update_wiki":
+        result = update_wiki(
+            wiki_dir=WIKI_DIR,
+            campaign_id=arguments["campaign_id"],
+            page=arguments["page"],
+            content=arguments["content"],
+            mode=arguments.get("mode", "append"),
+            section=arguments.get("section"),
+        )
+
+    elif name == "log_wiki_event":
+        result = log_wiki_event(
+            wiki_dir=WIKI_DIR,
+            campaign_id=arguments["campaign_id"],
+            session=arguments["session"],
+            event=arguments["event"],
+            related_pages=arguments.get("related_pages"),
         )
 
     else:

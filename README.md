@@ -48,6 +48,8 @@ SENTINEL/
 ├── core/               # Game rules document
 ├── lore/               # Novellas and world-building
 ├── wiki/               # Reference encyclopedia (Obsidian)
+│   ├── canon/          # Base lore (shared across campaigns)
+│   └── campaigns/      # Per-campaign overlays
 └── architecture/       # Design documents
 ```
 

@@ -320,66 +320,236 @@ def query_faction_npcs(
 
 
 # -----------------------------------------------------------------------------
-# Wiki Search
+# Wiki Tools
 # -----------------------------------------------------------------------------
+
+def _parse_frontmatter(content: str) -> tuple[dict, str]:
+    """Parse YAML frontmatter from markdown content."""
+    if not content.startswith("---"):
+        return {}, content
+
+    parts = content.split("---", 2)
+    if len(parts) < 3:
+        return {}, content
+
+    try:
+        # Simple YAML parsing for our use case
+        frontmatter = {}
+        for line in parts[1].strip().split("\n"):
+            if ":" in line:
+                key, value = line.split(":", 1)
+                frontmatter[key.strip()] = value.strip().strip('"').strip("'")
+        return frontmatter, parts[2].strip()
+    except Exception:
+        return {}, content
+
+
+def _merge_wiki_content(canon_content: str, overlay_content: str, frontmatter: dict) -> str:
+    """Merge overlay content into canon content based on frontmatter directives."""
+    if not frontmatter.get("extends"):
+        # No extends directive = full replacement
+        return overlay_content
+
+    append_to = frontmatter.get("append_to", "").strip()
+
+    if append_to:
+        # Find the section and append after it
+        lines = canon_content.split("\n")
+        result = []
+        found_section = False
+        inserted = False
+        section_level = 0
+
+        for i, line in enumerate(lines):
+            result.append(line)
+
+            # Check if this line is the target section header
+            if line.strip().startswith("#") and append_to.lstrip("#").strip() in line:
+                found_section = True
+                section_level = len(line) - len(line.lstrip("#"))
+                continue
+
+            # If we found the section, look for the next same-or-higher level header
+            if found_section and line.strip().startswith("#"):
+                current_level = len(line) - len(line.lstrip("#"))
+                if current_level <= section_level:
+                    # Insert overlay content before this header
+                    result.insert(-1, "\n" + overlay_content + "\n")
+                    found_section = False
+                    inserted = True
+
+        # If section was last in document or section was found
+        if found_section:
+            result.append("\n" + overlay_content)
+            inserted = True
+
+        # If target section wasn't found, append as new section at end
+        if not inserted:
+            section_header = append_to if append_to.startswith("#") else f"## {append_to}"
+            result.append(f"\n\n{section_header}\n\n{overlay_content}")
+
+        return "\n".join(result)
+    else:
+        # Default: append to end
+        return canon_content + "\n\n---\n\n## Campaign Notes\n\n" + overlay_content
+
+
+def get_wiki_page(
+    wiki_dir: Path,
+    page: str,
+    campaign_id: str | None = None,
+) -> dict:
+    """
+    Get a wiki page with campaign overlay support.
+
+    Checks for campaign-specific overlay first, falls back to canon.
+    Supports 'extends' frontmatter for section-level merging.
+    """
+    canon_dir = wiki_dir / "canon"
+    page_filename = f"{page}.md"
+
+    # Normalize page name (handle spaces vs underscores)
+    page_variants = [page, page.replace("_", " "), page.replace(" ", "_")]
+
+    # Find canon page
+    canon_path = None
+    canon_content = None
+    for variant in page_variants:
+        test_path = canon_dir / f"{variant}.md"
+        if test_path.exists():
+            canon_path = test_path
+            canon_content = test_path.read_text(encoding="utf-8")
+            break
+
+    # Check for campaign overlay
+    if campaign_id:
+        overlay_dir = wiki_dir / "campaigns" / campaign_id
+        overlay_path = None
+        overlay_content = None
+
+        for variant in page_variants:
+            test_path = overlay_dir / f"{variant}.md"
+            if test_path.exists():
+                overlay_path = test_path
+                overlay_content = test_path.read_text(encoding="utf-8")
+                break
+
+        if overlay_content:
+            frontmatter, body = _parse_frontmatter(overlay_content)
+
+            if canon_content and frontmatter.get("extends"):
+                # Merge overlay into canon
+                merged = _merge_wiki_content(canon_content, body, frontmatter)
+                return {
+                    "page": page,
+                    "content": merged,
+                    "source": "merged",
+                    "canon_path": str(canon_path),
+                    "overlay_path": str(overlay_path),
+                }
+            else:
+                # Full replacement
+                return {
+                    "page": page,
+                    "content": body if frontmatter else overlay_content,
+                    "source": "overlay",
+                    "overlay_path": str(overlay_path),
+                }
+
+    # Return canon only
+    if canon_content:
+        return {
+            "page": page,
+            "content": canon_content,
+            "source": "canon",
+            "canon_path": str(canon_path),
+        }
+
+    return {"error": f"Page not found: {page}"}
+
 
 def search_wiki(
     wiki_dir: Path,
     query: str,
+    campaign_id: str | None = None,
     limit: int = 5,
 ) -> dict:
     """
     Search wiki pages for a query string.
 
-    Returns matching snippets with context from wiki markdown files.
+    Searches both canon and campaign overlay, with overlay results prioritized.
+    Returns matching snippets with context.
     """
-    if not wiki_dir.exists():
-        return {"error": "Wiki directory not found", "matches": []}
+    canon_dir = wiki_dir / "canon"
+
+    if not canon_dir.exists():
+        # Fallback for old structure
+        canon_dir = wiki_dir
 
     # Normalize query for case-insensitive search
     query_lower = query.lower()
     query_words = query_lower.split()
 
     matches = []
+    seen_pages = set()
 
-    for wiki_file in wiki_dir.glob("*.md"):
-        try:
-            content = wiki_file.read_text(encoding="utf-8")
-        except Exception:
-            continue
+    # Search campaign overlay first (if provided)
+    search_dirs = []
+    if campaign_id:
+        overlay_dir = wiki_dir / "campaigns" / campaign_id
+        if overlay_dir.exists():
+            search_dirs.append(("overlay", overlay_dir))
+    search_dirs.append(("canon", canon_dir))
 
-        page_name = wiki_file.stem
-        content_lower = content.lower()
+    for source, search_dir in search_dirs:
+        for wiki_file in search_dir.glob("*.md"):
+            if wiki_file.name == "README.md":
+                continue
 
-        # Skip if no query words match
-        if not any(word in content_lower for word in query_words):
-            continue
+            page_name = wiki_file.stem
 
-        # Find matching sections
-        lines = content.split("\n")
-        snippets = []
+            # Skip if we already have this page from overlay
+            if page_name in seen_pages:
+                continue
 
-        for i, line in enumerate(lines):
-            line_lower = line.lower()
-            if any(word in line_lower for word in query_words):
-                # Get context: 1 line before, matching line, 2 lines after
-                start = max(0, i - 1)
-                end = min(len(lines), i + 3)
-                snippet = "\n".join(lines[start:end]).strip()
+            try:
+                content = wiki_file.read_text(encoding="utf-8")
+            except Exception:
+                continue
 
-                # Avoid duplicate snippets
-                if snippet not in snippets:
-                    snippets.append(snippet)
+            content_lower = content.lower()
 
-        if snippets:
-            # Score by number of query word matches
-            score = sum(1 for word in query_words if word in content_lower)
+            # Skip if no query words match
+            if not any(word in content_lower for word in query_words):
+                continue
 
-            matches.append({
-                "page": page_name,
-                "score": score,
-                "snippets": snippets[:3],  # Max 3 snippets per page
-            })
+            # Find matching sections
+            lines = content.split("\n")
+            snippets = []
+
+            for i, line in enumerate(lines):
+                line_lower = line.lower()
+                if any(word in line_lower for word in query_words):
+                    start = max(0, i - 1)
+                    end = min(len(lines), i + 3)
+                    snippet = "\n".join(lines[start:end]).strip()
+
+                    if snippet not in snippets:
+                        snippets.append(snippet)
+
+            if snippets:
+                score = sum(1 for word in query_words if word in content_lower)
+                # Boost overlay results
+                if source == "overlay":
+                    score += 10
+
+                matches.append({
+                    "page": page_name,
+                    "source": source,
+                    "score": score,
+                    "snippets": snippets[:3],
+                })
+                seen_pages.add(page_name)
 
     # Sort by score (most relevant first)
     matches.sort(key=lambda x: x["score"], reverse=True)
@@ -387,6 +557,119 @@ def search_wiki(
 
     return {
         "query": query,
+        "campaign_id": campaign_id,
         "matches": matches,
         "total_found": len(matches),
+    }
+
+
+def update_wiki(
+    wiki_dir: Path,
+    campaign_id: str,
+    page: str,
+    content: str,
+    mode: str = "append",
+    section: str | None = None,
+) -> dict:
+    """
+    Update a campaign wiki overlay page.
+
+    Modes:
+    - 'append': Add content to existing page (or create new)
+    - 'replace': Replace entire page content
+    - 'extend': Create an extends overlay for a canon page
+    """
+    overlay_dir = wiki_dir / "campaigns" / campaign_id
+    overlay_dir.mkdir(parents=True, exist_ok=True)
+
+    page_file = overlay_dir / f"{page}.md"
+
+    if mode == "extend":
+        # Create an extends overlay
+        frontmatter = f"---\nextends: {page}\n"
+        if section:
+            frontmatter += f'append_to: "{section}"\n'
+        frontmatter += "---\n\n"
+
+        if page_file.exists():
+            existing = page_file.read_text(encoding="utf-8")
+            fm, body = _parse_frontmatter(existing)
+            # Append to existing body
+            new_content = frontmatter + body + "\n\n" + content
+        else:
+            new_content = frontmatter + content
+
+        page_file.write_text(new_content, encoding="utf-8")
+        return {
+            "success": True,
+            "page": page,
+            "mode": "extend",
+            "path": str(page_file),
+        }
+
+    elif mode == "replace":
+        page_file.write_text(content, encoding="utf-8")
+        return {
+            "success": True,
+            "page": page,
+            "mode": "replace",
+            "path": str(page_file),
+        }
+
+    else:  # append
+        if page_file.exists():
+            existing = page_file.read_text(encoding="utf-8")
+            new_content = existing + "\n\n" + content
+        else:
+            # Create new campaign page
+            new_content = f"# {page}\n\n{content}"
+
+        page_file.write_text(new_content, encoding="utf-8")
+        return {
+            "success": True,
+            "page": page,
+            "mode": "append",
+            "path": str(page_file),
+        }
+
+
+def log_wiki_event(
+    wiki_dir: Path,
+    campaign_id: str,
+    session: int,
+    event: str,
+    related_pages: list[str] | None = None,
+) -> dict:
+    """
+    Log a campaign event to the wiki timeline.
+
+    Creates/updates _events.md in the campaign overlay.
+    Optionally links to related pages for cross-referencing.
+    """
+    overlay_dir = wiki_dir / "campaigns" / campaign_id
+    overlay_dir.mkdir(parents=True, exist_ok=True)
+
+    events_file = overlay_dir / "_events.md"
+
+    # Format the event entry
+    timestamp = datetime.now().strftime("%Y-%m-%d")
+    entry = f"- **Session {session}** ({timestamp}): {event}"
+
+    if related_pages:
+        links = ", ".join(f"[[{p}]]" for p in related_pages)
+        entry += f" — {links}"
+
+    if events_file.exists():
+        existing = events_file.read_text(encoding="utf-8")
+        new_content = existing + "\n" + entry
+    else:
+        new_content = f"# Campaign Timeline\n\nEvents from this campaign's playthrough.\n\n{entry}"
+
+    events_file.write_text(new_content, encoding="utf-8")
+
+    return {
+        "success": True,
+        "event": event,
+        "session": session,
+        "path": str(events_file),
     }
