@@ -2829,13 +2829,11 @@ def _simulate_run(manager: CampaignManager, agent: SentinelAgent, args: list[str
 
 def _simulate_preview(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
     """Preview consequences of a proposed action without committing."""
+    from .shared import simulate_preview
+
     if not args:
         console.print(f"[{THEME['warning']}]Usage: /simulate preview <action>[/{THEME['warning']}]")
         console.print(f"[{THEME['dim']}]Example: /simulate preview I betray the Syndicate contact[/{THEME['dim']}]")
-        return
-
-    if not manager.current:
-        console.print(f"[{THEME['warning']}]No campaign loaded[/{THEME['warning']}]")
         return
 
     if not agent.client:
@@ -2847,43 +2845,15 @@ def _simulate_preview(manager: CampaignManager, agent: SentinelAgent, args: list
     console.print(f"\n[bold {THEME['primary']}]◈ ACTION PREVIEW ◈[/bold {THEME['primary']}]")
     console.print(f"[{THEME['dim']}]Proposed action:[/{THEME['dim']}] {action}\n")
 
-    # Build analysis prompt
-    analysis_prompt = f"""Analyze the potential consequences of this player action WITHOUT narrating a scene.
-
-PROPOSED ACTION: "{action}"
-
-CURRENT STATE:
-- Character: {manager.current.characters[0].name if manager.current.characters else 'Unknown'}
-- Faction standings: {_format_faction_summary(manager)}
-- Active NPCs: {', '.join(n.name for n in manager.current.npcs.active[:5]) or 'None'}
-- Dormant threads: {len(manager.current.dormant_threads)}
-
-Provide a structured analysis:
-
-1. LIKELY IMMEDIATE EFFECTS (what happens right away)
-2. FACTION IMPLICATIONS (which factions care, standing changes)
-3. NPC REACTIONS (who would react, how)
-4. POTENTIAL THREADS (consequences that might queue)
-5. RISK ASSESSMENT (low/medium/high, why)
-
-Be concise. Use bullet points. This is speculative analysis, not narration."""
-
     with console.status(f"[{THEME['dim']}]Analyzing potential consequences...[/{THEME['dim']}]"):
-        try:
-            from ..llm.base import Message
-            response = agent.client.chat(
-                messages=[Message(role="user", content=analysis_prompt)],
-                system="You are a game consequence analyzer. Provide structured, concise analysis of potential action outcomes. Do not narrate scenes.",
-                max_tokens=800,
-            )
-            analysis = response.content if hasattr(response, 'content') else str(response)
-        except Exception as e:
-            console.print(f"[{THEME['danger']}]Analysis failed: {e}[/{THEME['danger']}]")
-            return
+        result = simulate_preview(manager, agent.client, action)
 
-    # Display analysis
+    if not result.success:
+        console.print(f"[{THEME['warning']}]{result.error}[/{THEME['warning']}]")
+        return
+
     console.print(Panel(
-        analysis,
+        result.analysis,
         title=f"[bold {THEME['warning']}]CONSEQUENCE PREVIEW[/bold {THEME['warning']}]",
         border_style=THEME['warning'],
     ))
@@ -2894,102 +2864,45 @@ Be concise. Use bullet points. This is speculative analysis, not narration."""
 
 def _simulate_npc(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
     """Predict how an NPC will react to a proposed approach."""
+    from .shared import simulate_npc, get_npc_details
+
     if len(args) < 2:
         console.print(f"[{THEME['warning']}]Usage: /simulate npc <name> <approach>[/{THEME['warning']}]")
         console.print(f"[{THEME['dim']}]Example: /simulate npc Reeves ask for weapons shipment[/{THEME['dim']}]")
-        return
-
-    if not manager.current:
-        console.print(f"[{THEME['warning']}]No campaign loaded[/{THEME['warning']}]")
         return
 
     if not agent.client:
         console.print(f"[{THEME['warning']}]No LLM backend available[/{THEME['warning']}]")
         return
 
-    # Find NPC
-    npc_query = args[0].lower()
+    npc_query = args[0]
     approach = " ".join(args[1:])
 
-    npc = None
-    for n in manager.current.npcs.active + manager.current.npcs.dormant:
-        if npc_query in n.name.lower():
-            npc = n
-            break
-
-    if not npc:
-        console.print(f"[{THEME['warning']}]No NPC found matching '{args[0]}'[/{THEME['warning']}]")
-        available = [n.name for n in manager.current.npcs.active[:5]]
-        if available:
-            console.print(f"[{THEME['dim']}]Active NPCs: {', '.join(available)}[/{THEME['dim']}]")
+    # Get NPC details for header display
+    npc_info = get_npc_details(manager, npc_query)
+    if not npc_info:
+        console.print(f"[{THEME['warning']}]No NPC found matching '{npc_query}'[/{THEME['warning']}]")
         return
 
-    # Get NPC status
-    status = manager.get_npc_status(npc.id)
-
+    # Show header
     console.print(f"\n[bold {THEME['primary']}]◈ NPC REACTION PREVIEW ◈[/bold {THEME['primary']}]")
-    console.print(f"[{THEME['secondary']}]NPC:[/{THEME['secondary']}] {npc.name}")
-    if npc.faction:
-        console.print(f"[{THEME['secondary']}]Faction:[/{THEME['secondary']}] {npc.faction.value}")
-    console.print(f"[{THEME['secondary']}]Disposition:[/{THEME['secondary']}] {status['effective_disposition']}")
-    console.print(f"[{THEME['secondary']}]Personal standing:[/{THEME['secondary']}] {status['personal_standing']:+d}")
+    console.print(f"[{THEME['secondary']}]NPC:[/{THEME['secondary']}] {npc_info['name']}")
+    if npc_info.get('faction'):
+        console.print(f"[{THEME['secondary']}]Faction:[/{THEME['secondary']}] {npc_info['faction']}")
+    console.print(f"[{THEME['secondary']}]Disposition:[/{THEME['secondary']}] {npc_info['disposition']}")
+    console.print(f"[{THEME['secondary']}]Personal standing:[/{THEME['secondary']}] {npc_info['personal_standing']:+d}")
     console.print(f"\n[{THEME['dim']}]Proposed approach:[/{THEME['dim']}] {approach}\n")
 
-    # Build NPC analysis prompt
-    npc_context = f"""NPC: {npc.name}
-Faction: {npc.faction.value if npc.faction else 'Independent'}
-Disposition toward player: {status['effective_disposition']}
-Personal standing: {status['personal_standing']:+d}
-Wants: {status['agenda']['wants']}
-Fears: {status['agenda']['fears']}
-Leverage over player: {status['agenda'].get('leverage', 'None')}
-Owes player: {status['agenda'].get('owes', 'Nothing')}
-Remembers: {', '.join(status['remembers']) if status['remembers'] else 'Nothing specific'}"""
+    with console.status(f"[{THEME['dim']}]Predicting {npc_info['name']}'s reaction...[/{THEME['dim']}]"):
+        result = simulate_npc(manager, agent.client, npc_query, approach)
 
-    analysis_prompt = f"""Predict how this NPC will react to the player's approach.
+    if not result.success:
+        console.print(f"[{THEME['warning']}]{result.error}[/{THEME['warning']}]")
+        return
 
-{npc_context}
-
-PLAYER'S APPROACH: "{approach}"
-
-Provide a structured prediction:
-
-1. LIKELY REACTIONS (3 possibilities with rough probability)
-   - Most likely (X%): ...
-   - Possible (Y%): ...
-   - Unlikely but possible (Z%): ...
-
-2. KEY FACTORS
-   - What's working in player's favor
-   - What's working against them
-
-3. SUGGESTED TACTICS
-   - How to improve chances
-   - What to avoid saying/doing
-
-4. RED FLAGS
-   - Topics that would backfire
-   - Past events that might come up
-
-Be specific to this NPC's personality and history. Keep it concise."""
-
-    with console.status(f"[{THEME['dim']}]Predicting {npc.name}'s reaction...[/{THEME['dim']}]"):
-        try:
-            from ..llm.base import Message
-            response = agent.client.chat(
-                messages=[Message(role="user", content=analysis_prompt)],
-                system="You are predicting NPC behavior based on their established personality, standing, and history. Be specific and grounded in the provided context.",
-                max_tokens=600,
-            )
-            prediction = response.content if hasattr(response, 'content') else str(response)
-        except Exception as e:
-            console.print(f"[{THEME['danger']}]Prediction failed: {e}[/{THEME['danger']}]")
-            return
-
-    # Display prediction
     console.print(Panel(
-        prediction,
-        title=f"[bold {THEME['accent']}]{npc.name.upper()} — REACTION PREDICTION[/bold {THEME['accent']}]",
+        result.analysis,
+        title=f"[bold {THEME['accent']}]{npc_info['name'].upper()} — REACTION PREDICTION[/bold {THEME['accent']}]",
         border_style=THEME['accent'],
     ))
 
@@ -2999,14 +2912,12 @@ Be specific to this NPC's personality and history. Keep it concise."""
 
 def _simulate_whatif(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
     """Explore how past choices might have gone differently."""
+    from .shared import simulate_whatif
+
     if not args:
         console.print(f"[{THEME['warning']}]Usage: /simulate whatif <query>[/{THEME['warning']}]")
         console.print(f"[{THEME['dim']}]Example: /simulate whatif helped Ember instead of refusing[/{THEME['dim']}]")
         console.print(f"[{THEME['dim']}]Example: /simulate whatif accepted the enhancement[/{THEME['dim']}]")
-        return
-
-    if not manager.current:
-        console.print(f"[{THEME['warning']}]No campaign loaded[/{THEME['warning']}]")
         return
 
     if not agent.client:
@@ -3018,110 +2929,21 @@ def _simulate_whatif(manager: CampaignManager, agent: SentinelAgent, args: list[
     console.print(f"\n[bold {THEME['primary']}]◈ WHAT-IF ANALYSIS ◈[/bold {THEME['primary']}]")
     console.print(f"[{THEME['dim']}]Query:[/{THEME['dim']}] {query}\n")
 
-    # Search for relevant past events
-    relevant_history = []
-
-    # Check hinges
-    for entry in manager.current.history:
-        if entry.hinge:
-            relevant_history.append({
-                "type": "hinge",
-                "session": entry.session,
-                "summary": entry.summary,
-                "choice": entry.hinge.choice,
-                "shifted": entry.hinge.what_shifted,
-            })
-
-    # Check faction shifts
-    from ..state.schema import HistoryType
-    for entry in manager.current.history:
-        if entry.type == HistoryType.FACTION_SHIFT:
-            relevant_history.append({
-                "type": "faction_shift",
-                "session": entry.session,
-                "summary": entry.summary,
-            })
-
-    # Build context for what-if analysis
-    history_context = "\n".join([
-        f"S{h['session']} [{h['type']}]: {h['summary']}"
-        for h in relevant_history[-15:]  # Last 15 events
-    ]) if relevant_history else "No significant history recorded yet."
-
-    current_state = f"""Current faction standings:
-{_format_faction_summary(manager)}
-
-Active threads: {len(manager.current.dormant_threads)}
-Session count: {manager.current.meta.session_count}"""
-
-    analysis_prompt = f"""The player wants to explore an alternate timeline.
-
-WHAT-IF QUERY: "{query}"
-
-CAMPAIGN HISTORY (key events):
-{history_context}
-
-CURRENT STATE:
-{current_state}
-
-Analyze this alternate path:
-
-1. DIVERGENCE POINT
-   - Identify which past event this relates to
-   - What was the original choice vs the hypothetical
-
-2. PROJECTED DIFFERENCES
-   - How faction standings would differ
-   - NPCs who would have reacted differently
-   - Threads that wouldn't exist / would exist instead
-
-3. BUTTERFLY EFFECTS
-   - Subsequent events that would have changed
-   - Opportunities gained or lost
-   - Relationships that would be different
-
-4. CURRENT SITUATION
-   - Where would the player be now?
-   - What problems would be different?
-   - What new problems might exist?
-
-This is speculative alternate history analysis. Be specific but acknowledge uncertainty."""
-
     with console.status(f"[{THEME['dim']}]Analyzing alternate timeline...[/{THEME['dim']}]"):
-        try:
-            from ..llm.base import Message
-            response = agent.client.chat(
-                messages=[Message(role="user", content=analysis_prompt)],
-                system="You are analyzing alternate timelines in a TTRPG campaign. Ground your analysis in the provided history while exploring plausible divergent paths.",
-                max_tokens=800,
-            )
-            analysis = response.content if hasattr(response, 'content') else str(response)
-        except Exception as e:
-            console.print(f"[{THEME['danger']}]Analysis failed: {e}[/{THEME['danger']}]")
-            return
+        result = simulate_whatif(manager, agent.client, query)
 
-    # Display analysis
+    if not result.success:
+        console.print(f"[{THEME['warning']}]{result.error}[/{THEME['warning']}]")
+        return
+
     console.print(Panel(
-        analysis,
+        result.analysis,
         title=f"[bold {THEME['warning']}]TIMELINE DIVERGENCE[/bold {THEME['warning']}]",
         border_style=THEME['warning'],
     ))
 
     console.print(f"\n[{THEME['dim']}]This is speculative. The road not taken remains unknown.[/{THEME['dim']}]")
     console.print(f"[{THEME['dim']}]Your actual choices have shaped who you are.[/{THEME['dim']}]")
-
-
-def _format_faction_summary(manager: CampaignManager) -> str:
-    """Format faction standings for prompts."""
-    if not manager.current:
-        return "No campaign loaded"
-
-    lines = []
-    for faction_enum in manager.current.factions.standings:
-        state = manager.current.factions.get(faction_enum)
-        lines.append(f"- {faction_enum.value}: {state.standing.value}")
-
-    return "\n".join(lines) if lines else "All Neutral"
 
 
 def _display_simulation_transcript(transcript: "SimulationTranscript"):

@@ -1420,20 +1420,35 @@ class SentinelTUI(App):
             return
 
         if cmd == "/status":
-            if self.manager and self.manager.current:
-                c = self.manager.current
-                log.write(Text.from_markup(f"[bold {Theme.TEXT}]{c.meta.name}[/bold {Theme.TEXT}]"))
-                log.write(Text.from_markup(f"  Phase: {c.meta.phase}"))
-                log.write(Text.from_markup(f"  Sessions: {c.meta.session_count}"))
+            from .shared import get_campaign_status
+            status = get_campaign_status(self.manager)
+            if status:
+                log.write(Text.from_markup(f"[bold {Theme.TEXT}]{status['name']}[/bold {Theme.TEXT}]"))
+                log.write(Text.from_markup(f"  Phase: {status['phase']}"))
+                log.write(Text.from_markup(f"  Sessions: {status['session_count']}"))
             else:
                 log.write(Text.from_markup(f"[{Theme.DIM}]No campaign loaded[/{Theme.DIM}]"))
             return
 
         if cmd == "/factions":
-            if self.manager and self.manager.current:
-                self._show_all_factions(log)
-            else:
+            from .shared import get_faction_standings
+            data = get_faction_standings(self.manager)
+            if not data:
                 log.write(Text.from_markup(f"[{Theme.DIM}]No campaign loaded[/{Theme.DIM}]"))
+                return
+
+            standing_values = {"Hostile": -2, "Unfriendly": -1, "Neutral": 0, "Friendly": 1, "Allied": 2}
+            standing_colors = {-2: Theme.HOSTILE, -1: Theme.UNFRIENDLY, 0: Theme.NEUTRAL, 1: Theme.FRIENDLY, 2: Theme.ALLIED}
+
+            log.write(Text.from_markup(f"[bold {Theme.TEXT}]Faction Standings:[/bold {Theme.TEXT}]"))
+            for f in data['standings']:
+                value = standing_values.get(f['standing'], 0)
+                blocks = value + 3
+                bar = g("centered") * blocks + g("frayed") * (5 - blocks)
+                color = standing_colors.get(value, Theme.NEUTRAL)
+                log.write(Text.from_markup(
+                    f"  [{Theme.TEXT}]{f['name']:<16}[/{Theme.TEXT}] [{color}]{bar} {f['standing']}[/{color}]"
+                ))
             return
 
         if cmd == "/start":
@@ -1490,34 +1505,36 @@ class SentinelTUI(App):
             return
 
         if cmd in ["/threads", "/consequences"]:
-            if not self.manager or not self.manager.current:
+            from .shared import get_dormant_threads
+            threads = get_dormant_threads(self.manager)
+            if threads is None:
                 log.write(Text.from_markup(f"[{Theme.DIM}]No campaign loaded[/{Theme.DIM}]"))
                 return
-            threads = self.manager.current.dormant_threads
             if not threads:
                 log.write(Text.from_markup(f"[{Theme.DIM}]No pending threads[/{Theme.DIM}]"))
             else:
                 log.write(Text.from_markup(f"[bold {Theme.TEXT}]Dormant Threads:[/bold {Theme.TEXT}]"))
                 for t in threads:
-                    sev_color = Theme.DANGER if t.severity.value == "major" else Theme.WARNING if t.severity.value == "moderate" else Theme.DIM
+                    sev_color = Theme.DANGER if t['severity'] == "major" else Theme.WARNING if t['severity'] == "moderate" else Theme.DIM
                     log.write(Text.from_markup(
-                        f"  [{sev_color}]{g('thread')}[/{sev_color}] {t.origin[:40]}..."
+                        f"  [{sev_color}]{g('thread')}[/{sev_color}] {t['origin'][:40]}..."
                     ))
-                    log.write(Text.from_markup(f"    [{Theme.DIM}]Trigger: {t.trigger_condition}[/{Theme.DIM}]"))
+                    log.write(Text.from_markup(f"    [{Theme.DIM}]Trigger: {t['trigger_condition']}[/{Theme.DIM}]"))
             return
 
         if cmd == "/history":
-            if not self.manager or not self.manager.current:
+            from .shared import get_hinge_history
+            hinges = get_hinge_history(self.manager, limit=5)
+            if hinges is None:
                 log.write(Text.from_markup(f"[{Theme.DIM}]No campaign loaded[/{Theme.DIM}]"))
                 return
-            history = self.manager.current.history
-            hinges = [h for h in history if h.entry_type.value == "hinge"]
             if not hinges:
                 log.write(Text.from_markup(f"[{Theme.DIM}]No hinge moments recorded[/{Theme.DIM}]"))
             else:
                 log.write(Text.from_markup(f"[bold {Theme.TEXT}]Hinge Moments:[/bold {Theme.TEXT}]"))
-                for h in hinges[-5:]:  # Last 5
-                    log.write(Text.from_markup(f"  [{Theme.ACCENT}]{g('hinge')}[/{Theme.ACCENT}] {h.content[:60]}..."))
+                for h in hinges:
+                    summary = h.get('summary', h.get('choice', ''))[:60]
+                    log.write(Text.from_markup(f"  [{Theme.ACCENT}]{g('hinge')}[/{Theme.ACCENT}] {summary}..."))
             return
 
         if cmd == "/roll":
@@ -1873,100 +1890,87 @@ class SentinelTUI(App):
             return
 
         if cmd == "/npc":
-            if not self.manager or not self.manager.current:
-                log.write(Text.from_markup(f"[{Theme.WARNING}]No campaign loaded[/{Theme.WARNING}]"))
-                return
-
-            npcs = self.manager.current.npcs
-            active = npcs.active if npcs else []
-            dormant = npcs.dormant if npcs else []
+            from .shared import get_npc_list, get_npc_details
 
             if not args:
                 # List all NPCs
-                if not active and not dormant:
+                data = get_npc_list(self.manager)
+                if data is None:
+                    log.write(Text.from_markup(f"[{Theme.WARNING}]No campaign loaded[/{Theme.WARNING}]"))
+                    return
+
+                if not data['active'] and not data['dormant']:
                     log.write(Text.from_markup(f"[{Theme.DIM}]No NPCs in this campaign yet[/{Theme.DIM}]"))
                     return
 
                 log.write(Text.from_markup(f"[bold {Theme.TEXT}]NPCs[/bold {Theme.TEXT}]"))
-                if active:
+                if data['active']:
                     log.write(Text.from_markup(f"\n[{Theme.ACCENT}]ACTIVE[/{Theme.ACCENT}]"))
-                    for npc in active:
-                        faction = npc.faction.value if npc.faction else "unknown"
-                        disp = npc.base_disposition.value if npc.base_disposition else "neutral"
-                        log.write(Text.from_markup(f"  • {npc.name} [{Theme.DIM}]{faction}, {disp}[/{Theme.DIM}]"))
-                if dormant:
+                    for npc in data['active']:
+                        faction = npc['faction'] or "unknown"
+                        disp = npc['disposition']
+                        log.write(Text.from_markup(f"  • {npc['name']} [{Theme.DIM}]{faction}, {disp}[/{Theme.DIM}]"))
+                if data['dormant']:
                     log.write(Text.from_markup(f"\n[{Theme.DIM}]DORMANT[/{Theme.DIM}]"))
-                    for npc in dormant:
-                        log.write(Text.from_markup(f"  [{Theme.DIM}]• {npc.name}[/{Theme.DIM}]"))
+                    for npc in data['dormant']:
+                        log.write(Text.from_markup(f"  [{Theme.DIM}]• {npc['name']}[/{Theme.DIM}]"))
             else:
                 # Find specific NPC
-                name_query = args[0].lower()
-                npc = None
-                for n in active + dormant:
-                    if name_query in n.name.lower():
-                        npc = n
-                        break
+                npc = get_npc_details(self.manager, args[0])
                 if not npc:
                     log.write(Text.from_markup(f"[{Theme.WARNING}]No NPC found matching '{args[0]}'[/{Theme.WARNING}]"))
                     return
 
                 # Show NPC details
-                log.write(Text.from_markup(f"\n[bold {Theme.ACCENT}]{npc.name}[/bold {Theme.ACCENT}]"))
-                if npc.faction:
-                    log.write(Text.from_markup(f"  [{Theme.DIM}]Faction:[/{Theme.DIM}] {npc.faction.value}"))
-                if npc.role:
-                    log.write(Text.from_markup(f"  [{Theme.DIM}]Role:[/{Theme.DIM}] {npc.role}"))
-                if npc.base_disposition:
-                    log.write(Text.from_markup(f"  [{Theme.DIM}]Disposition:[/{Theme.DIM}] {npc.base_disposition.value}"))
-                if npc.wants:
-                    log.write(Text.from_markup(f"  [{Theme.TEXT}]Wants:[/{Theme.TEXT}] {npc.wants}"))
-                if npc.fears:
-                    log.write(Text.from_markup(f"  [{Theme.TEXT}]Fears:[/{Theme.TEXT}] {npc.fears}"))
-                if npc.leverage:
-                    log.write(Text.from_markup(f"  [{Theme.WARNING}]Leverage:[/{Theme.WARNING}] {npc.leverage}"))
-                if npc.owes:
-                    log.write(Text.from_markup(f"  [{Theme.ACCENT}]Owes:[/{Theme.ACCENT}] {npc.owes}"))
+                log.write(Text.from_markup(f"\n[bold {Theme.ACCENT}]{npc['name']}[/bold {Theme.ACCENT}]"))
+                if npc.get('faction'):
+                    log.write(Text.from_markup(f"  [{Theme.DIM}]Faction:[/{Theme.DIM}] {npc['faction']}"))
+                if npc.get('role'):
+                    log.write(Text.from_markup(f"  [{Theme.DIM}]Role:[/{Theme.DIM}] {npc['role']}"))
+                if npc.get('disposition'):
+                    log.write(Text.from_markup(f"  [{Theme.DIM}]Disposition:[/{Theme.DIM}] {npc['disposition']}"))
+                if npc.get('wants'):
+                    log.write(Text.from_markup(f"  [{Theme.TEXT}]Wants:[/{Theme.TEXT}] {npc['wants']}"))
+                if npc.get('fears'):
+                    log.write(Text.from_markup(f"  [{Theme.TEXT}]Fears:[/{Theme.TEXT}] {npc['fears']}"))
+                if npc.get('leverage'):
+                    log.write(Text.from_markup(f"  [{Theme.WARNING}]Leverage:[/{Theme.WARNING}] {npc['leverage']}"))
+                if npc.get('owes'):
+                    log.write(Text.from_markup(f"  [{Theme.ACCENT}]Owes:[/{Theme.ACCENT}] {npc['owes']}"))
             return
 
         if cmd == "/arc":
-            if not self.manager or not self.manager.current:
-                log.write(Text.from_markup(f"[{Theme.WARNING}]No campaign loaded[/{Theme.WARNING}]"))
-                return
-
-            if not self.manager.current.characters:
-                log.write(Text.from_markup(f"[{Theme.WARNING}]No character in campaign[/{Theme.WARNING}]"))
-                return
-
-            char = self.manager.current.characters[0]
-            from ..state.schema import ArcStatus
+            from .shared import get_character_arcs, detect_arcs, accept_arc, reject_arc
 
             if not args:
                 # Show current arcs
+                data = get_character_arcs(self.manager)
+                if data is None:
+                    log.write(Text.from_markup(f"[{Theme.WARNING}]No campaign or character loaded[/{Theme.WARNING}]"))
+                    return
+
                 log.write(Text.from_markup(f"[bold {Theme.TEXT}]Character Arcs[/bold {Theme.TEXT}]"))
-                log.write(Text.from_markup(f"[{Theme.DIM}]{char.name}'s emergent identity patterns[/{Theme.DIM}]"))
+                log.write(Text.from_markup(f"[{Theme.DIM}]{data['character_name']}'s emergent identity patterns[/{Theme.DIM}]"))
 
-                accepted = [a for a in char.arcs if a.status == ArcStatus.ACCEPTED]
-                suggested = [a for a in char.arcs if a.status == ArcStatus.SUGGESTED]
-
-                if accepted:
+                if data['accepted']:
                     log.write(Text.from_markup(f"\n[{Theme.ACCENT}]ACTIVE ARCS[/{Theme.ACCENT}]"))
-                    for arc in accepted:
-                        strength_bar = "█" * min(5, arc.strength) + "░" * (5 - min(5, arc.strength))
-                        log.write(Text.from_markup(f"  ◆ [bold]{arc.title}[/bold] ({arc.arc_type.value})"))
-                        log.write(Text.from_markup(f"    [{Theme.DIM}]{arc.description}[/{Theme.DIM}]"))
+                    for arc in data['accepted']:
+                        strength_bar = "█" * min(5, arc['strength']) + "░" * (5 - min(5, arc['strength']))
+                        log.write(Text.from_markup(f"  ◆ [bold]{arc['title']}[/bold] ({arc['arc_type']})"))
+                        log.write(Text.from_markup(f"    [{Theme.DIM}]{arc['description']}[/{Theme.DIM}]"))
                         log.write(Text.from_markup(f"    Strength: [{Theme.ACCENT}]{strength_bar}[/{Theme.ACCENT}]"))
 
-                if suggested:
+                if data['suggested']:
                     log.write(Text.from_markup(f"\n[{Theme.WARNING}]SUGGESTED ARCS[/{Theme.WARNING}]"))
-                    for arc in suggested:
-                        log.write(Text.from_markup(f"  ? [bold]{arc.title}[/bold] ({arc.arc_type.value})"))
-                        log.write(Text.from_markup(f"    [{Theme.DIM}]{arc.description}[/{Theme.DIM}]"))
-                        log.write(Text.from_markup(f"    [{Theme.DIM}]/arc accept {arc.arc_type.value} | /arc reject {arc.arc_type.value}[/{Theme.DIM}]"))
+                    for arc in data['suggested']:
+                        log.write(Text.from_markup(f"  ? [bold]{arc['title']}[/bold] ({arc['arc_type']})"))
+                        log.write(Text.from_markup(f"    [{Theme.DIM}]{arc['description']}[/{Theme.DIM}]"))
+                        log.write(Text.from_markup(f"    [{Theme.DIM}]/arc accept {arc['arc_type']} | /arc reject {arc['arc_type']}[/{Theme.DIM}]"))
 
-                if not accepted and not suggested:
+                if not data['accepted'] and not data['suggested']:
                     log.write(Text.from_markup(f"\n[{Theme.DIM}]No arcs detected yet. Play more to develop patterns.[/{Theme.DIM}]"))
             elif args[0].lower() == "detect":
-                candidates = self.manager.detect_arcs()
+                candidates = detect_arcs(self.manager)
                 if candidates:
                     log.write(Text.from_markup(f"[bold {Theme.TEXT}]Detected Patterns[/bold {Theme.TEXT}]"))
                     for c in candidates:
@@ -1974,17 +1978,17 @@ class SentinelTUI(App):
                 else:
                     log.write(Text.from_markup(f"[{Theme.DIM}]No strong patterns detected yet[/{Theme.DIM}]"))
             elif args[0].lower() == "accept" and len(args) > 1:
-                result = self.manager.accept_arc(args[1])
-                if result:
-                    log.write(Text.from_markup(f"[{Theme.FRIENDLY}]Arc accepted: {args[1]}[/{Theme.FRIENDLY}]"))
+                result = accept_arc(self.manager, args[1])
+                if result.success:
+                    log.write(Text.from_markup(f"[{Theme.FRIENDLY}]{result.message}[/{Theme.FRIENDLY}]"))
                 else:
-                    log.write(Text.from_markup(f"[{Theme.WARNING}]Could not accept arc: {args[1]}[/{Theme.WARNING}]"))
+                    log.write(Text.from_markup(f"[{Theme.WARNING}]{result.message}[/{Theme.WARNING}]"))
             elif args[0].lower() == "reject" and len(args) > 1:
-                result = self.manager.reject_arc(args[1])
-                if result:
-                    log.write(Text.from_markup(f"[{Theme.DIM}]Arc rejected: {args[1]}[/{Theme.DIM}]"))
+                result = reject_arc(self.manager, args[1])
+                if result.success:
+                    log.write(Text.from_markup(f"[{Theme.DIM}]{result.message}[/{Theme.DIM}]"))
                 else:
-                    log.write(Text.from_markup(f"[{Theme.WARNING}]Could not reject arc: {args[1]}[/{Theme.WARNING}]"))
+                    log.write(Text.from_markup(f"[{Theme.WARNING}]{result.message}[/{Theme.WARNING}]"))
             else:
                 log.write(Text.from_markup(f"[{Theme.DIM}]Usage: /arc | /arc detect | /arc accept <type> | /arc reject <type>[/{Theme.DIM}]"))
             return
@@ -2216,14 +2220,41 @@ class SentinelTUI(App):
             return
 
         if cmd == "/simulate":
-            log.write(Text.from_markup(f"[bold {Theme.TEXT}]Simulation Modes[/bold {Theme.TEXT}]"))
-            log.write(Text.from_markup(f"\n[{Theme.ACCENT}]/simulate [turns] [persona][/{Theme.ACCENT}]"))
-            log.write(Text.from_markup(f"  [{Theme.DIM}]AI vs AI testing (cautious, opportunist, principled, chaotic)[/{Theme.DIM}]"))
-            log.write(Text.from_markup(f"\n[{Theme.ACCENT}]/simulate preview <action>[/{Theme.ACCENT}]"))
-            log.write(Text.from_markup(f"  [{Theme.DIM}]Preview consequences without committing[/{Theme.DIM}]"))
-            log.write(Text.from_markup(f"\n[{Theme.ACCENT}]/simulate npc <name> <approach>[/{Theme.ACCENT}]"))
-            log.write(Text.from_markup(f"  [{Theme.DIM}]Predict NPC reaction[/{Theme.DIM}]"))
-            log.write(Text.from_markup(f"\n[{Theme.WARNING}]Note: Full simulation requires the regular CLI[/{Theme.WARNING}]"))
+            if not args:
+                # Show help
+                log.write(Text.from_markup(f"[bold {Theme.TEXT}]Simulation Modes[/bold {Theme.TEXT}]"))
+                log.write(Text.from_markup(f"\n[{Theme.ACCENT}]/simulate preview <action>[/{Theme.ACCENT}]"))
+                log.write(Text.from_markup(f"  [{Theme.DIM}]Preview consequences without committing[/{Theme.DIM}]"))
+                log.write(Text.from_markup(f"  [{Theme.DIM}]Example: /simulate preview I betray the Syndicate contact[/{Theme.DIM}]"))
+                log.write(Text.from_markup(f"\n[{Theme.ACCENT}]/simulate npc <name> <approach>[/{Theme.ACCENT}]"))
+                log.write(Text.from_markup(f"  [{Theme.DIM}]Predict NPC reaction[/{Theme.DIM}]"))
+                log.write(Text.from_markup(f"  [{Theme.DIM}]Example: /simulate npc Reeves ask for weapons[/{Theme.DIM}]"))
+                log.write(Text.from_markup(f"\n[{Theme.ACCENT}]/simulate whatif <query>[/{Theme.ACCENT}]"))
+                log.write(Text.from_markup(f"  [{Theme.DIM}]Explore how past choices might have gone differently[/{Theme.DIM}]"))
+                log.write(Text.from_markup(f"  [{Theme.DIM}]Example: /simulate whatif helped Ember instead[/{Theme.DIM}]"))
+                return
+
+            subcommand = args[0].lower()
+            sub_args = args[1:]
+
+            if subcommand == "preview":
+                if not sub_args:
+                    log.write(Text.from_markup(f"[{Theme.WARNING}]Usage: /simulate preview <action>[/{Theme.WARNING}]"))
+                    return
+                self._simulate_preview(sub_args)
+            elif subcommand == "npc":
+                if len(sub_args) < 2:
+                    log.write(Text.from_markup(f"[{Theme.WARNING}]Usage: /simulate npc <name> <approach>[/{Theme.WARNING}]"))
+                    return
+                self._simulate_npc(sub_args)
+            elif subcommand == "whatif":
+                if not sub_args:
+                    log.write(Text.from_markup(f"[{Theme.WARNING}]Usage: /simulate whatif <query>[/{Theme.WARNING}]"))
+                    return
+                self._simulate_whatif(sub_args)
+            else:
+                log.write(Text.from_markup(f"[{Theme.WARNING}]Unknown simulate subcommand: {subcommand}[/{Theme.WARNING}]"))
+                log.write(Text.from_markup(f"[{Theme.DIM}]Use: preview, npc, or whatif[/{Theme.DIM}]"))
             return
 
         if cmd == "/compress":
@@ -2261,34 +2292,6 @@ class SentinelTUI(App):
             return
 
         log.write(Text.from_markup(f"[{Theme.WARNING}]Unknown command: {cmd}[/{Theme.WARNING}]"))
-
-    def _show_all_factions(self, log: RichLog):
-        """Display all faction standings."""
-        standing_values = {
-            "Hostile": -2, "Unfriendly": -1, "Neutral": 0,
-            "Friendly": 1, "Allied": 2,
-        }
-        standing_colors = {
-            -2: Theme.HOSTILE, -1: Theme.UNFRIENDLY, 0: Theme.NEUTRAL,
-            1: Theme.FRIENDLY, 2: Theme.ALLIED,
-        }
-
-        log.write(Text.from_markup(f"[bold {Theme.TEXT}]Faction Standings:[/bold {Theme.TEXT}]"))
-
-        for faction_field in ['nexus', 'ember_colonies', 'lattice', 'convergence',
-                              'covenant', 'wanderers', 'cultivators', 'steel_syndicate',
-                              'witnesses', 'architects', 'ghost_networks']:
-            faction_data = getattr(self.manager.current.factions, faction_field, None)
-            if faction_data:
-                name = faction_field.replace('_', ' ').title()
-                value = standing_values.get(faction_data.standing.value, 0)
-                blocks = value + 3
-                bar = g("centered") * blocks + g("frayed") * (5 - blocks)
-                color = standing_colors.get(value, Theme.NEUTRAL)
-                standing = faction_data.standing.value
-                log.write(Text.from_markup(
-                    f"  [{Theme.TEXT}]{name:<16}[/{Theme.TEXT}] [{color}]{bar} {standing}[/{color}]"
-                ))
 
     async def handle_choice(self, choice_num: int):
         """Handle numbered choice selection."""
@@ -2408,6 +2411,205 @@ class SentinelTUI(App):
 
         # Refresh panels on main thread
         self.call_from_thread(self.refresh_all_panels)
+
+    @work(thread=True)
+    async def _simulate_preview(self, args: list[str]):
+        """Preview consequences of a proposed action without committing."""
+        from .shared import simulate_preview
+
+        log = self.query_one("#output-log", RichLog)
+        log_width = (log.size.width or 80) - 4
+        indicator = self.query_one("#thinking-indicator", LoadingIndicator)
+
+        if not self.agent or not self.agent.client:
+            self.call_from_thread(log.write, Text.from_markup(
+                f"[{Theme.WARNING}]No LLM backend available[/{Theme.WARNING}]"
+            ))
+            return
+
+        action = " ".join(args)
+
+        # Show header
+        self.call_from_thread(log.write, Text.from_markup(
+            f"\n[bold {Theme.PRIMARY}]◈ ACTION PREVIEW ◈[/bold {Theme.PRIMARY}]"
+        ))
+        self.call_from_thread(log.write, Text.from_markup(
+            f"[{Theme.DIM}]Proposed action:[/{Theme.DIM}] {action}\n"
+        ))
+
+        # Show thinking indicator
+        self.call_from_thread(indicator.add_class, "visible")
+
+        try:
+            result = simulate_preview(self.manager, self.agent.client, action)
+
+            if not result.success:
+                self.call_from_thread(log.write, Text.from_markup(
+                    f"[{Theme.WARNING}]{result.error}[/{Theme.WARNING}]"
+                ))
+                return
+
+            # Display analysis in panel
+            panel_width = 70
+            analysis_panel = Panel(
+                result.analysis,
+                title=f"[bold {Theme.WARNING}]CONSEQUENCE PREVIEW[/bold {Theme.WARNING}]",
+                border_style=Theme.WARNING,
+                style=f"on {Theme.BG}",
+                padding=(0, 1),
+                width=panel_width,
+            )
+            self.call_from_thread(log.write, center_renderable(analysis_panel, panel_width, log_width))
+
+            self.call_from_thread(log.write, Text.from_markup(
+                f"\n[{Theme.DIM}]This is speculative. Actual outcomes depend on dice and GM narration.[/{Theme.DIM}]"
+            ))
+            self.call_from_thread(log.write, Text.from_markup(
+                f"[{Theme.DIM}]No changes have been made to your campaign.[/{Theme.DIM}]"
+            ))
+
+        finally:
+            self.call_from_thread(indicator.remove_class, "visible")
+
+    @work(thread=True)
+    async def _simulate_npc(self, args: list[str]):
+        """Predict how an NPC will react to a proposed approach."""
+        from .shared import simulate_npc, get_npc_details
+
+        log = self.query_one("#output-log", RichLog)
+        log_width = (log.size.width or 80) - 4
+        indicator = self.query_one("#thinking-indicator", LoadingIndicator)
+
+        if not self.agent or not self.agent.client:
+            self.call_from_thread(log.write, Text.from_markup(
+                f"[{Theme.WARNING}]No LLM backend available[/{Theme.WARNING}]"
+            ))
+            return
+
+        npc_query = args[0]
+        approach = " ".join(args[1:])
+
+        # Get NPC details for header display
+        npc_info = get_npc_details(self.manager, npc_query)
+        if not npc_info:
+            self.call_from_thread(log.write, Text.from_markup(
+                f"[{Theme.WARNING}]No NPC found matching '{npc_query}'[/{Theme.WARNING}]"
+            ))
+            return
+
+        # Show header
+        self.call_from_thread(log.write, Text.from_markup(
+            f"\n[bold {Theme.PRIMARY}]◈ NPC REACTION PREVIEW ◈[/bold {Theme.PRIMARY}]"
+        ))
+        self.call_from_thread(log.write, Text.from_markup(
+            f"[{Theme.SECONDARY}]NPC:[/{Theme.SECONDARY}] {npc_info['name']}"
+        ))
+        if npc_info.get('faction'):
+            self.call_from_thread(log.write, Text.from_markup(
+                f"[{Theme.SECONDARY}]Faction:[/{Theme.SECONDARY}] {npc_info['faction']}"
+            ))
+        self.call_from_thread(log.write, Text.from_markup(
+            f"[{Theme.SECONDARY}]Disposition:[/{Theme.SECONDARY}] {npc_info['disposition']}"
+        ))
+        self.call_from_thread(log.write, Text.from_markup(
+            f"[{Theme.SECONDARY}]Personal standing:[/{Theme.SECONDARY}] {npc_info['personal_standing']:+d}"
+        ))
+        self.call_from_thread(log.write, Text.from_markup(
+            f"\n[{Theme.DIM}]Proposed approach:[/{Theme.DIM}] {approach}\n"
+        ))
+
+        # Show thinking indicator
+        self.call_from_thread(indicator.add_class, "visible")
+
+        try:
+            result = simulate_npc(self.manager, self.agent.client, npc_query, approach)
+
+            if not result.success:
+                self.call_from_thread(log.write, Text.from_markup(
+                    f"[{Theme.WARNING}]{result.error}[/{Theme.WARNING}]"
+                ))
+                return
+
+            # Display prediction in panel
+            panel_width = 70
+            prediction_panel = Panel(
+                result.analysis,
+                title=f"[bold {Theme.ACCENT}]{npc_info['name'].upper()} — REACTION PREDICTION[/bold {Theme.ACCENT}]",
+                border_style=Theme.ACCENT,
+                style=f"on {Theme.BG}",
+                padding=(0, 1),
+                width=panel_width,
+            )
+            self.call_from_thread(log.write, center_renderable(prediction_panel, panel_width, log_width))
+
+            self.call_from_thread(log.write, Text.from_markup(
+                f"\n[{Theme.DIM}]This is speculative based on established NPC traits.[/{Theme.DIM}]"
+            ))
+            self.call_from_thread(log.write, Text.from_markup(
+                f"[{Theme.DIM}]Actual reactions depend on approach, dice, and GM interpretation.[/{Theme.DIM}]"
+            ))
+
+        finally:
+            self.call_from_thread(indicator.remove_class, "visible")
+
+    @work(thread=True)
+    async def _simulate_whatif(self, args: list[str]):
+        """Explore how past choices might have gone differently."""
+        from .shared import simulate_whatif
+
+        log = self.query_one("#output-log", RichLog)
+        log_width = (log.size.width or 80) - 4
+        indicator = self.query_one("#thinking-indicator", LoadingIndicator)
+
+        if not self.agent or not self.agent.client:
+            self.call_from_thread(log.write, Text.from_markup(
+                f"[{Theme.WARNING}]No LLM backend available[/{Theme.WARNING}]"
+            ))
+            return
+
+        query = " ".join(args)
+
+        # Show header
+        self.call_from_thread(log.write, Text.from_markup(
+            f"\n[bold {Theme.PRIMARY}]◈ WHAT-IF ANALYSIS ◈[/bold {Theme.PRIMARY}]"
+        ))
+        self.call_from_thread(log.write, Text.from_markup(
+            f"[{Theme.DIM}]Query:[/{Theme.DIM}] {query}\n"
+        ))
+
+        # Show thinking indicator
+        self.call_from_thread(indicator.add_class, "visible")
+
+        try:
+            result = simulate_whatif(self.manager, self.agent.client, query)
+
+            if not result.success:
+                self.call_from_thread(log.write, Text.from_markup(
+                    f"[{Theme.WARNING}]{result.error}[/{Theme.WARNING}]"
+                ))
+                return
+
+            # Display analysis in panel
+            panel_width = 70
+            analysis_panel = Panel(
+                result.analysis,
+                title=f"[bold {Theme.WARNING}]TIMELINE DIVERGENCE[/bold {Theme.WARNING}]",
+                border_style=Theme.WARNING,
+                style=f"on {Theme.BG}",
+                padding=(0, 1),
+                width=panel_width,
+            )
+            self.call_from_thread(log.write, center_renderable(analysis_panel, panel_width, log_width))
+
+            self.call_from_thread(log.write, Text.from_markup(
+                f"\n[{Theme.DIM}]This is speculative. The road not taken remains unknown.[/{Theme.DIM}]"
+            ))
+            self.call_from_thread(log.write, Text.from_markup(
+                f"[{Theme.DIM}]Your actual choices have shaped who you are.[/{Theme.DIM}]"
+            ))
+
+        finally:
+            self.call_from_thread(indicator.remove_class, "visible")
 
 
 def main():
