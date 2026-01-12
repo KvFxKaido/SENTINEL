@@ -67,6 +67,9 @@ class WikiAdapter:
             logger.warning(f"Wiki canon directory not found: {self.wiki_dir / 'canon'}")
             self.enabled = False
 
+        # Track last session for header insertion
+        self._last_session: int | None = None
+
         if self.enabled:
             self._init_overlay_dir()
 
@@ -75,10 +78,31 @@ class WikiAdapter:
         self.overlay_dir = self.wiki_dir / "campaigns" / self.campaign_id
         try:
             self.overlay_dir.mkdir(parents=True, exist_ok=True)
+            # Also create NPCs subdirectory
+            (self.overlay_dir / "NPCs").mkdir(exist_ok=True)
             logger.debug(f"Wiki overlay directory: {self.overlay_dir}")
         except Exception as e:
             logger.error(f"Failed to create overlay directory: {e}")
             self.enabled = False
+
+    def _get_last_session_from_file(self, events_file: Path) -> int | None:
+        """Parse the events file to find the last session number."""
+        if not events_file.exists():
+            return None
+        try:
+            content = events_file.read_text(encoding="utf-8")
+            # Look for ## Session N headers
+            import re
+            matches = re.findall(r"^## Session (\d+)", content, re.MULTILINE)
+            if matches:
+                return int(matches[-1])
+            # Fall back to inline session references
+            matches = re.findall(r"\*\*Session (\d+)\*\*", content)
+            if matches:
+                return int(matches[-1])
+        except Exception:
+            pass
+        return None
 
     # -------------------------------------------------------------------------
     # Event Logging
@@ -109,9 +133,17 @@ class WikiAdapter:
         events_file = self.overlay_dir / "_events.md"
         timestamp = datetime.now().strftime("%Y-%m-%d")
 
+        # Check if we need a session header
+        if self._last_session is None:
+            self._last_session = self._get_last_session_from_file(events_file)
+
+        needs_session_header = (
+            self._last_session is None or session > self._last_session
+        )
+
         # Format entry
         type_badge = f"[{event_type.upper()}]" if event_type != "event" else ""
-        entry = f"- **Session {session}** ({timestamp}) {type_badge}: {event}"
+        entry = f"- ({timestamp}) {type_badge}: {event}"
 
         if related_pages:
             links = ", ".join(f"[[{p}]]" for p in related_pages)
@@ -120,15 +152,23 @@ class WikiAdapter:
         try:
             if events_file.exists():
                 content = events_file.read_text(encoding="utf-8")
-                new_content = content.rstrip() + "\n" + entry + "\n"
+                if needs_session_header:
+                    new_content = (
+                        content.rstrip() + f"\n\n## Session {session}\n\n" + entry + "\n"
+                    )
+                else:
+                    new_content = content.rstrip() + "\n" + entry + "\n"
             else:
+                # New file - add header and first session
                 new_content = (
                     "# Campaign Timeline\n\n"
                     "Significant events from this campaign.\n\n"
+                    f"## Session {session}\n\n"
                     f"{entry}\n"
                 )
 
             events_file.write_text(new_content, encoding="utf-8")
+            self._last_session = session
             logger.debug(f"Logged wiki event: {event[:50]}...")
             return True
 
@@ -278,29 +318,119 @@ class WikiAdapter:
         context: dict | None = None,
     ) -> bool:
         """
-        Log a significant NPC interaction to wiki.
+        Log NPC interaction to wiki.
 
-        Only logs interactions with disposition changes or high significance.
+        Creates/updates NPC page and logs to timeline if disposition changed.
         """
         if not self.enabled:
             return False
 
-        # Only log significant interactions (disposition changes)
-        if disposition_change == 0:
-            return True  # Silent success, not worth logging
-
         faction_name = npc.faction.value.replace("_", " ").title() if npc.faction else "Independent"
-        direction = "improved" if disposition_change > 0 else "worsened"
 
-        event = f"Interaction with {npc.name} ({faction_name}): relationship {direction}"
-        self._log_event(
+        # Always update NPC page with interaction history
+        self._update_npc_page(
+            npc=npc,
+            faction_name=faction_name,
+            player_action=player_action,
+            npc_reaction=npc_reaction,
+            disposition_change=disposition_change,
             session=session,
-            event=event,
-            event_type="npc",
-            related_pages=[faction_name] if npc.faction else None,
         )
 
+        # Only log to timeline if disposition changed
+        if disposition_change != 0:
+            direction = "improved" if disposition_change > 0 else "worsened"
+            event = f"Interaction with [[NPCs/{npc.name}|{npc.name}]] ({faction_name}): relationship {direction}"
+            self._log_event(
+                session=session,
+                event=event,
+                event_type="npc",
+                related_pages=[faction_name] if npc.faction else None,
+            )
+
         return True
+
+    def _update_npc_page(
+        self,
+        npc: NPC,
+        faction_name: str,
+        player_action: str,
+        npc_reaction: str,
+        disposition_change: int,
+        session: int,
+    ) -> bool:
+        """
+        Create or update an NPC overlay page.
+
+        Creates NPCs/{name}.md with interaction history.
+        """
+        if not self.enabled:
+            return False
+
+        # Sanitize name for filename
+        safe_name = npc.name.replace("/", "-").replace("\\", "-")
+        npc_file = self.overlay_dir / "NPCs" / f"{safe_name}.md"
+
+        try:
+            if npc_file.exists():
+                # Append to existing page
+                content = npc_file.read_text(encoding="utf-8")
+
+                # Format new interaction entry
+                change_text = ""
+                if disposition_change > 0:
+                    change_text = f" *(disposition improved)*"
+                elif disposition_change < 0:
+                    change_text = f" *(disposition worsened)*"
+
+                entry = (
+                    f"\n### Session {session}\n\n"
+                    f"**Player:** {player_action}\n\n"
+                    f"**{npc.name}:** {npc_reaction}{change_text}\n"
+                )
+
+                new_content = content.rstrip() + "\n" + entry
+
+            else:
+                # Create new NPC page
+                disposition = getattr(npc, 'disposition', 'neutral')
+                if hasattr(disposition, 'value'):
+                    disposition = disposition.value
+
+                # Check if canon NPC exists
+                canon_npc_file = self.wiki_dir / "canon" / "NPCs" / f"{safe_name}.md"
+                extends_line = ""
+                if canon_npc_file.exists():
+                    extends_line = f"extends: NPCs/{safe_name}\n"
+
+                change_text = ""
+                if disposition_change > 0:
+                    change_text = f" *(disposition improved)*"
+                elif disposition_change < 0:
+                    change_text = f" *(disposition worsened)*"
+
+                new_content = (
+                    f"---\n"
+                    f"{extends_line}"
+                    f"type: npc\n"
+                    f"faction: {faction_name}\n"
+                    f"---\n\n"
+                    f"# {npc.name}\n\n"
+                    f"**Faction:** [[{faction_name}]]\n"
+                    f"**Current Disposition:** {disposition}\n\n"
+                    f"## Interaction History\n\n"
+                    f"### Session {session} *(First Meeting)*\n\n"
+                    f"**Player:** {player_action}\n\n"
+                    f"**{npc.name}:** {npc_reaction}{change_text}\n"
+                )
+
+            npc_file.write_text(new_content, encoding="utf-8")
+            logger.debug(f"Updated NPC page: {npc.name}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to update NPC page: {e}")
+            return False
 
     def save_dormant_thread(
         self,
