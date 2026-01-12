@@ -22,6 +22,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from .templates import create_template_engine, TemplateEngine
+
 if TYPE_CHECKING:
     from .schema import (
         Campaign,
@@ -81,8 +83,12 @@ class WikiAdapter:
         self._write_buffer: list[tuple[Path, str]] = []
         self._max_buffer_size = 50  # Prevent unbounded growth
 
+        # Template engine for page generation
+        self._templates: TemplateEngine | None = None
+
         if self.enabled:
             self._init_overlay_dir()
+            self._templates = create_template_engine(self.wiki_dir)
 
     def _init_overlay_dir(self) -> None:
         """Create campaign overlay directory if needed."""
@@ -450,12 +456,19 @@ class WikiAdapter:
             related_pages=None,  # Could extract from what_shifted
         )
 
-        # Append to live session note
-        callout = f"> [!hinge] {hinge.choice}\n"
-        if hinge.situation:
-            callout += f"> **Situation:** {hinge.situation}\n"
-        if immediate_effects:
-            callout += f"> **Effects:** {', '.join(immediate_effects[:3])}\n"
+        # Append to live session note using template
+        if self._templates:
+            callout = self._templates.render("callouts/hinge.md.j2", {
+                "choice": hinge.choice,
+                "situation": hinge.situation,
+                "effects": immediate_effects[:3] if immediate_effects else None,
+            })
+        else:
+            callout = f"> [!hinge] {hinge.choice}\n"
+            if hinge.situation:
+                callout += f"> **Situation:** {hinge.situation}\n"
+            if immediate_effects:
+                callout += f"> **Effects:** {', '.join(immediate_effects[:3])}\n"
         self.append_to_session_note(session, callout, section="Key Choices", event_type="hinge")
 
         return True
@@ -487,21 +500,37 @@ class WikiAdapter:
             related_pages=[faction_name],
         )
 
-        # Extend faction page
-        content = (
-            f"### Session {session}\n\n"
-            f"- Standing changed: {from_standing} → {to_standing}\n"
-            f"- Cause: {cause}\n"
-        )
+        # Extend faction page using template
+        if self._templates:
+            content = self._templates.render("faction_extension.md.j2", {
+                "session": session,
+                "from_standing": from_standing,
+                "to_standing": to_standing,
+                "cause": cause,
+            })
+        else:
+            content = (
+                f"### Session {session}\n\n"
+                f"- Standing changed: {from_standing} → {to_standing}\n"
+                f"- Cause: {cause}\n"
+            )
         self._extend_page(
             page=faction_name,
             content=content,
             section="## Campaign History",
         )
 
-        # Append to live session note
-        callout = f"> [!faction] [[{faction_name}]]: {from_standing} → {to_standing}\n"
-        callout += f"> {cause}\n"
+        # Append to live session note using template
+        if self._templates:
+            callout = self._templates.render("callouts/faction.md.j2", {
+                "faction": faction_name,
+                "from_standing": from_standing,
+                "to_standing": to_standing,
+                "cause": cause,
+            })
+        else:
+            callout = f"> [!faction] [[{faction_name}]]: {from_standing} → {to_standing}\n"
+            callout += f"> {cause}\n"
         self.append_to_session_note(session, callout, section="Faction Changes", event_type="faction")
 
         return True
@@ -574,31 +603,31 @@ class WikiAdapter:
 
         Creates NPCs/{name}.md with interaction history.
         """
-        if not self.enabled:
+        if not self.enabled or not self._templates:
             return False
 
         # Sanitize name for filename
         safe_name = npc.name.replace("/", "-").replace("\\", "-")
         npc_file = self.overlay_dir / "NPCs" / f"{safe_name}.md"
 
+        # Build disposition change text
+        change_text = ""
+        if disposition_change > 0:
+            change_text = "*(disposition improved)*"
+        elif disposition_change < 0:
+            change_text = "*(disposition worsened)*"
+
         try:
             if npc_file.exists():
-                # Append to existing page
+                # Append to existing page using entry template
                 content = npc_file.read_text(encoding="utf-8")
-
-                # Format new interaction entry
-                change_text = ""
-                if disposition_change > 0:
-                    change_text = f" *(disposition improved)*"
-                elif disposition_change < 0:
-                    change_text = f" *(disposition worsened)*"
-
-                entry = (
-                    f"\n### Session {session}\n\n"
-                    f"**Player:** {player_action}\n\n"
-                    f"**{npc.name}:** {npc_reaction}{change_text}\n"
-                )
-
+                entry = self._templates.render("npc_entry.md.j2", {
+                    "session": session,
+                    "name": npc.name,
+                    "player_action": player_action,
+                    "npc_reaction": npc_reaction,
+                    "disposition_change_text": change_text,
+                })
                 new_content = content.rstrip() + "\n" + entry
 
             else:
@@ -609,30 +638,19 @@ class WikiAdapter:
 
                 # Check if canon NPC exists
                 canon_npc_file = self.wiki_dir / "canon" / "NPCs" / f"{safe_name}.md"
-                extends_line = ""
-                if canon_npc_file.exists():
-                    extends_line = f"extends: NPCs/{safe_name}\n"
+                extends = f"NPCs/{safe_name}" if canon_npc_file.exists() else None
 
-                change_text = ""
-                if disposition_change > 0:
-                    change_text = f" *(disposition improved)*"
-                elif disposition_change < 0:
-                    change_text = f" *(disposition worsened)*"
-
-                new_content = (
-                    f"---\n"
-                    f"{extends_line}"
-                    f"type: npc\n"
-                    f"faction: {faction_name}\n"
-                    f"---\n\n"
-                    f"# {npc.name}\n\n"
-                    f"**Faction:** [[{faction_name}]]\n"
-                    f"**Current Disposition:** {disposition}\n\n"
-                    f"## Interaction History\n\n"
-                    f"### Session {session} *(First Meeting)*\n\n"
-                    f"**Player:** {player_action}\n\n"
-                    f"**{npc.name}:** {npc_reaction}{change_text}\n"
-                )
+                new_content = self._templates.render("npc.md.j2", {
+                    "name": npc.name,
+                    "faction": faction_name,
+                    "disposition": disposition,
+                    "extends": extends,
+                    "session": session,
+                    "first_meeting": True,
+                    "player_action": player_action,
+                    "npc_reaction": npc_reaction,
+                    "disposition_change_text": change_text,
+                })
 
             if not self._atomic_write(npc_file, new_content):
                 return False
@@ -658,12 +676,19 @@ class WikiAdapter:
             event_type="thread",
         )
 
-        # Append to live session note
-        severity = thread.severity.value.upper()
-        callout = f"> [!thread] {thread.origin}\n"
-        callout += f"> **Severity:** {severity}\n"
-        if thread.trigger:
-            callout += f"> **Trigger:** {thread.trigger}\n"
+        # Append to live session note using template
+        if self._templates:
+            callout = self._templates.render("callouts/thread.md.j2", {
+                "origin": thread.origin,
+                "severity": thread.severity.value,
+                "trigger": thread.trigger,
+            })
+        else:
+            severity = thread.severity.value.upper()
+            callout = f"> [!thread] {thread.origin}\n"
+            callout += f"> **Severity:** {severity}\n"
+            if thread.trigger:
+                callout += f"> **Trigger:** {thread.trigger}\n"
         self.append_to_session_note(
             thread.created_session, callout, section="Threads Queued", event_type="thread"
         )
@@ -735,105 +760,113 @@ class WikiAdapter:
         session_num = summary.get("session", 0)
         campaign_name = summary.get("campaign", self.campaign_id)
 
-        # Build daily note content
-        lines = [
-            "---",
-            f"session: {session_num}",
-            f"date: {date_str}",
-            f"campaign: {self.campaign_id}",
-            "type: session",
-            "---",
-            "",
-            f"# Session {session_num} — {datetime.now().strftime('%B %d, %Y')}",
-            "",
-        ]
+        # Enrich faction changes with wikilinks
+        faction_changes = summary.get("faction_changes", [])
+        for change in faction_changes:
+            change["faction_link"] = self._extract_faction_link(change.get("summary", ""))
 
-        # Hinges
-        if summary.get("hinges"):
-            lines.append("## Key Choices")
-            lines.append("")
-            for hinge in summary["hinges"]:
-                lines.append(f"> [!hinge] {hinge['choice']}")
-                if hinge.get("situation"):
-                    lines.append(f"> **Situation:** {hinge['situation']}")
-                if hinge.get("what_shifted"):
-                    lines.append(f"> **Shifted:** {hinge['what_shifted']}")
+        # Build session content using template
+        if self._templates:
+            content = self._templates.render("session.md.j2", {
+                "session": session_num,
+                "date": date_str,
+                "campaign": self.campaign_id,
+                "date_display": datetime.now().strftime('%B %d, %Y'),
+                "hinges": summary.get("hinges", []),
+                "faction_changes": faction_changes,
+                "threads_created": summary.get("threads_created", []),
+                "threads_resolved": summary.get("threads_resolved", []),
+                "npcs_encountered": summary.get("npcs_encountered", []),
+                "reflections": reflections,
+            })
+        else:
+            # Fallback to inline generation
+            lines = [
+                "---",
+                f"session: {session_num}",
+                f"date: {date_str}",
+                f"campaign: {self.campaign_id}",
+                "type: session",
+                "---",
+                "",
+                f"# Session {session_num} — {datetime.now().strftime('%B %d, %Y')}",
+                "",
+            ]
+
+            if summary.get("hinges"):
+                lines.append("## Key Choices")
+                lines.append("")
+                for hinge in summary["hinges"]:
+                    lines.append(f"> [!hinge] {hinge['choice']}")
+                    if hinge.get("situation"):
+                        lines.append(f"> **Situation:** {hinge['situation']}")
+                    if hinge.get("what_shifted"):
+                        lines.append(f"> **Shifted:** {hinge['what_shifted']}")
+                    lines.append("")
+
+            if faction_changes:
+                lines.append("## Faction Changes")
+                lines.append("")
+                for change in faction_changes:
+                    callout_type = "danger" if change.get("is_permanent") else "faction"
+                    lines.append(f"> [!{callout_type}] {change['summary']}")
+                    if change.get("faction_link"):
+                        lines.append(f"> Related: {change['faction_link']}")
+                    lines.append("")
+
+            if summary.get("threads_created"):
+                lines.append("## Threads Queued")
+                lines.append("")
+                for thread in summary["threads_created"]:
+                    severity = thread.get("severity", "minor").upper()
+                    lines.append(f"> [!thread] {thread['origin']}")
+                    lines.append(f"> **Severity:** {severity}")
+                    lines.append(f"> **Trigger:** {thread['trigger']}")
+                    lines.append("")
+
+            if summary.get("threads_resolved"):
+                lines.append("## Threads Resolved")
+                lines.append("")
+                for thread in summary["threads_resolved"]:
+                    lines.append(f"- {thread['summary']}")
                 lines.append("")
 
-        # Faction Changes
-        if summary.get("faction_changes"):
-            lines.append("## Faction Changes")
-            lines.append("")
-            for change in summary["faction_changes"]:
-                # Try to extract faction name for wikilink
-                faction_link = self._extract_faction_link(change.get("summary", ""))
-                callout_type = "faction"
-                if change.get("is_permanent"):
-                    callout_type = "danger"
-                lines.append(f"> [!{callout_type}] {change['summary']}")
-                if faction_link:
-                    lines.append(f"> Related: {faction_link}")
+            if summary.get("npcs_encountered"):
+                lines.append("## NPCs Encountered")
+                lines.append("")
+                for npc in summary["npcs_encountered"]:
+                    name = npc.get("name", "Unknown")
+                    faction = npc.get("faction", "")
+                    disp_change = npc.get("disposition_change", 0)
+                    npc_link = f"[[NPCs/{name}|{name}]]"
+                    faction_link = f"([[{faction.replace('_', ' ').title()}]])" if faction else ""
+                    if disp_change > 0:
+                        disposition = f"*(+{disp_change} disposition)*"
+                    elif disp_change < 0:
+                        disposition = f"*({disp_change} disposition)*"
+                    else:
+                        disposition = ""
+                    lines.append(f"- {npc_link} {faction_link} {disposition}".strip())
                 lines.append("")
 
-        # Threads Created
-        if summary.get("threads_created"):
-            lines.append("## Threads Queued")
-            lines.append("")
-            for thread in summary["threads_created"]:
-                severity = thread.get("severity", "minor").upper()
-                lines.append(f"> [!thread] {thread['origin']}")
-                lines.append(f"> **Severity:** {severity}")
-                lines.append(f"> **Trigger:** {thread['trigger']}")
+            if reflections:
+                lines.append("## Player Reflections")
+                lines.append("")
+                if reflections.get("cost"):
+                    lines.append(f"- **What it cost:** {reflections['cost']}")
+                if reflections.get("learned"):
+                    lines.append(f"- **What I learned:** {reflections['learned']}")
+                if reflections.get("would_refuse"):
+                    lines.append(f"- **What I'd refuse:** {reflections['would_refuse']}")
                 lines.append("")
 
-        # Threads Resolved
-        if summary.get("threads_resolved"):
-            lines.append("## Threads Resolved")
-            lines.append("")
-            for thread in summary["threads_resolved"]:
-                lines.append(f"- {thread['summary']}")
-            lines.append("")
-
-        # NPCs Encountered
-        if summary.get("npcs_encountered"):
-            lines.append("## NPCs Encountered")
-            lines.append("")
-            for npc in summary["npcs_encountered"]:
-                name = npc.get("name", "Unknown")
-                faction = npc.get("faction", "")
-                disp_change = npc.get("disposition_change", 0)
-
-                # Build NPC line with wikilink
-                npc_link = f"[[NPCs/{name}|{name}]]"
-                faction_link = f"([[{faction.replace('_', ' ').title()}]])" if faction else ""
-
-                if disp_change > 0:
-                    disposition = f"*(+{disp_change} disposition)*"
-                elif disp_change < 0:
-                    disposition = f"*({disp_change} disposition)*"
-                else:
-                    disposition = ""
-
-                lines.append(f"- {npc_link} {faction_link} {disposition}".strip())
-            lines.append("")
-
-        # Player Reflections
-        if reflections:
-            lines.append("## Player Reflections")
-            lines.append("")
-            if reflections.get("cost"):
-                lines.append(f"- **What it cost:** {reflections['cost']}")
-            if reflections.get("learned"):
-                lines.append(f"- **What I learned:** {reflections['learned']}")
-            if reflections.get("would_refuse"):
-                lines.append(f"- **What I'd refuse:** {reflections['would_refuse']}")
-            lines.append("")
+            content = "\n".join(lines)
 
         # Write file atomically
         filename = f"{date_str}.md"
         filepath = sessions_dir / filename
 
-        if not self._atomic_write(filepath, "\n".join(lines)):
+        if not self._atomic_write(filepath, content):
             return None
         logger.info(f"Saved session summary to wiki: {filepath}")
         return filepath
@@ -930,18 +963,27 @@ class WikiAdapter:
                     else:
                         new_content = existing.rstrip() + f"\n\n{live_header}\n\n{content_with_id}\n"
             else:
-                # Create new file with minimal structure
-                new_content = (
-                    "---\n"
-                    f"session: {session}\n"
-                    f"date: {date_str}\n"
-                    f"campaign: {self.campaign_id}\n"
-                    "type: session\n"
-                    "---\n\n"
-                    f"# Session {session} — {datetime.now().strftime('%B %d, %Y')}\n\n"
-                    "## Live Updates\n\n"
-                    f"{content_with_id}\n"
-                )
+                # Create new file with minimal structure using template
+                if self._templates:
+                    new_content = self._templates.render("session_live.md.j2", {
+                        "session": session,
+                        "date": date_str,
+                        "campaign": self.campaign_id,
+                        "date_display": datetime.now().strftime('%B %d, %Y'),
+                        "content": content_with_id,
+                    })
+                else:
+                    new_content = (
+                        "---\n"
+                        f"session: {session}\n"
+                        f"date: {date_str}\n"
+                        f"campaign: {self.campaign_id}\n"
+                        "type: session\n"
+                        "---\n\n"
+                        f"# Session {session} — {datetime.now().strftime('%B %d, %Y')}\n\n"
+                        "## Live Updates\n\n"
+                        f"{content_with_id}\n"
+                    )
 
             if not self._atomic_write(filepath, new_content):
                 return False
