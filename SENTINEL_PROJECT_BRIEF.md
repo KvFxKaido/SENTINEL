@@ -1,6 +1,6 @@
 # SENTINEL Project Brief
 
-*Last updated: January 12, 2026*
+*Last updated: January 13, 2026*
 
 ## What This Is
 
@@ -136,6 +136,27 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 - **`/portrait` skill** — reads YAML, builds explicit prompts with guardrails, calls Gemini NanoBanana
 - **Wiki integration** — portraits stored in `assets/portraits/`, embedded in NPC wiki pages
 - **Faction-colored accents** — each faction has distinct accent lighting (Nexus blue, Ember orange, etc.)
+
+**Geography & Travel System**
+- **11 world regions** — Post-Collapse North America: Rust Corridor, Appalachian Hollows, Gulf Passage, Breadbasket, Northern Reaches, Pacific Corridor, Desert Sprawl, Northeast Scar, Sovereign South, Texas Spine, Frozen Edge
+- **Region tracking** — campaigns track current region; `/region` shows current region with faction influence and adjacent regions
+- **Region travel** — `/region <name>` moves between regions; warns on distant (non-adjacent) travel
+- **Region-gated jobs** — job templates can specify region requirements, showing where the job takes place
+- **Region data file** — `data/regions.json` with faction control, terrain types, adjacency graph, flavor text
+
+**Vehicle System**
+- **Vehicle model** — type, terrain (road/off-road/water), capacity, cargo, stealth, unlocks_tags
+- **Shop integration** — 5 vehicles in `/shop`: Salvage Bike (400c), Rust Runner (600c), Drifter's Wagon (800c), Ghost Skiff (1200c), Caravan Share (200c)
+- **Job unlocking** — vehicles unlock job types via `unlocks_tags` matching job requirements (e.g., cargo trucks for smuggling jobs)
+- **Job board display** — shows 🚗 vehicle requirements; locked jobs show `[LOCKED]` with missing requirements
+
+**Favor System**
+- **NPC favors** — call in favors from allied NPCs (NEUTRAL+ disposition required)
+- **5 favor types** — ride (transport), intel (faction info), gear_loan (borrow equipment), introduction (connect to another NPC), safe_house (temporary shelter)
+- **Dual-cost mechanic** — limited tokens (2 per session) + standing cost (varies by disposition and favor type)
+- **Disposition gating** — NEUTRAL NPCs only offer rides; WARM+ NPCs offer all favor types
+- **Standing costs** — LOYAL: base cost, WARM: 1.5x, NEUTRAL: 2.5x (rides only)
+- **`/favor` command** — view available NPCs and favor options, or call in a favor
 
 ### Not Yet Built
 
@@ -307,6 +328,15 @@ SENTINEL/
 | `/checkpoint` | Save state + compress memory (use when strained) |
 | `/compress` | Update digest without pruning transcript |
 | `/clear` | Clear transcript beyond minimum window |
+
+### Geography & Favors
+| Command | Description |
+|---------|-------------|
+| `/region` | Show current region with faction influence |
+| `/region list` | List all 11 regions with primary factions |
+| `/region <name>` | Travel to a region (warns on distant travel) |
+| `/favor` | Show available NPCs and favor options |
+| `/favor <npc> <type>` | Call in a favor (ride, intel, gear_loan, introduction, safe_house) |
 
 ### Utility
 | Command | Description |

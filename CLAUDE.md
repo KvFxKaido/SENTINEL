@@ -16,12 +16,24 @@ SENTINEL/
 │   ├── CLAUDE.md            # Detailed dev context
 │   ├── src/                 # Python source
 │   │   ├── state/
+│   │   │   ├── schema.py         # Pydantic models (source of truth)
+│   │   │   ├── manager.py        # Campaign CRUD + delegation
 │   │   │   ├── event_bus.py      # Pub/sub for reactive TUI updates
 │   │   │   ├── wiki_adapter.py   # Wiki page generation
 │   │   │   ├── wiki_watcher.py   # Bi-directional sync
 │   │   │   └── templates.py      # Jinja2 template engine
+│   │   ├── systems/              # Domain logic modules
+│   │   │   ├── jobs.py           # Job board, templates, lifecycle
+│   │   │   ├── favors.py         # NPC favor system
+│   │   │   ├── leverage.py       # Enhancement demands
+│   │   │   └── arcs.py           # Character arc detection
 │   │   └── interface/
-│   │       └── tui.py            # Primary Textual-based UI
+│   │       ├── tui.py            # Primary Textual-based UI
+│   │       ├── tui_commands.py   # TUI command handlers
+│   │       └── commands.py       # CLI command handlers
+│   ├── data/                # Game data files
+│   │   ├── regions.json     # 11 regions with factions, adjacency
+│   │   └── jobs/            # Job templates by faction
 │   ├── prompts/             # Hot-reloadable prompts
 │   │   └── local/           # Condensed prompts for 8B-12B models
 │   └── campaigns/           # Save files
@@ -95,6 +107,36 @@ NPCs have disposition modifiers that change their behavior:
 - **Disposition levels:** hostile → wary → neutral → warm → loyal
 - **Modifiers per level:** tone, reveals, withholds, tells
 - **Memory triggers:** NPCs react to tagged events (e.g., `helped_ember` shifts Lattice NPCs wary)
+
+### Geography System
+11 post-Collapse North American regions with faction control:
+- **Regions:** Rust Corridor, Appalachian Hollows, Gulf Passage, Breadbasket, Northern Reaches, Pacific Corridor, Desert Sprawl, Northeast Scar, Sovereign South, Texas Spine, Frozen Edge
+- **Tracking:** Campaign tracks current region; default is Rust Corridor
+- **Commands:** `/region` shows current region; `/region list` shows all; `/region <name>` travels
+- **Adjacency:** Regions have adjacent neighbors; distant travel warns about vehicle/favor requirements
+- **Data file:** `data/regions.json` with faction control, terrain, adjacency, flavor text
+
+### Vehicle System
+Transport that unlocks certain jobs:
+- **Vehicle model:** type, terrain (road/off-road/water), capacity, cargo, stealth, unlocks_tags
+- **Shop:** 5 vehicles — Salvage Bike (400c), Rust Runner (600c), Drifter's Wagon (800c), Ghost Skiff (1200c), Caravan Share (200c)
+- **Job unlocking:** Vehicle `unlocks_tags` match job `requires_vehicle_tags` (e.g., cargo trucks for smuggling)
+- **Job board:** Shows 🚗 requirements; locked jobs display `[LOCKED]`
+
+### Favor System
+Call in favors from allied NPCs:
+- **Favor types:** ride, intel, gear_loan, introduction, safe_house
+- **Disposition gating:** NEUTRAL offers rides only; WARM+ offers all types
+- **Dual-cost mechanic:** 2 tokens per session + standing cost
+- **Standing costs:** LOYAL=base, WARM=1.5x, NEUTRAL=2.5x
+- **Command:** `/favor` shows available NPCs; `/favor <npc> <type>` calls favor
+
+### Job Board System
+Faction-specific jobs available based on location and standing:
+- **Templates:** JSON files in `data/jobs/` with objectives, rewards, requirements
+- **Location-aware:** At Faction HQ, see that faction's jobs; at Market, see Wanderer jobs
+- **Requirements:** Jobs can require region, vehicle type, or vehicle tags
+- **Commands:** `/jobs` lists available; `/jobs accept <n>` accepts; `/jobs status` shows active
 
 ### Memvid Campaign Memory (Optional)
 Semantic search over campaign history using [memvid](https://github.com/memvid/memvid). Stores hinges, NPC interactions, faction shifts as queryable frames.
@@ -218,6 +260,17 @@ See `sentinel-agent/CLAUDE.md` for detailed guidance. Key files:
 
 ### To modify faction data
 Edit JSON files in `sentinel-campaign/src/sentinel_campaign/data/factions/`.
+
+### To modify regions or jobs
+- **Regions:** Edit `sentinel-agent/data/regions.json` (faction control, adjacency, terrain)
+- **Job templates:** Edit JSON files in `sentinel-agent/data/jobs/` (one file per faction)
+- **Job requirements:** Add `region`, `requires_vehicle`, `requires_vehicle_type`, or `requires_vehicle_tags` to templates
+
+### To modify vehicles or shop
+Edit `SHOP_INVENTORY` and `VEHICLE_DATA` in `sentinel-agent/src/interface/tui_commands.py`.
+
+### To modify favor system
+Edit `sentinel-agent/src/systems/favors.py` for costs, disposition rules, or favor types.
 
 ### To run the agent
 ```bash

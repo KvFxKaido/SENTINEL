@@ -1,0 +1,64 @@
+{
+  "jobs": [
+    {
+      "id": "nexus_signal_analysis",
+      "faction": "Nexus",
+      "title": "Signal Analysis",
+      "type": "Investigation",
+      "description": "Anomalous signals detected in Sector 44. Investigate and report.",
+      "objectives": ["Travel to Sector 44", "Locate signal source", "Document findings"],
+      "reward_credits": 300,
+      "reward_standing": 1,
+      "opposing_factions": ["Ghost Networks"],
+      "opposing_penalty": 1,
+      "time_estimate": "2-3 sessions",
+      "tags": ["tech", "investigation"],
+      "min_standing": -10
+    },
+    {
+      "id": "nexus_relay_maintenance",
+      "faction": "Nexus",
+      "title": "Relay Maintenance",
+      "type": "Escort",
+      "description": "Communications relay needs physical maintenance. Escort the technician.",
+      "objectives": ["Escort technician to relay site", "Provide security during repairs", "Return safely"],
+      "reward_credits": 200,
+      "reward_standing": 1,
+      "opposing_factions": [],
+      "opposing_penalty": 0,
+      "time_estimate": "1 session",
+      "tags": ["tech", "escort"],
+      "min_standing": -30
+    },
+    {
+      "id": "nexus_data_recovery",
+      "faction": "Nexus",
+      "title": "Data Recovery",
+      "type": "Investigation",
+      "description": "Pre-Collapse archive located. Retrieve data cores before they degrade further.",
+      "objectives": ["Infiltrate archive facility", "Extract data cores", "Avoid triggering security systems"],
+      "reward_credits": 450,
+      "reward_standing": 2,
+      "opposing_factions": ["Architects", "Ghost Networks"],
+      "opposing_penalty": 1,
+      "time_estimate": "2-3 sessions",
+      "tags": ["stealth", "tech", "investigation"],
+      "min_standing": 10
+    },
+    {
+      "id": "nexus_pattern_surveillance",
+      "faction": "Nexus",
+      "title": "Pattern Surveillance",
+      "type": "Investigation",
+      "description": "Population behavior anomalies detected. Observe and document without intervention.",
+      "objectives": ["Establish surveillance position", "Document behavioral patterns", "Report without alerting subjects"],
+      "reward_credits": 250,
+      "reward_standing": 1,
+      "opposing_factions": ["Ember Colonies"],
+      "opposing_penalty": 1,
+      "time_estimate": "1 session",
+      "tags": ["stealth", "observation"],
+      "min_standing": 0
+    }
+  ]
+}

@@ -1060,6 +1060,58 @@ SHOP_INVENTORY = {
         ("Long-Range Transmitter", 400, "Remote contact"),
         ("Translator Module", 150, "Real-time language bridge"),
     ],
+    "Vehicles": [
+        ("Salvage Bike", 400, "Motorcycle. Fast, road-only, solo rider."),
+        ("Rust Runner", 600, "Off-road buggy. All-terrain, 2 passengers."),
+        ("Drifter's Wagon", 800, "Covered truck. Cargo capacity, slow but reliable."),
+        ("Ghost Skiff", 1200, "Small boat. Water travel, stealth-capable."),
+        ("Caravan Share", 200, "Wanderer caravan token. 3 uses, slow but safe."),
+    ],
+}
+
+# Vehicle data for purchases (name -> attributes)
+# Properties: type, terrain[], capacity, cargo, stealth, unlocks_tags[]
+VEHICLE_DATA = {
+    "Salvage Bike": {
+        "type": "motorcycle",
+        "terrain": ["road"],
+        "capacity": 1,
+        "cargo": False,
+        "stealth": False,
+        "unlocks_tags": ["delivery", "courier"],
+    },
+    "Rust Runner": {
+        "type": "buggy",
+        "terrain": ["road", "off-road"],
+        "capacity": 2,
+        "cargo": False,
+        "stealth": False,
+        "unlocks_tags": ["extraction", "patrol"],
+    },
+    "Drifter's Wagon": {
+        "type": "truck",
+        "terrain": ["road"],
+        "capacity": 4,
+        "cargo": True,
+        "stealth": False,
+        "unlocks_tags": ["cargo", "smuggling", "convoy"],
+    },
+    "Ghost Skiff": {
+        "type": "boat",
+        "terrain": ["water"],
+        "capacity": 3,
+        "cargo": False,
+        "stealth": True,
+        "unlocks_tags": ["extraction", "infiltration", "water"],
+    },
+    "Caravan Share": {
+        "type": "caravan_token",
+        "terrain": ["road", "off-road"],
+        "capacity": 6,
+        "cargo": True,
+        "stealth": False,
+        "unlocks_tags": ["trade"],
+    },
 }
 
 
@@ -1126,12 +1178,42 @@ def tui_shop(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
             log.write(Text.from_markup(f"[{Theme.DIM}]Need {price}, have {credits}[/{Theme.DIM}]"))
             return
 
-        # Check if already owned
+        # Handle vehicle purchases differently
+        if category == "Vehicles":
+            # Check if already owned
+            if any(v.name.lower() == name.lower() for v in char.vehicles):
+                log.write(Text.from_markup(f"[{Theme.WARNING}]Already own: {name}[/{Theme.WARNING}]"))
+                return
+
+            # Create vehicle from data
+            from ..state.schema import Vehicle
+            vehicle_attrs = VEHICLE_DATA.get(name, {})
+            new_vehicle = Vehicle(
+                name=name,
+                type=vehicle_attrs.get("type", "vehicle"),
+                description=desc,
+                cost=price,
+                terrain=vehicle_attrs.get("terrain", []),
+                capacity=vehicle_attrs.get("capacity", 1),
+                cargo=vehicle_attrs.get("cargo", False),
+                stealth=vehicle_attrs.get("stealth", False),
+                unlocks_tags=vehicle_attrs.get("unlocks_tags", []),
+            )
+            char.vehicles.append(new_vehicle)
+            char.credits -= price
+
+            log.write(Text.from_markup(f"[{Theme.FRIENDLY}]Purchased: {name}[/{Theme.FRIENDLY}]"))
+            log.write(Text.from_markup(f"[{Theme.DIM}]{desc}[/{Theme.DIM}]"))
+            log.write(Text.from_markup(f"[{Theme.DIM}]Remaining credits: {char.credits}[/{Theme.DIM}]"))
+            app.refresh_all_panels()
+            return
+
+        # Check if gear already owned
         if any(g_item.name.lower() == name.lower() for g_item in char.gear):
             log.write(Text.from_markup(f"[{Theme.WARNING}]Already own: {name}[/{Theme.WARNING}]"))
             return
 
-        # Purchase
+        # Purchase gear
         from ..state.schema import GearItem
         single_use = "single-use" in desc.lower()
         new_item = GearItem(
@@ -1150,6 +1232,517 @@ def tui_shop(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
         return
 
     log.write(Text.from_markup(f"[{Theme.DIM}]Usage: /shop or /shop buy <item name>[/{Theme.DIM}]"))
+
+
+# -----------------------------------------------------------------------------
+# Jobs Command
+# -----------------------------------------------------------------------------
+
+def _check_job_requirements(template, char, campaign) -> tuple[bool, list[str]]:
+    """Check if player meets job requirements. Returns (eligible, missing_requirements)."""
+    missing = []
+
+    # Check vehicle requirements
+    if template.requires_vehicle:
+        if not char.vehicles:
+            missing.append("vehicle required")
+        elif template.requires_vehicle_type:
+            has_type = any(v.type == template.requires_vehicle_type for v in char.vehicles)
+            if not has_type:
+                missing.append(f"{template.requires_vehicle_type} required")
+        elif template.requires_vehicle_tags:
+            player_tags = set()
+            for v in char.vehicles:
+                player_tags.update(v.unlocks_tags)
+            missing_tags = set(template.requires_vehicle_tags) - player_tags
+            if missing_tags:
+                missing.append(f"vehicle with: {', '.join(missing_tags)}")
+
+    return len(missing) == 0, missing
+
+
+def tui_jobs(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
+    """View and manage available jobs."""
+    if not app.manager or not app.manager.current:
+        log.write(Text.from_markup(f"[{Theme.WARNING}]No campaign loaded[/{Theme.WARNING}]"))
+        return
+
+    from ..state.schema import Location
+
+    campaign = app.manager.current
+    location = campaign.location
+    faction_hq = campaign.location_faction
+    char = campaign.characters[0] if campaign.characters else None
+
+    # Subcommand handling
+    if args:
+        subcmd = args[0].lower()
+
+        if subcmd == "accept":
+            if len(args) < 2:
+                log.write(Text.from_markup(f"[{Theme.WARNING}]Usage: /jobs accept <number>[/{Theme.WARNING}]"))
+                return
+            try:
+                idx = int(args[1]) - 1
+                available = campaign.jobs.available
+                if idx < 0 or idx >= len(available):
+                    log.write(Text.from_markup(f"[{Theme.WARNING}]Invalid job number[/{Theme.WARNING}]"))
+                    return
+                template_id = available[idx]
+
+                # Check requirements before accepting
+                template = app.manager.jobs.get_template(template_id)
+                if template and char:
+                    eligible, missing = _check_job_requirements(template, char, campaign)
+                    if not eligible:
+                        log.write(Text.from_markup(f"[{Theme.DANGER}]Cannot accept job: {', '.join(missing)}[/{Theme.DANGER}]"))
+                        log.write(Text.from_markup(f"[{Theme.DIM}]Purchase required equipment or call in a favor[/{Theme.DIM}]"))
+                        return
+
+                job = app.manager.jobs.accept_job(template_id)
+                if job:
+                    log.write(Text.from_markup(f"[{Theme.FRIENDLY}]Job accepted: {job.title}[/{Theme.FRIENDLY}]"))
+                    log.write(Text.from_markup(f"[{Theme.DIM}]Objectives:[/{Theme.DIM}]"))
+                    for obj in job.objectives:
+                        log.write(Text.from_markup(f"  [{Theme.TEXT}]{obj}[/{Theme.TEXT}]"))
+                    if job.due_session:
+                        log.write(Text.from_markup(f"[{Theme.WARNING}]Due by session {job.due_session}[/{Theme.WARNING}]"))
+                    # Trigger LLM briefing
+                    template = app.manager.jobs.get_template(template_id)
+                    if template:
+                        prompt = (
+                            f"I've accepted a job: '{job.title}' from {job.faction.value}. "
+                            f"Description: {template.description}. "
+                            f"Generate a brief, atmospheric briefing. 2-3 paragraphs max."
+                        )
+                        app.handle_action(f"GM_PROMPT: {prompt}")
+                    app.refresh_all_panels()
+                else:
+                    log.write(Text.from_markup(f"[{Theme.DANGER}]Failed to accept job[/{Theme.DANGER}]"))
+                return
+            except ValueError:
+                log.write(Text.from_markup(f"[{Theme.WARNING}]Usage: /jobs accept <number>[/{Theme.WARNING}]"))
+                return
+
+        elif subcmd == "status":
+            active = app.manager.jobs.get_active_jobs()
+            if not active:
+                log.write(Text.from_markup(f"[{Theme.DIM}]No active jobs[/{Theme.DIM}]"))
+                return
+
+            log.write(Text.from_markup(f"[bold {Theme.TEXT}]ACTIVE JOBS[/bold {Theme.TEXT}]"))
+            current_session = campaign.meta.session_count
+            for i, job in enumerate(active, 1):
+                status_color = Theme.ACCENT
+                deadline_str = ""
+                if job.due_session:
+                    sessions_left = job.due_session - current_session
+                    if sessions_left <= 0:
+                        status_color = Theme.DANGER
+                        deadline_str = " [OVERDUE]"
+                    elif sessions_left == 1:
+                        status_color = Theme.WARNING
+                        deadline_str = " [Due next session]"
+                    else:
+                        deadline_str = f" [Due in {sessions_left} sessions]"
+
+                log.write(Text.from_markup(f"[{status_color}]{i}. {job.title}[/{status_color}] ({job.faction.value}){deadline_str}"))
+                log.write(Text.from_markup(f"   [{Theme.DIM}]Reward: {job.reward_credits}c[/{Theme.DIM}]"))
+            return
+
+        elif subcmd == "abandon":
+            if len(args) < 2:
+                log.write(Text.from_markup(f"[{Theme.WARNING}]Usage: /jobs abandon <number>[/{Theme.WARNING}]"))
+                return
+            try:
+                idx = int(args[1]) - 1
+                active = app.manager.jobs.get_active_jobs()
+                if idx < 0 or idx >= len(active):
+                    log.write(Text.from_markup(f"[{Theme.WARNING}]Invalid job number[/{Theme.WARNING}]"))
+                    return
+                job = active[idx]
+                result = app.manager.jobs.abandon_job(job.id)
+                if "error" not in result:
+                    log.write(Text.from_markup(f"[{Theme.WARNING}]Abandoned: {result['title']}[/{Theme.WARNING}]"))
+                    log.write(Text.from_markup(f"[{Theme.DIM}]Standing with {result['faction']}: {result['standing_penalty']}[/{Theme.DIM}]"))
+                    app.refresh_all_panels()
+                else:
+                    log.write(Text.from_markup(f"[{Theme.DANGER}]{result['error']}[/{Theme.DANGER}]"))
+                return
+            except ValueError:
+                log.write(Text.from_markup(f"[{Theme.WARNING}]Usage: /jobs abandon <number>[/{Theme.WARNING}]"))
+                return
+
+        elif subcmd == "refresh":
+            available = app.manager.jobs.refresh_board()
+            log.write(Text.from_markup(f"[{Theme.FRIENDLY}]Job board refreshed: {len(available)} jobs available[/{Theme.FRIENDLY}]"))
+            return
+
+    # Default: show job board
+    available = campaign.jobs.available
+    if not available:
+        available = app.manager.jobs.refresh_board()
+
+    # Location-aware formatting
+    if location in {Location.FIELD, Location.TRANSIT}:
+        # Text message style
+        log.write(Text.from_markup(f"[bold {Theme.TEXT}]INCOMING MESSAGES[/bold {Theme.TEXT}]"))
+        signal = "weak" if location == Location.TRANSIT else "moderate"
+        log.write(Text.from_markup(f"[{Theme.DIM}]Signal: {signal}[/{Theme.DIM}]\n"))
+
+        for i, template_id in enumerate(available, 1):
+            template = app.manager.jobs.get_template(template_id)
+            if not template:
+                continue
+            faction_short = template.faction.value.split()[0].upper()
+            log.write(Text.from_markup(f"[{Theme.ACCENT}][{faction_short}][/{Theme.ACCENT}]"))
+            log.write(Text.from_markup(f'  "{template.description}"'))
+            log.write(Text.from_markup(f"  [{Theme.DIM}]{template.reward_credits}c | /jobs accept {i}[/{Theme.DIM}]\n"))
+    else:
+        # Terminal job board style
+        title = "JOB TERMINAL"
+        if location == Location.FACTION_HQ and faction_hq:
+            title = f"{faction_hq.value.upper()} CONTRACTS"
+        elif location == Location.MARKET:
+            title = "WANDERER MARKET - JOBS"
+
+        log.write(Text.from_markup(f"[bold {Theme.TEXT}]{title}[/bold {Theme.TEXT}]"))
+
+        if not available:
+            log.write(Text.from_markup(f"[{Theme.DIM}]No jobs available. Try /jobs refresh.[/{Theme.DIM}]"))
+        else:
+            import json
+            from pathlib import Path
+
+            # Load regions data for display names
+            regions_file = Path(__file__).parent.parent.parent / "data" / "regions.json"
+            regions_data = {}
+            if regions_file.exists():
+                with open(regions_file, "r", encoding="utf-8") as f:
+                    regions_data = json.load(f).get("regions", {})
+
+            for i, template_id in enumerate(available, 1):
+                template = app.manager.jobs.get_template(template_id)
+                if not template:
+                    continue
+
+                faction_tag = template.faction.value[:3].upper()
+
+                # Check eligibility
+                eligible = True
+                missing = []
+                if char:
+                    eligible, missing = _check_job_requirements(template, char, campaign)
+
+                risk_str = ""
+                if template.opposing_factions:
+                    risk_parts = [f.value.split()[0] for f in template.opposing_factions[:2]]
+                    risk_str = f" | Risk: {', '.join(risk_parts)} -{template.opposing_penalty}"
+
+                # Title styling based on eligibility
+                if eligible:
+                    log.write(Text.from_markup(f"\n[{Theme.ACCENT}]{i}. [{faction_tag}] {template.title}[/{Theme.ACCENT}]"))
+                else:
+                    log.write(Text.from_markup(f"\n[{Theme.DIM}]{i}. [{faction_tag}] {template.title} [LOCKED][/{Theme.DIM}]"))
+
+                log.write(Text.from_markup(f"   {template.description}"))
+                log.write(Text.from_markup(f"   [{Theme.DIM}]Pay: {template.reward_credits}c | Est: {template.time_estimate}{risk_str}[/{Theme.DIM}]"))
+
+                # Show region requirement
+                if template.region:
+                    region_info = regions_data.get(template.region.value, {})
+                    region_name = region_info.get("name", template.region.value.replace("_", " ").title())
+                    current_region = campaign.region
+                    if template.region == current_region:
+                        log.write(Text.from_markup(f"   [{Theme.FRIENDLY}]📍 {region_name} (current)[/{Theme.FRIENDLY}]"))
+                    else:
+                        log.write(Text.from_markup(f"   [{Theme.DIM}]📍 {region_name}[/{Theme.DIM}]"))
+
+                # Show vehicle requirements
+                if template.requires_vehicle:
+                    if template.requires_vehicle_type:
+                        req = f"Requires: {template.requires_vehicle_type}"
+                    elif template.requires_vehicle_tags:
+                        req = f"Requires: {', '.join(template.requires_vehicle_tags)}"
+                    else:
+                        req = "Requires: any vehicle"
+                    style = Theme.DANGER if not eligible else Theme.DIM
+                    log.write(Text.from_markup(f"   [{style}]🚗 {req}[/{style}]"))
+
+        log.write(Text.from_markup(f"\n[{Theme.DIM}]Usage: /jobs accept <n> | /jobs status | /jobs refresh[/{Theme.DIM}]"))
+
+
+# -----------------------------------------------------------------------------
+# Travel Command
+# -----------------------------------------------------------------------------
+
+def tui_travel(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
+    """Travel to a new location."""
+    if not app.manager or not app.manager.current:
+        log.write(Text.from_markup(f"[{Theme.WARNING}]No campaign loaded[/{Theme.WARNING}]"))
+        return
+
+    from ..state.schema import Location
+
+    # Get current location
+    campaign = app.manager.current
+    current_loc = campaign.location
+    current_display = current_loc.value.replace("_", " ").title()
+
+    if not args:
+        # Show available destinations
+        log.write(Text.from_markup(f"[bold {Theme.TEXT}]TRAVEL[/bold {Theme.TEXT}]"))
+        log.write(Text.from_markup(f"[{Theme.DIM}]Current location: {current_display}[/{Theme.DIM}]\n"))
+        log.write(Text.from_markup(f"[{Theme.ACCENT}]Destinations:[/{Theme.ACCENT}]"))
+
+        for loc in Location:
+            marker = "→ " if loc == current_loc else "  "
+            desc = {
+                Location.SAFE_HOUSE: "Your base — full access to gear, rest",
+                Location.FIELD: "Mission zone — tactical mode",
+                Location.FACTION_HQ: "Faction headquarters — requires faction name",
+                Location.MARKET: "Wanderer market — general goods",
+                Location.TRANSIT: "Traveling between locations",
+            }.get(loc, "")
+            style = Theme.FRIENDLY if loc == current_loc else Theme.TEXT
+            log.write(Text.from_markup(f"{marker}[{style}]{loc.value}[/{style}] [{Theme.DIM}]— {desc}[/{Theme.DIM}]"))
+
+        log.write(Text.from_markup(f"\n[{Theme.DIM}]Usage: /travel <destination> [faction][/{Theme.DIM}]"))
+        log.write(Text.from_markup(f"[{Theme.DIM}]Example: /travel faction_hq nexus[/{Theme.DIM}]"))
+        return
+
+    # Parse destination
+    destination = args[0].lower()
+    faction = args[1] if len(args) > 1 else None
+
+    # Call manager.travel()
+    try:
+        result = app.manager.travel(destination, faction)
+
+        if "error" in result:
+            log.write(Text.from_markup(f"[{Theme.DANGER}]{result['error']}[/{Theme.DANGER}]"))
+        else:
+            new_loc = result.get("new_location", destination).replace("_", " ").title()
+            log.write(Text.from_markup(f"[{Theme.FRIENDLY}]Traveled to {new_loc}[/{Theme.FRIENDLY}]"))
+
+            if result.get("faction"):
+                log.write(Text.from_markup(f"[{Theme.DIM}]At {result['faction'].title()} headquarters[/{Theme.DIM}]"))
+
+            if result.get("narrative_hint"):
+                log.write(Text.from_markup(f"[{Theme.DIM}]{result['narrative_hint']}[/{Theme.DIM}]"))
+
+            app.refresh_all_panels()
+    except Exception as e:
+        log.write(Text.from_markup(f"[{Theme.DANGER}]Travel failed: {e}[/{Theme.DANGER}]"))
+
+
+# -----------------------------------------------------------------------------
+# Region Command
+# -----------------------------------------------------------------------------
+
+def tui_region(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
+    """View or change current world region."""
+    import json
+    from pathlib import Path
+
+    if not app.manager or not app.manager.current:
+        log.write(Text.from_markup(f"[{Theme.WARNING}]No campaign loaded[/{Theme.WARNING}]"))
+        return
+
+    from ..state.schema import Region
+
+    campaign = app.manager.current
+    current_region = campaign.region
+
+    # Load regions data
+    regions_file = Path(__file__).parent.parent.parent / "data" / "regions.json"
+    regions_data = {}
+    if regions_file.exists():
+        with open(regions_file, "r", encoding="utf-8") as f:
+            regions_data = json.load(f).get("regions", {})
+
+    # Get current region info
+    current_info = regions_data.get(current_region.value, {})
+
+    if not args:
+        # Show current region
+        log.write(Text.from_markup(f"[bold {Theme.TEXT}]CURRENT REGION[/bold {Theme.TEXT}]"))
+        log.write(Text.from_markup(f"[{Theme.ACCENT}]{current_info.get('name', current_region.value)}[/{Theme.ACCENT}]"))
+        log.write(Text.from_markup(f"[{Theme.DIM}]{current_info.get('description', '')}[/{Theme.DIM}]"))
+
+        if current_info.get("character"):
+            log.write(Text.from_markup(f"\n[{Theme.TEXT}]{current_info['character']}[/{Theme.TEXT}]"))
+
+        # Faction influence
+        primary = current_info.get("primary_faction", "")
+        contested = current_info.get("contested_by", [])
+        if primary:
+            log.write(Text.from_markup(f"\n[{Theme.ACCENT}]Primary:[/{Theme.ACCENT}] {primary.replace('_', ' ').title()}"))
+        if contested:
+            contested_str = ", ".join(c.replace("_", " ").title() for c in contested)
+            log.write(Text.from_markup(f"[{Theme.DIM}]Contested by:[/{Theme.DIM}] {contested_str}"))
+
+        # Adjacent regions
+        adjacent = current_info.get("adjacent", [])
+        if adjacent:
+            log.write(Text.from_markup(f"\n[{Theme.ACCENT}]Adjacent Regions:[/{Theme.ACCENT}]"))
+            for adj in adjacent:
+                adj_info = regions_data.get(adj, {})
+                name = adj_info.get("name", adj.replace("_", " ").title())
+                log.write(Text.from_markup(f"  [{Theme.DIM}]• {name}[/{Theme.DIM}]"))
+
+        log.write(Text.from_markup(f"\n[{Theme.DIM}]/region list — all regions | /region <name> — travel[/{Theme.DIM}]"))
+        return
+
+    subcmd = args[0].lower()
+
+    if subcmd == "list":
+        # List all regions
+        log.write(Text.from_markup(f"[bold {Theme.TEXT}]WORLD REGIONS[/bold {Theme.TEXT}]"))
+        log.write(Text.from_markup(f"[{Theme.DIM}]Post-Collapse North America[/{Theme.DIM}]\n"))
+
+        for region in Region:
+            info = regions_data.get(region.value, {})
+            name = info.get("name", region.value.replace("_", " ").title())
+            primary = info.get("primary_faction", "").replace("_", " ").title()
+
+            marker = "→ " if region == current_region else "  "
+            style = Theme.FRIENDLY if region == current_region else Theme.TEXT
+            log.write(Text.from_markup(f"{marker}[{style}]{name}[/{style}] [{Theme.DIM}]— {primary}[/{Theme.DIM}]"))
+        return
+
+    # Travel to a region
+    target_name = " ".join(args).lower().replace(" ", "_")
+
+    # Find matching region
+    target_region = None
+    for region in Region:
+        if target_name in region.value:
+            target_region = region
+            break
+        # Also check by display name
+        info = regions_data.get(region.value, {})
+        if target_name in info.get("name", "").lower().replace(" ", "_"):
+            target_region = region
+            break
+
+    if not target_region:
+        log.write(Text.from_markup(f"[{Theme.WARNING}]Unknown region: {' '.join(args)}[/{Theme.WARNING}]"))
+        log.write(Text.from_markup(f"[{Theme.DIM}]Use /region list to see all regions[/{Theme.DIM}]"))
+        return
+
+    if target_region == current_region:
+        log.write(Text.from_markup(f"[{Theme.DIM}]Already in {current_info.get('name', current_region.value)}[/{Theme.DIM}]"))
+        return
+
+    # Check adjacency
+    adjacent = current_info.get("adjacent", [])
+    target_info = regions_data.get(target_region.value, {})
+
+    # Update region
+    campaign.region = target_region
+    app.manager.save_campaign()
+
+    log.write(Text.from_markup(f"[{Theme.FRIENDLY}]Traveled to {target_info.get('name', target_region.value)}[/{Theme.FRIENDLY}]"))
+    log.write(Text.from_markup(f"[{Theme.DIM}]{target_info.get('description', '')}[/{Theme.DIM}]"))
+
+    if target_region.value not in adjacent:
+        log.write(Text.from_markup(f"\n[{Theme.WARNING}]Distant travel — may require vehicle or favor[/{Theme.WARNING}]"))
+
+    app.refresh_all_panels()
+
+
+# -----------------------------------------------------------------------------
+# Favor Command
+# -----------------------------------------------------------------------------
+
+def tui_favor(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
+    """Call in a favor from an allied NPC."""
+    if not app.manager or not app.manager.current:
+        log.write(Text.from_markup(f"[{Theme.WARNING}]No campaign loaded[/{Theme.WARNING}]"))
+        return
+
+    from ..systems.favors import FavorSystem
+    from ..state.schema import FavorType, Disposition
+
+    favors = FavorSystem(app.manager)
+
+    if not args:
+        # Show available NPCs and tokens remaining
+        log.write(Text.from_markup(f"[bold {Theme.TEXT}]FAVORS[/bold {Theme.TEXT}]"))
+        tokens = favors.tokens_remaining()
+        log.write(Text.from_markup(f"[{Theme.ACCENT}]Tokens remaining:[/{Theme.ACCENT}] {tokens}/2 this session\n"))
+
+        available = favors.get_available_npcs()
+
+        if not available:
+            log.write(Text.from_markup(f"[{Theme.DIM}]No allied NPCs available for favors[/{Theme.DIM}]"))
+            log.write(Text.from_markup(f"[{Theme.DIM}]Build standing with NPCs to unlock favors[/{Theme.DIM}]"))
+            return
+
+        log.write(Text.from_markup(f"[{Theme.ACCENT}]Available NPCs:[/{Theme.ACCENT}]"))
+        for npc in available:
+            # Get faction standing
+            faction_standing = None
+            if npc.faction:
+                faction_standing = app.manager.current.factions.get_standing(npc.faction)
+            disposition = npc.get_effective_disposition(faction_standing)
+
+            options = favors.get_npc_favor_options(npc)
+            favor_list = ", ".join(f"{ft.value} (-{cost})" for ft, cost in options)
+
+            log.write(Text.from_markup(f"\n  [{Theme.TEXT}]{npc.name}[/{Theme.TEXT}] [{Theme.DIM}]({disposition.value})[/{Theme.DIM}]"))
+            log.write(Text.from_markup(f"  [{Theme.DIM}]Standing: {npc.personal_standing} | {favor_list}[/{Theme.DIM}]"))
+
+        log.write(Text.from_markup(f"\n[{Theme.DIM}]/favor <npc> <type> [details][/{Theme.DIM}]"))
+        log.write(Text.from_markup(f"[{Theme.DIM}]Types: ride, intel, gear_loan, introduction, safe_house[/{Theme.DIM}]"))
+        return
+
+    if len(args) < 2:
+        log.write(Text.from_markup(f"[{Theme.WARNING}]Usage: /favor <npc name> <favor type> [details][/{Theme.WARNING}]"))
+        return
+
+    # Parse NPC name and favor type
+    npc_query = args[0]
+    favor_type_str = args[1].lower()
+    details = " ".join(args[2:]) if len(args) > 2 else ""
+
+    # Find NPC
+    npc = favors.find_npc_by_name(npc_query)
+    if not npc:
+        log.write(Text.from_markup(f"[{Theme.WARNING}]NPC not found: {npc_query}[/{Theme.WARNING}]"))
+        return
+
+    # Parse favor type
+    try:
+        favor_type = FavorType(favor_type_str)
+    except ValueError:
+        log.write(Text.from_markup(f"[{Theme.WARNING}]Unknown favor type: {favor_type_str}[/{Theme.WARNING}]"))
+        log.write(Text.from_markup(f"[{Theme.DIM}]Types: ride, intel, gear_loan, introduction, safe_house[/{Theme.DIM}]"))
+        return
+
+    # Check if we can afford it
+    can_afford, reason = favors.can_afford_favor(npc, favor_type)
+    if not can_afford:
+        log.write(Text.from_markup(f"[{Theme.DANGER}]{reason}[/{Theme.DANGER}]"))
+        return
+
+    # Call the favor
+    result = favors.call_favor(npc, favor_type, details)
+
+    if "error" in result:
+        log.write(Text.from_markup(f"[{Theme.DANGER}]{result['error']}[/{Theme.DANGER}]"))
+        return
+
+    log.write(Text.from_markup(f"[{Theme.FRIENDLY}]Favor granted from {result['npc_name']}[/{Theme.FRIENDLY}]"))
+    log.write(Text.from_markup(f"[{Theme.DIM}]Type: {result['favor_type']} | Cost: -{result['standing_cost']} standing[/{Theme.DIM}]"))
+    log.write(Text.from_markup(f"[{Theme.DIM}]Standing with {result['npc_name']}: {result['old_standing']} → {result['new_standing']}[/{Theme.DIM}]"))
+    log.write(Text.from_markup(f"[{Theme.DIM}]Tokens remaining: {result['tokens_remaining']}/2[/{Theme.DIM}]"))
+
+    if result.get("narrative_hint"):
+        log.write(Text.from_markup(f"\n[{Theme.TEXT}]{result['narrative_hint']}[/{Theme.TEXT}]"))
+
+    app.refresh_all_panels()
 
 
 # -----------------------------------------------------------------------------
@@ -1254,6 +1847,7 @@ def register_tui_handlers() -> None:
     set_tui_handler("/roll", tui_roll)
     set_tui_handler("/gear", tui_gear)
     set_tui_handler("/shop", tui_shop)
+    set_tui_handler("/jobs", tui_jobs)
     set_tui_handler("/loadout", tui_loadout)
     set_tui_handler("/arc", tui_arc)
 
@@ -1299,3 +1893,8 @@ def register_tui_handlers() -> None:
     set_tui_handler("/mission", tui_mission)
     set_tui_handler("/consult", tui_consult)
     set_tui_handler("/debrief", tui_debrief)
+    set_tui_handler("/travel", tui_travel)
+
+    # Geography & Favors
+    set_tui_handler("/region", tui_region)
+    set_tui_handler("/favor", tui_favor)

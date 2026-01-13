@@ -7,5 +7,7 @@ Each system operates on campaign state and delegates save/log back to manager.
 
 from .leverage import LeverageSystem
 from .arcs import ArcSystem
+from .jobs import JobSystem
+from .favors import FavorSystem
 
-__all__ = ["LeverageSystem", "ArcSystem"]
+__all__ = ["LeverageSystem", "ArcSystem", "JobSystem", "FavorSystem"]

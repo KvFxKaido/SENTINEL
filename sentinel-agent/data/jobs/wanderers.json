@@ -1,0 +1,51 @@
+{
+  "jobs": [
+    {
+      "id": "wanderer_supply_run",
+      "faction": "Wanderers",
+      "title": "Supply Run",
+      "type": "Escort",
+      "description": "Deliver supplies to a remote settlement. Simple work, honest pay.",
+      "objectives": ["Pick up cargo at market", "Deliver to destination", "Return safely"],
+      "reward_credits": 150,
+      "reward_standing": 1,
+      "opposing_factions": [],
+      "opposing_penalty": 0,
+      "time_estimate": "1 session",
+      "tags": ["general", "safe", "delivery"],
+      "min_standing": -50,
+      "region": "breadbasket",
+      "requires_vehicle": true
+    },
+    {
+      "id": "wanderer_route_scout",
+      "faction": "Wanderers",
+      "title": "Route Scouting",
+      "type": "Investigation",
+      "description": "A trade route went quiet. Find out what's blocking it.",
+      "objectives": ["Travel the route", "Identify obstacles", "Report findings or clear the path"],
+      "reward_credits": 200,
+      "reward_standing": 1,
+      "opposing_factions": [],
+      "opposing_penalty": 0,
+      "time_estimate": "1 session",
+      "tags": ["exploration", "general"],
+      "min_standing": -30
+    },
+    {
+      "id": "wanderer_passenger_escort",
+      "faction": "Wanderers",
+      "title": "Passenger Escort",
+      "type": "Escort",
+      "description": "Someone needs safe passage. No questions about their past.",
+      "objectives": ["Meet the client", "Escort to destination", "Keep them alive and anonymous"],
+      "reward_credits": 250,
+      "reward_standing": 1,
+      "opposing_factions": [],
+      "opposing_penalty": 0,
+      "time_estimate": "1 session",
+      "tags": ["social", "general"],
+      "min_standing": -20
+    }
+  ]
+}

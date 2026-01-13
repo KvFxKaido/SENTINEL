@@ -1,0 +1,67 @@
+{
+  "jobs": [
+    {
+      "id": "ghost_identity_delivery",
+      "faction": "Ghost Networks",
+      "title": "Identity Delivery",
+      "type": "Escort",
+      "description": "New papers for someone who needs to disappear. Deliver without being followed.",
+      "objectives": ["Collect the package", "Confirm you're not being tracked", "Deliver to the client"],
+      "reward_credits": 250,
+      "reward_standing": 1,
+      "opposing_factions": ["Nexus"],
+      "opposing_penalty": 1,
+      "time_estimate": "1 session",
+      "tags": ["stealth", "delivery"],
+      "min_standing": -20
+    },
+    {
+      "id": "ghost_dead_drop",
+      "faction": "Ghost Networks",
+      "title": "Dead Drop Retrieval",
+      "type": "Investigation",
+      "description": "An asset went silent. Retrieve the dead drop before anyone else finds it.",
+      "objectives": ["Locate the dead drop site", "Retrieve contents", "Ensure the site is sanitized"],
+      "reward_credits": 300,
+      "reward_standing": 1,
+      "opposing_factions": ["Nexus"],
+      "opposing_penalty": 1,
+      "time_estimate": "1 session",
+      "tags": ["stealth", "investigation", "urgent"],
+      "min_standing": 0
+    },
+    {
+      "id": "ghost_safe_house_setup",
+      "faction": "Ghost Networks",
+      "title": "Safe House Preparation",
+      "type": "Investigation",
+      "description": "A new safe house needs vetting. Check security, establish escape routes.",
+      "objectives": ["Survey the location", "Identify vulnerabilities", "Establish emergency protocols"],
+      "reward_credits": 200,
+      "reward_standing": 1,
+      "opposing_factions": [],
+      "opposing_penalty": 0,
+      "time_estimate": "1 session",
+      "tags": ["stealth", "planning"],
+      "min_standing": 10
+    },
+    {
+      "id": "ghost_extraction",
+      "faction": "Ghost Networks",
+      "title": "Extraction",
+      "type": "Rescue",
+      "description": "Someone's cover is blown. Get them out before Nexus closes in.",
+      "objectives": ["Make contact with the asset", "Evade surveillance", "Deliver to extraction point"],
+      "reward_credits": 400,
+      "reward_standing": 2,
+      "opposing_factions": ["Nexus"],
+      "opposing_penalty": 2,
+      "time_estimate": "1 session",
+      "tags": ["stealth", "rescue", "urgent", "extraction"],
+      "min_standing": 20,
+      "region": "desert_sprawl",
+      "requires_vehicle": true,
+      "requires_vehicle_tags": ["extraction"]
+    }
+  ]
+}

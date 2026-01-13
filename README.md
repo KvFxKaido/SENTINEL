@@ -39,6 +39,10 @@ Then: `/new` → `/char` → `/start` → play
 | `/timeline <query>` | Search campaign memory (requires memvid) |
 | `/simulate preview <action>` | Preview consequences without committing |
 | `/lore quotes` | Browse faction mottos and world truths |
+| `/region` | View current region, travel between regions |
+| `/favor <npc> <type>` | Call in a favor from an allied NPC |
+| `/shop` | Browse and buy gear + vehicles |
+| `/jobs` | View and accept faction jobs |
 | `/debrief` | End session with reflection prompts |
 
 ## Project Structure
@@ -173,6 +177,21 @@ Players choose starting relationships, not membership. You're not "in" a faction
 * 44 curated faction quotes injected into GM context
 * `/lore quotes` command to browse mottos and world truths
 * Unified retrieval combines static lore + campaign history
+
+### Geography & Vehicles
+
+* 11 world regions with faction control and adjacency
+* `/region` command to view and travel between regions
+* 5 purchasable vehicles (bikes, trucks, boats)
+* Jobs can require specific vehicles or capabilities
+* Vehicle tags unlock job types (cargo, extraction, stealth)
+
+### Favor System
+
+* Call in favors from allied NPCs (NEUTRAL+ disposition)
+* 5 favor types: ride, intel, gear_loan, introduction, safe_house
+* Dual-cost mechanic: limited tokens (2/session) + standing cost
+* Higher disposition = lower cost and more options
 
 ### Wiki Integration (Obsidian)
 
