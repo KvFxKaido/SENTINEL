@@ -12,12 +12,14 @@
 - ✅ **Block system** - NARRATIVE/CHOICE/INTEL/SYSTEM separation
 - ✅ **Rich integration** - Panels, markdown, tables all working
 - ✅ **Glitch banner** - Hexagon reveal sets the mood perfectly
+- ✅ **Command registry** - Unified CLI/TUI command handling *(NEW)*
+- ✅ **Responsive layout** - Docks adapt to terminal width *(NEW)*
 
 ### Where Learning Would Help
 - 🔄 **Reactive updates** - Status bar changes don't animate
 - 🔄 **Command palette** - Works but could be snappier
 - 🔄 **State management** - Manual tracking vs reactive patterns
-- 🔄 **Layout engine** - Manual calculations vs flexible system
+- ~~🔄 **Layout engine** - Manual calculations vs flexible system~~ ✅ DONE
 - 🔄 **Event handling** - Direct polling vs event-driven
 
 ---
@@ -218,11 +220,12 @@ THEME = {
 ### Phase 1: Quick Wins (1-2 weeks)
 **Focus:** Understand patterns without major refactors
 
-1. **Command Registry Pattern**
-   - Refactor COMMAND_META to registry
-   - Add context predicates
-   - Improve fuzzy search
-   - *Learn: registry pattern, context predicates*
+1. ✅ **Command Registry Pattern** — *COMPLETED*
+   - ~~Refactor COMMAND_META to registry~~
+   - ~~Add context predicates~~
+   - ~~Improve fuzzy search~~
+   - *Learned: registry pattern, context predicates*
+   - *Result: Removed ~1400 lines of legacy code, unified CLI/TUI commands*
 
 2. **Terminal Color Detection**
    - Detect dark/light mode
@@ -247,11 +250,13 @@ THEME = {
 ### Phase 3: Polish (4-6 weeks)
 **Focus:** Nice-to-haves that improve feel
 
-5. **Layout Engine**
-   - Research Python flexbox alternatives
-   - Implement responsive panel sizing
-   - Handle terminal resize gracefully
-   - *Learn: layout algorithms, constraint solving*
+5. ✅ **Layout Engine** — *COMPLETED*
+   - ~~Research Python flexbox alternatives~~
+   - ~~Implement responsive panel sizing~~
+   - ~~Handle terminal resize gracefully~~
+   - *Learned: Textual already has Yoga-equivalent (vw units, min/max constraints)*
+   - *Result: Docks use 20vw with 24-32 char bounds, auto-hide < 80 chars*
+   - *See: Layout_Engine_Architecture.md*
 
 6. **Advanced Theming**
    - User-customizable themes
@@ -384,4 +389,6 @@ Remember: You're not learning to code. You're learning to direct better by under
 ---
 
 *Generated: January 12, 2026*
-*SENTINEL Version: Post-wiki, pre-reactive*
+*Updated: January 12, 2026*
+*SENTINEL Version: Post-responsive-layout*
+*Progress: 2/6 objectives complete (Command Registry, Layout Engine)*
