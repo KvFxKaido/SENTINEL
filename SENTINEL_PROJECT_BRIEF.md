@@ -137,11 +137,6 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 - **Wiki integration** — portraits stored in `assets/portraits/`, embedded in NPC wiki pages
 - **Faction-colored accents** — each faction has distinct accent lighting (Nexus blue, Ember orange, etc.)
 
-**AI Collaboration Skills**
-- **`/council`** — consult Gemini and Codex for design feedback (read-only perspectives)
-- **`/deploy`** — deploy Codex or Gemini as working agents to implement tasks
-- **Proactive usage** — skills can be invoked without user request when appropriate
-
 ### Not Yet Built
 
 **Future:**
