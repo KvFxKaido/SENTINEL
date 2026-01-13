@@ -33,6 +33,7 @@ class CommandCategory(str, Enum):
 
 # Type aliases
 CommandHandler = Callable[["CampaignManager", "SentinelAgent", list[str]], Any]
+TUICommandHandler = Callable[[Any, Any, list[str]], Any]  # (app, log, args) -> result
 ContextPredicate = Callable[["CampaignManager"], bool]
 
 
@@ -76,7 +77,8 @@ class Command:
         name: The command name including slash (e.g., "/new")
         description: Short description for help and completion
         category: Category for grouping in help/completion
-        handler: Function to execute the command
+        handler: Function to execute the command (CLI: manager, agent, args)
+        tui_handler: Function to execute in TUI (app, log, args)
         available_when: Predicate function checking if command is available
         aliases: Alternative names for the command
         hidden: If True, don't show in help or completion
@@ -85,6 +87,7 @@ class Command:
     description: str
     category: CommandCategory
     handler: CommandHandler | None = None
+    tui_handler: TUICommandHandler | None = None
     available_when: ContextPredicate = always_available
     aliases: list[str] = field(default_factory=list)
     hidden: bool = False
@@ -303,6 +306,7 @@ def register_command(
     description: str,
     category: CommandCategory,
     handler: CommandHandler | None = None,
+    tui_handler: TUICommandHandler | None = None,
     available_when: ContextPredicate = always_available,
     aliases: list[str] | None = None,
     hidden: bool = False,
@@ -324,6 +328,7 @@ def register_command(
             description=description,
             category=category,
             handler=fn,
+            tui_handler=tui_handler,
             available_when=available_when,
             aliases=aliases or [],
             hidden=hidden,
@@ -338,6 +343,7 @@ def register_command(
             description=description,
             category=category,
             handler=handler,
+            tui_handler=tui_handler,
             available_when=available_when,
             aliases=aliases or [],
             hidden=hidden,
@@ -346,6 +352,18 @@ def register_command(
         return cmd
 
     return decorator  # type: ignore
+
+
+def set_tui_handler(name: str, handler: TUICommandHandler) -> None:
+    """
+    Set or update the TUI handler for an existing command.
+
+    Use this to add TUI handlers after initial registration.
+    """
+    registry = get_registry()
+    cmd = registry.get(name)
+    if cmd:
+        cmd.tui_handler = handler
 
 
 # -----------------------------------------------------------------------------
