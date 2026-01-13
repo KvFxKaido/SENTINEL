@@ -344,7 +344,11 @@ def tui_gear(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
         log.write(Text.from_markup(f"[{Theme.WARNING}]No campaign loaded[/{Theme.WARNING}]"))
         return
 
-    char = app.manager.current.player
+    if not app.manager.current.characters:
+        log.write(Text.from_markup(f"[{Theme.WARNING}]No character loaded[/{Theme.WARNING}]"))
+        return
+
+    char = app.manager.current.characters[0]
     if not char.gear:
         log.write(Text.from_markup(f"[{Theme.DIM}]No gear in inventory[/{Theme.DIM}]"))
         log.write(Text.from_markup(f"[{Theme.DIM}]Credits: {char.credits}[/{Theme.DIM}]"))
@@ -1065,17 +1069,22 @@ def tui_shop(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
         log.write(Text.from_markup(f"[{Theme.WARNING}]No campaign loaded[/{Theme.WARNING}]"))
         return
 
-    # Check if in mission
-    session = app.manager.current.session
-    if session and session.mission:
-        from ..state.schema import MissionPhase
-        phase = session.mission.phase
-        if phase not in (MissionPhase.BETWEEN, MissionPhase.PLANNING):
-            log.write(Text.from_markup(f"[{Theme.WARNING}]Can't shop during a mission[/{Theme.WARNING}]"))
-            log.write(Text.from_markup(f"[{Theme.DIM}]Complete or abort the mission first[/{Theme.DIM}]"))
-            return
+    if not app.manager.current.characters:
+        log.write(Text.from_markup(f"[{Theme.WARNING}]No character loaded[/{Theme.WARNING}]"))
+        return
 
-    char = app.manager.current.player
+    # Check location - shop only available at safe_house, market, or faction_hq
+    from ..state.schema import Location
+    loc = app.manager.current.location
+    valid_locations = {Location.SAFE_HOUSE, Location.MARKET, Location.FACTION_HQ}
+
+    if loc not in valid_locations:
+        loc_display = loc.value.replace("_", " ").title()
+        log.write(Text.from_markup(f"[{Theme.DANGER}]Can't shop here ({loc_display})[/{Theme.DANGER}]"))
+        log.write(Text.from_markup(f"[{Theme.DIM}]Travel to safe_house, market, or faction_hq first[/{Theme.DIM}]"))
+        return
+
+    char = app.manager.current.characters[0]
     credits = char.credits
 
     if not args:

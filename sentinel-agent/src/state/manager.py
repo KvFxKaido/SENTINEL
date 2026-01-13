@@ -20,6 +20,7 @@ from .schema import (
     DormantThread,
     LeverageDemand,
     LeverageWeight,
+    Location,
     MissionPhase,
     NPC,
     FactionName,
@@ -903,6 +904,90 @@ class CampaignManager:
             MissionPhase.BETWEEN: "Downtime is character time. The world keeps moving.",
         }
         return hints.get(phase, "Phase changed.")
+
+    # -------------------------------------------------------------------------
+    # Location Management
+    # -------------------------------------------------------------------------
+
+    def travel(
+        self,
+        destination: str,
+        faction: str | None = None,
+    ) -> dict:
+        """
+        Travel to a new location.
+
+        Args:
+            destination: Location name (safe_house, field, faction_hq, market, transit)
+            faction: If traveling to faction_hq, which faction
+
+        Returns:
+            Dict with old/new location and narrative hint
+        """
+        if not self.current:
+            return {"error": "No campaign loaded"}
+
+        # Can't travel during active mission execution
+        if self.current.session and self.current.session.phase == MissionPhase.EXECUTION:
+            return {"error": "Can't travel during mission execution"}
+
+        # Validate destination
+        try:
+            new_location = Location(destination.lower())
+        except ValueError:
+            valid = [loc.value for loc in Location]
+            return {"error": f"Invalid location. Valid locations: {', '.join(valid)}"}
+
+        # Faction HQ requires faction specification
+        if new_location == Location.FACTION_HQ and not faction:
+            return {"error": "Specify which faction HQ: /travel faction_hq <faction>"}
+
+        # Validate faction if provided
+        faction_enum = None
+        if faction:
+            try:
+                faction_enum = FactionName(faction.lower().replace(" ", "_"))
+            except ValueError:
+                valid = [f.value for f in FactionName]
+                return {"error": f"Invalid faction. Valid factions: {', '.join(valid)}"}
+
+        old_location = self.current.location
+        old_faction = self.current.location_faction
+
+        self.current.location = new_location
+        self.current.location_faction = faction_enum
+
+        self.save_campaign()
+
+        # Emit event for reactive UI
+        get_event_bus().emit(
+            EventType.LOCATION_CHANGED,
+            campaign_id=self.current.meta.id,
+            session=self.current.meta.session_count,
+            from_location=old_location.value,
+            to_location=new_location.value,
+            faction=faction_enum.value if faction_enum else None,
+        )
+
+        return {
+            "old_location": old_location.value,
+            "new_location": new_location.value,
+            "faction": faction_enum.value if faction_enum else None,
+            "narrative_hint": self._get_location_hint(new_location, faction_enum),
+        }
+
+    def _get_location_hint(self, location: Location, faction: FactionName | None = None) -> str:
+        """Return a brief narrative hint for the location."""
+        hints = {
+            Location.SAFE_HOUSE: "Back to familiar walls. Time to plan, rest, or resupply.",
+            Location.FIELD: "Out in the world. Stay sharp.",
+            Location.MARKET: "Wanderer markets. Everything's for sale if you know who to ask.",
+            Location.TRANSIT: "Between places. The road is never truly empty.",
+        }
+        if location == Location.FACTION_HQ and faction:
+            faction_name = faction.value.replace("_", " ").title()
+            return f"At {faction_name} headquarters. Tread carefully."
+        return hints.get(location, "You've arrived.")
 
     # -------------------------------------------------------------------------
     # Character Management

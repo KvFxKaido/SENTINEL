@@ -148,6 +148,15 @@ class MissionType(str, Enum):
     ESCORT = "Escort"
 
 
+class Location(str, Enum):
+    """Player character's current location. Gates available commands."""
+    SAFE_HOUSE = "safe_house"      # Default between missions — full access
+    FIELD = "field"                # During mission execution — tactical only
+    FACTION_HQ = "faction_hq"      # At a faction's base — faction shop, consult
+    MARKET = "market"              # Wanderer market — general goods
+    TRANSIT = "transit"            # Traveling — limited actions
+
+
 class HistoryType(str, Enum):
     MISSION = "mission"
     HINGE = "hinge"
@@ -932,7 +941,7 @@ class Campaign(BaseModel):
     This is the root model that gets serialized to JSON.
     Versioned for migration support.
     """
-    schema_version: str = "1.1.0"  # Added LeverageDemand, pending_demand field
+    schema_version: str = "1.2.0"  # Added Location tracking
     saved_at: datetime = Field(default_factory=datetime.now)
 
     meta: CampaignMeta
@@ -943,6 +952,10 @@ class Campaign(BaseModel):
     dormant_threads: list[DormantThread] = Field(default_factory=list)
     avoided_situations: list[AvoidedSituation] = Field(default_factory=list)
     session: SessionState | None = None
+
+    # Location tracking — gates available commands
+    location: Location = Location.SAFE_HOUSE
+    location_faction: FactionName | None = None  # If at a faction HQ, which one
 
     def save_checkpoint(self) -> None:
         """Update timestamp before save."""

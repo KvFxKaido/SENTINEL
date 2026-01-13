@@ -44,6 +44,7 @@ class EventType(Enum):
     SOCIAL_ENERGY_CHANGED = "energy.changed"
     SOCIAL_ENERGY_DEPLETED = "energy.depleted"
     HINGE_MOMENT = "hinge.moment"
+    LOCATION_CHANGED = "location.changed"
 
     # Enhancement events
     ENHANCEMENT_GRANTED = "enhancement.granted"

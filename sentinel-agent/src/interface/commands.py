@@ -3478,6 +3478,121 @@ def cmd_loadout(manager: CampaignManager, agent: SentinelAgent, args: list[str])
         console.print(f"[{THEME['dim']}]Tip: Pack light (3-5 items). What's not packed stays at base.[/{THEME['dim']}]")
 
 
+# -----------------------------------------------------------------------------
+# Location Commands
+# -----------------------------------------------------------------------------
+
+def cmd_travel(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
+    """
+    Travel to a new location.
+
+    Usage:
+        /travel                 Show current location
+        /travel <location>      Travel to location
+        /travel faction_hq <faction>  Visit a faction's headquarters
+
+    Locations: safe_house, field, faction_hq, market, transit
+    """
+    from ..state.schema import Location
+
+    if not manager.current:
+        console.print(f"[{THEME['warning']}]No campaign loaded[/{THEME['warning']}]")
+        return
+
+    # Show current location if no args
+    if not args:
+        loc = manager.current.location
+        loc_display = loc.value.replace("_", " ").title()
+        faction_hq = manager.current.location_faction
+
+        console.print(f"\n[{THEME['accent']}]◈ CURRENT LOCATION[/{THEME['accent']}]")
+        if loc == Location.FACTION_HQ and faction_hq:
+            faction_name = faction_hq.value.replace("_", " ").title()
+            console.print(f"  {loc_display}: {faction_name}")
+        else:
+            console.print(f"  {loc_display}")
+
+        console.print(f"\n[{THEME['dim']}]Available locations:[/{THEME['dim']}]")
+        for location in Location:
+            marker = g('bullet') if location != loc else g('selected')
+            console.print(f"  {marker} {location.value}")
+        console.print(f"\n[{THEME['dim']}]Usage: /travel <location>[/{THEME['dim']}]")
+        return
+
+    # Parse destination
+    destination = args[0].lower()
+    faction = args[1] if len(args) > 1 else None
+
+    result = manager.travel(destination, faction)
+
+    if "error" in result:
+        console.print(f"[{THEME['danger']}]{result['error']}[/{THEME['danger']}]")
+        return
+
+    # Show success
+    new_loc = result["new_location"].replace("_", " ").title()
+    if result.get("faction"):
+        faction_name = result["faction"].replace("_", " ").title()
+        console.print(f"[{THEME['accent']}]Traveled to {new_loc}: {faction_name}[/{THEME['accent']}]")
+    else:
+        console.print(f"[{THEME['accent']}]Traveled to {new_loc}[/{THEME['accent']}]")
+
+    console.print(f"[{THEME['dim']}]{result['narrative_hint']}[/{THEME['dim']}]")
+
+
+def cmd_shop(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
+    """
+    Browse and purchase items.
+
+    Usage:
+        /shop           Browse available items
+        /shop buy <item>    Purchase an item
+    """
+    from ..state.schema import Location
+
+    if not manager.current:
+        console.print(f"[{THEME['warning']}]No campaign loaded[/{THEME['warning']}]")
+        return
+
+    if not manager.current.characters:
+        console.print(f"[{THEME['warning']}]Create a character first (/char)[/{THEME['warning']}]")
+        return
+
+    # Check location - shop only available at safe_house, market, or faction_hq
+    loc = manager.current.location
+    valid_locations = {Location.SAFE_HOUSE, Location.MARKET, Location.FACTION_HQ}
+
+    if loc not in valid_locations:
+        loc_display = loc.value.replace("_", " ").title()
+        console.print(f"[{THEME['danger']}]Can't shop here ({loc_display})[/{THEME['danger']}]")
+        console.print(f"[{THEME['dim']}]Travel to safe_house, market, or faction_hq first[/{THEME['dim']}]")
+        return
+
+    char = manager.current.characters[0]
+
+    # For now, show placeholder shop UI
+    console.print(f"\n[{THEME['accent']}]◈ SUPPLY CACHE[/{THEME['accent']}]")
+
+    if loc == Location.FACTION_HQ and manager.current.location_faction:
+        faction_name = manager.current.location_faction.value.replace("_", " ").title()
+        console.print(f"[{THEME['dim']}]Location: {faction_name} Headquarters[/{THEME['dim']}]")
+    elif loc == Location.MARKET:
+        console.print(f"[{THEME['dim']}]Location: Wanderer Market[/{THEME['dim']}]")
+    else:
+        console.print(f"[{THEME['dim']}]Location: Safe House[/{THEME['dim']}]")
+
+    console.print(f"\n[{THEME['text']}]Your credits: {char.credits}cr[/{THEME['text']}]")
+
+    # Placeholder items - this would be expanded with actual inventory system
+    console.print(f"\n[{THEME['dim']}]Available items:[/{THEME['dim']}]")
+    console.print(f"  {g('bullet')} Emergency Rations — 20cr")
+    console.print(f"  {g('bullet')} Medical Kit — 35cr")
+    console.print(f"  {g('bullet')} Signal Flare — 15cr")
+    console.print(f"  {g('bullet')} Lockpick Set — 40cr")
+
+    console.print(f"\n[{THEME['warning']}]Shop system coming soon. Credits tracked, items placeholder.[/{THEME['warning']}]")
+
+
 # Command Registry
 # -----------------------------------------------------------------------------
 
@@ -3502,6 +3617,8 @@ def create_commands(manager: CampaignManager, agent: SentinelAgent, conversation
         "/arc": cmd_arc,
         "/roll": cmd_roll,
         "/loadout": cmd_loadout,
+        "/travel": cmd_travel,
+        "/shop": cmd_shop,
         "/start": cmd_start,
         "/mission": cmd_mission,
         "/consult": cmd_consult,
@@ -3568,6 +3685,10 @@ def register_all_commands():
                      handler=cmd_mission, available_when=has_character)
     register_command("/loadout", "Manage mission gear", CommandCategory.MISSION,
                      handler=cmd_loadout, available_when=has_campaign)
+    register_command("/travel", "Travel to a new location", CommandCategory.MISSION,
+                     handler=cmd_travel, available_when=has_campaign)
+    register_command("/shop", "Browse and buy items", CommandCategory.MISSION,
+                     handler=cmd_shop, available_when=has_character)
     register_command("/debrief", "End session", CommandCategory.MISSION,
                      handler=cmd_debrief, available_when=has_session)
 
