@@ -15,10 +15,13 @@ SENTINEL/
 ├── sentinel-agent/          # The AI GM implementation
 │   ├── CLAUDE.md            # Detailed dev context
 │   ├── src/                 # Python source
-│   │   └── state/
-│   │       ├── wiki_adapter.py   # Wiki page generation
-│   │       ├── wiki_watcher.py   # Bi-directional sync
-│   │       └── templates.py      # Jinja2 template engine
+│   │   ├── state/
+│   │   │   ├── event_bus.py      # Pub/sub for reactive TUI updates
+│   │   │   ├── wiki_adapter.py   # Wiki page generation
+│   │   │   ├── wiki_watcher.py   # Bi-directional sync
+│   │   │   └── templates.py      # Jinja2 template engine
+│   │   └── interface/
+│   │       └── tui.py            # Primary Textual-based UI
 │   ├── prompts/             # Hot-reloadable prompts
 │   │   └── local/           # Condensed prompts for 8B-12B models
 │   └── campaigns/           # Save files
@@ -145,6 +148,15 @@ Optimized context for smaller local models. Run with `--local` flag.
 - **Skipped:** Narrative guidance, digest, retrieval sections
 
 Core mechanics and narrative quality remain intact — you lose flavor text, not functionality.
+
+### TUI Architecture (Textual)
+The primary interface uses reactive patterns:
+- **Event bus** (`state/event_bus.py`) — Manager emits typed events; TUI subscribes and updates panels
+- **Reactive feedback** — CSS classes trigger transient highlights (energy drain/gain, faction shifts)
+- **Responsive layout** — Viewport units with min/max constraints; auto-hide docks below 80 chars
+- **Command registry** — Commands self-register with context predicates
+
+**Aesthetic is intentional:** Dark tactical theme (steel blue, dim grays, danger red). No user customization — the constraints are the identity.
 
 ## MCP Server: sentinel-campaign
 

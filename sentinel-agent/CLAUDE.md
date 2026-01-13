@@ -26,6 +26,7 @@ src/
 ├── state/
 │   ├── schema.py         # Pydantic models — the source of truth
 │   ├── manager.py        # Campaign CRUD + delegation to systems
+│   ├── event_bus.py      # Pub/sub for reactive UI updates
 │   └── memvid_adapter.py # Campaign memory via memvid (optional)
 ├── context/              # Engine-owned context control
 │   ├── packer.py         # Prompt packing with token budgets
@@ -110,6 +111,31 @@ The `glyphs.py` module provides visual indicators with fallbacks:
 - `sanitize_for_terminal(text)` converts em-dashes, arrows, etc. to ASCII on Windows
 - Auto-detects Windows platform for sanitization
 
+### TUI Architecture (Textual)
+The primary interface (`tui.py`) uses these patterns:
+
+**Event Bus** (`state/event_bus.py`):
+- Manager emits typed events (FACTION_CHANGED, SOCIAL_ENERGY_CHANGED, etc.)
+- TUI subscribes in `on_mount`, handlers update specific panels
+- Events fire from worker threads → handlers use `call_from_thread()` for safety
+
+**Reactive Visual Feedback**:
+- CSS classes trigger transient highlights (`.energy-drain`, `.energy-gain`, `.faction-shift`)
+- `set_timer(1.5, lambda: remove_class(...))` creates pulse effect
+- State changes logged to output panel with colored notation
+
+**Responsive Layout**:
+- Docks use viewport units: `width: 20vw; min-width: 24; max-width: 32`
+- Auto-hide below 80 chars via `on_resize` handler
+- Grid layout with `1fr` center column
+
+**Command Registry** (`interface/commands.py`):
+- Commands self-register with context predicates
+- `when` lambdas hide irrelevant commands (e.g., `/debrief` only during session)
+- Unified CLI/TUI command handling
+
+**Aesthetic is intentional**: Dark tactical theme with steel blue, dim grays, danger red. No user customization — the constraints are the identity.
+
 ### Unified retrieval with budget control
 The `UnifiedRetriever` combines lore, campaign history, and current state into a single query interface:
 
@@ -172,6 +198,7 @@ The `ELSE IF context_incomplete` branches encode SafetyNet behavior directly at 
 | `systems/arcs.py` | Arc detection | Changing arc patterns or detection |
 | `state/schema.py` | Data models | Adding new state fields |
 | `state/manager.py` | Campaign CRUD | Adding new persistence operations |
+| `state/event_bus.py` | Reactive UI events | Adding new event types for TUI |
 | `memvid_adapter.py` | Campaign memory | Adding new frame types or queries |
 | `context/packer.py` | Token budgets | Changing section limits or strain tiers |
 | `context/window.py` | Rolling window | Changing trimming priority or anchors |

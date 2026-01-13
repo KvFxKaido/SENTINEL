@@ -13,11 +13,13 @@ The system is composed of a Python-based CLI agent (`sentinel-agent`) and a Mode
 *   **`sentinel-agent/`**: The primary executable and Orchestrator.
     *   **`src/agent.py`**: The main game loop (Input -> Retrieve -> Decide -> Render).
     *   **`src/state/`**: Pydantic models defining the game state. **Critical**: This is the single source of truth for runtime data.
+        *   `event_bus.py`: Pub/sub for reactive TUI updates — manager emits typed events, TUI subscribes.
         *   `wiki_adapter.py`: Obsidian wiki generation with hardened writes (atomic, serialized, idempotent).
         *   `wiki_watcher.py`: Bi-directional sync — frontmatter edits in Obsidian update game state.
         *   `templates.py`: Jinja2 template engine for wiki pages (user-overridable in `wiki/templates/`).
     *   **`src/llm/`**: Abstraction layer for LLM providers (Claude, OpenAI, Local).
-    *   **`src/interface/`**: Handles CLI rendering, glyphs, and user input.
+    *   **`src/interface/`**: Handles TUI/CLI rendering, glyphs, and user input.
+        *   `tui.py`: Primary Textual-based UI with reactive panels and event-driven updates.
 *   **`sentinel-campaign/`**: A specialized MCP server.
     *   Serves faction data, relationships, and dynamic world updates as tools to the Agent.
     *   Maintains the simulation of the "living world" outside player view.
@@ -35,6 +37,10 @@ When analyzing or modifying this codebase, prioritize:
     *   **Display vs. Logic**: All visual formatting should remain in `interface/`. Logic should return structured data.
 3.  **Tool Abstraction**:
     *   The agent interacts with the world via Tools (Dice, Hinge Detector, MCP Factions). Ensure tool interfaces remain standardized in `sentinel-agent/src/tools`.
+4.  **TUI Reactivity**:
+    *   The Textual-based TUI uses an event bus pattern — manager emits events (FACTION_CHANGED, SOCIAL_ENERGY_CHANGED), TUI handlers update specific panels.
+    *   Visual feedback uses CSS classes with timers for transient highlights (energy drain/gain pulses).
+    *   Aesthetic is intentional: dark tactical theme with fixed palette. No user customization.
 
 ## Development Guidelines
 

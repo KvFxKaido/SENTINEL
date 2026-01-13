@@ -956,6 +956,26 @@ class CampaignManager:
 
         self.save_campaign()
 
+        # Emit events for reactive UI updates
+        if self.current and social_energy_delta != 0:
+            get_event_bus().emit(
+                EventType.SOCIAL_ENERGY_CHANGED,
+                campaign_id=self.current.meta.id,
+                session=self.current.meta.session_count,
+                character_id=character_id,
+                before=before["social_energy"],
+                after=after["social_energy"],
+                delta=social_energy_delta,
+            )
+            # Special event if energy depleted
+            if after["social_energy"] == 0 and before["social_energy"] > 0:
+                get_event_bus().emit(
+                    EventType.SOCIAL_ENERGY_DEPLETED,
+                    campaign_id=self.current.meta.id,
+                    session=self.current.meta.session_count,
+                    character_id=character_id,
+                )
+
         return {
             "before": before,
             "after": after,
