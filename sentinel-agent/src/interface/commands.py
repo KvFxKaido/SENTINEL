@@ -3523,3 +3523,119 @@ def create_commands(manager: CampaignManager, agent: SentinelAgent, conversation
         "/quit": lambda m, a, args: sys.exit(0),
         "/exit": lambda m, a, args: sys.exit(0),
     }
+
+
+# -----------------------------------------------------------------------------
+# Registry-Based Command Registration
+# -----------------------------------------------------------------------------
+
+def register_all_commands():
+    """
+    Register all commands with the central registry.
+
+    This is the single source of truth for command metadata.
+    Call this once during application initialization.
+    """
+    from .command_registry import (
+        register_command, CommandCategory,
+        has_campaign, has_character, has_session, always_available,
+    )
+
+    # Campaign Commands
+    register_command("/new", "Create a new campaign", CommandCategory.CAMPAIGN,
+                     handler=cmd_new)
+    register_command("/load", "Load a campaign", CommandCategory.CAMPAIGN,
+                     handler=cmd_load)
+    register_command("/list", "List all campaigns", CommandCategory.CAMPAIGN,
+                     handler=cmd_list)
+    register_command("/save", "Save current campaign", CommandCategory.CAMPAIGN,
+                     handler=cmd_save, available_when=has_campaign)
+    register_command("/delete", "Delete a campaign", CommandCategory.CAMPAIGN,
+                     handler=cmd_delete)
+
+    # Character Commands
+    register_command("/char", "Create a character", CommandCategory.CHARACTER,
+                     handler=cmd_char, available_when=has_campaign)
+    register_command("/arc", "View character arcs", CommandCategory.CHARACTER,
+                     handler=cmd_arc, available_when=has_character)
+    register_command("/roll", "Roll dice", CommandCategory.CHARACTER,
+                     handler=cmd_roll, available_when=has_character)
+
+    # Mission Commands
+    register_command("/start", "Begin the story", CommandCategory.MISSION,
+                     handler=cmd_start, available_when=has_character)
+    register_command("/mission", "Get a new mission", CommandCategory.MISSION,
+                     handler=cmd_mission, available_when=has_character)
+    register_command("/loadout", "Manage mission gear", CommandCategory.MISSION,
+                     handler=cmd_loadout, available_when=has_campaign)
+    register_command("/debrief", "End session", CommandCategory.MISSION,
+                     handler=cmd_debrief, available_when=has_session)
+
+    # Social Commands
+    register_command("/consult", "Ask the council for advice", CommandCategory.SOCIAL,
+                     handler=cmd_consult, available_when=has_character)
+    register_command("/npc", "View NPC info", CommandCategory.SOCIAL,
+                     handler=cmd_npc, available_when=has_campaign)
+    register_command("/factions", "View faction standings", CommandCategory.SOCIAL,
+                     handler=cmd_factions, available_when=has_campaign)
+
+    # Info Commands
+    register_command("/status", "Show campaign status", CommandCategory.INFO,
+                     handler=cmd_status, available_when=has_campaign)
+    register_command("/history", "View chronicle", CommandCategory.INFO,
+                     handler=cmd_history, available_when=has_campaign)
+    register_command("/search", "Search campaign history", CommandCategory.INFO,
+                     handler=cmd_search, available_when=has_campaign)
+    register_command("/summary", "View session summary", CommandCategory.INFO,
+                     handler=cmd_summary, available_when=has_campaign)
+    register_command("/consequences", "View pending threads", CommandCategory.INFO,
+                     handler=cmd_consequences, available_when=has_campaign)
+    register_command("/threads", "View pending threads", CommandCategory.INFO,
+                     handler=cmd_consequences, available_when=has_campaign,
+                     aliases=["/consequences"])
+    register_command("/timeline", "Search campaign memory", CommandCategory.INFO,
+                     handler=cmd_timeline, available_when=has_campaign)
+    register_command("/wiki", "View campaign wiki", CommandCategory.INFO,
+                     handler=cmd_wiki, available_when=has_campaign)
+    register_command("/context", "Show context debug info", CommandCategory.INFO,
+                     handler=cmd_context, available_when=has_campaign)
+
+    # Simulation Commands
+    register_command("/simulate", "Explore hypotheticals", CommandCategory.SIMULATION,
+                     handler=cmd_simulate, available_when=has_campaign)
+
+    # Settings Commands
+    register_command("/backend", "Switch LLM backend", CommandCategory.SETTINGS,
+                     handler=cmd_backend)
+    register_command("/model", "Switch model", CommandCategory.SETTINGS,
+                     handler=cmd_model)
+    register_command("/banner", "Toggle banner animation", CommandCategory.SETTINGS,
+                     handler=cmd_banner)
+    register_command("/statusbar", "Toggle status bar", CommandCategory.SETTINGS,
+                     handler=cmd_statusbar)
+    register_command("/ping", "Test backend connection", CommandCategory.SETTINGS,
+                     handler=cmd_ping)
+
+    # Lore Commands
+    register_command("/lore", "Search lore", CommandCategory.LORE,
+                     handler=cmd_lore)
+
+    # System Commands
+    register_command("/checkpoint", "Save and relieve memory pressure", CommandCategory.SYSTEM,
+                     handler=cmd_checkpoint, available_when=has_campaign)
+    register_command("/compress", "Update campaign digest", CommandCategory.SYSTEM,
+                     handler=cmd_compress, available_when=has_campaign)
+    register_command("/clear", "Clear conversation history", CommandCategory.SYSTEM,
+                     handler=cmd_clear)
+    register_command("/help", "Show help", CommandCategory.SYSTEM,
+                     handler=lambda m, a, args: show_help())
+    register_command("/quit", "Exit SENTINEL", CommandCategory.SYSTEM,
+                     handler=lambda m, a, args: sys.exit(0))
+    register_command("/exit", "Exit SENTINEL", CommandCategory.SYSTEM,
+                     handler=lambda m, a, args: sys.exit(0), hidden=True)
+
+
+# We need a cmd_status wrapper since the original uses a closure
+def cmd_status(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
+    """Show campaign status."""
+    show_status(manager, agent)

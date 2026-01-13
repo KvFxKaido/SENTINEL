@@ -31,10 +31,12 @@ from .glyphs import (
     CONTEXT_LIMITS,
 )
 from .choices import parse_response, ChoiceBlock
-from .commands import create_commands
+from .commands import create_commands, register_all_commands
+from .command_registry import get_registry, create_completer
 
 
-# Command completer for slash commands with descriptions
+# Legacy: Command completer for slash commands with descriptions
+# TODO: Remove once fully migrated to registry
 COMMAND_META = {
     "/new": "Create a new campaign",
     "/char": "Create a character",
@@ -274,7 +276,11 @@ class SlashCommandCompleter(Completer):
 
 
 # Global completer instance - will be configured with manager reference later
+# Legacy: Using old SlashCommandCompleter until migration complete
 command_completer = SlashCommandCompleter()
+
+# Registry-based completer (will replace above)
+registry_completer = None  # Initialized in main()
 
 
 # -----------------------------------------------------------------------------
@@ -322,7 +328,13 @@ def main():
 
     manager = CampaignManager(campaigns_dir)
 
+    # Initialize command registry
+    register_all_commands()
+    global registry_completer
+    registry_completer = create_completer(lambda: manager)
+
     # Configure the command completer with manager reference for context-aware filtering
+    # Legacy: Still using old completer until migration complete
     command_completer.manager_ref = lambda: manager
 
     agent = SentinelAgent(
@@ -392,7 +404,7 @@ def main():
             # Use prompt_toolkit for autocomplete on slash commands
             user_input = pt_prompt(
                 prompt_text,
-                completer=command_completer,
+                completer=registry_completer,  # Using registry-based completer
                 style=pt_style,
                 complete_while_typing=True,
             ).strip()
@@ -421,7 +433,7 @@ def main():
 
                 if cmd in commands:
                     # Record command usage for recent commands feature
-                    command_completer.record_command(cmd)
+                    get_registry().record_usage(cmd)
 
                     result = commands[cmd](manager, agent, cmd_args)
 
