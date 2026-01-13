@@ -31,6 +31,9 @@ from ..tools.hinge_detector import detect_hinge
 from .choices import parse_response, ChoiceBlock
 from .config import load_config, set_backend, set_model as save_model
 from .glyphs import g, energy_bar
+from .command_registry import get_registry
+from .commands import register_all_commands
+from .tui_commands import register_tui_handlers
 
 
 def center_renderable(renderable: RenderableType, content_width: int, container_width: int) -> Padding:
@@ -308,17 +311,27 @@ class CommandInput(Input):
 
 def autocorrect_command(cmd: str) -> tuple[str, str | None]:
     """
-    Autocorrect a mistyped command.
+    Autocorrect a mistyped command using the command registry.
 
     Returns (corrected_cmd, suggestion_message) where suggestion_message
     is None if no correction was needed.
     """
+    registry = get_registry()
+
+    # Check if command exists in registry
+    if registry.get(cmd):
+        return cmd, None
+
+    # Use registry's autocorrect (fuzzy matching)
+    corrected, msg = registry.autocorrect(cmd)
+    if corrected != cmd:
+        return corrected, f"Autocorrected '{cmd}' → '{corrected}'"
+
+    # Fallback to legacy VALID_COMMANDS for any not yet in registry
     if cmd in VALID_COMMANDS:
         return cmd, None
 
-    # Find close matches (cutoff=0.6 means 60% similarity required)
     matches = get_close_matches(cmd, VALID_COMMANDS, n=1, cutoff=0.6)
-
     if matches:
         corrected = matches[0]
         return corrected, f"Autocorrected '{cmd}' → '{corrected}'"
@@ -1089,6 +1102,10 @@ class SentinelTUI(App):
         saved_model = config.get("model")
 
         self.manager = CampaignManager(campaigns_dir)
+
+        # Initialize command registry with CLI and TUI handlers
+        register_all_commands()
+        register_tui_handlers()
         self.agent = SentinelAgent(
             self.manager,
             prompts_dir=self.prompts_dir,
@@ -1304,6 +1321,15 @@ class SentinelTUI(App):
             log.write(Text.from_markup(f"[{Theme.DIM}]{correction_msg}[/{Theme.DIM}]"))
             cmd = corrected_cmd
 
+        # Try registry dispatch first
+        registry = get_registry()
+        cmd_obj = registry.get(cmd)
+        if cmd_obj and cmd_obj.tui_handler:
+            registry.record_usage(cmd)
+            cmd_obj.tui_handler(self, log, args)
+            return
+
+        # Fall back to legacy if/elif chain for commands not yet migrated
         if cmd in ["/quit", "/exit"]:
             self.exit()
             return
