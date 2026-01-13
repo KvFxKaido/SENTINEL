@@ -120,11 +120,15 @@ class ArcSystem:
             for inter in npc.interactions:
                 lines.append(f"NPC S{inter.session}: {npc.name} - {inter.action}")
 
-        # Character's hinge history
+        # Character's hinge history (includes reasoning which has richer keywords)
         for char in self._campaign.characters:
             for hinge in char.hinge_history:
                 if f"HINGE S{hinge.session}:" not in "\n".join(lines):
                     lines.append(f"HINGE S{hinge.session}: {hinge.choice}")
+                    if hinge.reasoning:
+                        lines.append(f"  Reasoning: {hinge.reasoning}")
+                    if hinge.what_shifted:
+                        lines.append(f"  Shifted: {hinge.what_shifted}")
 
         return "\n".join(lines)
 
