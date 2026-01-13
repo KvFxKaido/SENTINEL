@@ -1113,6 +1113,9 @@ class JobTemplate(BaseModel):
     requires_vehicle_type: str | None = None         # Specific type: "motorcycle", "truck", etc.
     requires_vehicle_tags: list[str] = Field(default_factory=list)  # ["cargo", "stealth"]
 
+    # Buy-in (optional) — credits required to accept job (non-refundable)
+    buy_in: int | None = None
+
 
 class ActiveJob(BaseModel):
     """A job the player has accepted."""
@@ -1132,6 +1135,9 @@ class ActiveJob(BaseModel):
 
     # Geography (copied from template when accepted)
     region: Region | None = None        # Where the job takes place
+
+    # Buy-in (copied from template — tracks what was paid)
+    buy_in: int | None = None           # Non-refundable on failure/abandon
 
 
 class JobBoard(BaseModel):

@@ -1531,8 +1531,22 @@ def cmd_jobs(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
                     console.print(f"[{THEME['warning']}]Invalid job number[/{THEME['warning']}]")
                     return None
                 template_id = available[idx]
+
+                # Check buy-in affordability before accepting
+                template = manager.jobs.get_template(template_id)
+                if template and template.buy_in:
+                    can_afford, buy_in, credits = manager.jobs.can_afford_buy_in(template_id)
+                    if not can_afford:
+                        console.print(f"[{THEME['danger']}]Insufficient credits for buy-in[/{THEME['danger']}]")
+                        console.print(f"[{THEME['dim']}]Need: {buy_in}c | Have: {credits}c[/{THEME['dim']}]")
+                        return None
+
                 job = manager.jobs.accept_job(template_id)
                 if job:
+                    # Show buy-in deduction if applicable
+                    if job.buy_in:
+                        console.print(f"[{THEME['warning']}]Buy-in paid: -{job.buy_in}c (non-refundable)[/{THEME['warning']}]")
+
                     console.print(f"[{THEME['accent']}]Job accepted: {job.title}[/{THEME['accent']}]")
                     console.print(f"[{THEME['dim']}]Objectives:[/{THEME['dim']}]")
                     for obj in job.objectives:
@@ -1660,7 +1674,12 @@ def cmd_jobs(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
                     risk_parts = [f.value.split()[0] for f in template.opposing_factions[:2]]
                     risk_str = f"Risk: {', '.join(risk_parts)} -{template.opposing_penalty}"
 
-                console.print(f"\n[{THEME['accent']}]{i}. [{faction_tag}] {template.title}[/{THEME['accent']}]")
+                # Buy-in tag if applicable
+                buy_in_tag = ""
+                if template.buy_in:
+                    buy_in_tag = f" [{THEME['warning']}][BUY-IN: {template.buy_in}c][/{THEME['warning']}]"
+
+                console.print(f"\n[{THEME['accent']}]{i}. [{faction_tag}] {template.title}[/{THEME['accent']}]{buy_in_tag}")
                 console.print(f"   {template.description}")
                 console.print(f"   [{THEME['dim']}]Pay: {template.reward_credits}c | Est: {template.time_estimate}[/{THEME['dim']}]", end="")
                 if risk_str:
