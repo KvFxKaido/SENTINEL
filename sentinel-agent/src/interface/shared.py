@@ -226,14 +226,20 @@ def detect_arcs(manager: "CampaignManager") -> list[dict]:
 
 def accept_arc(manager: "CampaignManager", arc_type: str) -> CommandResult:
     """Accept a suggested arc."""
-    if manager.accept_arc(arc_type):
+    if not manager.current or not manager.current.characters:
+        return CommandResult(success=False, message="No character loaded")
+    char_id = manager.current.characters[0].id
+    if manager.accept_arc(char_id, arc_type):
         return CommandResult(success=True, message=f"Arc accepted: {arc_type}")
     return CommandResult(success=False, message=f"Could not accept arc: {arc_type}")
 
 
 def reject_arc(manager: "CampaignManager", arc_type: str) -> CommandResult:
     """Reject a suggested arc."""
-    if manager.reject_arc(arc_type):
+    if not manager.current or not manager.current.characters:
+        return CommandResult(success=False, message="No character loaded")
+    char_id = manager.current.characters[0].id
+    if manager.reject_arc(char_id, arc_type):
         return CommandResult(success=True, message=f"Arc rejected: {arc_type}")
     return CommandResult(success=False, message=f"Could not reject arc: {arc_type}")
 
