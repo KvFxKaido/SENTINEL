@@ -681,6 +681,19 @@ class SentinelTUI(App):
         display: none;
     }}
 
+    /* Reactive visual feedback for state changes */
+    #self-dock.energy-drain {{
+        background: {Theme.DANGER} 15%;
+    }}
+
+    #self-dock.energy-gain {{
+        background: {Theme.FRIENDLY} 15%;
+    }}
+
+    #world-dock.faction-shift {{
+        background: {Theme.WARNING} 15%;
+    }}
+
     #center-column {{
         width: 1fr;
         min-width: 40;
@@ -901,6 +914,7 @@ class SentinelTUI(App):
         bus.on(EventType.NPC_DISPOSITION_CHANGED, self._on_npc_changed)
         bus.on(EventType.THREAD_QUEUED, self._on_thread_queued)
         bus.on(EventType.CAMPAIGN_LOADED, self._on_campaign_loaded)
+        bus.on(EventType.SOCIAL_ENERGY_CHANGED, self._on_energy_changed)
 
         # Pass history and suggestion display to command input
         cmd_input = self.query_one("#main-input", CommandInput)
@@ -1111,7 +1125,7 @@ class SentinelTUI(App):
     # -------------------------------------------------------------------------
 
     def _on_faction_changed(self, event: GameEvent) -> None:
-        """Handle faction standing changes - update WORLD dock."""
+        """Handle faction standing changes - update WORLD dock with visual feedback."""
         # Use call_from_thread since events may fire from worker threads
         def update():
             try:
@@ -1119,13 +1133,17 @@ class SentinelTUI(App):
                 world_dock.update_campaign(self.manager.current if self.manager else None)
                 world_dock.refresh_display()
 
+                # Visual feedback - highlight the dock briefly
+                world_dock.add_class("faction-shift")
+                self.set_timer(1.5, lambda: world_dock.remove_class("faction-shift"))
+
                 # Log the change to output
                 log = self.query_one("#output-log", RichLog)
                 faction = event.data.get("faction", "?")
                 before = event.data.get("before", "?")
                 after = event.data.get("after", "?")
                 log.write(Text.from_markup(
-                    f"[{Theme.DIM}][ {faction}: {before} → {after} ][/{Theme.DIM}]"
+                    f"[{Theme.WARNING}][ {faction}: {before} → {after} ][/{Theme.WARNING}]"
                 ))
             except Exception:
                 pass
@@ -1168,6 +1186,39 @@ class SentinelTUI(App):
         def update():
             try:
                 self.refresh_all_panels()
+            except Exception:
+                pass
+
+        self.call_from_thread(update)
+
+    def _on_energy_changed(self, event: GameEvent) -> None:
+        """Handle social energy changes - update SELF dock with visual feedback."""
+        def update():
+            try:
+                self_dock = self.query_one("#self-dock", SelfDock)
+                self_dock.update_campaign(self.manager.current if self.manager else None)
+
+                # Visual feedback - highlight based on gain/drain
+                delta = event.data.get("delta", 0)
+                before = event.data.get("before", 0)
+                after = event.data.get("after", 0)
+
+                if delta < 0:
+                    # Energy drained - red highlight
+                    self_dock.add_class("energy-drain")
+                    self.set_timer(1.5, lambda: self_dock.remove_class("energy-drain"))
+                elif delta > 0:
+                    # Energy gained - green highlight
+                    self_dock.add_class("energy-gain")
+                    self.set_timer(1.5, lambda: self_dock.remove_class("energy-gain"))
+
+                # Log the change
+                log = self.query_one("#output-log", RichLog)
+                color = Theme.FRIENDLY if delta > 0 else Theme.DANGER
+                direction = "+" if delta > 0 else ""
+                log.write(Text.from_markup(
+                    f"[{color}][ Energy: {before}% → {after}% ({direction}{delta}) ][/{color}]"
+                ))
             except Exception:
                 pass
 

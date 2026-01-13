@@ -123,6 +123,13 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 - **Social energy carrot** — spend 10% energy for advantage when acting in your element (matches restorers)
 - **Player Push mechanic** — explicitly invite consequences for advantage (Devil's Bargain), queues dormant thread
 
+**TUI Architecture (Textual)**
+- **Event bus** — manager emits typed events (FACTION_CHANGED, SOCIAL_ENERGY_CHANGED, etc.); TUI subscribes and updates panels reactively
+- **Reactive visual feedback** — CSS classes trigger transient highlights (`.energy-drain`, `.energy-gain`, `.faction-shift`); 1.5s timer removes class
+- **Responsive layout** — docks use viewport units (`20vw`, min/max constraints); auto-hide below 80 chars
+- **Command registry** — commands self-register with context predicates; `when` lambdas hide irrelevant commands
+- **Aesthetic is intentional** — dark tactical theme (steel blue, dim grays, danger red); no user customization
+
 **Portrait System**
 - **Character YAML specs** — structured appearance definitions in `assets/characters/` (faction, features, augmentations, expression)
 - **Art style anchor** — "Cinematic portrait, photorealistic digital art style. Modern post-apocalyptic cyberpunk aesthetic."
@@ -160,6 +167,7 @@ SENTINEL/
 │   │   │   ├── schema.py         # Pydantic models (source of truth)
 │   │   │   │                     # Includes: ArcType, CharacterArc, ARC_PATTERNS
 │   │   │   ├── manager.py        # Campaign CRUD + arc detection + faction cascades
+│   │   │   ├── event_bus.py      # Pub/sub for reactive TUI updates
 │   │   │   ├── store.py          # Abstract storage interface
 │   │   │   ├── wiki_adapter.py   # Wiki page generation + hardened writes
 │   │   │   ├── wiki_watcher.py   # Bi-directional sync (file watcher)
