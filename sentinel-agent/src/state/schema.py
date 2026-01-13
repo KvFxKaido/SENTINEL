@@ -223,6 +223,14 @@ class LeverageWeight(str, Enum):
     HEAVY = "heavy"      # Ultimatums, significant consequences
 
 
+class Urgency(str, Enum):
+    """Mission urgency tier — determines deadline and consequences."""
+    ROUTINE = "routine"      # No deadline, opportunity passes quietly
+    PRESSING = "pressing"    # 2 sessions, minor consequence if ignored
+    URGENT = "urgent"        # 1 session, dormant thread created
+    CRITICAL = "critical"    # This session only, immediate fallout
+
+
 class CampaignStatus(str, Enum):
     """Campaign lifecycle status for endgame tracking."""
     ACTIVE = "active"                    # Normal play
@@ -848,6 +856,47 @@ class MissionBriefing(BaseModel):
     stakes: str
 
 
+class MissionOffer(BaseModel):
+    """
+    A time-sensitive mission opportunity.
+
+    Unlike jobs (transactional work-for-hire), missions are story-driven
+    opportunities that come with urgency and consequences for ignoring them.
+    """
+    id: str = Field(default_factory=generate_id)
+    title: str
+    situation: str  # What's happening
+    requestor: str  # Who's asking (NPC name or faction)
+    requestor_npc_id: str | None = None  # Link to NPC if applicable
+    faction: FactionName | None = None  # Requesting faction
+
+    urgency: Urgency = Urgency.PRESSING
+    offered_session: int  # Session when offer was made
+    deadline_session: int | None = None  # Session by which player must act (None = no deadline)
+
+    stakes: str  # What's at stake
+    consequence_if_ignored: str  # What happens if deadline passes
+
+    # Tracking
+    accepted: bool = False
+    declined: bool = False
+    expired: bool = False
+    consequence_triggered: bool = False
+
+    @property
+    def sessions_remaining(self) -> int | None:
+        """Sessions until deadline. None if no deadline."""
+        if self.deadline_session is None:
+            return None
+        return self.deadline_session - self.offered_session
+
+    def is_expired(self, current_session: int) -> bool:
+        """Check if this offer has passed its deadline."""
+        if self.deadline_session is None:
+            return False
+        return current_session > self.deadline_session
+
+
 class SessionState(BaseModel):
     """Current mission/session state."""
     mission_id: str = Field(default_factory=generate_id)
@@ -1235,6 +1284,9 @@ class Campaign(BaseModel):
 
     # Favor tracking — NPC favor usage per session
     favor_tracker: FavorTracker = Field(default_factory=FavorTracker)
+
+    # Mission offers — time-sensitive story opportunities
+    mission_offers: list[MissionOffer] = Field(default_factory=list)
 
     def save_checkpoint(self) -> None:
         """Update timestamp before save."""

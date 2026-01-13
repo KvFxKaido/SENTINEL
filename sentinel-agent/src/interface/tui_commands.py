@@ -240,11 +240,95 @@ def tui_start(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
 
 
 def tui_mission(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
-    """Get a new mission."""
+    """
+    View pending missions or request a new one.
+
+    Usage:
+        /mission              - View pending mission offers
+        /mission accept <n>   - Accept mission offer n
+        /mission decline <n>  - Decline mission offer n
+        /mission new [hint]   - Request a new mission from the GM
+    """
+    from ..state.schema import Urgency
+
     if not app.manager or not app.manager.current:
         log.write(Text.from_markup(f"[{Theme.WARNING}]Load a campaign first[/{Theme.WARNING}]"))
         return
-    app.handle_action("REQUEST_MISSION")
+
+    subcmd = args[0].lower() if args else ""
+
+    # Urgency colors
+    urgency_colors = {
+        Urgency.ROUTINE: Theme.DIM,
+        Urgency.PRESSING: Theme.ACCENT,
+        Urgency.URGENT: Theme.WARNING,
+        Urgency.CRITICAL: Theme.DANGER,
+    }
+
+    # Subcommand: accept
+    if subcmd == "accept" and len(args) > 1:
+        try:
+            idx = int(args[1]) - 1
+            pending = app.manager.missions.get_pending_offers()
+            if idx < 0 or idx >= len(pending):
+                log.write(Text.from_markup(f"[{Theme.WARNING}]Invalid mission number[/{Theme.WARNING}]"))
+                return
+            result = app.manager.missions.accept_offer(pending[idx].id)
+            if "error" in result:
+                log.write(Text.from_markup(f"[{Theme.WARNING}]{result['error']}[/{Theme.WARNING}]"))
+            else:
+                log.write(Text.from_markup(f"[{Theme.SUCCESS}]Accepted: {pending[idx].title}[/{Theme.SUCCESS}]"))
+                log.write(Text.from_markup(f"[{Theme.DIM}]{pending[idx].situation}[/{Theme.DIM}]"))
+        except ValueError:
+            log.write(Text.from_markup(f"[{Theme.WARNING}]Usage: /mission accept <number>[/{Theme.WARNING}]"))
+        return
+
+    # Subcommand: decline
+    if subcmd == "decline" and len(args) > 1:
+        try:
+            idx = int(args[1]) - 1
+            pending = app.manager.missions.get_pending_offers()
+            if idx < 0 or idx >= len(pending):
+                log.write(Text.from_markup(f"[{Theme.WARNING}]Invalid mission number[/{Theme.WARNING}]"))
+                return
+            result = app.manager.missions.decline_offer(pending[idx].id)
+            if "error" in result:
+                log.write(Text.from_markup(f"[{Theme.WARNING}]{result['error']}[/{Theme.WARNING}]"))
+            else:
+                log.write(Text.from_markup(f"[{Theme.DIM}]Declined: {pending[idx].title}[/{Theme.DIM}]"))
+        except ValueError:
+            log.write(Text.from_markup(f"[{Theme.WARNING}]Usage: /mission decline <number>[/{Theme.WARNING}]"))
+        return
+
+    # Subcommand: new — request a new mission from GM
+    if subcmd == "new":
+        hint = " ".join(args[1:]) if len(args) > 1 else ""
+        action = "REQUEST_MISSION"
+        if hint:
+            action = f"REQUEST_MISSION: {hint}"
+        app.handle_action(action)
+        return
+
+    # Default: show pending offers
+    pending = app.manager.missions.get_pending_offers()
+
+    if pending:
+        log.write(Text.from_markup(f"\n[bold {Theme.ACCENT}]◈ PENDING MISSIONS ◈[/bold {Theme.ACCENT}]"))
+        for i, offer in enumerate(pending, 1):
+            indicator = app.manager.missions.get_urgency_indicator(offer.urgency)
+            deadline = app.manager.missions.get_deadline_text(offer)
+            color = urgency_colors.get(offer.urgency, Theme.TEXT)
+
+            log.write(Text.from_markup(f"\n[{color}]{i}. {indicator} {offer.title}[/{color}]"))
+            log.write(Text.from_markup(f"   [{Theme.DIM}]From: {offer.requestor}  |  {deadline}[/{Theme.DIM}]"))
+            situation_display = offer.situation[:80] + ('...' if len(offer.situation) > 80 else '')
+            log.write(Text.from_markup(f"   {situation_display}"))
+
+        log.write(Text.from_markup(f"\n[{Theme.DIM}]/mission accept <n> to take on a mission[/{Theme.DIM}]"))
+        log.write(Text.from_markup(f"[{Theme.DIM}]/mission new to request something else[/{Theme.DIM}]"))
+    else:
+        log.write(Text.from_markup(f"\n[{Theme.DIM}]No pending mission offers.[/{Theme.DIM}]"))
+        log.write(Text.from_markup(f"[{Theme.DIM}]Use /mission new to request a mission from the GM.[/{Theme.DIM}]"))
 
 
 def tui_consult(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
