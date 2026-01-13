@@ -52,49 +52,35 @@ SENTINEL/
 ├── wiki/               # Reference encyclopedia (Obsidian)
 │   ├── canon/          # Base lore (shared across campaigns)
 │   └── campaigns/      # Per-campaign overlays
+├── assets/             # Visual assets
+│   ├── characters/     # NPC appearance specs (YAML)
+│   ├── portraits/      # Generated character portraits
+│   └── ART_STYLE.md    # Visual house style guide
 └── architecture/       # Design documents
 ```
 
 | Component | Description |
-
 |-----------|-------------|
-
 | [sentinel-agent](sentinel-agent/) | Python CLI that runs the AI GM |
-
 | [sentinel-campaign](sentinel-campaign/) | MCP server providing faction knowledge |
-
 | [Core Rules](core/) | Complete game rules |
-
 | [Lore](lore/) | Canon novellas for RAG retrieval |
-
 | [Wiki](wiki/) | Faction/geography reference (indexed for retrieval) |
 
 ## The Eleven Factions
 
 | Faction | Philosophy |
-
 |---------|------------|
-
 | **Nexus** | The network that watches |
-
 | **Ember Colonies** | We survived. We endure. |
-
 | **Lattice** | We keep the lights on |
-
 | **Convergence** | Become what you were meant to be |
-
 | **Covenant** | We hold the line |
-
 | **Wanderers** | The road remembers |
-
 | **Cultivators** | From the soil, we rise |
-
 | **Steel Syndicate** | Everything has a price |
-
 | **Witnesses** | We remember so you don't have to lie |
-
 | **Architects** | We built this world |
-
 | **Ghost Networks** | We were never here |
 
 ## Geography
