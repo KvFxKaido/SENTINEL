@@ -125,7 +125,7 @@ Players choose starting relationships, not membership. You're not "in" a faction
 
 ### AI Game Master
 
-* Local LLM backends (LM Studio, Ollama)
+* Local and cloud backends (LM Studio, Ollama, Claude Code)
 * Hot-reloadable prompts with phase-specific guidance
 * Lore retrieval from novellas + campaign memory search
 * `/consult` — get competing perspectives from faction advisors
