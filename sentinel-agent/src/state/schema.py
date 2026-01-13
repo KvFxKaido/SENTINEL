@@ -267,6 +267,31 @@ class Vehicle(BaseModel):
     # Job unlocks
     unlocks_tags: list[str] = Field(default_factory=list)  # ["delivery", "extraction"]
 
+    # Maintenance (0-100 scale)
+    fuel: int = 100                           # Depletes on travel, refuel at shop
+    condition: int = 100                      # Degrades on use, repair at shop
+    fuel_cost_per_trip: int = 10              # Fuel used per region travel
+    condition_loss_per_trip: int = 5          # Wear per region travel
+
+    @property
+    def is_operational(self) -> bool:
+        """Vehicle needs fuel > 0 and condition > 20 to operate."""
+        return self.fuel > 0 and self.condition > 20
+
+    @property
+    def status(self) -> str:
+        """Human-readable status."""
+        if self.condition <= 20:
+            return "Broken Down"
+        elif self.fuel <= 0:
+            return "Out of Fuel"
+        elif self.condition <= 40:
+            return "Needs Repair"
+        elif self.fuel <= 20:
+            return "Low Fuel"
+        else:
+            return "Operational"
+
 
 class FavorToken(BaseModel):
     """Tracks a single favor usage with an NPC."""
@@ -291,6 +316,17 @@ class FavorTracker(BaseModel):
     def can_call_favor(self, session: int) -> bool:
         """Check if player can call another favor this session."""
         return self.tokens_remaining(session) > 0
+
+    def has_used_npc_this_session(self, npc_id: str, session: int) -> bool:
+        """Check if this specific NPC has been called this session."""
+        return any(
+            t.npc_id == npc_id and t.session_used == session
+            for t in self.tokens_used
+        )
+
+    def can_call_npc(self, npc_id: str, session: int) -> bool:
+        """Check if player can call this specific NPC (tokens + per-NPC cooldown)."""
+        return self.can_call_favor(session) and not self.has_used_npc_this_session(npc_id, session)
 
 
 class SocialEnergy(BaseModel):

@@ -16,6 +16,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `/region <name>` for travel between regions (warns on distant travel)
 - Campaign tracks current region; default starting region: Rust Corridor
 - Job templates can specify region requirements
+- Travel time costs: adjacent travel drains 5 social energy, distant drains 20
+- Vehicles reduce distant travel cost to 10 social energy (and consume fuel/condition)
 
 **Vehicle System**
 - Vehicle model with type, terrain, capacity, cargo, stealth, unlocks_tags
@@ -23,6 +25,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Vehicles stored in character inventory (separate from gear)
 - Job board shows 🚗 vehicle requirements; locked jobs display `[LOCKED]`
 - `requires_vehicle`, `requires_vehicle_type`, `requires_vehicle_tags` fields on JobTemplate
+- Vehicle maintenance: `fuel` and `condition` fields (0-100 scale)
+- Vehicles degrade on travel: fuel depletes, condition worsens
+- Shop services: Refuel (25c), Basic Repair (50c), Full Repair (150c)
+- Inoperable vehicles (fuel=0 or condition≤20) cannot be used for travel
 
 **Favor System**
 - FavorType enum: ride, intel, gear_loan, introduction, safe_house
@@ -32,6 +38,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Disposition gating: NEUTRAL offers rides only; WARM+ offers all types
 - Dual-cost mechanic: 2 tokens per session + standing cost (varies by disposition)
 - Standing costs: LOYAL=base, WARM=1.5x, NEUTRAL=2.5x
+- Per-NPC cooldown: same NPC can only be called once per session
 
 **Endgame System**
 - CampaignStatus enum: active, approaching_end, epilogue, concluded
@@ -53,6 +60,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Job board displays `[BUY-IN: Xc]` tag on buy-in jobs
 - Affordability check before job acceptance with credit display
 - High risk, high reward: 3-5x normal payout potential
+
+**Session Flow**
+- Auto job board refresh at session boundaries (on debrief completion)
+- New jobs appear automatically when a new session begins
 
 **TUI Architecture**
 - Event bus (`state/event_bus.py`) for decoupled state-to-UI communication

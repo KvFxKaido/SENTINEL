@@ -1067,6 +1067,11 @@ SHOP_INVENTORY = {
         ("Ghost Skiff", 1200, "Small boat. Water travel, stealth-capable."),
         ("Caravan Share", 200, "Wanderer caravan token. 3 uses, slow but safe."),
     ],
+    "Services": [
+        ("Refuel", 25, "Restore vehicle fuel to 100%"),
+        ("Basic Repair", 50, "Restore vehicle condition by 30%"),
+        ("Full Repair", 150, "Restore vehicle condition to 100%"),
+    ],
 }
 
 # Vehicle data for purchases (name -> attributes)
@@ -1205,6 +1210,45 @@ def tui_shop(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
             log.write(Text.from_markup(f"[{Theme.FRIENDLY}]Purchased: {name}[/{Theme.FRIENDLY}]"))
             log.write(Text.from_markup(f"[{Theme.DIM}]{desc}[/{Theme.DIM}]"))
             log.write(Text.from_markup(f"[{Theme.DIM}]Remaining credits: {char.credits}[/{Theme.DIM}]"))
+            app.refresh_all_panels()
+            return
+
+        # Handle services (refuel, repair)
+        if category == "Services":
+            if not char.vehicles:
+                log.write(Text.from_markup(f"[{Theme.WARNING}]No vehicle to service[/{Theme.WARNING}]"))
+                return
+
+            vehicle = char.vehicles[0]  # Service first vehicle
+
+            if name == "Refuel":
+                if vehicle.fuel >= 100:
+                    log.write(Text.from_markup(f"[{Theme.DIM}]Vehicle fuel already full[/{Theme.DIM}]"))
+                    return
+                vehicle.fuel = 100
+                char.credits -= price
+                log.write(Text.from_markup(f"[{Theme.FRIENDLY}]Refueled: {vehicle.name}[/{Theme.FRIENDLY}]"))
+                log.write(Text.from_markup(f"[{Theme.DIM}]Fuel: 100% | Credits: {char.credits}[/{Theme.DIM}]"))
+
+            elif name == "Basic Repair":
+                if vehicle.condition >= 100:
+                    log.write(Text.from_markup(f"[{Theme.DIM}]Vehicle condition already perfect[/{Theme.DIM}]"))
+                    return
+                vehicle.condition = min(100, vehicle.condition + 30)
+                char.credits -= price
+                log.write(Text.from_markup(f"[{Theme.FRIENDLY}]Repaired: {vehicle.name}[/{Theme.FRIENDLY}]"))
+                log.write(Text.from_markup(f"[{Theme.DIM}]Condition: {vehicle.condition}% | Credits: {char.credits}[/{Theme.DIM}]"))
+
+            elif name == "Full Repair":
+                if vehicle.condition >= 100:
+                    log.write(Text.from_markup(f"[{Theme.DIM}]Vehicle condition already perfect[/{Theme.DIM}]"))
+                    return
+                vehicle.condition = 100
+                char.credits -= price
+                log.write(Text.from_markup(f"[{Theme.FRIENDLY}]Fully repaired: {vehicle.name}[/{Theme.FRIENDLY}]"))
+                log.write(Text.from_markup(f"[{Theme.DIM}]Condition: 100% | Credits: {char.credits}[/{Theme.DIM}]"))
+
+            app.manager.save_campaign()
             app.refresh_all_panels()
             return
 
@@ -1655,6 +1699,32 @@ def tui_region(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
     # Check adjacency
     adjacent = current_info.get("adjacent", [])
     target_info = regions_data.get(target_region.value, {})
+    is_distant = target_region.value not in adjacent
+
+    # Get character and vehicle
+    char = campaign.characters[0] if campaign.characters else None
+    vehicle = char.vehicles[0] if char and char.vehicles else None
+
+    # Travel costs
+    energy_cost = 20 if is_distant else 5  # Distant travel is exhausting
+    vehicle_used = False
+
+    # Check if vehicle can be used for distant travel
+    if is_distant and vehicle:
+        if not vehicle.is_operational:
+            log.write(Text.from_markup(f"[{Theme.WARNING}]Vehicle [{vehicle.name}] is {vehicle.status}[/{Theme.WARNING}]"))
+            log.write(Text.from_markup(f"[{Theme.DIM}]Visit /shop to refuel or repair[/{Theme.DIM}]"))
+            return
+        # Use vehicle - reduces energy cost
+        vehicle.fuel = max(0, vehicle.fuel - vehicle.fuel_cost_per_trip)
+        vehicle.condition = max(0, vehicle.condition - vehicle.condition_loss_per_trip)
+        vehicle_used = True
+        energy_cost = 10  # Vehicle makes distant travel less exhausting
+
+    # Drain social energy
+    if char:
+        old_energy = char.social_energy.current
+        char.social_energy.current = max(0, char.social_energy.current - energy_cost)
 
     # Update region
     campaign.region = target_region
@@ -1663,8 +1733,14 @@ def tui_region(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
     log.write(Text.from_markup(f"[{Theme.FRIENDLY}]Traveled to {target_info.get('name', target_region.value)}[/{Theme.FRIENDLY}]"))
     log.write(Text.from_markup(f"[{Theme.DIM}]{target_info.get('description', '')}[/{Theme.DIM}]"))
 
-    if target_region.value not in adjacent:
-        log.write(Text.from_markup(f"\n[{Theme.WARNING}]Distant travel — may require vehicle or favor[/{Theme.WARNING}]"))
+    # Show travel costs
+    if char and energy_cost > 0:
+        log.write(Text.from_markup(f"[{Theme.WARNING}]Travel fatigue: -{energy_cost} energy ({char.social_energy.current}/{old_energy})[/{Theme.WARNING}]"))
+
+    if vehicle_used:
+        log.write(Text.from_markup(f"[{Theme.DIM}]Vehicle: Fuel {vehicle.fuel}% | Condition {vehicle.condition}%[/{Theme.DIM}]"))
+    elif is_distant:
+        log.write(Text.from_markup(f"\n[{Theme.WARNING}]Distant travel without vehicle — exhausting[/{Theme.WARNING}]"))
 
     app.refresh_all_panels()
 
