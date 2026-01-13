@@ -327,59 +327,6 @@ class Theme:
 
 
 # =============================================================================
-# Widgets: Bottom Dock
-# =============================================================================
-
-class BottomDock(Static):
-    """Persistent bottom dock: Pistachios | Strain | Session."""
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.campaign: Campaign | None = None
-
-    def update_campaign(self, campaign: Campaign | None):
-        self.campaign = campaign
-        self.refresh_display()
-
-    def refresh_display(self):
-        if not self.campaign or not self.campaign.characters:
-            self.update(Text.from_markup(
-                f"[{Theme.DIM}]No campaign loaded[/{Theme.DIM}]"
-            ))
-            return
-
-        char = self.campaign.characters[0]
-        energy = char.social_energy.current
-
-        # Energy bar with color
-        if energy > 50:
-            e_color = Theme.FRIENDLY
-        elif energy > 25:
-            e_color = Theme.WARNING
-        else:
-            e_color = Theme.DANGER
-
-        bar = energy_bar(energy, width=5)
-
-        # Strain indicator (placeholder - would come from context packer)
-        strain = "LOW"
-        strain_bar = g("energy_full") * 1 + g("energy_empty") * 2
-
-        # Session count
-        session = self.campaign.meta.session_count
-
-        parts = [
-            f"[{Theme.TEXT}]Pistachios[/{Theme.TEXT}] [{e_color}]{bar} {energy}%[/{e_color}]",
-            f"[{Theme.DIM}]|[/{Theme.DIM}]",
-            f"[{Theme.TEXT}]Strain[/{Theme.TEXT}] [{Theme.ACCENT}]{strain_bar} {strain}[/{Theme.ACCENT}]",
-            f"[{Theme.DIM}]|[/{Theme.DIM}]",
-            f"[{Theme.DIM}]Session {session:02d}[/{Theme.DIM}]",
-        ]
-
-        self.update(Text.from_markup("  " + "   ".join(parts)))
-
-
-# =============================================================================
 # Widgets: Context Bar (Strain Tracker)
 # =============================================================================
 
@@ -492,6 +439,11 @@ class HeaderBar(Static):
             header.append(f"  {g('bullet')}  ", style=Theme.DIM)
             header.append(self.campaign.meta.name, style=Theme.TEXT)
             header.append(f"  {g('bullet')}  Seed {seed}", style=Theme.DIM)
+
+            # Session count
+            session = self.campaign.meta.session_count
+            header.append(f"  {g('bullet')}  ", style=Theme.DIM)
+            header.append(f"S{session:02d}", style=Theme.TEXT)
 
             if self.campaign.characters:
                 char = self.campaign.characters[0]
@@ -695,7 +647,7 @@ class SentinelTUI(App):
         background: {Theme.BG};
         layout: grid;
         grid-size: 1;
-        grid-rows: 2 1 1fr 1;
+        grid-rows: 2 1 1fr;
     }}
 
     #header {{
@@ -718,7 +670,9 @@ class SentinelTUI(App):
     }}
 
     #self-dock {{
-        width: 26;
+        width: 20vw;
+        min-width: 24;
+        max-width: 32;
         height: 100%;
         padding: 0;
     }}
@@ -729,12 +683,13 @@ class SentinelTUI(App):
 
     #center-column {{
         width: 1fr;
+        min-width: 40;
         height: 100%;
         align: center top;
     }}
 
     #console-wrapper {{
-        width: 90%;
+        width: 100%;
         max-width: 120;
         height: 100%;
     }}
@@ -813,20 +768,15 @@ class SentinelTUI(App):
     }}
 
     #world-dock {{
-        width: 26;
+        width: 20vw;
+        min-width: 24;
+        max-width: 32;
         height: 100%;
         padding: 0;
     }}
 
     #world-dock.hidden {{
         display: none;
-    }}
-
-    #bottom-dock {{
-        height: 1;
-        background: {Theme.BG};
-        border-top: dashed {Theme.DIM};
-        padding: 0 1;
     }}
 
     /* Input styling */
@@ -874,7 +824,12 @@ class SentinelTUI(App):
     # Reactive dock visibility
     docks_visible = reactive(True)
 
+    # Threshold for auto-hiding docks (chars)
+    NARROW_THRESHOLD = 80
+
     def __init__(self, local_mode: bool = False):
+        self._user_wants_docks = True  # User's explicit preference
+        self._auto_hidden = False      # Whether we auto-hid due to narrow terminal
         super().__init__()
         self.manager: CampaignManager | None = None
         self.agent: SentinelAgent | None = None
@@ -930,8 +885,6 @@ class SentinelTUI(App):
                             yield Button("Clear", id="btn-clear", classes="action-btn")
                             yield Button("Copy", id="btn-copy", classes="action-btn")
             yield WorldDock(id="world-dock")
-
-        yield BottomDock(id="bottom-dock")
 
     def on_mount(self):
         """Initialize when app mounts."""
@@ -1101,8 +1054,6 @@ class SentinelTUI(App):
         else:
             context_bar.update_pressure(0.0)
 
-        self.query_one("#bottom-dock", BottomDock).update_campaign(campaign)
-
     def watch_docks_visible(self, visible: bool):
         """React to dock visibility changes."""
         self_dock = self.query_one("#self-dock")
@@ -1115,8 +1066,37 @@ class SentinelTUI(App):
             world_dock.add_class("hidden")
 
     def action_toggle_docks(self):
-        """Toggle both docks visibility."""
-        self.docks_visible = not self.docks_visible
+        """Toggle both docks visibility (user preference)."""
+        self._user_wants_docks = not self._user_wants_docks
+        # Only actually show if terminal is wide enough
+        if self._user_wants_docks and not self._auto_hidden:
+            self.docks_visible = True
+        else:
+            self.docks_visible = False
+
+    def on_resize(self, event) -> None:
+        """Handle terminal resize - auto-hide docks on narrow terminals."""
+        width = event.size.width
+
+        if width < self.NARROW_THRESHOLD:
+            # Terminal too narrow - auto-hide docks
+            if not self._auto_hidden:
+                self._auto_hidden = True
+                self.docks_visible = False
+                # Notify user (only on transition to narrow)
+                try:
+                    log = self.query_one("#output-log", RichLog)
+                    log.write(Text.from_markup(
+                        f"[{Theme.DIM}][ Panels hidden - terminal narrow ({width} chars) ][/{Theme.DIM}]"
+                    ))
+                except Exception:
+                    pass
+        else:
+            # Terminal wide enough - restore if user wants them
+            if self._auto_hidden:
+                self._auto_hidden = False
+                if self._user_wants_docks:
+                    self.docks_visible = True
 
     # Number key actions for choice selection
     def action_select_choice_1(self):
