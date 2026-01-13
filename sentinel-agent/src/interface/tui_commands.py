@@ -601,8 +601,19 @@ def tui_arc(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
                 log.write(Text.from_markup(f"    [{Theme.DIM}]{arc['description']}[/{Theme.DIM}]"))
                 log.write(Text.from_markup(f"    [{Theme.DIM}]/arc accept {arc['arc_type']} | /arc reject {arc['arc_type']}[/{Theme.DIM}]"))
 
+        # Auto-detect new arcs if none saved yet
         if not data['accepted'] and not data['suggested']:
-            log.write(Text.from_markup(f"\n[{Theme.DIM}]No arcs detected yet. Play more to develop patterns.[/{Theme.DIM}]"))
+            # Run detection to find patterns
+            candidates = detect_arcs(app.manager)
+            if candidates:
+                log.write(Text.from_markup(f"\n[{Theme.WARNING}]DETECTED PATTERNS[/{Theme.WARNING}]"))
+                for c in candidates:
+                    strength_pct = int(c['strength'] * 100)
+                    log.write(Text.from_markup(f"  ? [bold]{c['title']}[/bold] ({c['arc_type']}, {strength_pct}%)"))
+                    log.write(Text.from_markup(f"    [{Theme.DIM}]{c.get('description', '')}[/{Theme.DIM}]"))
+                    log.write(Text.from_markup(f"    [{Theme.DIM}]/arc accept {c['arc_type']} | /arc reject {c['arc_type']}[/{Theme.DIM}]"))
+            else:
+                log.write(Text.from_markup(f"\n[{Theme.DIM}]No arcs detected yet. Play more to develop patterns.[/{Theme.DIM}]"))
     elif args[0].lower() == "detect":
         candidates = detect_arcs(app.manager)
         if candidates:
