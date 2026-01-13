@@ -150,7 +150,7 @@ class JobSystem:
                 continue
 
             # Check standing requirement
-            standing = self._campaign.factions.get_standing(template.faction)
+            standing = self._campaign.factions.get(template.faction)
             if standing.numeric_value < template.min_standing:
                 continue
 
@@ -188,7 +188,7 @@ class JobSystem:
             # Weight by standing - better standing = higher chance
             weights = []
             for template in available:
-                standing = self._campaign.factions.get_standing(template.faction)
+                standing = self._campaign.factions.get(template.faction)
                 # Convert standing (-50 to 50) to weight (1 to 10)
                 weight = max(1, (standing.numeric_value + 60) / 10)
                 weights.append(weight)
