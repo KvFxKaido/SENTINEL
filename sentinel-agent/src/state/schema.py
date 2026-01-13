@@ -7,7 +7,7 @@ Designed to serialize to JSON but structured like database tables.
 
 from datetime import datetime
 from enum import Enum
-from typing import Literal
+from typing import ClassVar, Literal
 from pydantic import BaseModel, Field
 from uuid import uuid4
 
@@ -789,6 +789,20 @@ class FactionStanding(BaseModel):
     """Player's standing with a faction."""
     faction: FactionName
     standing: Standing = Standing.NEUTRAL
+
+    # Numeric mapping for standing levels (used by job system)
+    STANDING_VALUES: ClassVar[dict[Standing, int]] = {
+        Standing.HOSTILE: -50,
+        Standing.UNFRIENDLY: -20,
+        Standing.NEUTRAL: 0,
+        Standing.FRIENDLY: 20,
+        Standing.ALLIED: 50,
+    }
+
+    @property
+    def numeric_value(self) -> int:
+        """Get numeric standing value for job eligibility checks."""
+        return self.STANDING_VALUES.get(self.standing, 0)
 
     def shift(self, delta: int) -> Standing:
         """Apply reputation shift and return new standing."""
