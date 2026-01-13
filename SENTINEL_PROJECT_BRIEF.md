@@ -222,13 +222,20 @@ SENTINEL/
 │       ├── tools/                # Standing, interactions, intel, history search
 │       └── data/factions/        # 11 faction JSON files
 ├── assets/
-│   ├── ART_STYLE.md              # Visual house style guide
-│   ├── PORTRAIT_PROMPT_TEMPLATE.md # NPC portrait generation prompts
-│   ├── braille_portraits/        # 33 text-based braille portraits
-│   └── portraits/                # Generated PNG portraits (gitignored)
+│   ├── ART_STYLE.md              # Visual house style + prompt templates
+│   ├── banner.png                # TUI banner image
+│   ├── characters/               # Character YAML specs (appearance, faction)
+│   └── portraits/                # Generated PNG portraits
+├── wiki/                         # Obsidian vault (campaign encyclopedia)
+│   ├── canon/                    # Base lore (never modified by play)
+│   ├── campaigns/                # Per-campaign overlays (auto-generated)
+│   └── dashboards/               # Obsidian dashboard views
 ├── .claude/skills/               # Claude Code skills
 │   ├── council/SKILL.md          # Consult Gemini/Codex for feedback
-│   └── deploy/SKILL.md           # Deploy agents for implementation
+│   ├── deploy/SKILL.md           # Deploy agents for implementation
+│   ├── portrait/SKILL.md         # Generate NPC portraits via Gemini
+│   ├── profile/SKILL.md          # Generate full NPC profiles via Codex
+│   └── security/SKILL.md         # Security scans via Gemini
 └── architecture/
     └── AGENT_ARCHITECTURE.md     # Design document
 ```
