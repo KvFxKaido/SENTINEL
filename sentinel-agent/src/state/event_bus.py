@@ -56,6 +56,13 @@ class EventType(Enum):
     CAMPAIGN_LOADED = "campaign.loaded"
     CAMPAIGN_SAVED = "campaign.saved"
 
+    # Job events
+    JOB_BOARD_REFRESHED = "job.board_refreshed"
+    JOB_ACCEPTED = "job.accepted"
+    JOB_COMPLETED = "job.completed"
+    JOB_FAILED = "job.failed"
+    JOB_ABANDONED = "job.abandoned"
+
 
 @dataclass
 class GameEvent:

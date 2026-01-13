@@ -1496,6 +1496,183 @@ def cmd_mission(manager: CampaignManager, agent: SentinelAgent, args: list[str])
     return ("gm_prompt", prompt)
 
 
+def cmd_jobs(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
+    """
+    View and manage available jobs.
+
+    Usage:
+        /jobs              - View available jobs
+        /jobs accept <n>   - Accept job number n
+        /jobs status       - Show active jobs and deadlines
+        /jobs abandon <n>  - Abandon job number n
+        /jobs refresh      - Refresh the job board
+    """
+    from ..state.schema import Location
+
+    if not manager.current:
+        console.print(f"[{THEME['warning']}]Load or create a campaign first[/{THEME['warning']}]")
+        return None
+
+    location = manager.current.location
+    faction_hq = manager.current.location_faction
+
+    # Subcommand handling
+    if args:
+        subcmd = args[0].lower()
+
+        if subcmd == "accept":
+            if len(args) < 2:
+                console.print(f"[{THEME['warning']}]Usage: /jobs accept <number>[/{THEME['warning']}]")
+                return None
+            try:
+                idx = int(args[1]) - 1
+                available = manager.current.jobs.available
+                if idx < 0 or idx >= len(available):
+                    console.print(f"[{THEME['warning']}]Invalid job number[/{THEME['warning']}]")
+                    return None
+                template_id = available[idx]
+                job = manager.jobs.accept_job(template_id)
+                if job:
+                    console.print(f"[{THEME['accent']}]Job accepted: {job.title}[/{THEME['accent']}]")
+                    console.print(f"[{THEME['dim']}]Objectives:[/{THEME['dim']}]")
+                    for obj in job.objectives:
+                        console.print(f"  • {obj}")
+                    if job.due_session:
+                        console.print(f"[{THEME['warning']}]Due by session {job.due_session}[/{THEME['warning']}]")
+                    # Generate briefing via LLM
+                    if agent.is_available:
+                        template = manager.jobs.get_template(template_id)
+                        prompt = (
+                            f"I've accepted a job: '{job.title}' from {job.faction.value}. "
+                            f"Description: {template.description if template else 'Unknown'}. "
+                            f"Generate a brief, atmospheric briefing for this job. "
+                            f"Consider my faction standings and any relevant dormant threads. "
+                            f"Keep it concise - 2-3 paragraphs max."
+                        )
+                        return ("gm_prompt", prompt)
+                else:
+                    console.print(f"[{THEME['warning']}]Failed to accept job[/{THEME['warning']}]")
+                return None
+            except ValueError:
+                console.print(f"[{THEME['warning']}]Usage: /jobs accept <number>[/{THEME['warning']}]")
+                return None
+
+        elif subcmd == "status":
+            active = manager.jobs.get_active_jobs()
+            if not active:
+                console.print(f"[{THEME['dim']}]No active jobs[/{THEME['dim']}]")
+                return None
+
+            console.print(f"\n[bold {THEME['primary']}]ACTIVE JOBS[/bold {THEME['primary']}]")
+            current_session = manager.current.meta.session_count
+            for i, job in enumerate(active, 1):
+                status_color = THEME['accent']
+                deadline_str = ""
+                if job.due_session:
+                    sessions_left = job.due_session - current_session
+                    if sessions_left <= 0:
+                        status_color = THEME['danger']
+                        deadline_str = f" [OVERDUE]"
+                    elif sessions_left == 1:
+                        status_color = THEME['warning']
+                        deadline_str = f" [Due next session]"
+                    else:
+                        deadline_str = f" [Due in {sessions_left} sessions]"
+
+                console.print(f"[{status_color}]{i}. {job.title}[/{status_color}] ({job.faction.value}){deadline_str}")
+                console.print(f"   [{THEME['dim']}]Reward: {job.reward_credits}c[/{THEME['dim']}]")
+            return None
+
+        elif subcmd == "abandon":
+            if len(args) < 2:
+                console.print(f"[{THEME['warning']}]Usage: /jobs abandon <number>[/{THEME['warning']}]")
+                return None
+            try:
+                idx = int(args[1]) - 1
+                active = manager.jobs.get_active_jobs()
+                if idx < 0 or idx >= len(active):
+                    console.print(f"[{THEME['warning']}]Invalid job number[/{THEME['warning']}]")
+                    return None
+                job = active[idx]
+                result = manager.jobs.abandon_job(job.id)
+                if "error" not in result:
+                    console.print(f"[{THEME['warning']}]Abandoned: {result['title']}[/{THEME['warning']}]")
+                    console.print(f"[{THEME['dim']}]Standing with {result['faction']}: {result['standing_penalty']}[/{THEME['dim']}]")
+                else:
+                    console.print(f"[{THEME['danger']}]{result['error']}[/{THEME['danger']}]")
+                return None
+            except ValueError:
+                console.print(f"[{THEME['warning']}]Usage: /jobs abandon <number>[/{THEME['warning']}]")
+                return None
+
+        elif subcmd == "refresh":
+            available = manager.jobs.refresh_board()
+            console.print(f"[{THEME['accent']}]Job board refreshed: {len(available)} jobs available[/{THEME['accent']}]")
+            return None
+
+    # Default: show job board
+    available = manager.current.jobs.available
+    if not available:
+        # Auto-refresh if empty
+        available = manager.jobs.refresh_board()
+
+    # Location-aware formatting
+    if location in {Location.FIELD, Location.TRANSIT}:
+        # Text message style
+        console.print(f"\n[bold {THEME['primary']}]INCOMING MESSAGES[/bold {THEME['primary']}]")
+        console.print(f"[{THEME['dim']}]Signal strength: {'weak' if location == Location.TRANSIT else 'moderate'}[/{THEME['dim']}]\n")
+
+        for i, template_id in enumerate(available, 1):
+            template = manager.jobs.get_template(template_id)
+            if not template:
+                continue
+            # Text message format
+            faction_short = template.faction.value.split()[0].upper()
+            console.print(f"[{THEME['accent']}][{faction_short}][/{THEME['accent']}]")
+            console.print(f'  "{template.description}"')
+            console.print(f"  [{THEME['dim']}]{template.reward_credits}c | Reply: /jobs accept {i}[/{THEME['dim']}]\n")
+    else:
+        # Terminal job board style
+        title = "JOB TERMINAL"
+        if location == Location.FACTION_HQ and faction_hq:
+            title = f"{faction_hq.value.upper()} CONTRACTS"
+        elif location == Location.MARKET:
+            title = "WANDERER MARKET - JOBS"
+
+        console.print(f"\n[bold {THEME['primary']}]{'─' * 50}[/bold {THEME['primary']}]")
+        console.print(f"[bold {THEME['primary']}]  {title}[/bold {THEME['primary']}]")
+        console.print(f"[bold {THEME['primary']}]{'─' * 50}[/bold {THEME['primary']}]")
+
+        if not available:
+            console.print(f"[{THEME['dim']}]No jobs available. Try /jobs refresh.[/{THEME['dim']}]")
+        else:
+            for i, template_id in enumerate(available, 1):
+                template = manager.jobs.get_template(template_id)
+                if not template:
+                    continue
+
+                # Faction tag
+                faction_tag = template.faction.value[:3].upper()
+
+                # Risk display
+                risk_str = ""
+                if template.opposing_factions:
+                    risk_parts = [f.value.split()[0] for f in template.opposing_factions[:2]]
+                    risk_str = f"Risk: {', '.join(risk_parts)} -{template.opposing_penalty}"
+
+                console.print(f"\n[{THEME['accent']}]{i}. [{faction_tag}] {template.title}[/{THEME['accent']}]")
+                console.print(f"   {template.description}")
+                console.print(f"   [{THEME['dim']}]Pay: {template.reward_credits}c | Est: {template.time_estimate}[/{THEME['dim']}]", end="")
+                if risk_str:
+                    console.print(f" | [{THEME['warning']}]{risk_str}[/{THEME['warning']}]")
+                else:
+                    console.print()
+
+        console.print(f"\n[{THEME['dim']}]Usage: /jobs accept <n> | /jobs status | /jobs refresh[/{THEME['dim']}]")
+
+    return None
+
+
 def cmd_consult(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
     """Consult the council of advisors."""
     if not args:
@@ -3540,6 +3717,192 @@ def cmd_travel(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
     console.print(f"[{THEME['dim']}]{result['narrative_hint']}[/{THEME['dim']}]")
 
 
+def cmd_region(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
+    """
+    View or change current world region.
+
+    Usage:
+        /region           Show current region
+        /region list      List all regions
+        /region <name>    Travel to region
+    """
+    import json
+    from pathlib import Path
+    from ..state.schema import Region
+
+    if not manager.current:
+        console.print(f"[{THEME['warning']}]No campaign loaded[/{THEME['warning']}]")
+        return
+
+    current_region = manager.current.region
+
+    # Load regions data
+    regions_file = Path(__file__).parent.parent.parent / "data" / "regions.json"
+    regions_data = {}
+    if regions_file.exists():
+        with open(regions_file, "r", encoding="utf-8") as f:
+            regions_data = json.load(f).get("regions", {})
+
+    current_info = regions_data.get(current_region.value, {})
+
+    if not args:
+        # Show current region
+        console.print(f"\n[{THEME['accent']}]◈ CURRENT REGION[/{THEME['accent']}]")
+        console.print(f"  {current_info.get('name', current_region.value)}")
+        console.print(f"[{THEME['dim']}]{current_info.get('description', '')}[/{THEME['dim']}]")
+
+        primary = current_info.get("primary_faction", "")
+        if primary:
+            console.print(f"\n[{THEME['accent']}]Primary:[/{THEME['accent']}] {primary.replace('_', ' ').title()}")
+
+        adjacent = current_info.get("adjacent", [])
+        if adjacent:
+            console.print(f"\n[{THEME['dim']}]Adjacent regions:[/{THEME['dim']}]")
+            for adj in adjacent:
+                adj_info = regions_data.get(adj, {})
+                name = adj_info.get("name", adj.replace("_", " ").title())
+                console.print(f"  {g('bullet')} {name}")
+
+        console.print(f"\n[{THEME['dim']}]/region list or /region <name>[/{THEME['dim']}]")
+        return
+
+    subcmd = args[0].lower()
+
+    if subcmd == "list":
+        console.print(f"\n[{THEME['accent']}]◈ WORLD REGIONS[/{THEME['accent']}]")
+        console.print(f"[{THEME['dim']}]Post-Collapse North America[/{THEME['dim']}]\n")
+
+        for region in Region:
+            info = regions_data.get(region.value, {})
+            name = info.get("name", region.value.replace("_", " ").title())
+            primary = info.get("primary_faction", "").replace("_", " ").title()
+
+            marker = g('selected') if region == current_region else g('bullet')
+            console.print(f"  {marker} {name} [{THEME['dim']}]— {primary}[/{THEME['dim']}]")
+        return
+
+    # Travel to region
+    target_name = " ".join(args).lower().replace(" ", "_")
+
+    target_region = None
+    for region in Region:
+        if target_name in region.value:
+            target_region = region
+            break
+        info = regions_data.get(region.value, {})
+        if target_name in info.get("name", "").lower().replace(" ", "_"):
+            target_region = region
+            break
+
+    if not target_region:
+        console.print(f"[{THEME['warning']}]Unknown region: {' '.join(args)}[/{THEME['warning']}]")
+        return
+
+    if target_region == current_region:
+        console.print(f"[{THEME['dim']}]Already in {current_info.get('name', current_region.value)}[/{THEME['dim']}]")
+        return
+
+    adjacent = current_info.get("adjacent", [])
+    target_info = regions_data.get(target_region.value, {})
+
+    manager.current.region = target_region
+    manager.save_campaign()
+
+    console.print(f"[{THEME['accent']}]Traveled to {target_info.get('name', target_region.value)}[/{THEME['accent']}]")
+    console.print(f"[{THEME['dim']}]{target_info.get('description', '')}[/{THEME['dim']}]")
+
+    if target_region.value not in adjacent:
+        console.print(f"\n[{THEME['warning']}]Distant travel — may require vehicle or favor[/{THEME['warning']}]")
+
+
+def cmd_favor(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
+    """
+    Call in a favor from an allied NPC.
+
+    Usage:
+        /favor                      Show available NPCs
+        /favor <npc> <type>         Request a favor
+        /favor <npc> ride <dest>    Request a ride
+
+    Favor types: ride, intel, gear_loan, introduction, safe_house
+    """
+    from ..systems.favors import FavorSystem
+    from ..state.schema import FavorType
+
+    if not manager.current:
+        console.print(f"[{THEME['warning']}]No campaign loaded[/{THEME['warning']}]")
+        return
+
+    favors = FavorSystem(manager)
+
+    if not args:
+        console.print(f"\n[{THEME['accent']}]◈ FAVORS[/{THEME['accent']}]")
+        tokens = favors.tokens_remaining()
+        console.print(f"Tokens remaining: {tokens}/2 this session\n")
+
+        available = favors.get_available_npcs()
+
+        if not available:
+            console.print(f"[{THEME['dim']}]No allied NPCs available for favors[/{THEME['dim']}]")
+            console.print(f"[{THEME['dim']}]Build standing with NPCs to unlock favors[/{THEME['dim']}]")
+            return
+
+        console.print(f"[{THEME['accent']}]Available NPCs:[/{THEME['accent']}]")
+        for npc in available:
+            faction_standing = None
+            if npc.faction:
+                faction_standing = manager.current.factions.get_standing(npc.faction)
+            disposition = npc.get_effective_disposition(faction_standing)
+
+            options = favors.get_npc_favor_options(npc)
+            favor_list = ", ".join(f"{ft.value} (-{cost})" for ft, cost in options)
+
+            console.print(f"\n  {npc.name} [{THEME['dim']}]({disposition.value})[/{THEME['dim']}]")
+            console.print(f"  [{THEME['dim']}]Standing: {npc.personal_standing} | {favor_list}[/{THEME['dim']}]")
+
+        console.print(f"\n[{THEME['dim']}]/favor <npc> <type> [details][/{THEME['dim']}]")
+        return
+
+    if len(args) < 2:
+        console.print(f"[{THEME['warning']}]Usage: /favor <npc name> <favor type> [details][/{THEME['warning']}]")
+        return
+
+    npc_query = args[0]
+    favor_type_str = args[1].lower()
+    details = " ".join(args[2:]) if len(args) > 2 else ""
+
+    npc = favors.find_npc_by_name(npc_query)
+    if not npc:
+        console.print(f"[{THEME['warning']}]NPC not found: {npc_query}[/{THEME['warning']}]")
+        return
+
+    try:
+        favor_type = FavorType(favor_type_str)
+    except ValueError:
+        console.print(f"[{THEME['warning']}]Unknown favor type: {favor_type_str}[/{THEME['warning']}]")
+        console.print(f"[{THEME['dim']}]Types: ride, intel, gear_loan, introduction, safe_house[/{THEME['dim']}]")
+        return
+
+    can_afford, reason = favors.can_afford_favor(npc, favor_type)
+    if not can_afford:
+        console.print(f"[{THEME['danger']}]{reason}[/{THEME['danger']}]")
+        return
+
+    result = favors.call_favor(npc, favor_type, details)
+
+    if "error" in result:
+        console.print(f"[{THEME['danger']}]{result['error']}[/{THEME['danger']}]")
+        return
+
+    console.print(f"[{THEME['accent']}]Favor granted from {result['npc_name']}[/{THEME['accent']}]")
+    console.print(f"[{THEME['dim']}]Type: {result['favor_type']} | Cost: -{result['standing_cost']} standing[/{THEME['dim']}]")
+    console.print(f"[{THEME['dim']}]Standing: {result['old_standing']} → {result['new_standing']}[/{THEME['dim']}]")
+    console.print(f"[{THEME['dim']}]Tokens remaining: {result['tokens_remaining']}/2[/{THEME['dim']}]")
+
+    if result.get("narrative_hint"):
+        console.print(f"\n{result['narrative_hint']}")
+
+
 def cmd_shop(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
     """
     Browse and purchase items.
@@ -3683,12 +4046,18 @@ def register_all_commands():
                      handler=cmd_start, available_when=has_character)
     register_command("/mission", "Get a new mission", CommandCategory.MISSION,
                      handler=cmd_mission, available_when=has_character)
+    register_command("/jobs", "View and accept jobs", CommandCategory.MISSION,
+                     handler=cmd_jobs, available_when=has_campaign)
     register_command("/loadout", "Manage mission gear", CommandCategory.MISSION,
                      handler=cmd_loadout, available_when=has_campaign)
     register_command("/travel", "Travel to a new location", CommandCategory.MISSION,
                      handler=cmd_travel, available_when=has_campaign)
+    register_command("/region", "View or change world region", CommandCategory.MISSION,
+                     handler=cmd_region, available_when=has_campaign)
     register_command("/shop", "Browse and buy items", CommandCategory.MISSION,
                      handler=cmd_shop, available_when=has_character)
+    register_command("/favor", "Call in a favor from an NPC", CommandCategory.MISSION,
+                     handler=cmd_favor, available_when=has_campaign)
     register_command("/debrief", "End session", CommandCategory.MISSION,
                      handler=cmd_debrief, available_when=has_session)
 

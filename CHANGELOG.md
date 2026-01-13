@@ -8,6 +8,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+**Geography & Travel System**
+- Region enum with 11 post-Collapse North American regions
+- `data/regions.json` with faction control, terrain, adjacency, flavor text
+- `/region` command to view current region with faction influence
+- `/region list` to show all regions with primary factions
+- `/region <name>` for travel between regions (warns on distant travel)
+- Campaign tracks current region; default starting region: Rust Corridor
+- Job templates can specify region requirements
+
+**Vehicle System**
+- Vehicle model with type, terrain, capacity, cargo, stealth, unlocks_tags
+- 5 vehicles added to `/shop`: Salvage Bike, Rust Runner, Drifter's Wagon, Ghost Skiff, Caravan Share
+- Vehicles stored in character inventory (separate from gear)
+- Job board shows 🚗 vehicle requirements; locked jobs display `[LOCKED]`
+- `requires_vehicle`, `requires_vehicle_type`, `requires_vehicle_tags` fields on JobTemplate
+
+**Favor System**
+- FavorType enum: ride, intel, gear_loan, introduction, safe_house
+- FavorToken and FavorTracker models for per-session tracking
+- `systems/favors.py` with FavorSystem class
+- `/favor` command to view available NPCs and call in favors
+- Disposition gating: NEUTRAL offers rides only; WARM+ offers all types
+- Dual-cost mechanic: 2 tokens per session + standing cost (varies by disposition)
+- Standing costs: LOYAL=base, WARM=1.5x, NEUTRAL=2.5x
+
 **TUI Architecture**
 - Event bus (`state/event_bus.py`) for decoupled state-to-UI communication
 - Reactive visual feedback — CSS classes for energy drain/gain and faction shift pulses
@@ -63,6 +88,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Schema version bumped to 1.4.0 (Geography and Favor systems)
 - Removed legacy command system (~1400 lines) — unified through registry
 - Consolidated TUI learning plan into permanent architecture docs
 - Updated all project docs (CLAUDE.md, AGENTS.md, GEMINI.md) with TUI patterns

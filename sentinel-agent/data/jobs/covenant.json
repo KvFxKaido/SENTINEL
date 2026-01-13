@@ -1,0 +1,64 @@
+{
+  "jobs": [
+    {
+      "id": "covenant_sanctuary_escort",
+      "faction": "Covenant",
+      "title": "Sanctuary Escort",
+      "type": "Escort",
+      "description": "Refugees seeking sanctuary need protection on the road.",
+      "objectives": ["Meet refugees at designated point", "Escort to Covenant sanctuary", "Ensure no one is left behind"],
+      "reward_credits": 150,
+      "reward_standing": 1,
+      "opposing_factions": [],
+      "opposing_penalty": 0,
+      "time_estimate": "1 session",
+      "tags": ["social", "escort", "general"],
+      "min_standing": -40
+    },
+    {
+      "id": "covenant_oath_investigation",
+      "faction": "Covenant",
+      "title": "Broken Oath Investigation",
+      "type": "Investigation",
+      "description": "Someone violated sanctuary. Find the truth before the Covenant acts.",
+      "objectives": ["Interview witnesses", "Gather evidence", "Present findings to Covenant council"],
+      "reward_credits": 200,
+      "reward_standing": 1,
+      "opposing_factions": [],
+      "opposing_penalty": 0,
+      "time_estimate": "1 session",
+      "tags": ["investigation", "social"],
+      "min_standing": -20
+    },
+    {
+      "id": "covenant_syndicate_rescue",
+      "faction": "Covenant",
+      "title": "Debt Prisoner Rescue",
+      "type": "Rescue",
+      "description": "The Syndicate is holding someone for unpaid debts. The Covenant promised sanctuary.",
+      "objectives": ["Locate the prisoner", "Extract without bloodshed if possible", "Deliver to Covenant sanctuary"],
+      "reward_credits": 300,
+      "reward_standing": 2,
+      "opposing_factions": ["Steel Syndicate"],
+      "opposing_penalty": 2,
+      "time_estimate": "1 session",
+      "tags": ["rescue", "stealth", "urgent"],
+      "min_standing": 0
+    },
+    {
+      "id": "covenant_mediation",
+      "faction": "Covenant",
+      "title": "Dispute Mediation",
+      "type": "Diplomacy",
+      "description": "Two settlements are on the brink of violence. The Covenant sends a neutral party.",
+      "objectives": ["Hear both sides", "Identify common ground", "Broker an agreement"],
+      "reward_credits": 250,
+      "reward_standing": 1,
+      "opposing_factions": [],
+      "opposing_penalty": 0,
+      "time_estimate": "1 session",
+      "tags": ["social", "diplomacy"],
+      "min_standing": 10
+    }
+  ]
+}

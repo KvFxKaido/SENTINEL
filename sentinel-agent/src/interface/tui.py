@@ -48,18 +48,29 @@ def center_renderable(renderable: RenderableType, content_width: int, container_
 # Command Autocorrect
 # =============================================================================
 
-VALID_COMMANDS = [
-    "/new", "/load", "/save", "/list", "/delete",
-    "/char", "/roll", "/gear", "/shop", "/loadout",
-    "/start", "/mission", "/consult", "/debrief",
-    "/status", "/factions", "/threads", "/consequences", "/history",
-    "/npc", "/arc", "/lore", "/search", "/summary", "/timeline", "/simulate",
-    "/wiki", "/compare",
-    "/backend", "/model", "/clear", "/checkpoint", "/compress", "/context", "/dock",
-    "/copy",
-    "/ping",
-    "/help", "/quit", "/exit",
-]
+# Cache for valid commands (populated lazily from registry)
+_valid_commands_cache: list[str] | None = None
+
+
+def get_valid_commands() -> list[str]:
+    """
+    Get all valid command names from the registry.
+
+    Lazily populates from the command registry on first call,
+    so new commands are automatically available for autocomplete.
+    """
+    global _valid_commands_cache
+    if _valid_commands_cache is None:
+        registry = get_registry()
+        # Get all command names (includes aliases like /exit → /quit)
+        _valid_commands_cache = sorted(registry._commands.keys())
+    return _valid_commands_cache
+
+
+def invalidate_command_cache() -> None:
+    """Clear the command cache (call after registering new commands)."""
+    global _valid_commands_cache
+    _valid_commands_cache = None
 
 class ChoiceButtons(Static):
     """Displays clickable choice buttons when GM presents options."""
@@ -117,7 +128,7 @@ class SuggestionDisplay(Static):
             return
 
         cmd_part = prefix.split(" ", 1)[0].lower()
-        self._suggestions = [c for c in VALID_COMMANDS if c.startswith(cmd_part) and c != cmd_part]
+        self._suggestions = [c for c in get_valid_commands() if c.startswith(cmd_part) and c != cmd_part]
         self._selected = 0
 
         if self._suggestions:
@@ -242,7 +253,7 @@ class CommandInput(Input):
             completed = self._tab_matches[self._tab_index]
         else:
             self._tab_prefix = cmd_part
-            self._tab_matches = [c for c in VALID_COMMANDS if c.startswith(cmd_part)]
+            self._tab_matches = [c for c in get_valid_commands() if c.startswith(cmd_part)]
             if not self._tab_matches:
                 return
             self._tab_index = 0
@@ -292,11 +303,12 @@ def autocorrect_command(cmd: str) -> tuple[str, str | None]:
     if corrected != cmd:
         return corrected, f"Autocorrected '{cmd}' → '{corrected}'"
 
-    # Fallback to legacy VALID_COMMANDS for any not yet in registry
-    if cmd in VALID_COMMANDS:
+    # Check for exact match
+    if cmd in get_valid_commands():
         return cmd, None
 
-    matches = get_close_matches(cmd, VALID_COMMANDS, n=1, cutoff=0.6)
+    # Fallback to difflib fuzzy matching
+    matches = get_close_matches(cmd, get_valid_commands(), n=1, cutoff=0.6)
     if matches:
         corrected = matches[0]
         return corrected, f"Autocorrected '{cmd}' → '{corrected}'"
@@ -1278,7 +1290,7 @@ class SentinelTUI(App):
 
         if button_id == "btn-save":
             if self.manager and self.manager.current:
-                self.manager.save()
+                self.manager.save_campaign()
                 log.write(Text.from_markup(f"[{Theme.FRIENDLY}]Campaign saved[/{Theme.FRIENDLY}]"))
             else:
                 log.write(Text.from_markup(f"[{Theme.WARNING}]No campaign loaded[/{Theme.WARNING}]"))

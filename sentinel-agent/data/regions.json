@@ -1,0 +1,109 @@
+{
+  "regions": {
+    "rust_corridor": {
+      "name": "The Rust Corridor",
+      "description": "Great Lakes industrial belt — Detroit to Pittsburgh. Rusted factories, salvage economies, flickering power grids.",
+      "primary_faction": "lattice",
+      "contested_by": ["steel_syndicate"],
+      "adjacent": ["northern_reaches", "northeast_scar", "appalachian_hollows", "breadbasket"],
+      "terrain": ["urban", "industrial", "road"],
+      "character": "Smoke stacks and empty assembly lines. The Lattice keeps what power remains flowing, while the Syndicate picks through the bones."
+    },
+    "appalachian_hollows": {
+      "name": "The Appalachian Hollows",
+      "description": "Mountain communities that survived by going dark. Hidden valleys, coal towns turned communes.",
+      "primary_faction": "ember_colonies",
+      "contested_by": ["cultivators"],
+      "adjacent": ["rust_corridor", "northeast_scar", "sovereign_south"],
+      "terrain": ["mountain", "forest", "off-road"],
+      "character": "Fog-shrouded ridges and settlements that don't appear on any map. The Ember Colonies endure here, alongside Cultivators tending terraced farms."
+    },
+    "gulf_passage": {
+      "name": "The Gulf Passage",
+      "description": "Coastal trade routes from Texas to Florida. Boat traffic, floating markets, hurricane scars.",
+      "primary_faction": "wanderers",
+      "contested_by": ["ghost_networks"],
+      "adjacent": ["texas_spine", "sovereign_south", "desert_sprawl"],
+      "terrain": ["water", "coastal", "road"],
+      "character": "Salt air and engine oil. Wanderer caravans meet Ghost Network skiffs at nameless ports where questions aren't asked."
+    },
+    "breadbasket": {
+      "name": "The Breadbasket",
+      "description": "Great Plains agricultural expanse. Vast fields, grain silos, scattered communities.",
+      "primary_faction": "cultivators",
+      "contested_by": ["wanderers"],
+      "adjacent": ["rust_corridor", "northern_reaches", "texas_spine", "desert_sprawl"],
+      "terrain": ["plains", "road", "off-road"],
+      "character": "Endless horizons and the slow rhythm of planting seasons. Cultivator communes dot the landscape, trading with Wanderer caravans that follow ancient routes."
+    },
+    "northern_reaches": {
+      "name": "The Northern Reaches",
+      "description": "Former Canada — harsh winters, isolated settlements, resource extraction.",
+      "primary_faction": "covenant",
+      "contested_by": ["ember_colonies"],
+      "adjacent": ["rust_corridor", "breadbasket", "pacific_corridor", "frozen_edge"],
+      "terrain": ["forest", "tundra", "off-road"],
+      "character": "Long nights and communities bound by necessity. The Covenant holds sanctuaries here, while Ember outposts cling to survival."
+    },
+    "pacific_corridor": {
+      "name": "The Pacific Corridor",
+      "description": "West Coast megalopolis remnants. Tech enclaves, port cities, earthquake ruins.",
+      "primary_faction": "convergence",
+      "contested_by": ["architects"],
+      "adjacent": ["northern_reaches", "desert_sprawl"],
+      "terrain": ["urban", "coastal", "road"],
+      "character": "Cracked freeways and server farms that still hum. The Convergence experiments here, while Architects sift through pre-Collapse records."
+    },
+    "desert_sprawl": {
+      "name": "The Desert Sprawl",
+      "description": "Southwest badlands. Abandoned suburbs, solar farms, cartel territories.",
+      "primary_faction": "ghost_networks",
+      "contested_by": ["steel_syndicate"],
+      "adjacent": ["pacific_corridor", "breadbasket", "texas_spine", "gulf_passage"],
+      "terrain": ["desert", "off-road", "road"],
+      "character": "Sun-bleached highways and hidden canyons. Ghost Networks run escape routes through territory the Syndicate claims but can't fully control."
+    },
+    "northeast_scar": {
+      "name": "The Northeast Scar",
+      "description": "Boston to DC corridor. Bombed infrastructure, fortified enclaves, Nexus surveillance.",
+      "primary_faction": "architects",
+      "contested_by": ["nexus"],
+      "adjacent": ["rust_corridor", "appalachian_hollows"],
+      "terrain": ["urban", "road"],
+      "character": "Craters and checkpoints. The Architects preserve what history remains while Nexus watchers track movement between the surviving cities."
+    },
+    "sovereign_south": {
+      "name": "The Sovereign South",
+      "description": "Deep South religious communities. Covenant territory with Witness enclaves.",
+      "primary_faction": "witnesses",
+      "contested_by": ["covenant"],
+      "adjacent": ["appalachian_hollows", "gulf_passage", "texas_spine"],
+      "terrain": ["swamp", "forest", "road"],
+      "character": "Humid nights and communities built on faith. Witnesses keep records while the Covenant offers sanctuary to those in need."
+    },
+    "texas_spine": {
+      "name": "The Texas Spine",
+      "description": "Central Texas trade hub. Oil remnants, border towns, caravan crossroads.",
+      "primary_faction": "steel_syndicate",
+      "contested_by": ["lattice"],
+      "adjacent": ["breadbasket", "desert_sprawl", "gulf_passage", "sovereign_south"],
+      "terrain": ["plains", "road", "off-road"],
+      "character": "Dust and deals. The Syndicate runs trade through here, butting heads with Lattice infrastructure that still carries power south."
+    },
+    "frozen_edge": {
+      "name": "The Frozen Edge",
+      "description": "Alaska and Yukon. Extreme isolation, bunker communities, resource caches.",
+      "primary_faction": "ember_colonies",
+      "contested_by": [],
+      "adjacent": ["northern_reaches"],
+      "terrain": ["tundra", "mountain", "off-road"],
+      "character": "The last frontier got lonelier. Ember survivors here answer to no one, preserving pre-Collapse knowledge in underground archives."
+    }
+  },
+  "travel_costs": {
+    "adjacent": 0,
+    "two_away": 1,
+    "distant": 2
+  },
+  "travel_notes": "Travel between adjacent regions is narratively free. Distant travel may require vehicles, favors, or multiple sessions."
+}

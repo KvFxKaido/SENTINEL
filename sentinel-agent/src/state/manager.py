@@ -121,6 +121,7 @@ class CampaignManager:
         # Game systems (lazily initialized)
         self._leverage_system = None
         self._arc_system = None
+        self._job_system = None
 
     @property
     def leverage(self):
@@ -137,6 +138,14 @@ class CampaignManager:
             from ..systems.arcs import ArcSystem
             self._arc_system = ArcSystem(self)
         return self._arc_system
+
+    @property
+    def jobs(self):
+        """Get the job board system (lazy initialization)."""
+        if self._job_system is None:
+            from ..systems.jobs import JobSystem
+            self._job_system = JobSystem(self)
+        return self._job_system
 
     # -------------------------------------------------------------------------
     # Memvid Integration

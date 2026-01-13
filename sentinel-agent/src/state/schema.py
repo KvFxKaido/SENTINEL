@@ -157,6 +157,30 @@ class Location(str, Enum):
     TRANSIT = "transit"            # Traveling — limited actions
 
 
+class Region(str, Enum):
+    """Post-Collapse North American regions from geography.md."""
+    RUST_CORRIDOR = "rust_corridor"           # Great Lakes - Lattice/Syndicate
+    APPALACHIAN_HOLLOWS = "appalachian_hollows"  # Mountains - Ember/Cultivators
+    GULF_PASSAGE = "gulf_passage"             # Gulf Coast - Wanderers/Ghost
+    BREADBASKET = "breadbasket"               # Great Plains - Cultivators/Wanderers
+    NORTHERN_REACHES = "northern_reaches"     # Former Canada - Covenant/Ember
+    PACIFIC_CORRIDOR = "pacific_corridor"     # West Coast - Convergence/Architects
+    DESERT_SPRAWL = "desert_sprawl"           # Southwest - Ghost/Syndicate
+    NORTHEAST_SCAR = "northeast_scar"         # Boston-DC - Architects/Nexus
+    SOVEREIGN_SOUTH = "sovereign_south"       # Deep South - Witnesses/Covenant
+    TEXAS_SPINE = "texas_spine"               # Central TX - Syndicate/Lattice
+    FROZEN_EDGE = "frozen_edge"               # Alaska/Yukon - Ember (isolated)
+
+
+class FavorType(str, Enum):
+    """Types of favors NPCs can provide."""
+    RIDE = "ride"                             # Transport to a location/region
+    INTEL = "intel"                           # Faction information
+    GEAR_LOAN = "gear_loan"                   # Borrow equipment temporarily
+    INTRODUCTION = "introduction"             # Connect to another NPC
+    SAFE_HOUSE = "safe_house"                 # Temporary shelter in their territory
+
+
 class HistoryType(str, Enum):
     MISSION = "mission"
     HINGE = "hinge"
@@ -216,6 +240,49 @@ class GearItem(BaseModel):
     cost: int = 0
     single_use: bool = False  # Consumed after one use (Trauma Kit, Encryption Breaker)
     used: bool = False  # Has this been expended? (reset between missions for non-single-use)
+
+
+class Vehicle(BaseModel):
+    """Transport that enables faster travel and unlocks certain jobs."""
+    id: str = Field(default_factory=generate_id)
+    name: str
+    type: str                                 # "motorcycle", "truck", "boat", etc.
+    description: str = ""
+    cost: int = 0
+
+    # Capabilities
+    terrain: list[str] = Field(default_factory=list)  # ["road", "off-road", "water"]
+    capacity: int = 1                         # Crew + passengers
+    cargo: bool = False                       # Can carry cargo
+    stealth: bool = False                     # Low-profile travel
+
+    # Job unlocks
+    unlocks_tags: list[str] = Field(default_factory=list)  # ["delivery", "extraction"]
+
+
+class FavorToken(BaseModel):
+    """Tracks a single favor usage with an NPC."""
+    npc_id: str
+    npc_name: str
+    favor_type: FavorType
+    session_used: int
+    standing_cost: int                        # How much standing was spent
+    description: str = ""                     # What was requested
+
+
+class FavorTracker(BaseModel):
+    """Per-session favor limitations for the campaign."""
+    tokens_per_session: int = 2               # Can call 2 favors per session
+    tokens_used: list[FavorToken] = Field(default_factory=list)
+
+    def tokens_remaining(self, session: int) -> int:
+        """Count remaining favor tokens for this session."""
+        used_this_session = len([t for t in self.tokens_used if t.session_used == session])
+        return max(0, self.tokens_per_session - used_this_session)
+
+    def can_call_favor(self, session: int) -> bool:
+        """Check if player can call another favor this session."""
+        return self.tokens_remaining(session) > 0
 
 
 class SocialEnergy(BaseModel):
@@ -475,6 +542,7 @@ class Character(BaseModel):
 
     credits: int = 500
     gear: list[GearItem] = Field(default_factory=list)
+    vehicles: list[Vehicle] = Field(default_factory=list)
 
     social_energy: SocialEnergy = Field(default_factory=SocialEnergy)
     establishing_incident: EstablishingIncident | None = None
@@ -934,6 +1002,80 @@ class EventQueue(BaseModel):
         return original - len(self.events)
 
 
+# -----------------------------------------------------------------------------
+# Job System
+# -----------------------------------------------------------------------------
+
+class JobStatus(str, Enum):
+    """Status of a job in the player's active list."""
+    ACTIVE = "active"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    ABANDONED = "abandoned"
+
+
+class JobTemplate(BaseModel):
+    """
+    Template for a faction job, stored in JSON.
+
+    Templates define the structure and rewards. When accepted,
+    the LLM generates a full narrative briefing.
+    """
+    id: str
+    faction: FactionName
+    title: str
+    type: MissionType
+    description: str                    # Brief premise (1-2 sentences)
+    objectives: list[str] = Field(default_factory=list)  # What success looks like
+    reward_credits: int = 0
+    reward_standing: int = 1            # Standing gain with faction
+    opposing_factions: list[FactionName] = Field(default_factory=list)  # Who gets angry
+    opposing_penalty: int = 1           # Standing loss with opposing
+    time_estimate: str = "1 session"    # "1 session", "2-3 sessions"
+    tags: list[str] = Field(default_factory=list)  # For filtering: ["stealth", "combat", "social"]
+    min_standing: int = -50             # Minimum standing to see this job
+
+    # Geography and vehicle requirements (optional)
+    region: Region | None = None                     # Where this job takes place
+    requires_vehicle: bool = False                   # Needs any vehicle
+    requires_vehicle_type: str | None = None         # Specific type: "motorcycle", "truck", etc.
+    requires_vehicle_tags: list[str] = Field(default_factory=list)  # ["cargo", "stealth"]
+
+
+class ActiveJob(BaseModel):
+    """A job the player has accepted."""
+    id: str = Field(default_factory=lambda: str(uuid4())[:8])
+    template_id: str
+    title: str                          # May be LLM-customized
+    faction: FactionName
+    briefing: str = ""                  # LLM-generated full briefing
+    objectives: list[str] = Field(default_factory=list)
+    reward_credits: int = 0
+    reward_standing: int = 1
+    opposing_factions: list[FactionName] = Field(default_factory=list)
+    opposing_penalty: int = 1
+    accepted_session: int = 0
+    due_session: int | None = None      # Deadline (session number)
+    status: JobStatus = JobStatus.ACTIVE
+
+    # Geography (copied from template when accepted)
+    region: Region | None = None        # Where the job takes place
+
+
+class JobBoard(BaseModel):
+    """
+    Available and active jobs for the campaign.
+
+    The job board refreshes each session with new offerings
+    based on faction standings and location.
+    """
+    available: list[str] = Field(default_factory=list)  # Template IDs currently offered
+    active: list[ActiveJob] = Field(default_factory=list)
+    completed: list[str] = Field(default_factory=list)  # Template IDs (for history)
+    failed: list[str] = Field(default_factory=list)     # Template IDs that were failed/abandoned
+    last_refresh_session: int = 0       # Session when board was last refreshed
+
+
 class Campaign(BaseModel):
     """
     Complete campaign state.
@@ -941,7 +1083,7 @@ class Campaign(BaseModel):
     This is the root model that gets serialized to JSON.
     Versioned for migration support.
     """
-    schema_version: str = "1.2.0"  # Added Location tracking
+    schema_version: str = "1.4.0"  # Added Geography and Favor systems
     saved_at: datetime = Field(default_factory=datetime.now)
 
     meta: CampaignMeta
@@ -956,6 +1098,15 @@ class Campaign(BaseModel):
     # Location tracking — gates available commands
     location: Location = Location.SAFE_HOUSE
     location_faction: FactionName | None = None  # If at a faction HQ, which one
+
+    # Region tracking — geography from lore
+    region: Region = Region.RUST_CORRIDOR  # Starting region
+
+    # Job board — available and active jobs
+    jobs: JobBoard = Field(default_factory=JobBoard)
+
+    # Favor tracking — NPC favor usage per session
+    favor_tracker: FavorTracker = Field(default_factory=FavorTracker)
 
     def save_checkpoint(self) -> None:
         """Update timestamp before save."""

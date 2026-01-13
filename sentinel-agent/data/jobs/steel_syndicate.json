@@ -1,0 +1,67 @@
+{
+  "jobs": [
+    {
+      "id": "syndicate_debt_collection",
+      "faction": "Steel Syndicate",
+      "title": "Debt Collection",
+      "type": "Investigation",
+      "description": "A settlement owes the Syndicate. Find out why they stopped paying.",
+      "objectives": ["Locate the settlement contact", "Determine reason for default", "Report back or resolve"],
+      "reward_credits": 200,
+      "reward_standing": 1,
+      "opposing_factions": ["Covenant"],
+      "opposing_penalty": 1,
+      "time_estimate": "1 session",
+      "tags": ["social", "investigation"],
+      "min_standing": -20
+    },
+    {
+      "id": "syndicate_cargo_protection",
+      "faction": "Steel Syndicate",
+      "title": "Cargo Protection",
+      "type": "Escort",
+      "description": "High-value shipment needs armed escort. Don't ask what's in the crates.",
+      "objectives": ["Meet convoy at pickup", "Escort through hostile territory", "Deliver to Syndicate warehouse"],
+      "reward_credits": 350,
+      "reward_standing": 1,
+      "opposing_factions": ["Covenant", "Cultivators"],
+      "opposing_penalty": 1,
+      "time_estimate": "1 session",
+      "tags": ["combat", "escort", "cargo"],
+      "min_standing": 0,
+      "region": "texas_spine",
+      "requires_vehicle": true,
+      "requires_vehicle_tags": ["cargo"]
+    },
+    {
+      "id": "syndicate_competitor_intel",
+      "faction": "Steel Syndicate",
+      "title": "Market Intelligence",
+      "type": "Investigation",
+      "description": "A competitor is undercutting Syndicate prices. Find out how.",
+      "objectives": ["Identify the competitor's supply chain", "Document their operation", "Report leverage points"],
+      "reward_credits": 400,
+      "reward_standing": 2,
+      "opposing_factions": [],
+      "opposing_penalty": 0,
+      "time_estimate": "2-3 sessions",
+      "tags": ["investigation", "stealth"],
+      "min_standing": 10
+    },
+    {
+      "id": "syndicate_message_delivery",
+      "faction": "Steel Syndicate",
+      "title": "Message Delivery",
+      "type": "Diplomacy",
+      "description": "Someone needs to understand the Syndicate's position. Make it clear.",
+      "objectives": ["Find the target", "Deliver the message", "Ensure they understand the consequences"],
+      "reward_credits": 300,
+      "reward_standing": 1,
+      "opposing_factions": ["Covenant"],
+      "opposing_penalty": 1,
+      "time_estimate": "1 session",
+      "tags": ["social", "intimidation", "urgent"],
+      "min_standing": -10
+    }
+  ]
+}
