@@ -221,56 +221,88 @@ Our art style is a synthesis of **post-collapse survivalist realism** with **tac
 
 ---
 
-## AI Image Generation Prompts
+## AI Image Generation
 
-### Base Prompt Structure
-```
-[subject], SENTINEL RPG art style, post-collapse realism,
-weathered survivor aesthetic, [faction] color accent [hex],
-natural lighting with [light source], dust particles in air,
-[emotional tone], tactical espionage drama mood,
-detailed textures, muted earth tones with faction accent
-```
+These prompts are tested with **Gemini (via NanoBanana)** but should work with any image generator. Adapt as needed for your tool of choice—the key is the explicit style anchor and guardrails.
+
+### Style Anchor
+
+> **Cinematic portrait, photorealistic digital art style. Modern post-apocalyptic cyberpunk aesthetic.**
+
+This anchor prevents style drift toward fantasy, anime, or generic sci-fi. Reinforce with explicit negatives when needed.
 
 ### Portrait Prompt Template
+
 ```
-Portrait of [description], SENTINEL RPG codec style,
-bust framing 3/4 angle, [faction] faction member,
-[disposition] expression, weathered features,
-[faction color] accent lighting, dark background,
-MGS codec aesthetic, detailed face, survivor realism
+Cinematic portrait, photorealistic digital art style.
+Modern post-apocalyptic cyberpunk aesthetic. NOT fantasy, NOT medieval, NOT anime, NOT elf, NOT blue hair.
+[PERSON_DESCRIPTOR] with [BUILD] build, [HAIR_DESCRIPTION], [EYE_DESCRIPTION], [FACIAL_FEATURES], [DISTINGUISHING_MARKS], [EXPRESSION].
+[FACTION] [ROLE] survivor. [FACTION_GEAR].
+Dark atmospheric background with [FACTION_COLOR] accent lighting.
+High detail, dramatic rim lighting, shallow depth of field.
+Bust framing, 3/4 angle, looking slightly off-camera.
 ```
+
+### Person Descriptor Table
+
+Explicit descriptors anchor generation. Vague terms cause drift.
+
+| Skin Tone | Masculine | Feminine | Androgynous |
+|-----------|-----------|----------|-------------|
+| pale | pale-skinned white man | pale-skinned white woman | pale-skinned person |
+| light | light-skinned white man | light-skinned white woman | light-skinned person |
+| medium | olive-skinned man | olive-skinned woman | olive-skinned person |
+| tan | tan Latino man | tan Latina woman | tan person |
+| brown | Black man | Black woman | Black person |
+| dark | dark-skinned Black man | dark-skinned Black woman | dark-skinned Black person |
+
+For elderly characters, prepend "elderly" (e.g., "elderly olive-skinned woman").
+
+### Faction Gear Descriptions
+
+| Faction | Accent Color | Gear Description |
+|---------|--------------|------------------|
+| Nexus | blue (#00A8E8) | Data visors, sensor arrays, sleek tech fabric |
+| Ember Colonies | orange (#E85D04) | Salvaged leather, wool layers, fire-scarred gear |
+| Lattice | yellow (#FFD000) | Work gear, tool belts, utility harness |
+| Convergence | purple (#7B2CBF) | Bio-tech integration, visible augmentations |
+| Covenant | white (#E8E8E8) | Clean white/silver cloth, formal bearing |
+| Wanderers | tan (#C9A227) | Dust cloaks, travel packs, road-worn appearance |
+| Cultivators | green (#2D6A4F) | Natural fibers, soil-stained hands |
+| Steel Syndicate | gunmetal (#5C677D) | Heavy armor layers, tactical gear, intimidating |
+| Witnesses | sepia (#8B4513) | Document satchels, ink-stained fingers |
+| Architects | cyan (#0077B6) | Pre-collapse uniforms, credential badges |
+| Ghost Networks | black (#0D0D0D) | Nondescript dark clothing, deep shadows |
+
+### Expression Mapping
+
+| Expression | Prompt Description |
+|------------|-------------------|
+| neutral | calm alert expression |
+| wary | wary guarded expression |
+| warm | warm approachable expression |
+| stern | stern serious expression |
+| tired | tired world-weary expression |
+| hostile | hard aggressive expression |
 
 ### Environment Prompt Template
+
 ```
-[Location type], SENTINEL RPG environment,
-post-collapse [region], [faction] territory markers,
-[weather/time], natural lighting through [source],
-signs of [history], [current activity],
-atmospheric dust/haze, grounded realism
+Cinematic wide shot, photorealistic digital art style.
+Modern post-apocalyptic setting. NOT fantasy, NOT medieval.
+[LOCATION_TYPE] in [FACTION] territory.
+[WEATHER/TIME], natural lighting through [SOURCE].
+Signs of [HISTORY], [CURRENT_ACTIVITY].
+[FACTION_COLOR] accent elements, atmospheric haze.
+Grounded realism, lived-in detail.
 ```
 
----
+### Tips for Consistent Results
 
-## Terminal/CLI Aesthetic
-
-### Braille Portrait Guidelines
-- 18-25 character width for codec frames
-- High contrast (no gradients in small sizes)
-- Silhouette-focused at small scale
-- Expression readable through basic shapes
-
-### ANSI Color Usage
-- Faction border colors from 256-color palette
-- Disposition colors: Red (hostile) → Orange (wary) → Gray (neutral) → Green (warm) → Blue (loyal)
-- Scanline effect via dim alternating lines
-- White/bright for names, dim for secondary info
-
-### ASCII Fallback Style
-- Box-drawing characters for frames (╔═╗║╚╝)
-- Simple face elements (◠ ◡ ▽ ● ▬)
-- Faction headers in block style
-- Clean separation between portrait and info
+- **Use explicit negatives** — "NOT fantasy, NOT anime" prevents drift better than positive-only prompts
+- **Anchor skin tone explicitly** — vague terms like "diverse" or "ethnic" produce inconsistent results
+- **Include faction color twice** — in lighting AND gear description for strong visual coding
+- **Keep expressions simple** — complex emotional descriptions confuse generators
 
 ---
 
