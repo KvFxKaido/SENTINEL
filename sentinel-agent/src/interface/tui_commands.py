@@ -997,6 +997,224 @@ def tui_loadout(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
 
 
 # -----------------------------------------------------------------------------
+# Ping Command (async dispatch)
+# -----------------------------------------------------------------------------
+
+def tui_ping(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
+    """Test backend connectivity (async dispatch)."""
+    import asyncio
+    # Schedule the async ping method - handle_command is async so this works
+    asyncio.create_task(app._ping_backend(log))
+
+
+# -----------------------------------------------------------------------------
+# Shop Command
+# -----------------------------------------------------------------------------
+
+# Shop inventory (mirrored from tui.py)
+SHOP_INVENTORY = {
+    "Surveillance": [
+        ("Tactical Drone", 300, "Remote recon"),
+        ("A/V Recorder", 100, "Hidden camera/mic"),
+        ("Motion Tracker", 150, "Detect movement through walls"),
+    ],
+    "Hacking": [
+        ("Encryption Breaker", 400, "Single-use, advantage vs high-security"),
+        ("Ghost Protocol Suite", 300, "Scrubs logs and traces"),
+        ("Network Mapper", 200, "Visual map of vulnerabilities"),
+    ],
+    "Infiltration": [
+        ("Lockpick Set", 100, "Advantage vs mechanical locks"),
+        ("Climbing Rig", 200, "Vertical access"),
+        ("Disguise Module", 300, "Temp identity, advantage on deception"),
+    ],
+    "Combat": [
+        ("EMP Device", 500, "Disables electronics in radius"),
+        ("Neural Disruptor", 400, "Close-range incapacitation"),
+        ("Stun Grenade", 50, "Flashbang, crowd control"),
+    ],
+    "Medical": [
+        ("Trauma Kit", 200, "Stabilize critical injury, single-use"),
+        ("Diagnostic Scanner", 350, "Detect injury, toxins, implants"),
+        ("Stimulant Dose", 100, "One-time boost, addiction risk"),
+    ],
+    "Comms": [
+        ("Encrypted Comms", 250, "Secure voice/text"),
+        ("Long-Range Transmitter", 400, "Remote contact"),
+        ("Translator Module", 150, "Real-time language bridge"),
+    ],
+}
+
+
+def tui_shop(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
+    """Buy equipment (downtime only)."""
+    if not app.manager or not app.manager.current:
+        log.write(Text.from_markup(f"[{Theme.WARNING}]No campaign loaded[/{Theme.WARNING}]"))
+        return
+
+    # Check if in mission
+    session = app.manager.current.session
+    if session and session.mission:
+        from ..state.schema import MissionPhase
+        phase = session.mission.phase
+        if phase not in (MissionPhase.BETWEEN, MissionPhase.PLANNING):
+            log.write(Text.from_markup(f"[{Theme.WARNING}]Can't shop during a mission[/{Theme.WARNING}]"))
+            log.write(Text.from_markup(f"[{Theme.DIM}]Complete or abort the mission first[/{Theme.DIM}]"))
+            return
+
+    char = app.manager.current.player
+    credits = char.credits
+
+    if not args:
+        # Show shop categories
+        log.write(Text.from_markup(f"[bold {Theme.TEXT}]SHOP[/bold {Theme.TEXT}]  [{Theme.ACCENT}]{credits} credits[/{Theme.ACCENT}]"))
+        log.write(Text.from_markup(f"[{Theme.DIM}]Usage: /shop <category> or /shop buy <item>[/{Theme.DIM}]\n"))
+
+        for category, items in SHOP_INVENTORY.items():
+            log.write(Text.from_markup(f"[{Theme.ACCENT}]{category}[/{Theme.ACCENT}]"))
+            for name, price, desc in items:
+                affordable = "[bold]" if credits >= price else f"[{Theme.DIM}]"
+                end = "[/bold]" if credits >= price else f"[/{Theme.DIM}]"
+                log.write(Text.from_markup(f"  {affordable}• {name} ({price}c){end} [{Theme.DIM}]— {desc}[/{Theme.DIM}]"))
+            log.write(Text.from_markup(""))
+        return
+
+    # Handle /shop buy <item name>
+    if args[0].lower() == "buy" and len(args) > 1:
+        item_name = " ".join(args[1:]).lower()
+
+        # Find the item
+        found = None
+        for category, items in SHOP_INVENTORY.items():
+            for name, price, desc in items:
+                if name.lower() == item_name or name.lower().startswith(item_name):
+                    found = (name, price, desc, category)
+                    break
+            if found:
+                break
+
+        if not found:
+            log.write(Text.from_markup(f"[{Theme.WARNING}]Item not found: {item_name}[/{Theme.WARNING}]"))
+            return
+
+        name, price, desc, category = found
+
+        if credits < price:
+            log.write(Text.from_markup(f"[{Theme.DANGER}]Not enough credits[/{Theme.DANGER}]"))
+            log.write(Text.from_markup(f"[{Theme.DIM}]Need {price}, have {credits}[/{Theme.DIM}]"))
+            return
+
+        # Check if already owned
+        if any(g_item.name.lower() == name.lower() for g_item in char.gear):
+            log.write(Text.from_markup(f"[{Theme.WARNING}]Already own: {name}[/{Theme.WARNING}]"))
+            return
+
+        # Purchase
+        from ..state.schema import GearItem
+        single_use = "single-use" in desc.lower()
+        new_item = GearItem(
+            name=name,
+            category=category,
+            description=desc,
+            cost=price,
+            single_use=single_use,
+        )
+        char.gear.append(new_item)
+        char.credits -= price
+
+        log.write(Text.from_markup(f"[{Theme.FRIENDLY}]Purchased: {name}[/{Theme.FRIENDLY}]"))
+        log.write(Text.from_markup(f"[{Theme.DIM}]Remaining credits: {char.credits}[/{Theme.DIM}]"))
+        app.refresh_all_panels()
+        return
+
+    log.write(Text.from_markup(f"[{Theme.DIM}]Usage: /shop or /shop buy <item name>[/{Theme.DIM}]"))
+
+
+# -----------------------------------------------------------------------------
+# Compare Command
+# -----------------------------------------------------------------------------
+
+def tui_compare(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
+    """Cross-campaign comparison."""
+    from pathlib import Path
+    import sys
+
+    wiki_dir = Path(getattr(app.manager, '_wiki_dir', 'wiki')) if app.manager else Path('wiki')
+
+    # Try to import and run the comparison script
+    scripts_dir = Path(__file__).parent.parent.parent / "scripts"
+    if scripts_dir.exists():
+        sys.path.insert(0, str(scripts_dir))
+
+    try:
+        from compare_campaigns import discover_campaigns, generate_report
+
+        log.write(Text.from_markup(f"[{Theme.DIM}]Scanning campaigns...[/{Theme.DIM}]"))
+
+        campaigns = discover_campaigns(wiki_dir)
+
+        if not campaigns:
+            log.write(Text.from_markup(f"[{Theme.WARNING}]No campaigns with events found[/{Theme.WARNING}]"))
+            log.write(Text.from_markup(f"[{Theme.DIM}]Play some sessions to generate wiki events[/{Theme.DIM}]"))
+            return
+
+        log.write(Text.from_markup(f"[bold {Theme.TEXT}]Cross-Campaign Analysis[/bold {Theme.TEXT}]"))
+        log.write(Text.from_markup(f"[{Theme.DIM}]{len(campaigns)} campaign(s) analyzed[/{Theme.DIM}]\n"))
+
+        # Campaign overview
+        log.write(Text.from_markup(f"[{Theme.ACCENT}]Campaigns:[/{Theme.ACCENT}]"))
+        for c in sorted(campaigns, key=lambda x: x.sessions, reverse=True):
+            log.write(Text.from_markup(
+                f"  [{Theme.TEXT}]{c.id}[/{Theme.TEXT}]: "
+                f"{c.sessions} sessions, {len(c.hinges)} hinges, {len(c.faction_shifts)} shifts"
+            ))
+
+        # Faction standings comparison
+        all_factions: set[str] = set()
+        for c in campaigns:
+            for shift in c.faction_shifts:
+                all_factions.add(shift.faction)
+
+        if all_factions and len(campaigns) > 1:
+            log.write(Text.from_markup(f"\n[{Theme.ACCENT}]Faction Divergence:[/{Theme.ACCENT}]"))
+
+            for faction in sorted(all_factions):
+                standings = []
+                for c in campaigns:
+                    standing = c.final_standings.get(faction, "Neutral")
+                    standings.append(f"{c.id}:{standing}")
+
+                unique = set(s.split(":")[1] for s in standings)
+                if len(unique) == 1:
+                    icon = f"[{Theme.WARNING}]![/{Theme.WARNING}]"  # Convergent
+                else:
+                    icon = f"[{Theme.FRIENDLY}]~[/{Theme.FRIENDLY}]"  # Divergent
+
+                log.write(Text.from_markup(f"  {icon} [{Theme.TEXT}]{faction}[/{Theme.TEXT}]: {', '.join(standings)}"))
+
+        elif all_factions:
+            log.write(Text.from_markup(f"\n[{Theme.ACCENT}]Final Standings:[/{Theme.ACCENT}]"))
+            c = campaigns[0]
+            for faction in sorted(all_factions):
+                standing = c.final_standings.get(faction, "Neutral")
+                log.write(Text.from_markup(f"  [{Theme.TEXT}]{faction}[/{Theme.TEXT}]: {standing}"))
+
+        # Write full report
+        meta_dir = wiki_dir / "campaigns" / "_meta"
+        meta_dir.mkdir(exist_ok=True)
+        report = generate_report(campaigns, wiki_dir)
+        report_path = meta_dir / "comparison_report.md"
+        report_path.write_text(report, encoding="utf-8")
+
+        log.write(Text.from_markup(f"\n[{Theme.DIM}]Full report: {report_path}[/{Theme.DIM}]"))
+
+    except ImportError as e:
+        log.write(Text.from_markup(f"[{Theme.DANGER}]Could not load comparison script: {e}[/{Theme.DANGER}]"))
+    except Exception as e:
+        log.write(Text.from_markup(f"[{Theme.DANGER}]Comparison failed: {e}[/{Theme.DANGER}]"))
+
+
+# -----------------------------------------------------------------------------
 # Registration
 # -----------------------------------------------------------------------------
 
@@ -1013,6 +1231,7 @@ def register_tui_handlers() -> None:
     set_tui_handler("/char", tui_char)
     set_tui_handler("/roll", tui_roll)
     set_tui_handler("/gear", tui_gear)
+    set_tui_handler("/shop", tui_shop)
     set_tui_handler("/loadout", tui_loadout)
     set_tui_handler("/arc", tui_arc)
 
@@ -1033,6 +1252,7 @@ def register_tui_handlers() -> None:
     # Wiki
     set_tui_handler("/wiki", tui_wiki)
     set_tui_handler("/compress", tui_compress)
+    set_tui_handler("/compare", tui_compare)
 
     # Simulation
     set_tui_handler("/simulate", tui_simulate)
@@ -1045,6 +1265,7 @@ def register_tui_handlers() -> None:
     set_tui_handler("/exit", tui_quit)  # Alias
     set_tui_handler("/copy", tui_copy)
     set_tui_handler("/dock", tui_dock)
+    set_tui_handler("/ping", tui_ping)
 
     # Settings
     set_tui_handler("/backend", tui_backend)
