@@ -140,8 +140,8 @@ def get_npc_list(manager: "CampaignManager") -> dict | None:
             "id": npc.id,
             "name": npc.name,
             "faction": npc.faction.value if npc.faction else None,
-            "disposition": npc.base_disposition.value if npc.base_disposition else "neutral",
-            "role": npc.role,
+            "disposition": npc.disposition.value if npc.disposition else "neutral",
+            "role": getattr(npc.agenda, 'wants', None) if npc.agenda else None,  # Use agenda.wants as role description
         })
 
     for npc in (npcs.dormant if npcs else []):
