@@ -22,7 +22,7 @@ from rich.console import Console, RenderableType
 
 from textual.events import Key
 
-from ..state import CampaignManager
+from ..state import CampaignManager, get_event_bus, EventType, GameEvent
 from ..state.schema import Campaign, Standing, Character, DormantThread
 from ..agent import SentinelAgent
 from ..context import StrainTier, format_strain_notice
@@ -894,6 +894,14 @@ class SentinelTUI(App):
         # Start clock timer (update every 30 seconds)
         self.set_interval(30, self._update_clock)
 
+        # Subscribe to game events for reactive UI updates
+        bus = get_event_bus()
+        bus.on(EventType.FACTION_CHANGED, self._on_faction_changed)
+        bus.on(EventType.NPC_ADDED, self._on_npc_changed)
+        bus.on(EventType.NPC_DISPOSITION_CHANGED, self._on_npc_changed)
+        bus.on(EventType.THREAD_QUEUED, self._on_thread_queued)
+        bus.on(EventType.CAMPAIGN_LOADED, self._on_campaign_loaded)
+
         # Pass history and suggestion display to command input
         cmd_input = self.query_one("#main-input", CommandInput)
         cmd_input.set_history(self._history)
@@ -1097,6 +1105,73 @@ class SentinelTUI(App):
                 self._auto_hidden = False
                 if self._user_wants_docks:
                     self.docks_visible = True
+
+    # -------------------------------------------------------------------------
+    # Event Bus Handlers (reactive UI updates)
+    # -------------------------------------------------------------------------
+
+    def _on_faction_changed(self, event: GameEvent) -> None:
+        """Handle faction standing changes - update WORLD dock."""
+        # Use call_from_thread since events may fire from worker threads
+        def update():
+            try:
+                world_dock = self.query_one("#world-dock", WorldDock)
+                world_dock.update_campaign(self.manager.current if self.manager else None)
+                world_dock.refresh_display()
+
+                # Log the change to output
+                log = self.query_one("#output-log", RichLog)
+                faction = event.data.get("faction", "?")
+                before = event.data.get("before", "?")
+                after = event.data.get("after", "?")
+                log.write(Text.from_markup(
+                    f"[{Theme.DIM}][ {faction}: {before} → {after} ][/{Theme.DIM}]"
+                ))
+            except Exception:
+                pass
+
+        self.call_from_thread(update)
+
+    def _on_npc_changed(self, event: GameEvent) -> None:
+        """Handle NPC changes - update WORLD dock."""
+        def update():
+            try:
+                world_dock = self.query_one("#world-dock", WorldDock)
+                world_dock.update_campaign(self.manager.current if self.manager else None)
+                world_dock.refresh_display()
+            except Exception:
+                pass
+
+        self.call_from_thread(update)
+
+    def _on_thread_queued(self, event: GameEvent) -> None:
+        """Handle new dormant thread - update WORLD dock."""
+        def update():
+            try:
+                world_dock = self.query_one("#world-dock", WorldDock)
+                world_dock.update_campaign(self.manager.current if self.manager else None)
+                world_dock.refresh_display()
+
+                # Notify in output
+                log = self.query_one("#output-log", RichLog)
+                severity = event.data.get("severity", "moderate")
+                log.write(Text.from_markup(
+                    f"[{Theme.WARNING}][ Thread queued ({severity}) ][/{Theme.WARNING}]"
+                ))
+            except Exception:
+                pass
+
+        self.call_from_thread(update)
+
+    def _on_campaign_loaded(self, event: GameEvent) -> None:
+        """Handle campaign load - refresh all panels."""
+        def update():
+            try:
+                self.refresh_all_panels()
+            except Exception:
+                pass
+
+        self.call_from_thread(update)
 
     # Number key actions for choice selection
     def action_select_choice_1(self):

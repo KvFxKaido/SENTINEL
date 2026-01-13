@@ -235,11 +235,13 @@ THEME = {
 ### Phase 2: Core Improvements (2-4 weeks)
 **Focus:** Architecture changes that enable better UX
 
-3. **Event Bus**
-   - Add pypubsub or custom event system
-   - Migrate faction changes to events
-   - Decouple renderer from state
-   - *Learn: event-driven architecture, pub/sub*
+3. ✅ **Event Bus** — *COMPLETED*
+   - ~~Add pypubsub or custom event system~~
+   - ~~Migrate faction changes to events~~
+   - ~~Decouple renderer from state~~
+   - *Learned: Custom event bus (80 lines) beats external deps for our needs*
+   - *Result: Manager emits events → TUI handlers update panels reactively*
+   - *See: src/state/event_bus.py*
 
 4. **Reactive Status Components**
    - Make status bar event-driven
@@ -390,5 +392,5 @@ Remember: You're not learning to code. You're learning to direct better by under
 
 *Generated: January 12, 2026*
 *Updated: January 12, 2026*
-*SENTINEL Version: Post-responsive-layout*
-*Progress: 2/6 objectives complete (Command Registry, Layout Engine)*
+*SENTINEL Version: Post-event-bus*
+*Progress: 3/6 objectives complete (Command Registry, Layout Engine, Event Bus)*
