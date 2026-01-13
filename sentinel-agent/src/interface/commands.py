@@ -3823,6 +3823,33 @@ def cmd_region(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
 
     adjacent = current_info.get("adjacent", [])
     target_info = regions_data.get(target_region.value, {})
+    is_distant = target_region.value not in adjacent
+
+    # Get character and vehicle
+    campaign = manager.current
+    char = campaign.characters[0] if campaign.characters else None
+    vehicle = char.vehicles[0] if char and char.vehicles else None
+
+    # Travel costs
+    energy_cost = 20 if is_distant else 5  # Distant travel is exhausting
+    vehicle_used = False
+
+    # Check if vehicle can be used for distant travel
+    if is_distant and vehicle:
+        if not vehicle.is_operational:
+            console.print(f"[{THEME['warning']}]Vehicle [{vehicle.name}] is {vehicle.status}[/{THEME['warning']}]")
+            console.print(f"[{THEME['dim']}]Visit /shop to refuel or repair[/{THEME['dim']}]")
+            return
+        # Use vehicle - reduces energy cost
+        vehicle.fuel = max(0, vehicle.fuel - vehicle.fuel_cost_per_trip)
+        vehicle.condition = max(0, vehicle.condition - vehicle.condition_loss_per_trip)
+        vehicle_used = True
+        energy_cost = 10  # Vehicle makes distant travel less exhausting
+
+    # Drain social energy
+    if char:
+        old_energy = char.social_energy.current
+        char.social_energy.current = max(0, char.social_energy.current - energy_cost)
 
     manager.current.region = target_region
     manager.save_campaign()
@@ -3830,8 +3857,14 @@ def cmd_region(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
     console.print(f"[{THEME['accent']}]Traveled to {target_info.get('name', target_region.value)}[/{THEME['accent']}]")
     console.print(f"[{THEME['dim']}]{target_info.get('description', '')}[/{THEME['dim']}]")
 
-    if target_region.value not in adjacent:
-        console.print(f"\n[{THEME['warning']}]Distant travel — may require vehicle or favor[/{THEME['warning']}]")
+    # Show travel costs
+    if char and energy_cost > 0:
+        console.print(f"[{THEME['warning']}]Travel fatigue: -{energy_cost} energy ({char.social_energy.current}/{old_energy})[/{THEME['warning']}]")
+
+    if vehicle_used:
+        console.print(f"[{THEME['dim']}]Vehicle: Fuel {vehicle.fuel}% | Condition {vehicle.condition}%[/{THEME['dim']}]")
+    elif is_distant:
+        console.print(f"\n[{THEME['warning']}]Distant travel without vehicle — exhausting[/{THEME['warning']}]")
 
 
 def cmd_favor(manager: CampaignManager, agent: SentinelAgent, args: list[str]):

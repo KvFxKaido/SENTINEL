@@ -150,6 +150,11 @@ class FavorSystem:
             remaining = self.tokens_remaining()
             return False, f"No favor tokens remaining this session ({remaining}/2)"
 
+        # Check per-NPC cooldown (same NPC only once per session)
+        session = self.get_current_session()
+        if self._campaign.favor_tracker.has_used_npc_this_session(npc.id, session):
+            return False, f"Already called in a favor from {npc.name} this session"
+
         # Get favor options
         options = self.get_npc_favor_options(npc)
 

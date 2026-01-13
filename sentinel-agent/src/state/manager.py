@@ -740,6 +740,10 @@ class CampaignManager:
 
         # Clear session
         self.current.session = None
+
+        # Auto-refresh job board for next session
+        self.jobs.refresh_board()
+
         self.save_campaign()
         return entry
 
