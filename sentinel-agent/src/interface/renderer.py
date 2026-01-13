@@ -677,6 +677,24 @@ class StatusBar:
 
         text.append(" | ", style=THEME["dim"])
 
+        # Location
+        from ..state.schema import Location
+        loc = campaign.location
+        loc_short = {
+            Location.SAFE_HOUSE: "Safe",
+            Location.FIELD: "Field",
+            Location.FACTION_HQ: "HQ",
+            Location.MARKET: "Mkt",
+            Location.TRANSIT: "Transit",
+        }.get(loc, loc.value[:5])
+        if loc == Location.FACTION_HQ and campaign.location_faction:
+            faction_abbrev = campaign.location_faction.value[:3].upper()
+            text.append(f"@{loc_short}:{faction_abbrev}", style=THEME["secondary"])
+        else:
+            text.append(f"@{loc_short}", style=THEME["secondary"])
+
+        text.append(" | ", style=THEME["dim"])
+
         # Social energy with delta
         if campaign.characters:
             char = campaign.characters[0]
