@@ -1299,8 +1299,20 @@ def tui_jobs(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
                         log.write(Text.from_markup(f"[{Theme.DIM}]Purchase required equipment or call in a favor[/{Theme.DIM}]"))
                         return
 
+                    # Check buy-in affordability
+                    if template.buy_in:
+                        can_afford, buy_in, credits = app.manager.jobs.can_afford_buy_in(template_id)
+                        if not can_afford:
+                            log.write(Text.from_markup(f"[{Theme.DANGER}]Insufficient credits for buy-in[/{Theme.DANGER}]"))
+                            log.write(Text.from_markup(f"[{Theme.DIM}]Need: {buy_in}c | Have: {credits}c[/{Theme.DIM}]"))
+                            return
+
                 job = app.manager.jobs.accept_job(template_id)
                 if job:
+                    # Show buy-in deduction if applicable
+                    if job.buy_in:
+                        log.write(Text.from_markup(f"[{Theme.WARNING}]Buy-in paid: -{job.buy_in}c (non-refundable)[/{Theme.WARNING}]"))
+
                     log.write(Text.from_markup(f"[{Theme.FRIENDLY}]Job accepted: {job.title}[/{Theme.FRIENDLY}]"))
                     log.write(Text.from_markup(f"[{Theme.DIM}]Objectives:[/{Theme.DIM}]"))
                     for obj in job.objectives:
@@ -1439,11 +1451,16 @@ def tui_jobs(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
                     risk_parts = [f.value.split()[0] for f in template.opposing_factions[:2]]
                     risk_str = f" | Risk: {', '.join(risk_parts)} -{template.opposing_penalty}"
 
+                # Buy-in tag if applicable
+                buy_in_tag = ""
+                if template.buy_in:
+                    buy_in_tag = f" [bold {Theme.WARNING}][BUY-IN: {template.buy_in}c][/bold {Theme.WARNING}]"
+
                 # Title styling based on eligibility
                 if eligible:
-                    log.write(Text.from_markup(f"\n[{Theme.ACCENT}]{i}. [{faction_tag}] {template.title}[/{Theme.ACCENT}]"))
+                    log.write(Text.from_markup(f"\n[{Theme.ACCENT}]{i}. [{faction_tag}] {template.title}[/{Theme.ACCENT}]{buy_in_tag}"))
                 else:
-                    log.write(Text.from_markup(f"\n[{Theme.DIM}]{i}. [{faction_tag}] {template.title} [LOCKED][/{Theme.DIM}]"))
+                    log.write(Text.from_markup(f"\n[{Theme.DIM}]{i}. [{faction_tag}] {template.title} [LOCKED][/{Theme.DIM}]{buy_in_tag}"))
 
                 log.write(Text.from_markup(f"   {template.description}"))
                 log.write(Text.from_markup(f"   [{Theme.DIM}]Pay: {template.reward_credits}c | Est: {template.time_estimate}{risk_str}[/{Theme.DIM}]"))

@@ -95,6 +95,23 @@ class JobSystem:
         self.load_templates()
         return self._templates.get(template_id)
 
+    def can_afford_buy_in(self, template_id: str) -> tuple[bool, int, int]:
+        """
+        Check if player can afford a job's buy-in.
+
+        Returns:
+            (can_afford, buy_in_amount, player_credits)
+        """
+        template = self.get_template(template_id)
+        if not template or not template.buy_in:
+            return (True, 0, 0)  # No buy-in required
+
+        if not self._campaign or not self._campaign.characters:
+            return (False, template.buy_in, 0)
+
+        char = self._campaign.characters[0]
+        return (char.credits >= template.buy_in, template.buy_in, char.credits)
+
     def get_available_jobs(
         self,
         location: Location | None = None,
@@ -218,6 +235,18 @@ class JobSystem:
         if template_id not in self._campaign.jobs.available:
             return None
 
+        # Handle buy-in if required
+        buy_in_paid = None
+        if template.buy_in:
+            char = self._campaign.characters[0] if self._campaign.characters else None
+            if not char:
+                return None  # No character to pay buy-in
+            if char.credits < template.buy_in:
+                return None  # Insufficient credits
+            # Deduct buy-in immediately — non-refundable
+            char.credits -= template.buy_in
+            buy_in_paid = template.buy_in
+
         # Create active job
         active = ActiveJob(
             template_id=template_id,
@@ -229,6 +258,8 @@ class JobSystem:
             opposing_factions=template.opposing_factions.copy(),
             opposing_penalty=template.opposing_penalty,
             accepted_session=self._campaign.meta.session_count,
+            region=template.region,
+            buy_in=buy_in_paid,
         )
 
         # Set deadline if template has time pressure

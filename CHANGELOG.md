@@ -46,6 +46,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `prompts/phases/epilogue.md` with GM guidance for final session
 - No failure state — all endings are valid conclusions
 
+**Buy-In Jobs (High-Stakes Underground Operations)**
+- `buy_in` field on JobTemplate for jobs requiring upfront payment
+- Buy-in deducted immediately on acceptance — non-refundable on failure/abandon
+- 5 Steel Syndicate buy-in jobs: Information Auction (100c), Leverage Acquisition (150c), Debt Enforcement Extreme (175c), High-Stakes Cargo Run (200c), The Big Score (400c)
+- Job board displays `[BUY-IN: Xc]` tag on buy-in jobs
+- Affordability check before job acceptance with credit display
+- High risk, high reward: 3-5x normal payout potential
+
 **TUI Architecture**
 - Event bus (`state/event_bus.py`) for decoupled state-to-UI communication
 - Reactive visual feedback — CSS classes for energy drain/gain and faction shift pulses
