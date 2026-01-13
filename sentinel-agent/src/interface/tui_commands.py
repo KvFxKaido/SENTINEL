@@ -589,7 +589,9 @@ def tui_arc(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
         if data['accepted']:
             log.write(Text.from_markup(f"\n[{Theme.ACCENT}]ACTIVE ARCS[/{Theme.ACCENT}]"))
             for arc in data['accepted']:
-                strength_bar = "█" * min(5, arc['strength']) + "░" * (5 - min(5, arc['strength']))
+                # Convert 0.0-1.0 strength to 0-5 bars
+                strength_int = min(5, int(arc['strength'] * 5))
+                strength_bar = "█" * strength_int + "░" * (5 - strength_int)
                 log.write(Text.from_markup(f"  ◆ [bold]{arc['title']}[/bold] ({arc['arc_type']})"))
                 log.write(Text.from_markup(f"    [{Theme.DIM}]{arc['description']}[/{Theme.DIM}]"))
                 log.write(Text.from_markup(f"    Strength: [{Theme.ACCENT}]{strength_bar}[/{Theme.ACCENT}]"))
