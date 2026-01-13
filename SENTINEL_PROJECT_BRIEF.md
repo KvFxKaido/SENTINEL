@@ -124,12 +124,11 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 - **Player Push mechanic** — explicitly invite consequences for advantage (Devil's Bargain), queues dormant thread
 
 **Portrait System**
-- **Kitty Graphics Protocol** — inline image display in supported terminals (WezTerm, Kitty)
-- **Graceful fallback** — Kitty images → Braille art → ASCII portraits
-- **33 faction portraits** — 3 archetypes per faction (scout/elder/etc), comic book style
-- **Art style anchor** — "Comic book style with clean character lines, dramatic lighting"
-- **Faction-colored accents** — each faction has distinct color lighting (Nexus blue, Ember orange, etc.)
-- **Portrait prompt template** — standardized generation via NanoBanana/Gemini CLI
+- **Character YAML specs** — structured appearance definitions in `assets/characters/` (faction, features, augmentations, expression)
+- **Art style anchor** — "Cinematic portrait, photorealistic digital art style. Modern post-apocalyptic cyberpunk aesthetic."
+- **`/portrait` skill** — reads YAML, builds explicit prompts with guardrails, calls Gemini NanoBanana
+- **Wiki integration** — portraits stored in `assets/portraits/`, embedded in NPC wiki pages
+- **Faction-colored accents** — each faction has distinct accent lighting (Nexus blue, Ember orange, etc.)
 
 **AI Collaboration Skills**
 - **`/council`** — consult Gemini and Codex for design feedback (read-only perspectives)
