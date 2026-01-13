@@ -1746,6 +1746,181 @@ def tui_favor(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
 
 
 # -----------------------------------------------------------------------------
+# Endgame Command
+# -----------------------------------------------------------------------------
+
+def tui_endgame(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
+    """View endgame readiness and manage campaign conclusion."""
+    if not app.manager or not app.manager.current:
+        log.write(Text.from_markup(f"[{Theme.WARNING}]No campaign loaded[/{Theme.WARNING}]"))
+        return
+
+    from ..state.schema import CampaignStatus
+
+    campaign = app.manager.current
+    readiness = app.manager.get_endgame_readiness()
+
+    if "error" in readiness:
+        log.write(Text.from_markup(f"[{Theme.WARNING}]{readiness['error']}[/{Theme.WARNING}]"))
+        return
+
+    if not args:
+        # Show readiness breakdown
+        log.write(Text.from_markup(f"[bold {Theme.TEXT}]ENDGAME READINESS[/bold {Theme.TEXT}]"))
+        log.write(Text.from_markup(f"[{Theme.DIM}]{readiness['readiness_message']}[/{Theme.DIM}]\n"))
+
+        # Status
+        status = readiness["status"]
+        status_color = {
+            "active": Theme.TEXT,
+            "approaching_end": Theme.WARNING,
+            "epilogue": Theme.ACCENT,
+            "concluded": Theme.FRIENDLY,
+        }.get(status, Theme.TEXT)
+        log.write(Text.from_markup(f"[{Theme.DIM}]Status:[/{Theme.DIM}] [{status_color}]{status.upper()}[/{status_color}]\n"))
+
+        # Readiness scores with visual bars
+        for key, data in readiness["scores"].items():
+            score = data["score"]
+            bar_filled = int(score * 10)
+            bar_empty = 10 - bar_filled
+            bar = "█" * bar_filled + "░" * bar_empty
+            pct = int(score * 100)
+            log.write(Text.from_markup(
+                f"  [{Theme.ACCENT}]{data['label']:10}[/{Theme.ACCENT}] [{Theme.TEXT}]{bar}[/{Theme.TEXT}] {pct:3}%  [{Theme.DIM}]{data['description']}[/{Theme.DIM}]"
+            ))
+
+        # Overall readiness
+        overall = readiness["overall_score"]
+        overall_pct = int(overall * 100)
+        level = readiness["readiness_level"].upper()
+        log.write(Text.from_markup(f"\n[bold {Theme.ACCENT}]Overall: {level} ({overall_pct}%)[/bold {Theme.ACCENT}]"))
+
+        # Player goals
+        if readiness["player_goals"]:
+            log.write(Text.from_markup(f"\n[{Theme.TEXT}]Your stated goals:[/{Theme.TEXT}]"))
+            for goal in readiness["player_goals"]:
+                log.write(Text.from_markup(f"  [{Theme.DIM}]• {goal}[/{Theme.DIM}]"))
+
+        # Instructions
+        if readiness["can_begin_epilogue"]:
+            if status == "active" or status == "approaching_end":
+                log.write(Text.from_markup(f"\n[{Theme.FRIENDLY}]Ready for conclusion. Use /endgame begin to start epilogue.[/{Theme.FRIENDLY}]"))
+            elif status == "epilogue":
+                log.write(Text.from_markup(f"\n[{Theme.WARNING}]Epilogue in progress. Use /endgame conclude when finished.[/{Theme.WARNING}]"))
+        else:
+            log.write(Text.from_markup(f"\n[{Theme.DIM}]Continue playing to accumulate more narrative weight.[/{Theme.DIM}]"))
+
+        return
+
+    subcommand = args[0].lower()
+
+    if subcommand == "begin":
+        # Start epilogue
+        result = app.manager.begin_epilogue()
+
+        if "error" in result:
+            log.write(Text.from_markup(f"[{Theme.DANGER}]{result['error']}[/{Theme.DANGER}]"))
+            if "suggestion" in result:
+                log.write(Text.from_markup(f"[{Theme.DIM}]{result['suggestion']}[/{Theme.DIM}]"))
+            return
+
+        log.write(Text.from_markup(f"[bold {Theme.ACCENT}]EPILOGUE BEGINS[/bold {Theme.ACCENT}]"))
+        log.write(Text.from_markup(f"[{Theme.TEXT}]Your story reaches its conclusion. All threads surface now.[/{Theme.TEXT}]\n"))
+
+        # Show threads that will surface
+        threads = result.get("threads_to_surface", [])
+        if threads:
+            log.write(Text.from_markup(f"[{Theme.WARNING}]Dormant threads surfacing:[/{Theme.WARNING}]"))
+            for thread in threads:
+                severity_color = {
+                    "minor": Theme.DIM,
+                    "moderate": Theme.WARNING,
+                    "major": Theme.DANGER,
+                }.get(thread["severity"], Theme.TEXT)
+                log.write(Text.from_markup(
+                    f"  [{severity_color}]• {thread['description']} (Session {thread['created_session']})[/{severity_color}]"
+                ))
+
+        # Show player goals for the epilogue
+        goals = result.get("player_goals", [])
+        if goals:
+            log.write(Text.from_markup(f"\n[{Theme.TEXT}]Your goals to resolve:[/{Theme.TEXT}]"))
+            for goal in goals:
+                log.write(Text.from_markup(f"  [{Theme.DIM}]• {goal}[/{Theme.DIM}]"))
+
+        log.write(Text.from_markup(f"\n[{Theme.FRIENDLY}]When your story is complete: /endgame conclude[/{Theme.FRIENDLY}]"))
+        app.refresh_all_panels()
+
+    elif subcommand == "cancel":
+        # Cancel epilogue
+        result = app.manager.cancel_epilogue()
+
+        if "error" in result:
+            log.write(Text.from_markup(f"[{Theme.DANGER}]{result['error']}[/{Theme.DANGER}]"))
+            return
+
+        log.write(Text.from_markup(f"[{Theme.WARNING}]Epilogue cancelled. Returning to active play.[/{Theme.WARNING}]"))
+        app.refresh_all_panels()
+
+    elif subcommand == "conclude":
+        # Conclude campaign
+        result = app.manager.conclude_campaign()
+
+        if "error" in result:
+            log.write(Text.from_markup(f"[{Theme.DANGER}]{result['error']}[/{Theme.DANGER}]"))
+            return
+
+        log.write(Text.from_markup(f"[bold {Theme.ACCENT}]═══ CAMPAIGN CONCLUDED ═══[/bold {Theme.ACCENT}]\n"))
+
+        # Campaign summary
+        log.write(Text.from_markup(f"[bold {Theme.TEXT}]{result['campaign_name']}[/bold {Theme.TEXT}]"))
+        log.write(Text.from_markup(f"[{Theme.DIM}]{result['session_count']} sessions played[/{Theme.DIM}]\n"))
+
+        # Character summary
+        char = result.get("character", {})
+        log.write(Text.from_markup(f"[{Theme.TEXT}]{char.get('name', 'Unknown')}[/{Theme.TEXT}]"))
+        if char.get("background"):
+            log.write(Text.from_markup(f"[{Theme.DIM}]{char['background']}[/{Theme.DIM}]"))
+        log.write(Text.from_markup(f"[{Theme.DIM}]{char.get('hinge_count', 0)} defining choices made[/{Theme.DIM}]\n"))
+
+        # Primary arc
+        arc = result.get("primary_arc", {})
+        if arc.get("type"):
+            log.write(Text.from_markup(f"[{Theme.ACCENT}]Arc: {arc['title']} ({arc['type']})[/{Theme.ACCENT}]"))
+            log.write(Text.from_markup(f"[{Theme.DIM}]Reinforced {arc['times_reinforced']} times[/{Theme.DIM}]\n"))
+
+        # Final faction standings
+        standings = result.get("faction_standings", {})
+        if standings:
+            log.write(Text.from_markup(f"[{Theme.TEXT}]Faction Legacy:[/{Theme.TEXT}]"))
+            for faction, data in list(standings.items())[:5]:  # Top 5
+                level = data.get("level", "neutral")
+                level_color = {
+                    "hostile": Theme.HOSTILE,
+                    "unfriendly": Theme.UNFRIENDLY,
+                    "neutral": Theme.NEUTRAL,
+                    "friendly": Theme.FRIENDLY,
+                    "allied": Theme.ALLIED,
+                }.get(level, Theme.TEXT)
+                log.write(Text.from_markup(f"  [{level_color}]{faction}: {level.upper()}[/{level_color}]"))
+
+        log.write(Text.from_markup(f"\n[{Theme.FRIENDLY}]Your story is complete. Thank you for playing.[/{Theme.FRIENDLY}]"))
+        app.refresh_all_panels()
+
+    else:
+        log.write(Text.from_markup(f"[{Theme.WARNING}]Unknown subcommand: {subcommand}[/{Theme.WARNING}]"))
+        log.write(Text.from_markup(f"[{Theme.DIM}]Usage: /endgame [begin|cancel|conclude][/{Theme.DIM}]"))
+
+
+def tui_retire(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
+    """Gracefully retire your character and end the campaign."""
+    log.write(Text.from_markup(f"[{Theme.TEXT}]Your character steps back from the life. One final reckoning awaits.[/{Theme.TEXT}]\n"))
+    # Delegate to endgame begin
+    tui_endgame(app, log, ["begin"])
+
+
+# -----------------------------------------------------------------------------
 # Compare Command
 # -----------------------------------------------------------------------------
 
@@ -1898,3 +2073,7 @@ def register_tui_handlers() -> None:
     # Geography & Favors
     set_tui_handler("/region", tui_region)
     set_tui_handler("/favor", tui_favor)
+
+    # Endgame
+    set_tui_handler("/endgame", tui_endgame)
+    set_tui_handler("/retire", tui_retire)

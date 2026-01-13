@@ -189,6 +189,9 @@ See [OBSIDIAN_INTEGRATION.md](../architecture/OBSIDIAN_INTEGRATION.md) for full 
 | `/mission` | Start a new mission |
 | `/backend [name]` | Show or switch LLM backend |
 | `/model [name]` | Show or switch model |
+| `/endgame` | View campaign readiness and status |
+| `/endgame begin` | Begin epilogue (final session) |
+| `/retire` | Graceful alias for `/endgame begin` |
 | `/quit` | Exit the game |
 
 ## State Schema
@@ -198,9 +201,10 @@ All game state is stored as versioned JSON files:
 - **Campaign** — The root container
 - **Character** — Player characters with background, gear, social energy
 - **NPC** — Non-player characters with agendas and memory
-- **FactionStanding** — Reputation with each of the six factions
+- **FactionStanding** — Reputation with each of the eleven factions
 - **DormantThread** — Delayed consequences waiting to trigger
 - **HistoryEntry** — Chronicle and canon records
+- **EndgameReadiness** — Multi-factor score tracking campaign conclusion readiness
 
 ## Tools
 
@@ -247,6 +251,7 @@ pytest
 - [x] Dormant thread triggering
 - [x] Obsidian wiki integration (auto-generated campaign notes)
 - [x] Bi-directional sync (wiki edits update game state)
+- [x] Endgame system (readiness tracking, epilogue sessions)
 - [ ] Between-missions phase
 - [ ] 10 golden transcripts
 - [ ] Boundary test suite

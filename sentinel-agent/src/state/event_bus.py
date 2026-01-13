@@ -63,6 +63,11 @@ class EventType(Enum):
     JOB_FAILED = "job.failed"
     JOB_ABANDONED = "job.abandoned"
 
+    # Endgame events
+    READINESS_UPDATED = "endgame.readiness_updated"
+    EPILOGUE_STARTED = "endgame.epilogue_started"
+    CAMPAIGN_CONCLUDED = "endgame.campaign_concluded"
+
 
 @dataclass
 class GameEvent:

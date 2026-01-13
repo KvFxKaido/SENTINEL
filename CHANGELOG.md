@@ -33,6 +33,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Dual-cost mechanic: 2 tokens per session + standing cost (varies by disposition)
 - Standing costs: LOYAL=base, WARM=1.5x, NEUTRAL=2.5x
 
+**Endgame System**
+- CampaignStatus enum: active, approaching_end, epilogue, concluded
+- EndgameReadiness model tracking hinges, arcs, factions, threads
+- Multi-factor readiness scoring (hinges 30%, arcs 25%, threads 25%, factions 20%)
+- `/endgame` command to view readiness breakdown with visual bars
+- `/endgame begin` to start epilogue phase (surfaces all dormant threads)
+- `/endgame conclude` to mark campaign complete with summary
+- `/retire` command as graceful narrative alias for beginning epilogue
+- Player goal tracking from debrief fourth question
+- `systems/endgame.py` with EndgameSystem class
+- `prompts/phases/epilogue.md` with GM guidance for final session
+- No failure state — all endings are valid conclusions
+
 **TUI Architecture**
 - Event bus (`state/event_bus.py`) for decoupled state-to-UI communication
 - Reactive visual feedback — CSS classes for energy drain/gain and faction shift pulses

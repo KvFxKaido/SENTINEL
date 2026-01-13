@@ -122,6 +122,7 @@ class CampaignManager:
         self._leverage_system = None
         self._arc_system = None
         self._job_system = None
+        self._endgame_system = None
 
     @property
     def leverage(self):
@@ -146,6 +147,14 @@ class CampaignManager:
             from ..systems.jobs import JobSystem
             self._job_system = JobSystem(self)
         return self._job_system
+
+    @property
+    def endgame(self):
+        """Get the endgame system (lazy initialization)."""
+        if self._endgame_system is None:
+            from ..systems.endgame import EndgameSystem
+            self._endgame_system = EndgameSystem(self)
+        return self._endgame_system
 
     # -------------------------------------------------------------------------
     # Memvid Integration
@@ -1954,6 +1963,34 @@ class CampaignManager:
     def format_arcs_for_gm(self, character_id: str | None = None) -> str:
         """Format arcs for GM context. Delegates to ArcSystem."""
         return self.arcs.format_arcs_for_gm(character_id)
+
+    # -------------------------------------------------------------------------
+    # Endgame System (delegated to EndgameSystem)
+    # -------------------------------------------------------------------------
+
+    def update_endgame_readiness(self):
+        """Recalculate endgame readiness scores. Delegates to EndgameSystem."""
+        return self.endgame.update_readiness()
+
+    def track_player_goal(self, goal: str) -> None:
+        """Track player's stated goal from debrief. Delegates to EndgameSystem."""
+        self.endgame.track_player_goal(goal)
+
+    def begin_epilogue(self) -> dict:
+        """Begin epilogue phase. Delegates to EndgameSystem."""
+        return self.endgame.begin_epilogue()
+
+    def cancel_epilogue(self) -> dict:
+        """Cancel epilogue and return to active play. Delegates to EndgameSystem."""
+        return self.endgame.cancel_epilogue()
+
+    def conclude_campaign(self) -> dict:
+        """Mark campaign as concluded. Delegates to EndgameSystem."""
+        return self.endgame.conclude_campaign()
+
+    def get_endgame_readiness(self) -> dict:
+        """Get formatted readiness info for display. Delegates to EndgameSystem."""
+        return self.endgame.get_readiness_display()
 
     # -------------------------------------------------------------------------
     # Utilities

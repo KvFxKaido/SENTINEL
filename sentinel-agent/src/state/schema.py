@@ -223,6 +223,14 @@ class LeverageWeight(str, Enum):
     HEAVY = "heavy"      # Ultimatums, significant consequences
 
 
+class CampaignStatus(str, Enum):
+    """Campaign lifecycle status for endgame tracking."""
+    ACTIVE = "active"                    # Normal play
+    APPROACHING_END = "approaching_end"  # High readiness, suggestions surfacing
+    EPILOGUE = "epilogue"                # Final session in progress
+    CONCLUDED = "concluded"              # Campaign complete
+
+
 # -----------------------------------------------------------------------------
 # Core Models
 # -----------------------------------------------------------------------------
@@ -850,6 +858,65 @@ class HistoryEntry(BaseModel):
     event_id: str | None = None
 
 
+# -----------------------------------------------------------------------------
+# Endgame System
+# -----------------------------------------------------------------------------
+
+class EndgameReadiness(BaseModel):
+    """
+    Tracks factors contributing to campaign conclusion readiness.
+
+    The endgame system monitors accumulated play (hinges, arcs, faction extremes,
+    thread pressure) to suggest when a campaign might be ready to conclude.
+    Player always chooses when to end — this just provides visibility.
+    """
+
+    # Individual factor scores (0.0-1.0)
+    hinge_score: float = 0.0       # Based on count + thematic convergence
+    arc_score: float = 0.0         # Based on accepted arcs + reinforcement
+    faction_score: float = 0.0     # Based on extremes (very high/low standings)
+    thread_score: float = 0.0      # Based on dormant thread count + age
+
+    # Player-stated goals (tracked from debrief fourth question)
+    player_goals: list[str] = Field(default_factory=list)  # "What would 'enough' look like?"
+    goals_met: list[str] = Field(default_factory=list)     # Goals detected as achieved
+
+    @property
+    def overall_score(self) -> float:
+        """Weighted average of all factors (0.0-1.0)."""
+        return (
+            self.hinge_score * 0.30 +
+            self.arc_score * 0.25 +
+            self.faction_score * 0.20 +
+            self.thread_score * 0.25
+        )
+
+    @property
+    def readiness_level(self) -> str:
+        """Human-readable readiness level."""
+        score = self.overall_score
+        if score >= 0.8:
+            return "ready"           # "Your story has come full circle"
+        elif score >= 0.6:
+            return "approaching"     # "Threads are converging"
+        elif score >= 0.4:
+            return "developing"      # "Patterns are emerging"
+        else:
+            return "early"           # "Your story is still unfolding"
+
+    @property
+    def readiness_message(self) -> str:
+        """Narrative description of readiness level."""
+        level = self.readiness_level
+        messages = {
+            "ready": "Your story has come full circle. The threads are ready to be resolved.",
+            "approaching": "Threads are converging. Your choices are beginning to demand resolution.",
+            "developing": "Patterns are emerging. Your story is taking shape.",
+            "early": "Your story is still unfolding. There is more to discover.",
+        }
+        return messages.get(level, messages["early"])
+
+
 class CampaignMeta(BaseModel):
     """Campaign metadata."""
     id: str = Field(default_factory=generate_id)
@@ -858,6 +925,11 @@ class CampaignMeta(BaseModel):
     session_count: int = 0
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
+
+    # Endgame tracking
+    status: CampaignStatus = CampaignStatus.ACTIVE
+    endgame_readiness: EndgameReadiness = Field(default_factory=EndgameReadiness)
+    epilogue_session: int | None = None  # Session number when epilogue began
 
 
 class NPCRegistry(BaseModel):
@@ -1083,7 +1155,7 @@ class Campaign(BaseModel):
     This is the root model that gets serialized to JSON.
     Versioned for migration support.
     """
-    schema_version: str = "1.4.0"  # Added Geography and Favor systems
+    schema_version: str = "1.5.0"  # Added Endgame system
     saved_at: datetime = Field(default_factory=datetime.now)
 
     meta: CampaignMeta
