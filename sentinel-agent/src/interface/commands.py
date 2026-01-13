@@ -1469,7 +1469,17 @@ def cmd_start(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
 
 
 def cmd_mission(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
-    """Get a new mission from the GM."""
+    """
+    View pending missions or request a new one from the GM.
+
+    Usage:
+        /mission              - View pending mission offers
+        /mission accept <n>   - Accept mission offer n
+        /mission decline <n>  - Decline mission offer n
+        /mission new [hint]   - Request a new mission from the GM
+    """
+    from ..state.schema import Urgency
+
     if not manager.current:
         console.print("[yellow]Load or create a campaign first[/yellow]")
         return None
@@ -1478,22 +1488,89 @@ def cmd_mission(manager: CampaignManager, agent: SentinelAgent, args: list[str])
         console.print("[yellow]Create a character first (/char)[/yellow]")
         return None
 
-    if not agent.is_available:
-        console.print("[yellow]No LLM backend available[/yellow]")
+    subcmd = args[0].lower() if args else ""
+
+    # Subcommand: accept
+    if subcmd == "accept" and len(args) > 1:
+        try:
+            idx = int(args[1]) - 1
+            pending = manager.missions.get_pending_offers()
+            if idx < 0 or idx >= len(pending):
+                console.print(f"[{THEME['warning']}]Invalid mission number[/{THEME['warning']}]")
+                return None
+            result = manager.missions.accept_offer(pending[idx].id)
+            if "error" in result:
+                console.print(f"[{THEME['warning']}]{result['error']}[/{THEME['warning']}]")
+            else:
+                console.print(f"[{THEME['success']}]Accepted: {pending[idx].title}[/{THEME['success']}]")
+                console.print(f"[{THEME['dim']}]{pending[idx].situation}[/{THEME['dim']}]")
+        except ValueError:
+            console.print(f"[{THEME['warning']}]Usage: /mission accept <number>[/{THEME['warning']}]")
         return None
 
-    # Optional: let player specify a faction or type preference
-    hint = " ".join(args) if args else ""
+    # Subcommand: decline
+    if subcmd == "decline" and len(args) > 1:
+        try:
+            idx = int(args[1]) - 1
+            pending = manager.missions.get_pending_offers()
+            if idx < 0 or idx >= len(pending):
+                console.print(f"[{THEME['warning']}]Invalid mission number[/{THEME['warning']}]")
+                return None
+            result = manager.missions.decline_offer(pending[idx].id)
+            if "error" in result:
+                console.print(f"[{THEME['warning']}]{result['error']}[/{THEME['warning']}]")
+            else:
+                console.print(f"[{THEME['dim']}]Declined: {pending[idx].title}[/{THEME['dim']}]")
+        except ValueError:
+            console.print(f"[{THEME['warning']}]Usage: /mission decline <number>[/{THEME['warning']}]")
+        return None
 
-    prompt = (
-        "Generate a mission briefing for me. Consider my current faction standings "
-        "and any dormant threads that might be relevant. Present the situation, "
-        "who's asking, what's at stake, and the competing truths involved."
-    )
-    if hint:
-        prompt += f" I'm particularly interested in: {hint}"
+    # Subcommand: new — request a new mission from GM
+    if subcmd == "new":
+        if not agent.is_available:
+            console.print("[yellow]No LLM backend available[/yellow]")
+            return None
 
-    return ("gm_prompt", prompt)
+        hint = " ".join(args[1:]) if len(args) > 1 else ""
+        prompt = (
+            "Generate a mission briefing for me. Consider my current faction standings "
+            "and any dormant threads that might be relevant. Present the situation, "
+            "who's asking, what's at stake, and the competing truths involved. "
+            "Include the urgency level: routine, pressing, urgent, or critical."
+        )
+        if hint:
+            prompt += f" I'm particularly interested in: {hint}"
+        return ("gm_prompt", prompt)
+
+    # Default: show pending offers
+    pending = manager.missions.get_pending_offers()
+
+    # Urgency colors
+    urgency_colors = {
+        Urgency.ROUTINE: THEME["dim"],
+        Urgency.PRESSING: THEME["primary"],
+        Urgency.URGENT: THEME["warning"],
+        Urgency.CRITICAL: THEME["danger"],
+    }
+
+    if pending:
+        console.print(f"\n[bold {THEME['primary']}]◈ PENDING MISSIONS ◈[/bold {THEME['primary']}]")
+        for i, offer in enumerate(pending, 1):
+            indicator = manager.missions.get_urgency_indicator(offer.urgency)
+            deadline = manager.missions.get_deadline_text(offer)
+            color = urgency_colors.get(offer.urgency, THEME["text"])
+
+            console.print(f"\n[{color}]{i}. {indicator} {offer.title}[/{color}]")
+            console.print(f"   [{THEME['dim']}]From: {offer.requestor}  |  {deadline}[/{THEME['dim']}]")
+            console.print(f"   {offer.situation[:80]}{'...' if len(offer.situation) > 80 else ''}")
+
+        console.print(f"\n[{THEME['dim']}]/mission accept <n> to take on a mission[/{THEME['dim']}]")
+        console.print(f"[{THEME['dim']}]/mission new to request something else[/{THEME['dim']}]")
+    else:
+        console.print(f"\n[{THEME['dim']}]No pending mission offers.[/{THEME['dim']}]")
+        console.print(f"[{THEME['dim']}]Use /mission new to request a mission from the GM.[/{THEME['dim']}]")
+
+    return None
 
 
 def cmd_jobs(manager: CampaignManager, agent: SentinelAgent, args: list[str]):

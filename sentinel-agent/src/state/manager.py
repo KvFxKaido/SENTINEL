@@ -123,6 +123,7 @@ class CampaignManager:
         self._arc_system = None
         self._job_system = None
         self._endgame_system = None
+        self._mission_system = None
 
     @property
     def leverage(self):
@@ -155,6 +156,14 @@ class CampaignManager:
             from ..systems.endgame import EndgameSystem
             self._endgame_system = EndgameSystem(self)
         return self._endgame_system
+
+    @property
+    def missions(self):
+        """Get the mission system (lazy initialization)."""
+        if self._mission_system is None:
+            from ..systems.missions import MissionSystem
+            self._mission_system = MissionSystem(self)
+        return self._mission_system
 
     # -------------------------------------------------------------------------
     # Memvid Integration
@@ -743,6 +752,9 @@ class CampaignManager:
 
         # Auto-refresh job board for next session
         self.jobs.refresh_board()
+
+        # Check for expired mission offers and trigger consequences
+        self.missions.check_deadlines()
 
         self.save_campaign()
         return entry

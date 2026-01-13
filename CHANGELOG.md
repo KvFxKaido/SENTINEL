@@ -64,6 +64,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 **Session Flow**
 - Auto job board refresh at session boundaries (on debrief completion)
 - New jobs appear automatically when a new session begins
+- Mission deadline checks trigger escalation at session end
+
+**Mission System (Time-Sensitive Story Opportunities)**
+- `Urgency` enum: routine, pressing, urgent, critical
+- `MissionOffer` model with deadline tracking and consequence definitions
+- `systems/missions.py` with MissionSystem class
+- `/mission` command to view pending offers, accept, decline, or request new
+- Urgency tiers with escalating deadlines: routine (none), pressing (2 sessions), urgent (1 session), critical (this session)
+- Escalation on ignored missions: faction standing loss, dormant thread creation, NPC disposition shifts
+- Visual indicators: ○ routine, ◐ pressing, ● urgent, ◉ critical
+- Distinct from jobs — missions are story-driven, jobs are transactional work-for-hire
 
 **TUI Architecture**
 - Event bus (`state/event_bus.py`) for decoupled state-to-UI communication
