@@ -172,6 +172,7 @@ class ArcType(str, Enum):
     SURVIVOR = "survivor"      # Self-preservation, trust issues
     PROTECTOR = "protector"    # Shields others, takes hits for allies
     SEEKER = "seeker"          # Truth-focused, uncovers secrets
+    AUTONOMIST = "autonomist"  # Values independence, opposes coercion
 
 
 class ArcStatus(str, Enum):
@@ -430,6 +431,17 @@ ARC_PATTERNS: dict[ArcType, dict] = {
             "You notice inconsistencies others miss",
             "Some secrets are dangerous to know",
             "The truth isn't always liberating",
+        ],
+    },
+    ArcType.AUTONOMIST: {
+        # Core keywords (voluntary action, opposition to control)
+        "keywords": ["voluntary", "cooperation", "choice", "framework", "coercion", "coercive", "force", "autonomy", "independence"],
+        "title_templates": ["The Free Agent", "Framework Architect", "The Uncollared"],
+        "description": "Your character values independence and opposes coercion, preferring systems that preserve choice.",
+        "effects": [
+            "Factions recognize you won't be controlled",
+            "You're trusted to broker voluntary agreements",
+            "Accepting constraints feels like betrayal of self",
         ],
     },
 }
