@@ -35,6 +35,7 @@ from .store import CampaignStore, JsonCampaignStore, EventQueueStore
 from .memvid_adapter import MemvidAdapter, create_memvid_adapter, MEMVID_AVAILABLE
 from .wiki_adapter import WikiAdapter, create_wiki_adapter
 from .wiki_watcher import WikiWatcher
+from .event_bus import get_event_bus, EventType
 
 # Lazy import for systems to avoid circular imports
 _leverage_system = None
@@ -467,6 +468,14 @@ class CampaignManager:
             # Initialize adapters for this campaign
             self._init_memvid_for_campaign(campaign.meta.id)
             self._init_wiki_for_campaign(campaign.meta.id)
+
+            # Emit event for UI updates
+            get_event_bus().emit(
+                EventType.CAMPAIGN_LOADED,
+                campaign_id=campaign.meta.id,
+                session=campaign.meta.session_count,
+                name=campaign.meta.name,
+            )
 
             return campaign
 
@@ -1051,6 +1060,17 @@ class CampaignManager:
 
         self.save_campaign()
 
+        # Emit event for UI updates
+        get_event_bus().emit(
+            EventType.NPC_ADDED,
+            campaign_id=self.current.meta.id,
+            session=self.current.meta.session_count,
+            npc_id=npc.id,
+            npc_name=npc.name,
+            faction=npc.faction.value if npc.faction else None,
+            active=active,
+        )
+
     def get_npc(self, npc_id: str) -> NPC | None:
         """Get NPC by ID."""
         if not self.current:
@@ -1118,6 +1138,17 @@ class CampaignManager:
         after = npc.disposition.value
 
         self.save_campaign()
+
+        # Emit event for UI updates
+        get_event_bus().emit(
+            EventType.NPC_DISPOSITION_CHANGED,
+            campaign_id=self.current.meta.id,
+            session=self.current.meta.session_count,
+            npc_id=npc_id,
+            npc_name=npc.name,
+            before=before,
+            after=after,
+        )
 
         return {
             "npc_id": npc_id,
@@ -1207,6 +1238,18 @@ class CampaignManager:
         triggered = self.check_npc_triggers(tags)
 
         self.save_campaign()
+
+        # Emit event for UI updates
+        get_event_bus().emit(
+            EventType.FACTION_CHANGED,
+            campaign_id=self.current.meta.id,
+            session=self.current.meta.session_count,
+            faction=faction.value,
+            before=before.value,
+            after=after.value,
+            reason=reason,
+            cascades=cascades,
+        )
 
         return {
             "faction": faction.value,
@@ -1456,6 +1499,17 @@ class CampaignManager:
             self._wiki.save_dormant_thread(thread)
 
         self.save_campaign()
+
+        # Emit event for UI updates
+        get_event_bus().emit(
+            EventType.THREAD_QUEUED,
+            campaign_id=self.current.meta.id,
+            session=self.current.meta.session_count,
+            thread_id=thread.id,
+            origin=origin,
+            trigger_condition=trigger_condition,
+            severity=severity,
+        )
 
         return thread
 

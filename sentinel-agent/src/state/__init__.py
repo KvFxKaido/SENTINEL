@@ -26,6 +26,13 @@ from .memvid_adapter import (
     FrameType,
     MEMVID_AVAILABLE,
 )
+from .event_bus import (
+    EventBus,
+    EventType,
+    GameEvent,
+    get_event_bus,
+    reset_event_bus,
+)
 
 __all__ = [
     # Schema
@@ -56,4 +63,10 @@ __all__ = [
     "create_memvid_adapter",
     "FrameType",
     "MEMVID_AVAILABLE",
+    # Event Bus
+    "EventBus",
+    "EventType",
+    "GameEvent",
+    "get_event_bus",
+    "reset_event_bus",
 ]
