@@ -25,6 +25,7 @@ SENTINEL/
 │   │   ├── systems/              # Domain logic modules
 │   │   │   ├── jobs.py           # Job board, templates, lifecycle
 │   │   │   ├── favors.py         # NPC favor system
+│   │   │   ├── endgame.py        # Readiness tracking, epilogue
 │   │   │   ├── leverage.py       # Enhancement demands
 │   │   │   └── arcs.py           # Character arc detection
 │   │   └── interface/
@@ -137,6 +138,16 @@ Faction-specific jobs available based on location and standing:
 - **Location-aware:** At Faction HQ, see that faction's jobs; at Market, see Wanderer jobs
 - **Requirements:** Jobs can require region, vehicle type, or vehicle tags
 - **Commands:** `/jobs` lists available; `/jobs accept <n>` accepts; `/jobs status` shows active
+
+### Endgame System
+Player-initiated campaign conclusion with multi-factor readiness tracking:
+- **Campaign status:** ACTIVE → APPROACHING_END → EPILOGUE → CONCLUDED
+- **Readiness factors:** Hinges (30%), arcs (25%), threads (25%), factions (20%)
+- **Readiness levels:** early (<40%), developing (40-60%), approaching (60-80%), ready (≥80%)
+- **Player goals:** Tracked from debrief fourth question ("What would 'enough' look like?")
+- **Epilogue:** Final session surfaces ALL dormant threads; presents culmination hinges
+- **Philosophy:** No failure state — "hostile to all factions" is a valid ending
+- **Commands:** `/endgame` views readiness; `/endgame begin` starts epilogue; `/retire` is narrative alias
 
 ### Memvid Campaign Memory (Optional)
 Semantic search over campaign history using [memvid](https://github.com/memvid/memvid). Stores hinges, NPC interactions, faction shifts as queryable frames.

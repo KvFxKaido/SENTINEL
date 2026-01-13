@@ -3903,6 +3903,143 @@ def cmd_favor(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
         console.print(f"\n{result['narrative_hint']}")
 
 
+def cmd_endgame(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
+    """
+    View endgame readiness and manage campaign conclusion.
+
+    Usage:
+        /endgame           View readiness breakdown
+        /endgame begin     Start epilogue phase
+        /endgame cancel    Cancel epilogue, return to play
+        /endgame conclude  Mark campaign as concluded
+    """
+    if not manager.current:
+        console.print(f"[{THEME['warning']}]No campaign loaded[/{THEME['warning']}]")
+        return
+
+    readiness = manager.get_endgame_readiness()
+
+    if "error" in readiness:
+        console.print(f"[{THEME['warning']}]{readiness['error']}[/{THEME['warning']}]")
+        return
+
+    if not args:
+        # Show readiness breakdown
+        console.print(f"\n[bold {THEME['accent']}]◈ ENDGAME READINESS[/bold {THEME['accent']}]")
+        console.print(f"[{THEME['dim']}]{readiness['readiness_message']}[/{THEME['dim']}]")
+
+        # Status
+        status = readiness["status"]
+        status_display = status.upper().replace("_", " ")
+        console.print(f"\n[{THEME['text']}]Status: {status_display}[/{THEME['text']}]")
+
+        # Readiness scores
+        console.print(f"\n[{THEME['text']}]Readiness Factors:[/{THEME['text']}]")
+        for key, data in readiness["scores"].items():
+            score = data["score"]
+            pct = int(score * 100)
+            bar_filled = int(score * 10)
+            bar_empty = 10 - bar_filled
+            bar = "█" * bar_filled + "░" * bar_empty
+            console.print(f"  {data['label']:10} {bar} {pct:3}%  [{THEME['dim']}]{data['description']}[/{THEME['dim']}]")
+
+        # Overall
+        overall = readiness["overall_score"]
+        overall_pct = int(overall * 100)
+        level = readiness["readiness_level"].upper()
+        console.print(f"\n[bold {THEME['accent']}]Overall: {level} ({overall_pct}%)[/bold {THEME['accent']}]")
+
+        # Player goals
+        if readiness["player_goals"]:
+            console.print(f"\n[{THEME['text']}]Your stated goals:[/{THEME['text']}]")
+            for goal in readiness["player_goals"]:
+                console.print(f"  [{THEME['dim']}]• {goal}[/{THEME['dim']}]")
+
+        # Instructions
+        if readiness["can_begin_epilogue"]:
+            if status in ["active", "approaching_end"]:
+                console.print(f"\n[{THEME['accent']}]Ready for conclusion. Use /endgame begin to start epilogue.[/{THEME['accent']}]")
+            elif status == "epilogue":
+                console.print(f"\n[{THEME['warning']}]Epilogue in progress. Use /endgame conclude when finished.[/{THEME['warning']}]")
+        else:
+            console.print(f"\n[{THEME['dim']}]Continue playing to accumulate more narrative weight.[/{THEME['dim']}]")
+        return
+
+    subcommand = args[0].lower()
+
+    if subcommand == "begin":
+        result = manager.begin_epilogue()
+
+        if "error" in result:
+            console.print(f"[{THEME['danger']}]{result['error']}[/{THEME['danger']}]")
+            if "suggestion" in result:
+                console.print(f"[{THEME['dim']}]{result['suggestion']}[/{THEME['dim']}]")
+            return
+
+        console.print(f"\n[bold {THEME['accent']}]═══ EPILOGUE BEGINS ═══[/bold {THEME['accent']}]")
+        console.print(f"[{THEME['text']}]Your story reaches its conclusion. All threads surface now.[/{THEME['text']}]")
+
+        threads = result.get("threads_to_surface", [])
+        if threads:
+            console.print(f"\n[{THEME['warning']}]Dormant threads surfacing:[/{THEME['warning']}]")
+            for thread in threads:
+                console.print(f"  [{THEME['dim']}]• {thread['description']} (Session {thread['created_session']})[/{THEME['dim']}]")
+
+        goals = result.get("player_goals", [])
+        if goals:
+            console.print(f"\n[{THEME['text']}]Your goals to resolve:[/{THEME['text']}]")
+            for goal in goals:
+                console.print(f"  [{THEME['dim']}]• {goal}[/{THEME['dim']}]")
+
+        console.print(f"\n[{THEME['accent']}]When your story is complete: /endgame conclude[/{THEME['accent']}]")
+
+    elif subcommand == "cancel":
+        result = manager.cancel_epilogue()
+
+        if "error" in result:
+            console.print(f"[{THEME['danger']}]{result['error']}[/{THEME['danger']}]")
+            return
+
+        console.print(f"[{THEME['warning']}]Epilogue cancelled. Returning to active play.[/{THEME['warning']}]")
+
+    elif subcommand == "conclude":
+        result = manager.conclude_campaign()
+
+        if "error" in result:
+            console.print(f"[{THEME['danger']}]{result['error']}[/{THEME['danger']}]")
+            return
+
+        console.print(f"\n[bold {THEME['accent']}]═══ CAMPAIGN CONCLUDED ═══[/bold {THEME['accent']}]")
+        console.print(f"[bold {THEME['text']}]{result['campaign_name']}[/bold {THEME['text']}]")
+        console.print(f"[{THEME['dim']}]{result['session_count']} sessions played[/{THEME['dim']}]")
+
+        char = result.get("character", {})
+        console.print(f"\n[{THEME['text']}]{char.get('name', 'Unknown')}[/{THEME['text']}]")
+        if char.get("background"):
+            console.print(f"[{THEME['dim']}]{char['background']}[/{THEME['dim']}]")
+        console.print(f"[{THEME['dim']}]{char.get('hinge_count', 0)} defining choices made[/{THEME['dim']}]")
+
+        arc = result.get("primary_arc", {})
+        if arc.get("type"):
+            console.print(f"\n[{THEME['accent']}]Arc: {arc['title']} ({arc['type']})[/{THEME['accent']}]")
+
+        console.print(f"\n[{THEME['accent']}]Your story is complete. Thank you for playing.[/{THEME['accent']}]")
+
+    else:
+        console.print(f"[{THEME['warning']}]Unknown subcommand: {subcommand}[/{THEME['warning']}]")
+        console.print(f"[{THEME['dim']}]Usage: /endgame [begin|cancel|conclude][/{THEME['dim']}]")
+
+
+def cmd_retire(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
+    """
+    Gracefully retire your character and end the campaign.
+
+    This is an alias for /endgame begin with narrative framing.
+    """
+    console.print(f"\n[{THEME['text']}]Your character steps back from the life. One final reckoning awaits.[/{THEME['text']}]")
+    cmd_endgame(manager, agent, ["begin"])
+
+
 def cmd_shop(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
     """
     Browse and purchase items.
@@ -4058,6 +4195,10 @@ def register_all_commands():
                      handler=cmd_shop, available_when=has_character)
     register_command("/favor", "Call in a favor from an NPC", CommandCategory.MISSION,
                      handler=cmd_favor, available_when=has_campaign)
+    register_command("/endgame", "View readiness and manage campaign end", CommandCategory.MISSION,
+                     handler=cmd_endgame, available_when=has_campaign)
+    register_command("/retire", "Gracefully retire and end campaign", CommandCategory.MISSION,
+                     handler=cmd_retire, available_when=has_campaign)
     register_command("/debrief", "End session", CommandCategory.MISSION,
                      handler=cmd_debrief, available_when=has_session)
 
