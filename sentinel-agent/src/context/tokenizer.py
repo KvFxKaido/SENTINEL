@@ -15,7 +15,9 @@ try:
     import tiktoken
     _tiktoken_encoder = tiktoken.get_encoding("cl100k_base")
     _HAS_TIKTOKEN = True
-except ImportError:
+except (ImportError, Exception):
+    # Catch ImportError (tiktoken not installed) and any network/proxy errors
+    # during encoding download
     pass
 
 

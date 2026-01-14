@@ -439,6 +439,9 @@ class CampaignManager:
         meta = CampaignMeta(name=name)
         campaign = Campaign(meta=meta)
 
+        # Initialize snapshot for new campaign
+        campaign.last_session_snapshot = self._create_snapshot(campaign)
+
         # Close any existing adapters
         self._close_memvid()
         self._close_wiki()
