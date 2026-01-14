@@ -10,5 +10,16 @@ from .arcs import ArcSystem
 from .jobs import JobSystem
 from .favors import FavorSystem
 from .endgame import EndgameSystem
+from .interrupts import InterruptDetector, InterruptCandidate, InterruptTrigger, InterruptUrgency
 
-__all__ = ["LeverageSystem", "ArcSystem", "JobSystem", "FavorSystem", "EndgameSystem"]
+__all__ = [
+    "LeverageSystem",
+    "ArcSystem",
+    "JobSystem",
+    "FavorSystem",
+    "EndgameSystem",
+    "InterruptDetector",
+    "InterruptCandidate",
+    "InterruptTrigger",
+    "InterruptUrgency",
+]

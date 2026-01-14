@@ -8,10 +8,11 @@ Sections (ordered):
 1. System / Identity (static)
 2. Rules Reference (static, minimal)
 3. Canonical State Snapshot (dynamic, always)
-4. Campaign Memory Digest (dynamic, compressed)
-5. Recent Transcript Window (dynamic, rolling)
-6. Targeted Retrieval (dynamic, optional, budgeted)
-7. User Input (current turn)
+4. Ambient World State (dynamic, unseen deltas)
+5. Campaign Memory Digest (dynamic, compressed)
+6. Recent Transcript Window (dynamic, rolling)
+7. Targeted Retrieval (dynamic, optional, budgeted)
+8. User Input (current turn)
 """
 
 from dataclasses import dataclass, field
@@ -28,6 +29,7 @@ class PackSection(str, Enum):
     RULES_CORE = "rules_core"   # Core decision logic (always included)
     RULES_NARRATIVE = "rules_narrative"  # Narrative guidance (strain-aware)
     STATE = "state"             # Current campaign state snapshot
+    AMBIENT = "ambient"         # Ambient world state deltas
     DIGEST = "digest"           # Campaign memory digest (compressed history)
     WINDOW = "window"           # Recent transcript blocks
     RETRIEVAL = "retrieval"     # Lore/history retrieval
@@ -50,6 +52,7 @@ DEFAULT_BUDGETS: dict[PackSection, SectionBudget] = {
     PackSection.RULES_CORE: SectionBudget(tokens=2200, required=True, can_truncate=False),
     PackSection.RULES_NARRATIVE: SectionBudget(tokens=1000, required=False, can_truncate=True),
     PackSection.STATE: SectionBudget(tokens=1500, required=True, can_truncate=True),
+    PackSection.AMBIENT: SectionBudget(tokens=500, required=False, can_truncate=True),
     PackSection.DIGEST: SectionBudget(tokens=2000, required=False, can_truncate=True),
     PackSection.WINDOW: SectionBudget(tokens=3000, required=True, can_truncate=True),
     PackSection.RETRIEVAL: SectionBudget(tokens=1800, required=False, can_truncate=True),
@@ -63,6 +66,7 @@ LOCAL_BUDGETS: dict[PackSection, SectionBudget] = {
     PackSection.RULES_CORE: SectionBudget(tokens=600, required=True, can_truncate=False),
     PackSection.RULES_NARRATIVE: SectionBudget(tokens=0, required=False, can_truncate=True),  # Skip entirely
     PackSection.STATE: SectionBudget(tokens=800, required=True, can_truncate=True),
+    PackSection.AMBIENT: SectionBudget(tokens=200, required=False, can_truncate=True),
     PackSection.DIGEST: SectionBudget(tokens=0, required=False, can_truncate=True),  # Skip entirely
     PackSection.WINDOW: SectionBudget(tokens=2500, required=True, can_truncate=True),
     PackSection.RETRIEVAL: SectionBudget(tokens=0, required=False, can_truncate=True),  # Skip entirely
@@ -148,6 +152,7 @@ class PromptPacker:
         rules_core: str = "",
         rules_narrative: str = "",
         state: str = "",
+        ambient: str = "",
         digest: str = "",
         window: RollingWindow | None = None,
         retrieval: str = "",
@@ -163,6 +168,7 @@ class PromptPacker:
             rules_core: Core decision logic (always included, never cut)
             rules_narrative: Narrative guidance (strain-aware, cut under pressure)
             state: Current campaign state snapshot
+            ambient: Ambient world state deltas
             digest: Campaign memory digest
             window: Rolling window of transcript blocks
             retrieval: Lore/history retrieval content
@@ -184,7 +190,16 @@ class PromptPacker:
         # Include window estimate for accurate strain calculation
         preliminary_total = sum(
             self._counter.count(content)
-            for content in [system, rules_core, rules_narrative, state, digest, retrieval, user_input]
+            for content in [
+                system,
+                rules_core,
+                rules_narrative,
+                state,
+                ambient,
+                digest,
+                retrieval,
+                user_input,
+            ]
             if content
         )
         # Estimate window contribution (use budget as upper bound)
@@ -211,6 +226,7 @@ class PromptPacker:
             (PackSection.RULES_CORE, rules_core),
             (PackSection.RULES_NARRATIVE, rules_narrative if include_narrative else ""),
             (PackSection.STATE, state),
+            (PackSection.AMBIENT, ambient),
             (PackSection.DIGEST, digest),
             (PackSection.RETRIEVAL, retrieval),
             (PackSection.INPUT, user_input),
@@ -374,6 +390,7 @@ class PromptPacker:
             PackSection.RULES_CORE: "Core Decision Logic",
             PackSection.RULES_NARRATIVE: "Narrative Guidance",
             PackSection.STATE: "Current State",
+            PackSection.AMBIENT: "Ambient World State (weave naturally, don't list)",
             PackSection.DIGEST: "Campaign Memory",
             PackSection.WINDOW: "Recent Conversation",
             PackSection.RETRIEVAL: "Relevant Context",

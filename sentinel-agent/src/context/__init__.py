@@ -28,6 +28,7 @@ from .digest import (
     ThreadEntry,
     DigestSection,
 )
+from .ambient_context import extract_ambient_context
 
 __all__ = [
     # Tokenizer
@@ -53,4 +54,6 @@ __all__ = [
     "HingeEntry",
     "ThreadEntry",
     "DigestSection",
+    # Ambient context
+    "extract_ambient_context",
 ]

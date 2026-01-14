@@ -394,6 +394,34 @@ SESSION_SCHEMAS = [
     },
 ]
 
+# Interrupt tools
+INTERRUPT_SCHEMAS = [
+    {
+        "name": "npc_interrupt",
+        "description": "Deliver an NPC interrupt to the player. Use when prompted that an NPC wants to interrupt. The message should be in the NPC's voice.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "npc_name": {
+                    "type": "string",
+                    "description": "Name of the interrupting NPC",
+                },
+                "message": {
+                    "type": "string",
+                    "description": "What the NPC says (in character, 1-3 sentences)",
+                },
+                "urgency": {
+                    "type": "string",
+                    "enum": ["medium", "high", "critical"],
+                    "description": "How urgent this interrupt feels",
+                    "default": "medium",
+                },
+            },
+            "required": ["npc_name", "message"],
+        },
+    },
+]
+
 
 def get_all_schemas() -> list[dict]:
     """Get all tool schemas as a flat list."""
@@ -405,7 +433,8 @@ def get_all_schemas() -> list[dict]:
         CONSEQUENCE_SCHEMAS +
         ENHANCEMENT_SCHEMAS +
         LEVERAGE_SCHEMAS +
-        SESSION_SCHEMAS
+        SESSION_SCHEMAS +
+        INTERRUPT_SCHEMAS
     )
 
 
@@ -703,6 +732,18 @@ def create_default_registry(manager: "CampaignManager") -> ToolRegistry:
     def handle_set_phase(**kwargs) -> dict:
         return manager.set_phase(phase=kwargs["phase"])
 
+    # Interrupt handlers
+    def handle_npc_interrupt(
+        npc_name: str, message: str, urgency: str = "medium", **kwargs
+    ) -> dict:
+        """Signal TUI to show codec interrupt modal."""
+        return {
+            "interrupt": True,
+            "npc_name": npc_name,
+            "message": message,
+            "urgency": urgency,
+        }
+
     # Register all handlers
     registry.register_all({
         "roll_check": handle_roll_check,
@@ -724,6 +765,7 @@ def create_default_registry(manager: "CampaignManager") -> ToolRegistry:
         "escalate_demand": handle_escalate_demand,
         "resolve_leverage": handle_resolve_leverage,
         "set_phase": handle_set_phase,
+        "npc_interrupt": handle_npc_interrupt,
     })
 
     return registry

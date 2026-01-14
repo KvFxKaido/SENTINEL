@@ -12,6 +12,7 @@ from pathlib import Path
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical
 from textual.widgets import Static, Input, RichLog, LoadingIndicator, Button
+from textual.screen import Screen, ModalScreen
 from textual.binding import Binding
 from textual.reactive import reactive
 from textual import work
@@ -35,6 +36,7 @@ from .glyphs import g, energy_bar
 from .command_registry import get_registry
 from .commands import register_all_commands
 from .tui_commands import register_tui_handlers
+from .codec import render_codec_frame, NPCDisplay, Disposition, FACTION_COLORS
 
 
 def center_renderable(renderable: RenderableType, content_width: int, container_width: int) -> Padding:
@@ -547,6 +549,7 @@ class HeaderBar(Static):
 
         # Build header text
         header = Text()
+        header.append("◈ ", style=f"bold {Theme.ACCENT}")
         header.append("SENTINEL", style=f"bold {Theme.ACCENT}")
         header.append(f"  {g('bullet')}  ", style=Theme.DIM)
         header.append(clock, style=Theme.TEXT)
@@ -752,6 +755,252 @@ class WorldDock(Static):
         ))
 
 
+class PressurePanel(Static):
+    """Footer panel showing urgent world pressure."""
+
+    URGENCY_STYLE = {
+        "urgent": (Theme.DANGER, "🔴"),
+        "soon": (Theme.WARNING, "🟡"),
+        "later": (Theme.DIM, "🟢"),
+    }
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._items: list[dict] = []
+        self._session: int = 0
+
+    def update_items(self, items: list[dict], session: int) -> None:
+        self._items = items
+        self._session = session
+        self.refresh_display()
+
+    def refresh_display(self) -> None:
+        lines = [f"[{Theme.TEXT}]-- PRESSURE --[/{Theme.TEXT}]"]
+
+        if not self._items:
+            lines.append(f"[{Theme.DIM}](clear)[/{Theme.DIM}]")
+        else:
+            for item in self._items:
+                urgency = item.get("urgency", "later")
+                color, dot = self.URGENCY_STYLE.get(urgency, (Theme.DIM, "🟢"))
+                label = item.get("label", "")
+                countdown = item.get("countdown", "")
+                lines.append(f"[{color}]{dot} {label}{countdown}[/{color}]")
+
+        self.update(Panel(
+            Text.from_markup("\n".join(lines)),
+            title=f"[bold {Theme.TEXT}]PRESSURE[/bold {Theme.TEXT}]",
+            border_style=Theme.BORDER,
+            style=f"on {Theme.BG}",
+            padding=(0, 1),
+        ))
+
+
+class SessionBridgeScreen(ModalScreen):
+    """Screen showing changes since last session."""
+
+    CSS = f"""
+    SessionBridgeScreen {{
+        align: center middle;
+        background: {Theme.BG} 80%;
+    }}
+
+    #bridge-dialog {{
+        width: 60;
+        height: auto;
+        max-height: 80%;
+        background: {Theme.BG};
+        border: tall {Theme.BORDER};
+        padding: 1 2;
+    }}
+
+    #bridge-title {{
+        text-align: center;
+        color: {Theme.ACCENT};
+        text-style: bold;
+        border-bottom: solid {Theme.DIM};
+        margin-bottom: 1;
+    }}
+
+    .bridge-item {{
+        padding: 0 1;
+        color: {Theme.TEXT};
+    }}
+
+    #bridge-continue {{
+        width: 100%;
+        margin-top: 2;
+    }}
+    """
+
+    def __init__(self, changes: list[dict]):
+        super().__init__()
+        self.changes = changes
+
+    def compose(self) -> ComposeResult:
+        yield Container(
+            Static("WHILE YOU WERE AWAY", id="bridge-title"),
+            Vertical(id="bridge-list"),
+            Button("Access Terminal", variant="primary", id="bridge-continue"),
+            id="bridge-dialog"
+        )
+
+    def on_mount(self):
+        container = self.query_one("#bridge-list")
+        if not self.changes:
+            container.mount(Static("No significant changes detected.", classes="bridge-item"))
+            return
+
+        for change in self.changes:
+            # Determine icon/color based on type
+            icon = "•"
+            color = Theme.TEXT
+
+            if change.get("category") == "faction":
+                icon = g("faction")
+                color = Theme.WARNING
+            elif change.get("category") == "npc":
+                icon = g("npc_active")
+                color = Theme.ACCENT
+            elif change.get("category") == "thread":
+                icon = g("warning")
+                color = Theme.DANGER
+
+            text = Text()
+            text.append(f"{icon} ", style=color)
+            text.append(change["text"])
+
+            container.mount(Static(text, classes="bridge-item"))
+
+    def on_button_pressed(self, event: Button.Pressed):
+        if event.button.id == "bridge-continue":
+            self.dismiss()
+
+
+class CodecInterrupt(ModalScreen):
+    """MGS-style NPC interrupt modal."""
+
+    CSS = f"""
+    CodecInterrupt {{
+        align: center middle;
+        background: {Theme.BG} 90%;
+    }}
+
+    #interrupt-dialog {{
+        width: 70;
+        height: auto;
+        max-height: 80%;
+        background: {Theme.BG};
+        border: heavy {Theme.ACCENT};
+        padding: 1 2;
+    }}
+
+    #interrupt-header {{
+        text-align: center;
+        color: {Theme.WARNING};
+        text-style: bold;
+        margin-bottom: 1;
+    }}
+
+    #codec-frame {{
+        width: 100%;
+        height: auto;
+        margin-bottom: 1;
+    }}
+
+    #interrupt-message {{
+        padding: 1;
+        background: #1a1a1a;
+        border: solid {Theme.DIM};
+        margin-bottom: 1;
+    }}
+
+    #interrupt-buttons {{
+        width: 100%;
+        height: 3;
+        align: center middle;
+    }}
+
+    #interrupt-buttons Button {{
+        margin: 0 1;
+    }}
+    """
+
+    BINDINGS = [
+        Binding("r", "respond", "Respond"),
+        Binding("i", "ignore", "Ignore"),
+        Binding("l", "later", "Later"),
+        Binding("escape", "later", "Later"),
+    ]
+
+    def __init__(
+        self,
+        npc_name: str,
+        faction: str,
+        message: str,
+        urgency: str = "medium",
+        disposition: str = "neutral",
+    ):
+        super().__init__()
+        self.npc_name = npc_name
+        self.faction = faction
+        self.message = message
+        self.urgency = urgency
+        self.disposition = disposition
+
+    def compose(self) -> ComposeResult:
+        # Build codec frame for NPC
+        try:
+            disp_enum = Disposition(self.disposition.lower())
+        except ValueError:
+            disp_enum = Disposition.NEUTRAL
+
+        npc_display = NPCDisplay(
+            name=self.npc_name,
+            faction=self.faction,
+            disposition=disp_enum,
+        )
+        codec_art = render_codec_frame(npc_display, width=40, scanlines=False)
+
+        # Urgency header styling
+        urgency_color = {
+            "critical": Theme.DANGER,
+            "high": Theme.WARNING,
+            "medium": Theme.ACCENT,
+        }.get(self.urgency, Theme.ACCENT)
+
+        yield Container(
+            Static(f"[{urgency_color}]:: INCOMING TRANSMISSION ::[/{urgency_color}]", id="interrupt-header"),
+            Static(codec_art, id="codec-frame"),
+            Static(f'"{self.message}"', id="interrupt-message"),
+            Horizontal(
+                Button("Respond [R]", variant="primary", id="btn-respond"),
+                Button("Ignore [I]", variant="warning", id="btn-ignore"),
+                Button("Later [L]", variant="default", id="btn-later"),
+                id="interrupt-buttons",
+            ),
+            id="interrupt-dialog",
+        )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        button_id = event.button.id
+        if button_id == "btn-respond":
+            self.dismiss("respond")
+        elif button_id == "btn-ignore":
+            self.dismiss("ignore")
+        elif button_id == "btn-later":
+            self.dismiss("later")
+
+    def action_respond(self) -> None:
+        self.dismiss("respond")
+
+    def action_ignore(self) -> None:
+        self.dismiss("ignore")
+
+    def action_later(self) -> None:
+        self.dismiss("later")
+
+
 # =============================================================================
 # Main Application
 # =============================================================================
@@ -807,8 +1056,24 @@ class SentinelTUI(App):
         background: {Theme.FRIENDLY} 15%;
     }}
 
+    #self-dock.energy-critical {{
+        background: {Theme.DANGER} 20%;
+        border: solid {Theme.DANGER};
+    }}
+
     #world-dock.faction-shift {{
         background: {Theme.WARNING} 15%;
+        border: solid {Theme.WARNING};
+    }}
+
+    #world-dock.thread-surfaced {{
+        background: {Theme.WARNING} 12%;
+        border: solid {Theme.WARNING};
+    }}
+
+    #pressure-panel.consequence-urgent {{
+        background: {Theme.DANGER} 12%;
+        border: solid {Theme.DANGER};
     }}
 
     #center-column {{
@@ -912,16 +1177,28 @@ class SentinelTUI(App):
         border: tall {Theme.ACCENT};
     }}
 
-    #world-dock {{
+    #world-column {{
         width: 20vw;
         min-width: 24;
         max-width: 32;
         height: 100%;
+        layout: vertical;
+    }}
+
+    #world-column.hidden {{
+        display: none;
+    }}
+
+    #world-dock {{
+        height: 1fr;
         padding: 0;
     }}
 
-    #world-dock.hidden {{
-        display: none;
+    #pressure-panel {{
+        height: auto;
+        max-height: 10;
+        padding: 0;
+        margin-top: 1;
     }}
 
     /* Input styling */
@@ -1030,7 +1307,9 @@ class SentinelTUI(App):
                             yield Button("Save", id="btn-save", classes="action-btn")
                             yield Button("Clear", id="btn-clear", classes="action-btn")
                             yield Button("Copy", id="btn-copy", classes="action-btn")
-            yield WorldDock(id="world-dock")
+            with Container(id="world-column"):
+                yield WorldDock(id="world-dock")
+                yield PressurePanel(id="pressure-panel")
 
     def on_mount(self):
         """Initialize when app mounts."""
@@ -1046,6 +1325,8 @@ class SentinelTUI(App):
         bus.on(EventType.NPC_ADDED, self._on_npc_changed)
         bus.on(EventType.NPC_DISPOSITION_CHANGED, self._on_npc_changed)
         bus.on(EventType.THREAD_QUEUED, self._on_thread_queued)
+        bus.on(EventType.THREAD_SURFACED, self._on_thread_surfaced)
+        bus.on(EventType.ENHANCEMENT_CALLED, self._on_enhancement_called)
         bus.on(EventType.CAMPAIGN_LOADED, self._on_campaign_loaded)
         bus.on(EventType.SOCIAL_ENERGY_CHANGED, self._on_energy_changed)
 
@@ -1209,6 +1490,7 @@ class SentinelTUI(App):
         self.query_one("#header", HeaderBar).update_campaign(campaign)
         self.query_one("#self-dock", SelfDock).update_campaign(campaign)
         self.query_one("#world-dock", WorldDock).update_campaign(campaign)
+        self._refresh_pressure_panel()
 
         # Update context bar from agent's pack info (real token counts)
         context_bar = self.query_one("#context-bar", ContextBar)
@@ -1220,10 +1502,105 @@ class SentinelTUI(App):
         else:
             context_bar.update_pressure(0.0)
 
+    def _trim_pressure_text(self, text: str, limit: int = 26) -> str:
+        if len(text) <= limit:
+            return text
+        return text[:limit].rstrip() + "..."
+
+    def _build_pressure_items(self) -> list[dict]:
+        if not self.manager or not self.manager.current:
+            return []
+
+        campaign = self.manager.current
+        current_session = campaign.meta.session_count
+        items: list[dict] = []
+
+        def add_item(label: str, urgency: str, score: int, countdown: str = "") -> None:
+            items.append({
+                "label": label,
+                "urgency": urgency,
+                "countdown": countdown,
+                "score": score,
+            })
+
+        # Leverage demands
+        for demand in self.manager.get_pending_demands():
+            urgency = demand.get("urgency", "pending")
+            weight = demand.get("weight", "medium")
+            tier = "urgent" if urgency in ("critical", "urgent") else "soon"
+            if urgency == "pending" and weight in ("light",):
+                tier = "later"
+
+            countdown = ""
+            deadline_session = demand.get("deadline_session")
+            if deadline_session is not None:
+                if current_session > deadline_session:
+                    countdown = " OVERDUE"
+                    score = 500
+                elif current_session == deadline_session:
+                    countdown = " DUE"
+                    score = 450
+                else:
+                    remaining = deadline_session - current_session
+                    countdown = f" T-{remaining}"
+                    score = 300 + max(0, 20 - remaining)
+            else:
+                score = 260 if tier == "urgent" else 200 if tier == "soon" else 140
+
+            label = f"Demand: {demand.get('faction', '?')} - {self._trim_pressure_text(demand.get('demand', ''))}"
+            add_item(label, tier, score, countdown)
+
+        # Dormant threads
+        for thread in campaign.dormant_threads:
+            age = max(0, current_session - thread.created_session)
+            if thread.severity.value == "major" or age >= 4:
+                tier = "urgent"
+                score = 240 + age
+            elif thread.severity.value == "moderate" or age >= 2:
+                tier = "soon"
+                score = 180 + age
+            else:
+                tier = "later"
+                score = 120 + age
+
+            label = f"Thread: {self._trim_pressure_text(thread.origin)}"
+            add_item(label, tier, score)
+
+        # NPC silence
+        for npc in campaign.npcs.active:
+            if not npc.interactions:
+                continue
+            silence = current_session - npc.interactions[-1].session
+            if silence < 2:
+                continue
+            if silence >= 4:
+                tier = "urgent"
+                score = 220 + silence
+            else:
+                tier = "soon"
+                score = 170 + silence
+            label = f"NPC: {self._trim_pressure_text(npc.name, 18)} quiet {silence}s"
+            add_item(label, tier, score)
+
+        items.sort(key=lambda item: item["score"], reverse=True)
+        for item in items:
+            item.pop("score", None)
+        return items[:5]
+
+    def _refresh_pressure_panel(self) -> bool:
+        panel = self.query_one("#pressure-panel", PressurePanel)
+        if not self.manager or not self.manager.current:
+            panel.update_items([], 0)
+            return False
+
+        items = self._build_pressure_items()
+        panel.update_items(items, self.manager.current.meta.session_count)
+        return any(item.get("urgency") == "urgent" for item in items)
+
     def watch_docks_visible(self, visible: bool):
         """React to dock visibility changes."""
         self_dock = self.query_one("#self-dock")
-        world_dock = self.query_one("#world-dock")
+        world_dock = self.query_one("#world-column")
         if visible:
             self_dock.remove_class("hidden")
             world_dock.remove_class("hidden")
@@ -1301,6 +1678,7 @@ class SentinelTUI(App):
                 world_dock = self.query_one("#world-dock", WorldDock)
                 world_dock.update_campaign(self.manager.current if self.manager else None)
                 world_dock.refresh_display()
+                self._refresh_pressure_panel()
             except Exception:
                 pass
 
@@ -1313,6 +1691,7 @@ class SentinelTUI(App):
                 world_dock = self.query_one("#world-dock", WorldDock)
                 world_dock.update_campaign(self.manager.current if self.manager else None)
                 world_dock.refresh_display()
+                self._refresh_pressure_panel()
 
                 # Notify in output
                 log = self.query_one("#output-log", RichLog)
@@ -1325,11 +1704,45 @@ class SentinelTUI(App):
 
         self.call_from_thread(update)
 
+    def _on_thread_surfaced(self, event: GameEvent) -> None:
+        """Handle a surfaced thread - update WORLD dock with visual feedback."""
+        def update():
+            try:
+                world_dock = self.query_one("#world-dock", WorldDock)
+                world_dock.update_campaign(self.manager.current if self.manager else None)
+                world_dock.refresh_display()
+
+                world_dock.add_class("thread-surfaced")
+                self.set_timer(1.0, lambda: world_dock.remove_class("thread-surfaced"))
+
+                pressure_panel = self.query_one("#pressure-panel", PressurePanel)
+                has_urgent = self._refresh_pressure_panel()
+                if has_urgent:
+                    pressure_panel.add_class("consequence-urgent")
+                    self.set_timer(1.0, lambda: pressure_panel.remove_class("consequence-urgent"))
+
+                log = self.query_one("#output-log", RichLog)
+                severity = event.data.get("severity", "moderate")
+                log.write(Text.from_markup(
+                    f"[{Theme.WARNING}][ Thread surfaced ({severity}) ][/{Theme.WARNING}]"
+                ))
+            except Exception:
+                pass
+
+        self.call_from_thread(update)
+
     def _on_campaign_loaded(self, event: GameEvent) -> None:
         """Handle campaign load - refresh all panels."""
         def update():
             try:
                 self.refresh_all_panels()
+
+                # Check for session changes (bridge)
+                if self.manager:
+                    changes = self.manager.get_session_changes()
+                    if changes:
+                        self.push_screen(SessionBridgeScreen(changes))
+
             except Exception:
                 pass
 
@@ -1356,12 +1769,37 @@ class SentinelTUI(App):
                     self_dock.add_class("energy-gain")
                     self.set_timer(1.5, lambda: self_dock.remove_class("energy-gain"))
 
+                if after <= 25 and delta != 0:
+                    self_dock.add_class("energy-critical")
+                    self.set_timer(1.0, lambda: self_dock.remove_class("energy-critical"))
+
                 # Log the change
                 log = self.query_one("#output-log", RichLog)
                 color = Theme.FRIENDLY if delta > 0 else Theme.DANGER
                 direction = "+" if delta > 0 else ""
                 log.write(Text.from_markup(
                     f"[{color}][ Energy: {before}% → {after}% ({direction}{delta}) ][/{color}]"
+                ))
+            except Exception:
+                pass
+
+        self.call_from_thread(update)
+
+    def _on_enhancement_called(self, event: GameEvent) -> None:
+        """Handle leverage calls - refresh pressure panel with urgency pulse."""
+        def update():
+            try:
+                pressure_panel = self.query_one("#pressure-panel", PressurePanel)
+                has_urgent = self._refresh_pressure_panel()
+                if has_urgent:
+                    pressure_panel.add_class("consequence-urgent")
+                    self.set_timer(1.0, lambda: pressure_panel.remove_class("consequence-urgent"))
+
+                log = self.query_one("#output-log", RichLog)
+                faction = event.data.get("faction", "?")
+                demand = self._trim_pressure_text(event.data.get("demand", ""), 32)
+                log.write(Text.from_markup(
+                    f"[{Theme.DANGER}][ Leverage called by {faction}: {demand} ][/{Theme.DANGER}]"
                 ))
             except Exception:
                 pass
@@ -1394,6 +1832,100 @@ class SentinelTUI(App):
                 pass
 
         self.call_from_thread(update)
+
+    # -------------------------------------------------------------------------
+    # Codec Interrupt System
+    # -------------------------------------------------------------------------
+
+    async def show_codec_interrupt(
+        self,
+        npc_name: str,
+        faction: str,
+        message: str,
+        urgency: str = "medium",
+        disposition: str = "neutral",
+    ) -> str:
+        """Show codec interrupt modal and return player's choice."""
+        result = await self.push_screen_wait(
+            CodecInterrupt(
+                npc_name=npc_name,
+                faction=faction,
+                message=message,
+                urgency=urgency,
+                disposition=disposition,
+            )
+        )
+        return result  # "respond", "ignore", or "later"
+
+    def _handle_tool_result(self, tool_name: str, result: dict) -> None:
+        """Handle tool execution result, checking for interrupt signals."""
+        # Check if this is an interrupt signal
+        if result.get("interrupt"):
+            # Schedule showing the interrupt modal
+            self.call_later(self._show_pending_interrupt, result)
+            return
+
+        # Other tool result handling can be added here as needed
+
+    async def _show_pending_interrupt(self, interrupt_data: dict) -> None:
+        """Show the codec interrupt modal."""
+        npc_name = interrupt_data.get("npc_name", "Unknown")
+        message = interrupt_data.get("message", "...")
+        urgency = interrupt_data.get("urgency", "medium")
+
+        # Get NPC details if available
+        faction = "unknown"
+        disposition = "neutral"
+        if self.manager and self.manager.current:
+            for npc in self.manager.current.npcs.active:
+                if npc.name.lower() == npc_name.lower():
+                    faction = npc.faction.value if hasattr(npc.faction, 'value') else str(npc.faction)
+                    disposition = npc.disposition.value if hasattr(npc.disposition, 'value') else str(npc.disposition)
+                    break
+
+        response = await self.show_codec_interrupt(
+            npc_name=npc_name,
+            faction=faction,
+            message=message,
+            urgency=urgency,
+            disposition=disposition,
+        )
+
+        # Handle the response
+        await self._handle_interrupt_response(response, npc_name)
+
+    async def _handle_interrupt_response(self, response: str, npc_name: str) -> None:
+        """Handle player's response to interrupt."""
+        log = self.query_one("#output-log", RichLog)
+
+        if response == "respond":
+            log.write(Text.from_markup(
+                f"[{Theme.ACCENT}]You open the channel to {npc_name}...[/{Theme.ACCENT}]"
+            ))
+            # The GM will continue the conversation naturally
+
+        elif response == "ignore":
+            log.write(Text.from_markup(
+                f"[{Theme.WARNING}]You ignore {npc_name}'s transmission.[/{Theme.WARNING}]"
+            ))
+            # Add memory trigger to NPC
+            if self.manager and self.manager.current:
+                for npc in self.manager.current.npcs.active:
+                    if npc.name.lower() == npc_name.lower():
+                        # Add to NPC's memory triggers
+                        if not hasattr(npc, 'memory_triggers'):
+                            npc.memory_triggers = []
+                        npc.memory_triggers.append({
+                            "tag": "ignored_interrupt",
+                            "session": self.manager.current.meta.session_count,
+                        })
+                        self.manager.save_campaign()
+                        break
+
+        elif response == "later":
+            log.write(Text.from_markup(
+                f"[{Theme.DIM}]You'll deal with {npc_name} later...[/{Theme.DIM}]"
+            ))
 
     # Number key actions for choice selection
     def action_select_choice_1(self):
