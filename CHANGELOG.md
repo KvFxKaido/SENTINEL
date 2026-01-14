@@ -102,7 +102,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 **AI & Infrastructure**
 - Claude Code backend for AI GM
-- Gemini CLI backend for AI GM (1M token context, free tier)
+- Gemini CLI backend for AI GM (1M token context, 60 req/min free tier)
+- Codex CLI backend for AI GM (OpenAI o3/gpt-4o support)
+- CLI backend auto-detection (LM Studio → Ollama → Gemini CLI → Codex CLI → Claude Code)
+- Subscription-based authentication for all CLI backends (no API keys required)
 - Gemini CI workflows and Codex configuration
 - Security skills for vulnerability scanning
 - `/council` and `/deploy` skills for AI collaboration
