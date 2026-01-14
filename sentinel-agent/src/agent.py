@@ -17,6 +17,7 @@ from .state.event_bus import get_event_bus, EventType
 from .tools.registry import get_all_schemas, create_default_registry, ToolRegistry
 from .tools.subsets import get_tools_for_phase, get_minimal_tools
 from .tools.hinge_detector import detect_hinge, get_hinge_context
+from .systems.interrupts import InterruptDetector, InterruptCandidate
 from .prompts import PromptLoader
 from .llm.base import LLMClient, Message
 from .llm import create_llm_client
@@ -29,6 +30,7 @@ from .context import (
     RollingWindow,
     TranscriptBlock,
     format_strain_notice,
+    extract_ambient_context,
     LOCAL_BUDGETS,
 )
 
@@ -105,6 +107,9 @@ class SentinelAgent:
 
         # Tool registry (centralized in src/tools/registry.py)
         self.tool_registry = create_default_registry(self.manager)
+
+        # Interrupt detector for NPC interrupts
+        self._interrupt_detector = InterruptDetector()
 
         # Initialize prompt packer for context control
         # Local mode uses reduced budgets for 8k context models
@@ -299,6 +304,21 @@ class SentinelAgent:
 
         return "\n".join(lines)
 
+    def _format_interrupt_injection(self, candidate: InterruptCandidate) -> str:
+        """Format interrupt candidate for injection into system prompt."""
+        lines = [
+            "## PENDING INTERRUPT",
+            "",
+            f"**{candidate.npc_name}** ({candidate.faction}) wants to interrupt the player.",
+            "",
+            f"**Trigger:** {candidate.trigger.value} - {candidate.context}",
+            f"**Urgency:** {candidate.urgency.value}",
+            "",
+            "You SHOULD call the `npc_interrupt` tool to deliver their message.",
+            f"Write 1-3 sentences in {candidate.npc_name}'s voice based on the trigger context.",
+        ]
+        return "\n".join(lines)
+
     def _format_demand_alerts(self, demands: list[dict]) -> str:
         """Format demand deadline alerts for injection into system prompt."""
         lines = [
@@ -360,7 +380,7 @@ class SentinelAgent:
 
         # Get event bus for stage notifications
         bus = get_event_bus()
-        campaign_id = self.manager.current.id if self.manager.current else ""
+        campaign_id = self.manager.current.meta.id if self.manager.current else ""
 
         # Build messages for LLM
         messages = list(conversation or [])
@@ -381,6 +401,22 @@ class SentinelAgent:
 
         # Build dynamic hints (hinge detection, thread triggers, etc.)
         dynamic_hints = self._build_dynamic_hints(user_message)
+        ambient_context = (
+            extract_ambient_context(self.manager.current)
+            if self.manager and self.manager.current
+            else ""
+        )
+
+        # Check for pending interrupts
+        interrupt_candidate: InterruptCandidate | None = None
+        interrupt_injection = ""
+        if self.manager and self.manager.current:
+            interrupt_candidate = self._interrupt_detector.check_triggers(
+                self.manager.current
+            )
+
+        if interrupt_candidate:
+            interrupt_injection = self._format_interrupt_injection(interrupt_candidate)
 
         # Calculate preliminary strain for retrieval budget
         preliminary_pressure = self.packer.get_pressure(
@@ -388,6 +424,7 @@ class SentinelAgent:
             rules_core=sections["rules_core"],
             rules_narrative=sections["rules_narrative"],
             state=sections["state"] + "\n\n" + dynamic_hints if dynamic_hints else sections["state"],
+            ambient=ambient_context,
         )
         strain_tier = StrainTier.from_pressure(preliminary_pressure)
 
@@ -414,10 +451,16 @@ class SentinelAgent:
                 if retrieval_content else quote_context
             )
 
-        # Combine state with dynamic hints
+        # Combine state with dynamic hints and interrupt injection
         state_content = sections["state"]
-        if dynamic_hints:
-            state_content = state_content + "\n\n---\n\n" + dynamic_hints
+        combined_hints = dynamic_hints
+        if interrupt_injection:
+            combined_hints = (
+                interrupt_injection + "\n\n---\n\n" + dynamic_hints
+                if dynamic_hints else interrupt_injection
+            )
+        if combined_hints:
+            state_content = state_content + "\n\n---\n\n" + combined_hints
 
         # Stage: Packing prompt
         bus.emit(EventType.STAGE_PACKING_PROMPT, campaign_id=campaign_id,
@@ -431,6 +474,7 @@ class SentinelAgent:
             rules_core=sections["rules_core"],
             rules_narrative=sections["rules_narrative"],
             state=state_content,
+            ambient=ambient_context,
             window=self._conversation_window,
             retrieval=retrieval_content,
             user_input=user_message,
@@ -447,7 +491,7 @@ class SentinelAgent:
         # Stage: Awaiting LLM
         bus.emit(EventType.STAGE_AWAITING_LLM, campaign_id=campaign_id,
                  detail=f"Generating response via {self.client.model_name}",
-                 tokens=pack_info.total_packed)
+                 tokens=pack_info.total_tokens)
 
         # Use the client's tool loop
         def tool_executor(name: str, args: dict) -> dict:
@@ -466,6 +510,13 @@ class SentinelAgent:
         # Stage: Processing done
         bus.emit(EventType.STAGE_PROCESSING_DONE, campaign_id=campaign_id,
                  detail="Response complete")
+
+        # Mark interrupt as delivered if one was pending
+        if interrupt_candidate and self.manager.current:
+            self._interrupt_detector.mark_delivered(
+                self.manager.current.meta.id,
+                interrupt_candidate,
+            )
 
         # Update window with assistant response
         self._conversation_window.add_block(TranscriptBlock(

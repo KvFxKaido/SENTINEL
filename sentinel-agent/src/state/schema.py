@@ -1253,6 +1253,17 @@ class JobBoard(BaseModel):
     last_refresh_session: int = 0       # Session when board was last refreshed
 
 
+class CampaignSnapshot(BaseModel):
+    """Snapshot of campaign state for session bridging."""
+    timestamp: datetime = Field(default_factory=datetime.now)
+    session: int
+    factions: dict[FactionName, Standing] = Field(default_factory=dict)
+    # Store minimal NPC data: id -> (disposition, personal_standing)
+    npc_states: dict[str, dict] = Field(default_factory=dict)
+    # Threads: id -> severity
+    threads: dict[str, ThreadSeverity] = Field(default_factory=dict)
+
+
 class Campaign(BaseModel):
     """
     Complete campaign state.
@@ -1260,7 +1271,7 @@ class Campaign(BaseModel):
     This is the root model that gets serialized to JSON.
     Versioned for migration support.
     """
-    schema_version: str = "1.5.0"  # Added Endgame system
+    schema_version: str = "1.6.0"  # Added Session Bridging
     saved_at: datetime = Field(default_factory=datetime.now)
 
     meta: CampaignMeta
@@ -1287,6 +1298,9 @@ class Campaign(BaseModel):
 
     # Mission offers — time-sensitive story opportunities
     mission_offers: list[MissionOffer] = Field(default_factory=list)
+
+    # Session Bridging
+    last_session_snapshot: CampaignSnapshot | None = None
 
     def save_checkpoint(self) -> None:
         """Update timestamp before save."""

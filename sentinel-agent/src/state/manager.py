@@ -538,7 +538,131 @@ class CampaignManager:
             campaign.schema_version = "1.1.0"
             migrated = True
 
+        # v1.5.0 -> v1.6.0: Session Bridging
+        if _version_tuple(campaign.schema_version) < _version_tuple("1.6.0"):
+            if not campaign.last_session_snapshot:
+                # Create initial snapshot from current state
+                campaign.last_session_snapshot = self._create_snapshot(campaign)
+            campaign.schema_version = "1.6.0"
+            migrated = True
+
         return migrated
+
+    def _create_snapshot(self, campaign: Campaign) -> "CampaignSnapshot":
+        """Create a snapshot of current campaign state."""
+        from .schema import CampaignSnapshot
+
+        # Faction snapshot
+        factions = {
+            f: campaign.factions.get(f).standing
+            for f in FactionName
+        }
+
+        # NPC snapshot
+        npc_states = {}
+        for npc in campaign.npcs.active + campaign.npcs.dormant:
+            npc_states[npc.id] = {
+                "name": npc.name,
+                "disposition": npc.disposition,
+                "personal_standing": npc.personal_standing,
+                "active": npc in campaign.npcs.active
+            }
+
+        # Thread snapshot
+        threads = {t.id: t.severity for t in campaign.dormant_threads}
+
+        return CampaignSnapshot(
+            session=campaign.meta.session_count,
+            factions=factions,
+            npc_states=npc_states,
+            threads=threads,
+        )
+
+    def get_session_changes(self) -> list[dict]:
+        """
+        Compare current state to last session snapshot.
+
+        Returns list of changes:
+        [
+            {"type": "faction", "icon": "◆", "text": "Nexus: Neutral -> Friendly"},
+            {"type": "npc", "icon": "●", "text": "Ember: Hostile -> Wary"},
+            {"type": "thread", "icon": "⚠", "text": "New threat detected: ..."},
+        ]
+        """
+        if not self.current or not self.current.last_session_snapshot:
+            return []
+
+        changes = []
+        snap = self.current.last_session_snapshot
+        
+        # 1. Faction Changes
+        for faction in FactionName:
+            old_standing = snap.factions.get(faction)
+            new_standing = self.current.factions.get(faction).standing
+            
+            if old_standing and new_standing != old_standing:
+                changes.append({
+                    "type": "faction",
+                    "category": "faction",
+                    "id": faction.value,
+                    "old": old_standing.value,
+                    "new": new_standing.value,
+                    "text": f"{faction.value}: {old_standing.value} → {new_standing.value}"
+                })
+
+        # 2. NPC Changes
+        current_npcs = {
+            n.id: n for n in self.current.npcs.active + self.current.npcs.dormant
+        }
+        
+        for npc_id, npc in current_npcs.items():
+            old_state = snap.npc_states.get(npc_id)
+            
+            if not old_state:
+                # New NPC discovered
+                changes.append({
+                    "type": "npc_new",
+                    "category": "npc",
+                    "id": npc_id,
+                    "text": f"New Contact: {npc.name} ({npc.disposition.value})"
+                })
+            else:
+                # Check disposition change
+                if npc.disposition != old_state["disposition"]:
+                    changes.append({
+                        "type": "npc_disposition",
+                        "category": "npc",
+                        "id": npc_id,
+                        "old": old_state["disposition"].value,
+                        "new": npc.disposition.value,
+                        "text": f"{npc.name}: {old_state['disposition'].value} → {npc.disposition.value}"
+                    })
+                
+                # Check active/dormant flip
+                is_active = npc in self.current.npcs.active
+                was_active = old_state.get("active", False)
+                if is_active != was_active:
+                    status = "Active" if is_active else "Dormant"
+                    changes.append({
+                        "type": "npc_status",
+                        "category": "npc",
+                        "id": npc_id,
+                        "text": f"{npc.name} is now {status}"
+                    })
+
+        # 3. Thread Changes (New only)
+        current_threads = {t.id: t for t in self.current.dormant_threads}
+        for t_id, thread in current_threads.items():
+            if t_id not in snap.threads:
+                changes.append({
+                    "type": "thread_new",
+                    "category": "thread",
+                    "id": t_id,
+                    "severity": thread.severity.value,
+                    "text": f"New Thread: {thread.origin}"
+                })
+
+        return changes
 
     def _process_pending_events(self, campaign: Campaign) -> int:
         """
@@ -755,6 +879,9 @@ class CampaignManager:
 
         # Check for expired mission offers and trigger consequences
         self.missions.check_deadlines()
+
+        # Session Bridging: Update snapshot for next session comparison
+        self.current.last_session_snapshot = self._create_snapshot(self.current)
 
         self.save_campaign()
         return entry
@@ -1680,6 +1807,16 @@ class CampaignManager:
                     )
 
                 self.save_campaign()
+                get_event_bus().emit(
+                    EventType.THREAD_SURFACED,
+                    campaign_id=self.current.meta.id,
+                    session=self.current.meta.session_count,
+                    thread_id=activated.id,
+                    origin=activated.origin,
+                    consequence=activated.consequence,
+                    severity=activated.severity.value,
+                    activation_context=activation_context,
+                )
                 return activated
 
         return None
@@ -1929,8 +2066,31 @@ class CampaignManager:
                       threat_basis: list[str] | None = None, deadline: str | None = None,
                       deadline_sessions: int | None = None, consequences: list[str] | None = None) -> dict:
         """Call leverage on an enhancement. Delegates to LeverageSystem."""
-        return self.leverage.call_leverage(character_id, enhancement_id, demand, weight,
-                                           threat_basis, deadline, deadline_sessions, consequences)
+        result = self.leverage.call_leverage(
+            character_id,
+            enhancement_id,
+            demand,
+            weight,
+            threat_basis,
+            deadline,
+            deadline_sessions,
+            consequences,
+        )
+        if self.current and result and "error" not in result:
+            get_event_bus().emit(
+                EventType.ENHANCEMENT_CALLED,
+                campaign_id=self.current.meta.id,
+                session=self.current.meta.session_count,
+                character_id=character_id,
+                enhancement_id=enhancement_id,
+                demand=result.get("demand"),
+                demand_id=result.get("demand_id"),
+                faction=result.get("faction"),
+                weight=result.get("weight"),
+                deadline=result.get("deadline"),
+                deadline_session=result.get("deadline_session"),
+            )
+        return result
 
     def resolve_leverage(self, character_id: str, enhancement_id: str, response: str, outcome: str) -> dict:
         """Resolve a leverage demand. Delegates to LeverageSystem."""
