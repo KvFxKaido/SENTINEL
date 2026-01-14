@@ -32,22 +32,29 @@ SENTINEL supports both local and cloud backends.
 3. Ollama runs automatically after install
 4. Run the CLI — it auto-detects Ollama at localhost:11434
 
-### Cloud Backends: Gemini CLI & Claude Code
+### Cloud Backends: Gemini CLI, Codex CLI & Claude Code
 
-Both cloud backends work the same way: we invoke the official CLI tools and let them handle authentication through your existing subscription.
+All cloud backends work the same way: we invoke the official CLI tools and let them handle authentication through your existing subscription.
 
 | Backend | Install | Switch Command |
 |---------|---------|----------------|
 | [Gemini CLI](https://github.com/google-gemini/gemini-cli) | See GitHub for install | `/backend gemini` |
+| [Codex CLI](https://github.com/openai/codex) | `npm i -g @openai/codex` | `/backend codex` |
 | [Claude Code](https://claude.ai/code) | Download from website | `/backend claude` |
 
-**No API keys needed.** If you're logged into the CLI, SENTINEL just works — using whatever plan you're already paying for (Gemini Pro, Claude Pro, etc.).
+**No API keys needed.** If you're logged into the CLI, SENTINEL just works — using whatever plan you're already paying for (Gemini Pro, ChatGPT Plus, Claude Pro, etc.).
 
 #### Gemini CLI Features
 - **1M token context** — Can hold entire campaigns in memory
 - **Free tier available** — 60 requests/minute, 1000/day
 - **Native MCP support** — Can use sentinel-campaign tools directly
 - **GEMINI.md context** — Auto-reads project context for GM role
+
+#### Codex CLI Features
+- **Agentic capabilities** — Built for autonomous operation
+- **Model selection** — o3, gpt-4o, gpt-4o-mini
+- **Sandbox modes** — read-only, workspace-write, full-access
+- **AGENTS.md context** — Auto-reads project context for GM role
 
 #### Claude Code Features
 - **Best narrative quality** — Excels at NPC interactions, faction politics
@@ -60,7 +67,8 @@ The agent auto-detects backends in this order:
 1. **LM Studio** (localhost:1234) — free, local, native tool support
 2. **Ollama** (localhost:11434) — free, local, native tool support
 3. **Gemini CLI** — free tier, 1M context, native MCP support
-4. **Claude Code CLI** — uses your existing authentication
+4. **Codex CLI** — agentic, uses your existing OpenAI authentication
+5. **Claude Code CLI** — uses your existing Anthropic authentication
 
 Local backends are preferred for privacy, cost, and predictable context handling. Use `/backend <name>` to switch manually.
 
@@ -69,10 +77,11 @@ Local backends are preferred for privacy, cost, and predictable context handling
 | Priority | Recommendation |
 |----------|----------------|
 | Best narrative quality | Claude (via Claude Code) |
+| Best agentic capability | Codex CLI (OpenAI o3/gpt-4o) |
 | Free + huge context | Gemini CLI (1M tokens, 60 req/min free) |
 | Free + private | LM Studio or Ollama with 14B+ model |
 | Offline play | Local only |
-| Potato PC | Claude or Gemini (offload compute to cloud) |
+| Potato PC | Claude, Codex, or Gemini (offload compute to cloud) |
 
 Local models are fully playable — the mechanics work identically. Claude shines in nuanced NPC interactions, faction politics, and long-term consequence tracking. Think of it as a GM skill slider: local 7B models might forget context mid-scene, while Claude Opus will remember that throwaway comment you made three sessions ago and weave it into the plot.
 
@@ -95,6 +104,7 @@ sentinel-agent/
 │   │   ├── ollama.py      # Ollama backend
 │   │   ├── claude_code.py # Claude Code CLI backend
 │   │   ├── gemini_cli.py  # Gemini CLI backend (1M context)
+│   │   ├── codex_cli.py   # Codex CLI backend (OpenAI agentic)
 │   │   └── skills.py      # Skill-based tool invocation for CLI backends
 │   ├── context/           # Engine-owned context control
 │   │   ├── packer.py      # Prompt packing with token budgets

@@ -472,7 +472,7 @@ def tui_backend(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
     if not args:
         info = app.agent.backend_info if app.agent else {"backend": "none", "available": False}
         log.write(Text.from_markup(f"[{Theme.TEXT}]Current: {info.get('backend', 'none')}[/{Theme.TEXT}]"))
-        log.write(Text.from_markup(f"[{Theme.DIM}]Usage: /backend <lmstudio|ollama|claude|gemini>[/{Theme.DIM}]"))
+        log.write(Text.from_markup(f"[{Theme.DIM}]Usage: /backend <lmstudio|ollama|claude|gemini|codex>[/{Theme.DIM}]"))
     else:
         backend = args[0].lower()
         log.write(Text.from_markup(f"[{Theme.DIM}]Switching to {backend}...[/{Theme.DIM}]"))

@@ -216,20 +216,22 @@ SENTINEL supports both local and cloud backends.
 | **LM Studio** | Download app, load model, start server (port 1234) |
 | **Ollama** | `ollama pull llama3.2` — runs automatically (port 11434) |
 | **Gemini CLI** | Install [Gemini CLI](https://github.com/google-gemini/gemini-cli), authenticate with Google |
+| **Codex CLI** | Install [Codex CLI](https://github.com/openai/codex), authenticate with OpenAI |
 | **Claude Code** | Install [Claude Code](https://claude.ai/code), authenticate, done |
 
-The agent auto-detects available backends (LM Studio → Ollama → Gemini CLI → Claude Code).
+The agent auto-detects available backends (LM Studio → Ollama → Gemini CLI → Codex CLI → Claude Code).
 
 ### Which Backend Should I Use?
 
 | Priority | Recommendation |
 |----------|----------------|
 | Best narrative quality | Claude (via Claude Code) |
+| Best agentic capability | Codex CLI (OpenAI o3/gpt-4o) |
 | Free + huge context | Gemini CLI (1M tokens, 60 req/min free) |
 | Free + private | LM Studio or Ollama with 14B+ model |
 | Budget hardware | 8B model with `--local` flag |
 | Offline play | Local only |
-| Potato PC | Claude or Gemini (offload compute to cloud) |
+| Potato PC | Claude, Codex, or Gemini (offload compute to cloud) |
 
 Local models are fully playable — the mechanics work identically. Claude shines in nuanced NPC interactions, faction politics, and long-term consequence tracking.
 
@@ -251,11 +253,12 @@ This keeps smaller models focused and responsive. You lose some GM flavor text, 
 
 ### How CLI Backends Work
 
-Both Gemini CLI and Claude Code work the same way: we invoke the official CLI tools and let them handle authentication through your existing subscription.
+All CLI backends work the same way: we invoke the official CLI tools and let them handle authentication through your existing subscription.
 
 | Backend | CLI Command | Your Subscription |
 |---------|-------------|-------------------|
 | Gemini CLI | `gemini -` (stdin) | Google AI / Gemini Pro |
+| Codex CLI | `codex exec -` (stdin) | OpenAI / ChatGPT Plus |
 | Claude Code | `claude -p -` (print mode) | Anthropic / Claude Pro |
 
 No API keys needed. No tokens extracted. If you're logged into the CLI, SENTINEL just works — using whatever plan you're already paying for.
