@@ -26,6 +26,7 @@ from ..state import CampaignManager, get_event_bus, EventType, GameEvent
 from ..state.schema import Campaign, Standing, Character, DormantThread
 from ..agent import SentinelAgent
 from ..context import StrainTier, format_strain_notice
+from ..llm import CLI_BACKENDS
 from ..llm.base import Message
 from ..tools.hinge_detector import detect_hinge
 from .choices import parse_response, ChoiceBlock
@@ -360,6 +361,12 @@ class ContextBar(Static):
         self.tokens_max: int = 13000  # Default pack budget
         self.strain_tier: StrainTier = StrainTier.NORMAL
         self.section_info: str = ""
+        self.backend: str | None = None  # Track current backend for cloud detection
+
+    def set_backend(self, backend: str | None):
+        """Set the current backend (affects display mode)."""
+        self.backend = backend
+        self.refresh_display()
 
     def update_from_pack_info(self, pack_info):
         """Update from agent's PackInfo object."""
@@ -392,6 +399,28 @@ class ContextBar(Static):
         self.refresh_display()
 
     def refresh_display(self):
+        # Cloud backends (Gemini, Codex, Claude) have massive context — no pressure tracking
+        if self.backend and self.backend in CLI_BACKENDS:
+            display = Text()
+            display.append("CONTEXT ", style=Theme.DIM)
+            display.append("[", style=Theme.ACCENT)
+            display.append("☁ CLOUD", style=f"bold {Theme.ACCENT}")
+            display.append("]", style=Theme.ACCENT)
+            display.append(" ∞ ", style=Theme.ACCENT)
+            display.append("UNLIMITED", style=f"bold {Theme.FRIENDLY}")
+            # Show backend name
+            backend_display = self.backend.upper()
+            if self.backend == "gemini":
+                backend_display = "GEMINI (1M ctx)"
+            elif self.backend == "codex":
+                backend_display = "CODEX (128K+ ctx)"
+            elif self.backend == "claude":
+                backend_display = "CLAUDE (200K ctx)"
+            display.append(f"  │ {backend_display}", style=Theme.DIM)
+            self.update(display)
+            return
+
+        # Local backends — show pressure bar and strain tracking
         tier_name, tier_color = self.TIER_DISPLAY.get(
             self.strain_tier, ("NOMINAL", Theme.FRIENDLY)
         )
@@ -1083,6 +1112,9 @@ class SentinelTUI(App):
 
         # Update context bar from agent's pack info (real token counts)
         context_bar = self.query_one("#context-bar", ContextBar)
+        # Set backend for cloud detection (affects display mode)
+        if self.agent:
+            context_bar.set_backend(self.agent.backend)
         if self.agent and hasattr(self.agent, '_last_pack_info'):
             context_bar.update_from_pack_info(self.agent._last_pack_info)
         else:
