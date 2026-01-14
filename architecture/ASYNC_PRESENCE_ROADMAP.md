@@ -38,35 +38,38 @@ This means:
 
 ## Implementation Phases
 
-### Phase 1: LLM Wait State UX
+### Phase 1: LLM Wait State UX ✅ COMPLETE
 **Impact:** High | **Effort:** Medium
 
 Make the GM "thinking" time feel like visible work, not dead air.
 
 #### Checklist
 
-- [ ] Define processing stage events in `EventType` enum
-  - [ ] `STAGE_RETRIEVING_LORE`
-  - [ ] `STAGE_PACKING_CONTEXT`
-  - [ ] `STAGE_CHECKING_TOOLS`
-  - [ ] `STAGE_AWAITING_LLM`
-  - [ ] `STAGE_PARSING_RESPONSE`
+- [x] Define processing stage events in `EventType` enum
+  - [x] `STAGE_BUILDING_CONTEXT`
+  - [x] `STAGE_RETRIEVING_LORE`
+  - [x] `STAGE_PACKING_PROMPT`
+  - [x] `STAGE_AWAITING_LLM`
+  - [x] `STAGE_EXECUTING_TOOL`
+  - [x] `STAGE_PROCESSING_DONE`
 
-- [ ] Emit stage events from `agent.py` during `process_input()`
-  - [ ] Before lore retrieval
-  - [ ] Before context packing
-  - [ ] Before LLM call
-  - [ ] During response parsing
+- [x] Emit stage events from `agent.py` during `respond()`
+  - [x] Before building context
+  - [x] Before lore retrieval
+  - [x] Before context packing
+  - [x] Before LLM call (with model name + token count)
+  - [x] During tool execution (with tool name)
+  - [x] After response complete
 
-- [ ] Create `ThinkingPanel` widget in TUI
-  - [ ] Subscribe to stage events
-  - [ ] Show current stage with icon/animation
-  - [ ] Optional: show retrieved file names, tool calls
+- [x] Create `ThinkingPanel` widget in TUI
+  - [x] Subscribe to stage events
+  - [x] Show current stage with icon (◆) and completed stages (◇)
+  - [x] Show detail text (model name, tool name, etc.)
 
-- [ ] Style the thinking panel
-  - [ ] Subtle animation (dots, spinner, or pulse)
-  - [ ] Stage-appropriate icons
-  - [ ] Integrate with existing layout
+- [x] Style the thinking panel
+  - [x] Box border with "GM PROCESSING" header
+  - [x] Stage-appropriate icons
+  - [x] Integrated into console wrapper layout
 
 #### Example Display
 ```
