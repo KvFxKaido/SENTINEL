@@ -1,8 +1,8 @@
 
 import pytest
 from datetime import datetime
-from sentinel_agent.state.manager import CampaignManager, Campaign
-from sentinel_agent.state.schema import FactionName, Standing, Disposition, ThreadSeverity
+from src.state.manager import CampaignManager, Campaign
+from src.state.schema import FactionName, Standing, Disposition, ThreadSeverity
 
 @pytest.fixture
 def manager(tmp_path):
@@ -15,7 +15,10 @@ def test_migration_creates_snapshot(manager):
     campaign.schema_version = "1.5.0"
     campaign.last_session_snapshot = None
     manager.save_campaign()
-    
+
+    # Clear cache to force reload from disk
+    del manager._cache[campaign.meta.id]
+
     # Reload to trigger migration
     loaded = manager.load_campaign(campaign.meta.id)
     
@@ -52,7 +55,7 @@ def test_get_session_changes_npc(manager):
     campaign = manager.create_campaign("Test Campaign")
     
     # Add an NPC
-    from sentinel_agent.state.schema import NPC, NPCAgenda
+    from src.state.schema import NPC, NPCAgenda
     npc = NPC(
         name="Test NPC", 
         agenda=NPCAgenda(wants="A", fears="B"),
@@ -83,15 +86,15 @@ def test_get_session_changes_npc(manager):
     # So we need to establish a baseline.
     
     campaign.last_session_snapshot = manager._create_snapshot(campaign)
-    
+
     # Now modify NPC
-    npc.disposition = Disposition.FRIENDLY
-    
+    npc.disposition = Disposition.WARM
+
     changes = manager.get_session_changes()
     assert len(changes) == 1
     assert changes[0]["type"] == "npc_disposition"
     assert changes[0]["old"] == "neutral"
-    assert changes[0]["new"] == "friendly"
+    assert changes[0]["new"] == "warm"
 
 def test_end_session_updates_snapshot(manager):
     """Test that end_session updates the snapshot."""
