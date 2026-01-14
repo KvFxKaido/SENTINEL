@@ -7,6 +7,7 @@ from .base import LLMClient, LLMResponse, Message, ToolCall, ToolResult
 from .lmstudio import LMStudioClient
 from .ollama import OllamaClient
 from .claude_code import ClaudeCodeClient
+from .gemini_cli import GeminiCliClient
 from .skills import parse_skills, format_tools_for_prompt, strip_skill_tags
 
 __all__ = [
@@ -18,6 +19,7 @@ __all__ = [
     "LMStudioClient",
     "OllamaClient",
     "ClaudeCodeClient",
+    "GeminiCliClient",
     "MockLLMClient",
     "create_llm_client",
     "detect_backend",
@@ -120,7 +122,7 @@ class MockLLMClient(LLMClient):
 # Backend Detection and Factory
 # -----------------------------------------------------------------------------
 
-BackendType = Literal["lmstudio", "ollama", "claude", "auto"]
+BackendType = Literal["lmstudio", "ollama", "claude", "gemini", "auto"]
 
 
 def detect_backend(
@@ -130,10 +132,10 @@ def detect_backend(
     """
     Auto-detect available LLM backend.
 
-    Preference order: LM Studio > Ollama > Claude Code > Codex
+    Preference order: LM Studio > Ollama > Gemini CLI > Claude Code
 
     Local backends are preferred over cloud for privacy and cost.
-    Cloud backends (Claude Code, Codex) use existing CLI authentication.
+    CLI backends (Gemini, Claude) use existing authentication.
 
     Returns:
         Tuple of (backend_name, client) or (None, None) if nothing available.
@@ -154,6 +156,14 @@ def detect_backend(
         client = OllamaClient(base_url=ollama_url)
         if client.is_available():
             return ("ollama", client)
+    except Exception:
+        pass
+
+    # Try Gemini CLI (free tier, 1M context)
+    try:
+        client = GeminiCliClient()
+        if client.is_available():
+            return ("gemini", client)
     except Exception:
         pass
 
@@ -214,6 +224,14 @@ def create_llm_client(
         except Exception as e:
             print(f"Claude Code error: {e}")
             return ("claude", None)
+
+    if backend == "gemini":
+        try:
+            from .gemini_cli import create_gemini_cli_client
+            return ("gemini", create_gemini_cli_client())
+        except Exception as e:
+            print(f"Gemini CLI error: {e}")
+            return ("gemini", None)
 
     print(f"Unknown backend: {backend}")
     return (backend, None)
