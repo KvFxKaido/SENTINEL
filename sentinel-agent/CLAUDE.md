@@ -348,9 +348,11 @@ memvid-sdk>=0.1.0   # Campaign memory (optional, pip install -e ".[memvid]")
 The agent auto-detects backends in this order:
 1. **LM Studio** (localhost:1234) — free, local, native tool support
 2. **Ollama** (localhost:11434) — free, local, native tool support
-3. **Claude Code CLI** — uses existing `claude` auth, no API keys needed
+3. **Gemini CLI** — free tier (1M context), uses existing `gemini` auth
+4. **Codex CLI** — OpenAI models (o3, gpt-4o), uses existing `codex` auth
+5. **Claude Code CLI** — uses existing `claude` auth, no API keys needed
 
-Local backends are preferred for privacy and cost. The Claude Code backend piggybacks on existing CLI authentication — if you're logged into Claude Code, it just works.
+Local backends are preferred for privacy and cost. CLI backends (Gemini, Codex, Claude) piggyback on existing CLI authentication — if you're logged in, they just work.
 
 Use `/backend <name>` in the CLI to switch manually.
 
@@ -358,13 +360,24 @@ Use `/backend <name>` in the CLI to switch manually.
 
 All backends support tools, but through different mechanisms:
 
-| Backend | Tool Mechanism |
-|---------|---------------|
-| LM Studio | Native function calling |
-| Ollama | Native function calling |
-| Claude Code | Skill-based (prompt injection + parsing) |
+| Backend | Tool Mechanism | Context Window |
+|---------|---------------|----------------|
+| LM Studio | Native function calling | Model-dependent (8K-32K) |
+| Ollama | Native function calling | Model-dependent (8K-32K) |
+| Gemini CLI | Skill-based (prompt injection + parsing) | 1M tokens |
+| Codex CLI | Skill-based (prompt injection + parsing) | 128K+ tokens |
+| Claude Code | Skill-based (prompt injection + parsing) | 200K tokens |
 
 The skill system (`src/llm/skills.py`) injects tool descriptions into the prompt and parses `<tool>{"name": "...", "args": {...}}</tool>` tags from responses. This enables full tool support even for CLI-based backends.
+
+### Backend Categories
+
+```python
+CLI_BACKENDS = {"claude", "gemini", "codex"}   # Cloud, 100K+ context
+LOCAL_BACKENDS = {"lmstudio", "ollama"}        # Local, finite context
+```
+
+The TUI context bar shows "☁ CLOUD UNLIMITED" for CLI backends instead of pressure tracking, since strain monitoring is meaningless with 100K+ token windows.
 
 ## Local Mode (8B-12B Models)
 
