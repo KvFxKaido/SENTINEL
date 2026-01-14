@@ -588,6 +588,34 @@ def tui_context(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
             log.write(Text.from_markup(f"  [{Theme.WARNING}]• {warning}[/{Theme.WARNING}]"))
 
 
+def tui_banner(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
+    """Toggle banner animation on startup."""
+    from .config import load_config, set_animate_banner
+
+    config = load_config(getattr(app, "campaigns_dir", "campaigns"))
+    current = config.get("animate_banner", True)
+
+    if args:
+        # Set explicitly: /banner on, /banner off
+        arg = args[0].lower()
+        if arg in ("on", "true", "1", "yes"):
+            new_value = True
+        elif arg in ("off", "false", "0", "no"):
+            new_value = False
+        else:
+            log.write(Text.from_markup(f"[{Theme.WARNING}]Unknown option: {arg}[/{Theme.WARNING}]"))
+            log.write(Text.from_markup(f"[{Theme.DIM}]Use: /banner on, /banner off, or just /banner to toggle[/{Theme.DIM}]"))
+            return
+    else:
+        # Toggle
+        new_value = not current
+
+    set_animate_banner(new_value, campaigns_dir=getattr(app, "campaigns_dir", "campaigns"))
+    status = f"[{Theme.FRIENDLY}]on[/{Theme.FRIENDLY}]" if new_value else f"[{Theme.DIM}]off[/{Theme.DIM}]"
+    log.write(Text.from_markup(f"Banner animation: {status}"))
+    log.write(Text.from_markup(f"[{Theme.DIM}]Saved for future sessions[/{Theme.DIM}]"))
+
+
 # -----------------------------------------------------------------------------
 # Lore and NPC Commands
 # -----------------------------------------------------------------------------
@@ -2240,6 +2268,7 @@ def register_tui_handlers() -> None:
     # Settings
     set_tui_handler("/backend", tui_backend)
     set_tui_handler("/model", tui_model)
+    set_tui_handler("/banner", tui_banner)
     set_tui_handler("/context", tui_context)
 
     # Mission

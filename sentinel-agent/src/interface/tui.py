@@ -1357,79 +1357,174 @@ class SentinelTUI(App):
         # Wait for layout to compute
         await asyncio.sleep(0.1)
 
+        # Check if animation is enabled
+        config = load_config(self.campaigns_dir)
+        animate = config.get("animate_banner", True)
+
         log = self.query_one("#output-log", RichLog)
         wrapper = self.query_one("#console-wrapper")
         # Try wrapper width, fall back to log, subtract for borders
         raw_width = wrapper.size.width or log.size.width or 80
         log_width = raw_width - 4
 
-        # Hexagon banner
-        banner_lines = [
-            "            /\\",
-            "           /  \\",
-            "          /    \\       S E N T I N E L",
-            "          \\    /       T A C T I C A L   T T R P G",
-            "           \\  /",
-            "            \\/",
+        # Hexagon structure: (left_margin, left_char, inner_gap, right_char, text)
+        # The hexagon halves will slide together during assembly
+        hex_parts = [
+            (12, "/",  0, "\\", ""),
+            (11, "/",  2, "\\", ""),
+            (10, "/",  4, "\\", "       S E N T I N E L"),
+            (10, "\\", 4, "/",  "       T A C T I C A L   T T R P G"),
+            (11, "\\", 2, "/",  ""),
+            (12, "\\", 0, "/",  ""),
         ]
 
-        # Glitch characters
-        glitch_chars = "░▒▓/\\|─<>╱╲·"
-        preserve = set("/\\ ")
+        # Glitch characters for interference effect
+        glitch_chars = "░▒▓│┃╎╏"
 
-        def glitch_line(line: str, reveal_chance: float) -> str:
-            result = []
-            for char in line:
-                if char in preserve:
-                    result.append(char)
-                elif random.random() < reveal_chance:
-                    result.append(char)
-                else:
-                    result.append(random.choice(glitch_chars))
-            return "".join(result)
+        def render_assembly_frame(offset: int, text_reveal: float = 0.0) -> Text:
+            """Render hexagon with both halves offset from center.
 
-        def render_frame(reveal: float) -> Text:
+            offset > 0: halves are apart (left char shifted left, right char shifted right)
+            offset = 0: halves are docked at final position
+            """
             text = Text()
-            for i, line in enumerate(banner_lines):
-                if i in (2, 3):  # Title lines
-                    if reveal > 0.6:
-                        text_start = line.find("S") if "S E N" in line else line.find("T A C")
-                        if text_start > 0:
-                            text.append(line[:text_start], style=f"bold {Theme.ACCENT}")
-                            text.append(line[text_start:], style=f"bold {Theme.TEXT}")
-                        else:
-                            text.append(line, style=f"bold {Theme.ACCENT}")
-                    else:
-                        text.append(glitch_line(line, reveal), style=f"bold {Theme.ACCENT}")
-                else:
-                    text.append(glitch_line(line, reveal), style=f"bold {Theme.ACCENT}")
+            # We need enough width to hold the spread-out hexagon
+            line_width = 55 + (offset * 2)
+
+            for left_margin, left_char, inner_gap, right_char, label in hex_parts:
+                # Build line as character array for precise positioning
+                line_chars = [' '] * line_width
+
+                # Left char: starts further left, moves right as offset decreases
+                left_pos = max(0, left_margin - offset)
+                # Right char: starts further right, moves left as offset decreases
+                right_pos = left_margin + 1 + inner_gap + offset
+
+                if left_pos < line_width:
+                    line_chars[left_pos] = left_char
+                if right_pos < line_width:
+                    line_chars[right_pos] = right_char
+
+                # Add interference sparks in the gap during assembly
+                if offset > 0:
+                    gap_center = (left_pos + right_pos) // 2
+                    for spark_offset in range(-2, 3):
+                        spark_pos = gap_center + spark_offset
+                        if 0 < spark_pos < line_width - 1 and random.random() < 0.15:
+                            line_chars[spark_pos] = random.choice(glitch_chars)
+
+                line = ''.join(line_chars).rstrip()
+                text.append(line, style=f"bold {Theme.ACCENT}")
+
+                # Add text label with typewriter reveal
+                if label and text_reveal > 0:
+                    chars_to_show = int(len(label) * text_reveal)
+                    visible = label[:chars_to_show]
+                    text.append(visible, style=f"bold {Theme.TEXT}")
+
+                text.append("\n")
+            return text
+
+        def render_final() -> Text:
+            """Render final static banner."""
+            text = Text()
+            for left_margin, left_char, inner_gap, right_char, label in hex_parts:
+                line = " " * left_margin + left_char + " " * inner_gap + right_char
+                text.append(line, style=f"bold {Theme.ACCENT}")
+                if label:
+                    text.append(label, style=f"bold {Theme.TEXT}")
                 text.append("\n")
             return text
 
         # Banner width (widest line)
         banner_width = 55
 
-        # Animate with async sleep
-        frames = 12
-        for i in range(frames + 1):
-            progress = i / frames
-            reveal = 1 - (1 - progress) ** 2  # Ease-out
-            log.clear()
-            log.write(center_renderable(render_frame(reveal), banner_width, log_width))
-            await asyncio.sleep(0.08)
+        if animate:
+            # Phase 1: Hexagon assembly (halves slide together from opposite sides)
+            max_offset = 12  # How far each half starts from final position
+            assembly_frames = 12
+            for i in range(assembly_frames + 1):
+                progress = i / assembly_frames
+                # Ease-out with slight bounce for satisfying "dock" feel
+                eased = 1 - (1 - progress) ** 2.5
+                offset = int(max_offset * (1 - eased))
+                log.clear()
+                # Width expands when halves are apart
+                frame_width = banner_width + (offset * 2)
+                log.write(center_renderable(render_assembly_frame(offset), frame_width, log_width))
+                await asyncio.sleep(0.055)
 
-        # Final flicker
-        for _ in range(2):
-            log.clear()
-            log.write(center_renderable(render_frame(0.85), banner_width, log_width))
-            await asyncio.sleep(0.04)
-            log.clear()
-            log.write(center_renderable(render_frame(1.0), banner_width, log_width))
+            # Phase 2: Lock-in flash (brief bright pulse when pieces dock)
+            for color in [Theme.TEXT, Theme.ACCENT]:
+                log.clear()
+                flash_text = Text()
+                for left_margin, left_char, inner_gap, right_char, _ in hex_parts:
+                    line = " " * left_margin + left_char + " " * inner_gap + right_char
+                    flash_text.append(line + "\n", style=f"bold {color}")
+                log.write(center_renderable(flash_text, banner_width, log_width))
+                await asyncio.sleep(0.04)
+
+            # Phase 3: Split-flap text reveal (like old departure boards)
+            # Each character "flips" through stages: ─ → ▄ → █ → ▀ → final
+            flip_stages = ['─', '▄', '█', '▀']
+
+            def render_flip_frame(wave_progress: float) -> Text:
+                """Render hexagon with split-flap text animation."""
+                text = Text()
+                for left_margin, left_char, inner_gap, right_char, label in hex_parts:
+                    # Hexagon part (fully assembled)
+                    line = " " * left_margin + left_char + " " * inner_gap + right_char
+                    text.append(line, style=f"bold {Theme.ACCENT}")
+
+                    # Split-flap text reveal
+                    if label:
+                        flip_text = []
+                        for i, char in enumerate(label):
+                            if char == ' ':
+                                flip_text.append(' ')
+                                continue
+
+                            # Wave effect: each char starts flipping at staggered time
+                            # wave_progress 0→1 overall, char_start staggers by position
+                            char_start = i * 0.03  # Delay per character
+                            char_progress = (wave_progress - char_start) / 0.15  # Duration per flip
+                            char_progress = max(0.0, min(1.0, char_progress))
+
+                            if char_progress >= 1.0:
+                                # Fully revealed
+                                flip_text.append(char)
+                            elif char_progress <= 0.0:
+                                # Not started yet
+                                flip_text.append(' ')
+                            else:
+                                # Mid-flip: show intermediate stage
+                                stage_idx = int(char_progress * len(flip_stages))
+                                stage_idx = min(stage_idx, len(flip_stages) - 1)
+                                flip_text.append(flip_stages[stage_idx])
+
+                        text.append(''.join(flip_text), style=f"bold {Theme.TEXT}")
+
+                    text.append("\n")
+                return text
+
+            # Run the flip animation
+            flip_frames = 20
+            for i in range(flip_frames + 1):
+                wave_progress = i / flip_frames
+                # Slight ease-out for satisfying settle
+                wave_progress = 1 - (1 - wave_progress) ** 1.5
+                log.clear()
+                log.write(center_renderable(render_flip_frame(wave_progress), banner_width, log_width))
+                await asyncio.sleep(0.035)
+
+            # Brief pause then show final clean render
             await asyncio.sleep(0.08)
+            log.clear()
+            log.write(center_renderable(render_final(), banner_width, log_width))
 
         # Clear and show welcome
         log.clear()
-        log.write(center_renderable(render_frame(1.0), banner_width, log_width))
+        log.write(center_renderable(render_final(), banner_width, log_width))
         log.write("")
         log.write(Text.from_markup(
             f"[{Theme.DIM}]Type /help for commands, or /new to start.[/{Theme.DIM}]"
