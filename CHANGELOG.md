@@ -82,6 +82,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Responsive layout — viewport units (`20vw`), min/max constraints, auto-hide below 80 chars
 - Command registry pattern — unified CLI/TUI commands with context predicates
 
+**Async Presence System**
+- ThinkingPanel widget showing GM processing stages (BUILDING_CONTEXT → RETRIEVING_LORE → PACKING_PROMPT → AWAITING_LLM → EXECUTING_TOOL → DONE)
+- Ambient context injection — world state deltas woven into GM responses (500 token budget)
+- PressurePanel widget showing urgent items (leverage demands, surfacing threads, NPC silence)
+- Session bridging — "while you were away" screen on session resume
+- Visual feedback animations — CSS classes for faction shifts, energy states, thread surfacing
+- 6 new EventTypes for processing stage visibility
+
+**NPC Interrupt System (MGS-Style Codec)**
+- InterruptDetector — stateless, priority-based detection of when NPCs should contact player
+- CodecInterrupt modal — faction-colored codec frames with NPC portrait and message
+- `npc_interrupt` tool — GM can author interrupt messages that surface as modal dialogs
+- Player response options — respond, ignore, or defer ("later") with narrative consequences
+- Interrupt triggers: leverage deadlines, disposition shifts, dormant thread surfacing
+
+**Hexagon Assembly Animation**
+- Three-phase TUI startup banner: hexagon halves fly in → flash pulse on dock → split-flap text reveal
+- Split-flap display effect with character stages (─▄█▀ progression)
+- Interference sparks in gap during hexagon assembly
+- `/banner` command in TUI to toggle animation on/off (respects config setting)
+
+**Cloud Backend UX**
+- "☁ CLOUD UNLIMITED" display for CLI backends instead of pressure bar
+- Backend-specific context sizes shown (Gemini 1M, Codex 128K+, Claude 200K)
+- Pressure bar hidden for 100K+ context backends (strain tracking meaningless)
+
 **Obsidian Wiki Integration**
 - Live session updates — game log written during play
 - Bi-directional sync — edit frontmatter in Obsidian, game state updates

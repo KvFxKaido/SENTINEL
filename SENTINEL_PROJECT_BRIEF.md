@@ -1,6 +1,6 @@
 # SENTINEL Project Brief
 
-*Last updated: January 13, 2026*
+*Last updated: January 14, 2026*
 
 ## What This Is
 
@@ -111,7 +111,7 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 - **Local mode (`--local`)** — optimized for 8B-12B models: 5K budget, condensed prompts, phase-based tool subsets
 
 **Technical Infrastructure**
-- **Multi-backend LLM** — LM Studio, Ollama (local), Claude Code (cloud)
+- **Multi-backend LLM** — LM Studio, Ollama (local), Gemini CLI, Codex CLI, Claude Code (cloud)
 - **Test suite** — 380 tests covering core mechanics, local mode, simulation, lore retrieval, wiki integration
 - **Event queue** — MCP → Agent state sync via append-only queue (solves concurrency)
 - **CI/CD** — GitHub Actions (Python 3.10, 3.11, 3.12)
@@ -129,6 +129,31 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 - **Responsive layout** — docks use viewport units (`20vw`, min/max constraints); auto-hide below 80 chars
 - **Command registry** — commands self-register with context predicates; `when` lambdas hide irrelevant commands
 - **Aesthetic is intentional** — dark tactical theme (steel blue, dim grays, danger red); no user customization
+
+**Async Presence System**
+- **ThinkingPanel** — visible processing stages (BUILDING_CONTEXT → RETRIEVING_LORE → PACKING_PROMPT → AWAITING_LLM → EXECUTING_TOOL → DONE)
+- **Ambient context injection** — world state deltas woven into GM responses (500 token AMBIENT section in prompt packer)
+- **PressurePanel** — shows urgent items (leverage demands approaching deadline, surfacing threads, NPCs who've been silent)
+- **Session bridging** — "while you were away" screen summarizes world state changes since last session
+- **Visual feedback animations** — CSS classes for faction shifts, energy-critical states, thread surfacing events
+
+**NPC Interrupt System (MGS-Style Codec)**
+- **InterruptDetector** — stateless priority-based detection of when NPCs should proactively contact player
+- **CodecInterrupt modal** — faction-colored codec frame with NPC portrait and urgent message
+- **`npc_interrupt` tool** — GM can author interrupt messages that surface as modal dialogs
+- **Response options** — player can respond, ignore, or defer ("later"); each has narrative consequences
+- **Triggers** — leverage deadlines, disposition shifts, dormant threads about to surface, faction events
+
+**Hexagon Assembly Animation**
+- **Three-phase startup** — hexagon halves fly in from opposite sides → flash pulse on dock → split-flap text reveal
+- **Split-flap display effect** — character stages (─▄█▀ progression) for cinematic text appearance
+- **Interference sparks** — visual noise in gap during hexagon assembly
+- **`/banner` toggle** — enable/disable startup animation (persists to config)
+
+**Cloud Backend UX**
+- **"☁ CLOUD UNLIMITED" display** — replaces pressure bar for CLI backends (Gemini, Codex, Claude)
+- **Context sizes** — shows backend-specific limits (Gemini 1M, Codex 128K+, Claude 200K)
+- **Strain-free mode** — pressure bar hidden when 100K+ context makes strain tracking meaningless
 
 **Portrait System**
 - **Character YAML specs** — structured appearance definitions in `assets/characters/` (faction, features, augmentations, expression)
@@ -188,13 +213,18 @@ SENTINEL/
 │   │   │   ├── wiki_adapter.py   # Wiki page generation + hardened writes
 │   │   │   ├── wiki_watcher.py   # Bi-directional sync (file watcher)
 │   │   │   ├── templates.py      # Jinja2 template engine for wiki
-│   │   │   └── memvid_adapter.py # Campaign memory via memvid (optional)
+│   │   │   ├── memvid_adapter.py # Campaign memory via memvid (optional)
+│   │   ├── systems/
+│   │   │   ├── ambient_context.py    # World state delta extraction for async presence
+│   │   │   ├── interrupts.py         # NPC interrupt detection and priority queuing
 │   │   ├── rules/
 │   │   │   └── npc.py            # Pure functions for NPC behavior
 │   │   ├── llm/
 │   │   │   ├── base.py           # Abstract LLM client
 │   │   │   ├── lmstudio.py       # Local LLM (OpenAI-compatible)
 │   │   │   ├── ollama.py         # Ollama (OpenAI-compatible)
+│   │   │   ├── gemini_cli.py     # Gemini CLI backend (1M context)
+│   │   │   ├── codex_cli.py      # Codex CLI backend (OpenAI o3/gpt-4o)
 │   │   │   ├── claude_code.py    # Claude Code CLI backend
 │   │   │   └── skills.py         # Skill-based tool invocation
 │   │   ├── context/
