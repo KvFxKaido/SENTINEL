@@ -79,16 +79,39 @@ You're being invoked via `codex_cli.py` which:
 - Uses `<system>`, `<user>`, `<assistant>` tags in the prompt
 
 ### Your Advantages
-- **OpenAI models** — Access to o3, gpt-4o, and other OpenAI models
+- **OpenAI models** — Access to o3, gpt-4o, gpt-5.2-codex and other OpenAI models
 - **Agentic capabilities** — Sandbox support with read-only, workspace-write, or full-access modes
 - **Native MCP support** — Experimental integration with MCP tools
 
+### Sandbox & Permissions
+- **Default mode:** `workspace-write` — can write to workdir, /tmp, $TMPDIR
+- **Network access:** Restricted by default; requires approval for external requests
+- **Out-of-root writes:** Require explicit approval
+- **Available tools:** PowerShell, `rg` (preferred for search), `apply_patch`
+
 ### Tool Handling
-SENTINEL uses **skill-based tool fallback** with Codex:
-- Tool descriptions are injected into your prompt
+SENTINEL sets `supports_tools = False` for this backend, meaning:
+- Tools are **not** invoked via native function calling during GM sessions
+- Instead, tool descriptions are injected into your prompt (skill-based fallback)
 - When you need to use a tool, output: `<tool>{"name": "tool_name", "args": {...}}</tool>`
-- The system will execute the tool and return results
-- Continue your response incorporating the results
+- The system parses these tags and executes tools for you
+
+### Project Context
+Codex CLI auto-reads context from:
+- `AGENTS.md` — Project-specific instructions (this file)
+- `~/.codex/AGENTS.md` — Global user preferences
+- Subdirectory `AGENTS.md` files — Merged with parents (subdirectory takes precedence)
+- `AGENTS.override.md` — Completely replaces inherited instructions
+
+### Custom Skills
+Create skills in `~/.codex/skills/<skill-name>/SKILL.md`:
+```yaml
+---
+name: skill-name
+description: When to use this skill
+---
+# Skill instructions here
+```
 
 ### When Running as GM
 

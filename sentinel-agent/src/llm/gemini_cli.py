@@ -289,7 +289,7 @@ def create_gemini_cli_client(
     if not client.is_available():
         raise RuntimeError(
             "Gemini CLI is not available.\n"
-            "Install: npm install -g @anthropic/gemini-cli\n"
+            "Install: npm install -g @google/gemini-cli\n"
             "Or: https://github.com/google-gemini/gemini-cli"
         )
 
