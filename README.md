@@ -129,7 +129,7 @@ Players choose starting relationships, not membership. You're not "in" a faction
 
 ### AI Game Master
 
-* Local and cloud backends (LM Studio, Ollama, Claude Code)
+* Local and cloud backends (LM Studio, Ollama, Claude Code, Gemini CLI)
 * Hot-reloadable prompts with phase-specific guidance
 * Lore retrieval from novellas + campaign memory search
 * `/consult` — get competing perspectives from faction advisors
@@ -215,19 +215,21 @@ SENTINEL supports both local and cloud backends.
 |---------|-------|
 | **LM Studio** | Download app, load model, start server (port 1234) |
 | **Ollama** | `ollama pull llama3.2` — runs automatically (port 11434) |
+| **Gemini CLI** | Install [Gemini CLI](https://github.com/google-gemini/gemini-cli), authenticate with Google |
 | **Claude Code** | Install [Claude Code](https://claude.ai/code), authenticate, done |
 
-The agent auto-detects available backends (LM Studio → Ollama → Claude Code).
+The agent auto-detects available backends (LM Studio → Ollama → Gemini CLI → Claude Code).
 
 ### Which Backend Should I Use?
 
 | Priority | Recommendation |
 |----------|----------------|
 | Best narrative quality | Claude (via Claude Code) |
+| Free + huge context | Gemini CLI (1M tokens, 60 req/min free) |
 | Free + private | LM Studio or Ollama with 14B+ model |
 | Budget hardware | 8B model with `--local` flag |
 | Offline play | Local only |
-| Potato PC | Claude (offload compute to cloud) |
+| Potato PC | Claude or Gemini (offload compute to cloud) |
 
 Local models are fully playable — the mechanics work identically. Claude shines in nuanced NPC interactions, faction politics, and long-term consequence tracking.
 
@@ -247,11 +249,16 @@ Local mode reduces context from ~13K to ~5K tokens by:
 
 This keeps smaller models focused and responsive. You lose some GM flavor text, but core mechanics and narrative quality remain intact.
 
-### How Claude Code Works
+### How CLI Backends Work
 
-We invoke the `claude` CLI in print mode (`claude -p -`), which is a documented, intended use of the tool. No OAuth tokens are extracted, no credentials are stolen, no terms of service are violated. If you're logged into Claude Code, it just works.
+Both Gemini CLI and Claude Code work the same way: we invoke the official CLI tools and let them handle authentication through your existing subscription.
 
-This is explicitly *not* an exploit. We're using the CLI the way it was designed to be used.
+| Backend | CLI Command | Your Subscription |
+|---------|-------------|-------------------|
+| Gemini CLI | `gemini -` (stdin) | Google AI / Gemini Pro |
+| Claude Code | `claude -p -` (print mode) | Anthropic / Claude Pro |
+
+No API keys needed. No tokens extracted. If you're logged into the CLI, SENTINEL just works — using whatever plan you're already paying for.
 
 ## Recommended Setup
 

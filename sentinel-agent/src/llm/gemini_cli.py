@@ -121,14 +121,15 @@ class GeminiCliClient(LLMClient):
         if self.sandbox:
             cmd.append("--sandbox")
 
-        # Add the prompt as a positional argument
-        # For very long prompts, we could use stdin, but positional works for most cases
-        cmd.append(prompt)
+        # Use stdin for prompt to avoid Windows command line length limits
+        # Windows has ~8191 char limit; SENTINEL prompts can be 10K+ chars
+        cmd.append("-")  # Tell gemini to read from stdin
 
-        # Execute
+        # Execute with prompt via stdin
         try:
             result = subprocess.run(
                 cmd,
+                input=prompt,
                 capture_output=True,
                 text=True,
                 timeout=self.timeout,
@@ -215,20 +216,25 @@ class GeminiCliClient(LLMClient):
         cmd = [
             gemini_path,
             "--output-format", "stream-json",
-            prompt,
+            "-",  # Read from stdin
         ]
 
         if self.yolo:
             cmd.append("--yolo")
 
-        # Stream output
+        # Stream output with stdin for prompt (avoids Windows cmd length limit)
         process = subprocess.Popen(
             cmd,
+            stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
             encoding="utf-8",
         )
+
+        # Write prompt to stdin and close it
+        process.stdin.write(prompt)
+        process.stdin.close()
 
         full_response = []
         try:

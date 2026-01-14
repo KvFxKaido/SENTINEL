@@ -60,7 +60,8 @@ SENTINEL is a tactical tabletop RPG about navigating political tension, ethical 
 | `core/SENTINEL Playbook — Core Rules.md` | The complete game rules |
 | `architecture/AGENT_ARCHITECTURE.md` | Agent design, state schema, tools |
 | `architecture/sentinel_warp_vision.md` | Terminal UI/UX roadmap (Warp + MGS inspired) |
-| `sentinel-agent/CLAUDE.md` | Dev guide for the agent codebase |
+| `sentinel-agent/CLAUDE.md` | Dev guide for Claude assistants |
+| `sentinel-agent/GEMINI.md` | Dev guide for Gemini CLI |
 | `sentinel-campaign/README.md` | Campaign MCP server (factions, history, tools) |
 
 ## Game Philosophy
