@@ -8,6 +8,7 @@ from .lmstudio import LMStudioClient
 from .ollama import OllamaClient
 from .claude_code import ClaudeCodeClient
 from .gemini_cli import GeminiCliClient
+from .codex_cli import CodexCliClient
 from .skills import parse_skills, format_tools_for_prompt, strip_skill_tags
 
 __all__ = [
@@ -20,6 +21,7 @@ __all__ = [
     "OllamaClient",
     "ClaudeCodeClient",
     "GeminiCliClient",
+    "CodexCliClient",
     "MockLLMClient",
     "create_llm_client",
     "detect_backend",
@@ -122,7 +124,7 @@ class MockLLMClient(LLMClient):
 # Backend Detection and Factory
 # -----------------------------------------------------------------------------
 
-BackendType = Literal["lmstudio", "ollama", "claude", "gemini", "auto"]
+BackendType = Literal["lmstudio", "ollama", "claude", "gemini", "codex", "auto"]
 
 
 def detect_backend(
@@ -164,6 +166,14 @@ def detect_backend(
         client = GeminiCliClient()
         if client.is_available():
             return ("gemini", client)
+    except Exception:
+        pass
+
+    # Try Codex CLI (OpenAI's agentic CLI)
+    try:
+        client = CodexCliClient()
+        if client.is_available():
+            return ("codex", client)
     except Exception:
         pass
 
@@ -232,6 +242,14 @@ def create_llm_client(
         except Exception as e:
             print(f"Gemini CLI error: {e}")
             return ("gemini", None)
+
+    if backend == "codex":
+        try:
+            from .codex_cli import create_codex_cli_client
+            return ("codex", create_codex_cli_client())
+        except Exception as e:
+            print(f"Codex CLI error: {e}")
+            return ("codex", None)
 
     print(f"Unknown backend: {backend}")
     return (backend, None)
