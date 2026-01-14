@@ -486,6 +486,8 @@ def tui_backend(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
         if info["available"]:
             set_backend(backend, campaigns_dir=getattr(app, "campaigns_dir", "campaigns"))
             log.write(Text.from_markup(f"[{Theme.FRIENDLY}]Now using: {info['backend']} ({info['model']})[/{Theme.FRIENDLY}]"))
+            # Refresh context bar to update cloud/local display mode
+            app.refresh_all_panels()
         else:
             log.write(Text.from_markup(f"[{Theme.DANGER}]Backend not available[/{Theme.DANGER}]"))
 

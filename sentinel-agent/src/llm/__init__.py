@@ -25,6 +25,9 @@ __all__ = [
     "MockLLMClient",
     "create_llm_client",
     "detect_backend",
+    # Backend categories
+    "CLI_BACKENDS",
+    "LOCAL_BACKENDS",
     # Skill system
     "parse_skills",
     "format_tools_for_prompt",
@@ -125,6 +128,13 @@ class MockLLMClient(LLMClient):
 # -----------------------------------------------------------------------------
 
 BackendType = Literal["lmstudio", "ollama", "claude", "gemini", "codex", "auto"]
+
+# CLI-based backends with massive context windows (no meaningful pressure tracking)
+# These use existing CLI authentication and have 100K+ token context
+CLI_BACKENDS = frozenset({"claude", "gemini", "codex"})
+
+# Local backends with finite context (pressure tracking relevant)
+LOCAL_BACKENDS = frozenset({"lmstudio", "ollama"})
 
 
 def detect_backend(
