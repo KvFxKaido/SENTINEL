@@ -13,6 +13,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from .state import CampaignManager, Campaign
 from .state.schema import FactionName, HistoryType, LeverageWeight
+from .state.event_bus import get_event_bus, EventType
 from .tools.registry import get_all_schemas, create_default_registry, ToolRegistry
 from .tools.subsets import get_tools_for_phase, get_minimal_tools
 from .tools.hinge_detector import detect_hinge, get_hinge_context
@@ -357,12 +358,20 @@ class SentinelAgent:
                 "Start LM Studio or Ollama with a model loaded.\n"
             )
 
+        # Get event bus for stage notifications
+        bus = get_event_bus()
+        campaign_id = self.manager.current.id if self.manager.current else ""
+
         # Build messages for LLM
         messages = list(conversation or [])
         messages.append(Message(role="user", content=user_message))
 
         # Update conversation window with new messages
         self._update_conversation_window(messages)
+
+        # Stage: Building context
+        bus.emit(EventType.STAGE_BUILDING_CONTEXT, campaign_id=campaign_id,
+                 detail="Loading prompts and state")
 
         # Get base sections from prompt loader
         sections = self.prompt_loader.get_sections(
@@ -381,6 +390,10 @@ class SentinelAgent:
             state=sections["state"] + "\n\n" + dynamic_hints if dynamic_hints else sections["state"],
         )
         strain_tier = StrainTier.from_pressure(preliminary_pressure)
+
+        # Stage: Retrieving lore
+        bus.emit(EventType.STAGE_RETRIEVING_LORE, campaign_id=campaign_id,
+                 detail="Searching campaign history and lore")
 
         # Retrieve with strain-aware budget
         retrieval_content = ""
@@ -406,6 +419,10 @@ class SentinelAgent:
         if dynamic_hints:
             state_content = state_content + "\n\n---\n\n" + dynamic_hints
 
+        # Stage: Packing prompt
+        bus.emit(EventType.STAGE_PACKING_PROMPT, campaign_id=campaign_id,
+                 detail="Assembling context with token budget")
+
         # Pack everything with budget enforcement
         # rules_core (decision logic) is always included
         # rules_narrative (flavor) is cut under strain II+
@@ -427,8 +444,16 @@ class SentinelAgent:
         if strain_notice:
             system_prompt = system_prompt + "\n\n---\n\n" + strain_notice
 
+        # Stage: Awaiting LLM
+        bus.emit(EventType.STAGE_AWAITING_LLM, campaign_id=campaign_id,
+                 detail=f"Generating response via {self.client.model_name}",
+                 tokens=pack_info.total_packed)
+
         # Use the client's tool loop
         def tool_executor(name: str, args: dict) -> dict:
+            # Emit tool execution event
+            bus.emit(EventType.STAGE_EXECUTING_TOOL, campaign_id=campaign_id,
+                     tool_name=name, detail=f"Executing {name}")
             return self.execute_tool(name, args)
 
         response = self.client.chat_with_tools(
@@ -437,6 +462,10 @@ class SentinelAgent:
             tools=self.get_tools() if self.client.supports_tools else None,
             tool_executor=tool_executor,
         )
+
+        # Stage: Processing done
+        bus.emit(EventType.STAGE_PROCESSING_DONE, campaign_id=campaign_id,
+                 detail="Response complete")
 
         # Update window with assistant response
         self._conversation_window.add_block(TranscriptBlock(

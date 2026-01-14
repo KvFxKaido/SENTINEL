@@ -68,6 +68,14 @@ class EventType(Enum):
     EPILOGUE_STARTED = "endgame.epilogue_started"
     CAMPAIGN_CONCLUDED = "endgame.campaign_concluded"
 
+    # Processing stage events (for TUI "thinking" display)
+    STAGE_BUILDING_CONTEXT = "stage.building_context"
+    STAGE_RETRIEVING_LORE = "stage.retrieving_lore"
+    STAGE_PACKING_PROMPT = "stage.packing_prompt"
+    STAGE_AWAITING_LLM = "stage.awaiting_llm"
+    STAGE_EXECUTING_TOOL = "stage.executing_tool"
+    STAGE_PROCESSING_DONE = "stage.processing_done"
+
 
 @dataclass
 class GameEvent:
