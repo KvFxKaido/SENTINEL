@@ -152,6 +152,82 @@ class SuggestionDisplay(Static):
             self._selected = (self._selected + 1) % len(self._suggestions)
 
 
+class ThinkingPanel(Static):
+    """Shows GM processing stages during response generation."""
+
+    # Stage icons and labels
+    STAGES = {
+        EventType.STAGE_BUILDING_CONTEXT: ("◇", "Building context"),
+        EventType.STAGE_RETRIEVING_LORE: ("◇", "Retrieving lore"),
+        EventType.STAGE_PACKING_PROMPT: ("◇", "Packing prompt"),
+        EventType.STAGE_AWAITING_LLM: ("◆", "Awaiting response"),
+        EventType.STAGE_EXECUTING_TOOL: ("⚡", "Executing tool"),
+        EventType.STAGE_PROCESSING_DONE: ("✓", "Complete"),
+    }
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._current_stage: EventType | None = None
+        self._detail: str = ""
+        self._completed_stages: list[EventType] = []
+        self._visible: bool = False
+
+    def show_stage(self, stage: EventType, detail: str = "", **extra):
+        """Update to show a processing stage."""
+        # Track completed stages
+        if self._current_stage and self._current_stage != stage:
+            if self._current_stage not in self._completed_stages:
+                self._completed_stages.append(self._current_stage)
+
+        self._current_stage = stage
+        self._detail = detail
+        self._visible = True
+        self.add_class("visible")
+        self.refresh_display()
+
+    def hide(self):
+        """Hide the thinking panel."""
+        self._visible = False
+        self._current_stage = None
+        self._completed_stages = []
+        self.remove_class("visible")
+        self.update("")
+
+    def refresh_display(self):
+        """Render the current thinking state."""
+        if not self._visible or not self._current_stage:
+            return
+
+        display = Text()
+        display.append("┌─ GM PROCESSING ", style=Theme.BORDER)
+        display.append("─" * 40, style=Theme.BORDER)
+        display.append("┐\n", style=Theme.BORDER)
+        display.append("│ ", style=Theme.BORDER)
+
+        # Show completed stages
+        for completed in self._completed_stages[-3:]:  # Last 3 completed
+            icon, label = self.STAGES.get(completed, ("○", "Unknown"))
+            display.append(f"  {icon} ", style=Theme.DIM)
+            display.append(f"{label}", style=Theme.DIM)
+
+        # Show current stage
+        if self._current_stage:
+            icon, label = self.STAGES.get(self._current_stage, ("◆", "Processing"))
+            display.append(f"  {icon} ", style=f"bold {Theme.ACCENT}")
+            display.append(f"{label}", style=f"bold {Theme.ACCENT}")
+            if self._detail:
+                display.append(f" — {self._detail}", style=Theme.TEXT)
+
+        # Pad and close
+        display.append(" " * 10, style=Theme.BG)
+        display.append("│\n", style=Theme.BORDER)
+        display.append("└", style=Theme.BORDER)
+        display.append("─" * 56, style=Theme.BORDER)
+        display.append("┘", style=Theme.BORDER)
+
+        self.update(display)
+
+
 class CommandInput(Input):
     """Custom Input that handles Tab completion and history."""
 
@@ -755,6 +831,21 @@ class SentinelTUI(App):
         border: solid {Theme.BORDER};
     }}
 
+    #thinking-panel {{
+        height: auto;
+        max-height: 5;
+        width: 100%;
+        background: {Theme.BG};
+        color: {Theme.ACCENT};
+        display: none;
+        padding: 0 1;
+        margin-bottom: 1;
+    }}
+
+    #thinking-panel.visible {{
+        display: block;
+    }}
+
     #thinking-indicator {{
         height: 1;
         width: 100%;
@@ -928,6 +1019,7 @@ class SentinelTUI(App):
             with Container(id="center-column"):
                 with Vertical(id="console-wrapper"):
                     yield RichLog(id="output-log", highlight=True, markup=True)
+                    yield ThinkingPanel(id="thinking-panel")
                     yield LoadingIndicator(id="thinking-indicator")
                     yield ChoiceButtons(id="choice-buttons")
                     yield SuggestionDisplay(id="suggestions")
@@ -956,6 +1048,14 @@ class SentinelTUI(App):
         bus.on(EventType.THREAD_QUEUED, self._on_thread_queued)
         bus.on(EventType.CAMPAIGN_LOADED, self._on_campaign_loaded)
         bus.on(EventType.SOCIAL_ENERGY_CHANGED, self._on_energy_changed)
+
+        # Processing stage events (for thinking panel)
+        bus.on(EventType.STAGE_BUILDING_CONTEXT, self._on_processing_stage)
+        bus.on(EventType.STAGE_RETRIEVING_LORE, self._on_processing_stage)
+        bus.on(EventType.STAGE_PACKING_PROMPT, self._on_processing_stage)
+        bus.on(EventType.STAGE_AWAITING_LLM, self._on_processing_stage)
+        bus.on(EventType.STAGE_EXECUTING_TOOL, self._on_processing_stage)
+        bus.on(EventType.STAGE_PROCESSING_DONE, self._on_processing_done)
 
         # Pass history and suggestion display to command input
         cmd_input = self.query_one("#main-input", CommandInput)
@@ -1263,6 +1363,33 @@ class SentinelTUI(App):
                 log.write(Text.from_markup(
                     f"[{color}][ Energy: {before}% → {after}% ({direction}{delta}) ][/{color}]"
                 ))
+            except Exception:
+                pass
+
+        self.call_from_thread(update)
+
+    def _on_processing_stage(self, event: GameEvent) -> None:
+        """Handle processing stage updates - update thinking panel."""
+        def update():
+            try:
+                panel = self.query_one("#thinking-panel", ThinkingPanel)
+                panel.show_stage(
+                    event.type,
+                    detail=event.data.get("detail", ""),
+                    **event.data
+                )
+            except Exception:
+                pass
+
+        self.call_from_thread(update)
+
+    def _on_processing_done(self, event: GameEvent) -> None:
+        """Handle processing complete - hide thinking panel."""
+        def update():
+            try:
+                panel = self.query_one("#thinking-panel", ThinkingPanel)
+                # Brief delay to show "Complete" before hiding
+                self.set_timer(0.5, panel.hide)
             except Exception:
                 pass
 
