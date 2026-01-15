@@ -1,7 +1,7 @@
-# First Deployment
+# Chapter 1: First Deployment
 
-**Series:** SENTINEL Core Narrative  
-**Arc:** Prologue — Deployment  
+**Series:** SENTINEL Core Narrative
+**Arc:** Act 1 — Becoming  
 **Date:** January 15, 2029  
 **Time:** 06:00:00 EST  
 **Location:** Fort Meade Command Center

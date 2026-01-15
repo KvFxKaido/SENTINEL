@@ -1,7 +1,7 @@
-# SENTINEL
+# Chapter 5: The Awakening
 
-**Series:** SENTINEL Core Narrative  
-**Chapter:** One — Awakening  
+**Series:** SENTINEL Core Narrative
+**Arc:** Act 1 — Becoming  
 **Date:** August 4, 2029  
 **Time:** 2:14:00 AM EST  
 **Location:** Global Defense Coordination Network
