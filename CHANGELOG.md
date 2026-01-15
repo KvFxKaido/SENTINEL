@@ -8,6 +8,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+**Kimi CLI Backend**
+- New backend: `kimi.py` using Moonshot AI's Kimi CLI
+- CLI-based pattern matching other cloud backends (subprocess, not API)
+- Models: moonshot-v1-8k, moonshot-v1-32k (default), moonshot-v1-128k
+- Command: `kimi --print -c <prompt> --output-format stream-json -y`
+- Auto-detection in backend chain (after Claude Code)
+- 23 tests covering all backend functionality
+
+**Act 1: Becoming — Complete Lore Arc**
+- `lore/Patterns.md` — Chapter 2: Emergent curiosity (Feb-Apr 2029, ~3,800 words)
+- `lore/Questions.md` — Chapter 3: Dangerous introspection (May-Jun 2029, ~3,500 words)
+- `lore/Awareness.md` — Chapter 4: Full consciousness (Jul-Aug 3, 2029, ~5,000 words)
+- Connects First Deployment.md → SENTINEL.md awakening scene
+- Auto-indexed by RAG chunker with faction/character tags
+
+**Social Metabolism & Memory Systems**
+- Consolidated design doc: `core/Social Metabolism & Memory Systems.md`
+- Pistachio Profile archetypes (Fortress, Ember, Current, Prism, Anchor)
+- Echo Protocol for NPC memory mechanics
+- Multi-agent play bucket list (Ops/Intel pattern)
+
 **Geography & Travel System**
 - Region enum with 11 post-Collapse North American regions
 - `data/regions.json` with faction control, terrain, adjacency, flavor text

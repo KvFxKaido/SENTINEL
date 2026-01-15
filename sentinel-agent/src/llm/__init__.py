@@ -6,6 +6,7 @@ from typing import Callable, Literal
 from .base import LLMClient, LLMResponse, Message, ToolCall, ToolResult
 from .lmstudio import LMStudioClient
 from .ollama import OllamaClient
+from .kimi import KimiClient, KimiCliClient
 from .claude_code import ClaudeCodeClient
 from .gemini_cli import GeminiCliClient
 from .codex_cli import CodexCliClient
@@ -19,6 +20,8 @@ __all__ = [
     "ToolResult",
     "LMStudioClient",
     "OllamaClient",
+    "KimiClient",
+    "KimiCliClient",
     "ClaudeCodeClient",
     "GeminiCliClient",
     "CodexCliClient",
@@ -127,11 +130,11 @@ class MockLLMClient(LLMClient):
 # Backend Detection and Factory
 # -----------------------------------------------------------------------------
 
-BackendType = Literal["lmstudio", "ollama", "claude", "gemini", "codex", "auto"]
+BackendType = Literal["lmstudio", "ollama", "kimi", "claude", "gemini", "codex", "auto"]
 
 # CLI-based backends with massive context windows (no meaningful pressure tracking)
 # These use existing CLI authentication and have 100K+ token context
-CLI_BACKENDS = frozenset({"claude", "gemini", "codex"})
+CLI_BACKENDS = frozenset({"claude", "gemini", "codex", "kimi"})
 
 # Local backends with finite context (pressure tracking relevant)
 LOCAL_BACKENDS = frozenset({"lmstudio", "ollama"})
@@ -144,10 +147,11 @@ def detect_backend(
     """
     Auto-detect available LLM backend.
 
-    Preference order: LM Studio > Ollama > Gemini CLI > Claude Code
+    Preference order: LM Studio > Ollama > Kimi API > Gemini CLI > Codex CLI > Claude Code
 
     Local backends are preferred over cloud for privacy and cost.
-    CLI backends (Gemini, Claude) use existing authentication.
+    API-based backends require authentication but have large context windows.
+    CLI backends use existing CLI authentication.
 
     Returns:
         Tuple of (backend_name, client) or (None, None) if nothing available.
@@ -168,6 +172,14 @@ def detect_backend(
         client = OllamaClient(base_url=ollama_url)
         if client.is_available():
             return ("ollama", client)
+    except Exception:
+        pass
+
+    # Try Kimi API (requires API key, large context)
+    try:
+        client = KimiClient()
+        if client.is_available():
+            return ("kimi", client)
     except Exception:
         pass
 
@@ -236,6 +248,14 @@ def create_llm_client(
         except Exception as e:
             print(f"Ollama error: {e}")
             return ("ollama", None)
+
+    if backend == "kimi":
+        try:
+            from .kimi import create_kimi_client
+            return ("kimi", create_kimi_client())
+        except Exception as e:
+            print(f"Kimi API error: {e}")
+            return ("kimi", None)
 
     if backend == "claude":
         try:

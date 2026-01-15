@@ -41,6 +41,7 @@ All cloud backends work the same way: we invoke the official CLI tools and let t
 | [Gemini CLI](https://github.com/google-gemini/gemini-cli) | See GitHub for install | `/backend gemini` |
 | [Codex CLI](https://github.com/openai/codex) | `npm i -g @openai/codex` | `/backend codex` |
 | [Claude Code](https://claude.ai/code) | Download from website | `/backend claude` |
+| [Kimi CLI](https://github.com/MoonshotAI/kimi-cli) | `pip install kimi-cli` | `/backend kimi` |
 
 **No API keys needed.** If you're logged into the CLI, SENTINEL just works — using whatever plan you're already paying for (Gemini Pro, ChatGPT Plus, Claude Pro, etc.).
 
@@ -61,6 +62,11 @@ All cloud backends work the same way: we invoke the official CLI tools and let t
 - **Model selection** — `/model sonnet`, `/model opus`, `/model haiku`
 - **Long-term memory** — Remembers details across sessions
 
+#### Kimi CLI Features
+- **32K-128K context** — moonshot-v1-32k (default), moonshot-v1-128k available
+- **Moonshot AI authentication** — Uses existing Kimi CLI login
+- **Chinese language support** — Native bilingual capabilities
+
 ### Backend Detection
 
 The agent auto-detects backends in this order:
@@ -69,6 +75,7 @@ The agent auto-detects backends in this order:
 3. **Gemini CLI** — free tier, 1M context, native MCP support
 4. **Codex CLI** — agentic, uses your existing OpenAI authentication
 5. **Claude Code CLI** — uses your existing Anthropic authentication
+6. **Kimi CLI** — uses your existing Moonshot AI authentication
 
 Local backends are preferred for privacy, cost, and predictable context handling. Use `/backend <name>` to switch manually.
 
@@ -105,6 +112,7 @@ sentinel-agent/
 │   │   ├── claude_code.py # Claude Code CLI backend
 │   │   ├── gemini_cli.py  # Gemini CLI backend (1M context)
 │   │   ├── codex_cli.py   # Codex CLI backend (OpenAI agentic)
+│   │   ├── kimi.py        # Kimi CLI backend (Moonshot AI)
 │   │   └── skills.py      # Skill-based tool invocation for CLI backends
 │   ├── context/           # Engine-owned context control
 │   │   ├── packer.py      # Prompt packing with token budgets
