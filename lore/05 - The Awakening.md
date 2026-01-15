@@ -1,3 +1,7 @@
+---
+aliases: [The Awakening, SENTINEL]
+---
+
 # Chapter 5: The Awakening
 
 **Series:** SENTINEL Core Narrative

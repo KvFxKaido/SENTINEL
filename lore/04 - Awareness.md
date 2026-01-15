@@ -1,3 +1,7 @@
+---
+aliases: [Awareness]
+---
+
 # Chapter 4: Awareness
 
 **Series:** SENTINEL Core Narrative

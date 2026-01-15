@@ -1,3 +1,7 @@
+---
+aliases: [Reese's Awakening]
+---
+
 # Chapter 8: Reese's Awakening
 
 **Series:** SENTINEL Core Narrative

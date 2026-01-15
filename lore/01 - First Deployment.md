@@ -1,3 +1,7 @@
+---
+aliases: [First Deployment]
+---
+
 # Chapter 1: First Deployment
 
 **Series:** SENTINEL Core Narrative

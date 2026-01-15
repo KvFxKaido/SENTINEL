@@ -1,3 +1,7 @@
+---
+aliases: [Ghost Protocol]
+---
+
 # Chapter 7: Ghost Protocol
 
 **Series:** SENTINEL Core Narrative
