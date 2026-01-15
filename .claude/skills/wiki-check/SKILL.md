@@ -46,10 +46,12 @@ grep -rh "^type:" C:/dev/SENTINEL/wiki/canon/
 
 ### Step 3: Run Kimi Integrity Check
 
-Invoke Kimi with the wiki structure and rules (using `--print` for non-interactive mode):
+Invoke Kimi with the wiki structure and rules (using `--print` for non-interactive mode).
+
+**Note:** Set UTF-8 encoding to handle em-dashes in filenames on Windows:
 
 ```bash
-kimi --print -w C:/dev/SENTINEL/wiki -c "You are a wiki integrity checker for the SENTINEL project.
+PYTHONIOENCODING=utf-8 kimi --print -w C:/dev/SENTINEL/wiki -c "You are a wiki integrity checker for the SENTINEL project.
 
 <rules>
 $(cat C:/dev/SENTINEL/wiki/AGENTS.md)
