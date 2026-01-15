@@ -57,6 +57,35 @@ SENTINEL is a tactical tabletop RPG plus an AI Game Master implementation. The r
 - Change **wiki sync behavior**: `sentinel-agent/src/state/wiki_watcher.py` (frontmatter parsing, conflict resolution).
 - Change **faction content**: `sentinel-campaign/src/sentinel_campaign/data/factions/*.json` and `sentinel-campaign/src/sentinel_campaign/data/relationships.json`.
 - Change **MCP behavior**: `sentinel-campaign/src/sentinel_campaign/server.py` and `sentinel-campaign/src/sentinel_campaign/tools/__init__.py`.
+- Add **new LLM backend**: 
+  - Create backend class in `sentinel-agent/src/llm/your_backend.py` following existing patterns
+  - Inherit from `LLMClient`, implement `chat()`, `model_name`, `supports_tools`
+  - Add to `sentinel-agent/src/llm/__init__.py` exports and `create_llm_client()` factory
+  - Add detection logic to `detect_backend()` if appropriate
+  - Update `CLI_BACKENDS` or `LOCAL_BACKENDS` constants
+  - Add tests in `sentinel-agent/tests/`
+  - Add docs in `sentinel-agent/docs/`
+
+## Available LLM Backends
+
+| Backend | Type | Setup | Cost | Context | Tools | Best For |
+|---------|------|-------|------|---------|-------|----------|
+| LM Studio | Local | Download + model | Free | Varies | Yes | Privacy, offline |
+| Ollama | Local | Download + model | Free | Varies | Yes | Privacy, offline |
+| **Kimi** | Cloud API | API key | Free tier + paid | Up to 128K | Yes | Chinese language, long context |
+| Gemini CLI | Cloud CLI | Install CLI | Free tier | 1M | Yes | Large docs, free tier |
+| Codex CLI | Cloud CLI | Install CLI + API | Paid | Varies | Yes | OpenAI models |
+| Claude Code | Cloud CLI | Install CLI | Paid | 200K | Yes | Claude models |
+
+### Using Kimi Backend
+
+The Kimi backend uses Moonshot AI's API. See `sentinel-agent/docs/kimi-backend.md` for detailed setup.
+
+Quick start:
+```powershell
+$env:KIMI_API_KEY="sk-your-api-key-here"
+python -m src.interface.cli --backend kimi
+```
 
 ## Practical Constraints (Optimize For These)
 
