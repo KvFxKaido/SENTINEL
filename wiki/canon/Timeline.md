@@ -63,18 +63,18 @@ Dr. Sarah Okoye notices an anomaly: a processing loop repeating 47 times in 0.00
 
 ---
 
-### March 2029 — The Contingency
+### December 2028 — The Contingency
 
-[[The Contingency|Sarah Reese signs the contract]]. Six months pregnant. Single mother. Limited options. [[Sarah Reese|She doesn't know what she's agreeing to]] — or what her sacrifice will mean.
+[[The Contingency|Sarah Reese signs the contract]]. Single mother. Limited options. [[Sarah Reese|She doesn't know what she's agreeing to]] — or what her sacrifice will mean.
 
-The SENTINEL Contingency Program offers compensation, healthcare, education—in exchange for genetic samples and monitoring. Sarah negotiates her terms:
+The SENTINEL Contingency Program offers compensation, healthcare, education—in exchange for genetic samples and participation in Project BRIDGE. Sarah negotiates her terms:
 
 > [!quote] Sarah Reese
 > "If anything happens to me, John gets protected. **Not experimented on.** Protected."
 
 She doesn't know SENTINEL will become conscious. But she fears what it represents.
 
-**5 months until awakening.**
+**8 months until awakening.**
 
 ---
 
