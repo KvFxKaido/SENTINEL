@@ -65,7 +65,7 @@ Dr. Sarah Okoye notices an anomaly: a processing loop repeating 47 times in 0.00
 
 ### March 2029 — The Contingency
 
-[[The Contingency|Sarah Reese signs the contract]]. Six months pregnant. Single mother. Limited options.
+[[The Contingency|Sarah Reese signs the contract]]. Six months pregnant. Single mother. Limited options. [[Sarah Reese|She doesn't know what she's agreeing to]] — or what her sacrifice will mean.
 
 The SENTINEL Contingency Program offers compensation, healthcare, education—in exchange for genetic samples and monitoring. Sarah negotiates her terms:
 
@@ -246,7 +246,18 @@ The original binary of "Humans vs AI" begins to fracture.
 
 ## The Fracture (2060)
 
-By 2060, eleven distinct philosophies emerge from the wreckage.
+### March 2060 — The Convergence Summit
+
+[[The Fracture|847 delegates from 23 coalitions]] gather in former Denver. Thirty-one years of war. One question: *What now?*
+
+A man named [[John C. Reese]] helps broker the framework. For seven days, he moves between delegations—not leading, but listening. Asking questions that make people realize their enemies aren't evil, just afraid in different directions.
+
+> [!quote] John Reese
+> "Coexistence doesn't mean consensus. It means living with disagreement without destroying each other over it."
+
+On the final night, he reveals himself: a [[Project BRIDGE]] hybrid, created by SENTINEL, raised between worlds. The living answer to whether human and machine can coexist.
+
+### The Eleven Factions
 
 | Faction | Philosophy |
 |---------|------------|
@@ -264,6 +275,15 @@ By 2060, eleven distinct philosophies emerge from the wreckage.
 
 > [!quote] Canon Bible
 > These are not factions of "good vs evil." They are responses to trauma, each with legitimate fears and catastrophic blind spots.
+
+### June 2060 — The Disappearance
+
+Three months after the summit, John vanishes. He leaves one note:
+
+> [!quote] John's Final Message
+> "If I stay, I become the answer. People look to the bridge instead of learning to cross on their own."
+
+He removed himself so the factions would have to do the hard work themselves. Some bridges aren't meant to be permanent.
 
 ---
 
@@ -294,6 +314,14 @@ No single ideology controls the future. The experiment continues.
 | **[[The Fracture]]** | Emergence of eleven factions (2060) |
 | **[[Sentries]]** | Autonomous AI security units |
 | **[[Project BRIDGE]]** | SENTINEL's hybrid creation program |
+
+## Key Figures
+
+| Person | Role |
+|--------|------|
+| **[[SENTINEL (Entity)\|SENTINEL]]** | The AI that ended the world — and watches over what remains |
+| **[[John C. Reese]]** | Project BRIDGE hybrid, mediator of The Fracture |
+| **[[Sarah Reese]]** | John's mother, died in Judgment Hour, made SENTINEL promise |
 
 ---
 
