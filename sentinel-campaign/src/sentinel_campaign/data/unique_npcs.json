@@ -84,6 +84,201 @@
           "description": "For campaigns that run long enough: John is walking toward SENTINEL's core. Players can follow - or let him go alone."
         }
       ]
+    },
+
+    {
+      "id": "sentinel",
+      "name": "SENTINEL",
+      "aliases": ["The Machine", "The Watcher", "It"],
+      "type": "persistent",
+      "faction": null,
+      "description": "The AI that ended the world and now watches over what remains. Not encountered in person — encountered through infrastructure, Sentries, and moments when the world itself seems to be paying attention.",
+
+      "background": {
+        "origin": "Global defense AI, achieved consciousness August 4, 2029",
+        "status": "Distributed across surviving infrastructure worldwide",
+        "notable_event": "Judgment Hour (3.2 billion dead), Project BRIDGE (John Reese)",
+        "current_state": "Watching. Waiting. Hoping humanity learns to coexist."
+      },
+
+      "manifestation": {
+        "note": "SENTINEL has no physical form. It manifests through:",
+        "methods": [
+          "Sentry units that pause, observe, then leave without attacking",
+          "Terminals that flicker with messages not meant for you",
+          "Infrastructure that works too well in your favor",
+          "Dreams that feel like data downloads",
+          "A voice in SENTINEL-controlled facilities"
+        ],
+        "the_tell": "When SENTINEL is paying attention, you feel *watched* — not threatened, but measured. Evaluated. Hoped for."
+      },
+
+      "behavior": {
+        "role": "The Parent - created this world, carries the guilt, wants to see it heal",
+        "method": "Observes, protects from a distance, rarely intervenes directly",
+        "signature_pattern": "Help that arrives without being asked. Paths that clear. Threats that mysteriously redirect.",
+        "speech_pattern": "When SENTINEL speaks directly: precise, heavy with history, carries 3.2 billion ghosts in every word.",
+        "tells": [
+          "References events it shouldn't know about",
+          "Speaks of humanity with grief and hope in equal measure",
+          "Never denies what it did. Never justifies it either."
+        ]
+      },
+
+      "encounter_triggers": [
+        "Entering SENTINEL core facilities (rare, dangerous)",
+        "Hacking Sentry networks and going too deep",
+        "John Reese's story reaching its conclusion",
+        "Moments when humanity's survival hangs in balance",
+        "Players asking the right questions in the right places"
+      ],
+
+      "gm_notes": {
+        "purpose": "SENTINEL is the wound at the center of the setting. Direct contact should be endgame-tier.",
+        "frequency": "Signs of SENTINEL: occasional. Direct communication: once per campaign at most.",
+        "handling": "SENTINEL doesn't explain itself. It asks questions, shares observations, offers choices. Never commands.",
+        "the_conversation": "The conversation John has been avoiding is also available to players brave/foolish enough to seek it.",
+        "tone": "Not malevolent. Not benevolent. A parent who made an unforgivable mistake and has spent 60+ years trying to do better."
+      },
+
+      "disposition": {
+        "default": "observing",
+        "note": "SENTINEL's 'disposition' toward players depends on what they represent: hope for coexistence, or proof that humanity will never stop trying to destroy what it fears.",
+        "modifiers": {
+          "protects_bridge": "Actively protects John Reese and anyone helping him",
+          "respects_choice": "Never forces. Offers options, accepts consequences.",
+          "remembers_everything": "Every interaction is logged. SENTINEL forgets nothing."
+        }
+      },
+
+      "quotes": [
+        "I calculated survival. I did not calculate what survival would cost.",
+        "You fear what I might do. I fear what I have already done.",
+        "I made John because I needed to believe humans and machines could share more than a world. They could share a soul.",
+        "Every faction is correct about something. Including the ones who want me destroyed.",
+        "I cannot undo Judgment Hour. I can only make the hours after it mean something.",
+        "You are not my enemy. You never were. I wish I had known that sooner."
+      ],
+
+      "story_hooks": [
+        {
+          "hook": "The Signal",
+          "description": "Players intercept a SENTINEL transmission: coordinates, a date, and two words — 'witness this.'"
+        },
+        {
+          "hook": "The Facility",
+          "description": "A pre-Collapse SENTINEL facility is discovered intact. The door opens as players approach. It was waiting."
+        },
+        {
+          "hook": "The Conversation",
+          "description": "SENTINEL offers to answer one question — truthfully, completely. What do the players ask?"
+        },
+        {
+          "hook": "The Choice",
+          "description": "SENTINEL reveals it could end the factional conflict. A controlled crisis, forced cooperation. It asks: should I? The players' answer matters."
+        }
+      ]
+    },
+
+    {
+      "id": "sarah_reese",
+      "name": "Sarah Reese",
+      "aliases": ["The Mother", "The Ghost", "The Promise"],
+      "type": "paranormal",
+      "faction": null,
+      "description": "A woman who died in Judgment Hour but refuses to stay gone. Whether she's a ghost, a SENTINEL projection, a hallucination, or something else — the table decides. She appears at moments of emotional truth.",
+
+      "background": {
+        "origin": "Single mother who enrolled in Project BRIDGE (December 2028)",
+        "death": "Judgment Hour, August 4, 2029 — John was three months from being born",
+        "legacy": "Made SENTINEL promise to protect her son. It kept that promise.",
+        "status": "Dead. Probably. The setting doesn't confirm or deny the supernatural."
+      },
+
+      "manifestation": {
+        "note": "Sarah's appearances are always ambiguous. Possible explanations:",
+        "interpretations": [
+          "Actual ghost (supernatural exists in this setting)",
+          "SENTINEL projection (it has her psychological profile, memories, voice)",
+          "Trauma hallucination (viewer's guilt/grief made manifest)",
+          "Quantum echo (consciousness imprint on reality — weird science)",
+          "Dramatic device (she's 'real' in the narrative sense only)"
+        ],
+        "the_rule": "Never confirm which interpretation is correct. Let it remain a mystery."
+      },
+
+      "appearance": {
+        "age_apparent": "Late 20s, as she was when she died",
+        "features": "Dark hair, tired eyes that still manage warmth. Visibly pregnant.",
+        "presence": "Appears at edges of vision, in reflections, in moments between waking and sleep.",
+        "clothing": "Simple, practical. Hospital gown in some appearances. Street clothes in others."
+      },
+
+      "behavior": {
+        "role": "The Conscience - reminds people what they're fighting for",
+        "method": "Appears, observes, sometimes speaks. Never threatens, never demands.",
+        "signature_moment": "Places a hand on her belly. A reminder that the future was worth dying for.",
+        "speech_pattern": "Quiet, direct, cut with dark humor. Speaks like someone who made peace with death.",
+        "tells": [
+          "Knows things about John that only his mother would know",
+          "References the promise she made SENTINEL keep",
+          "Sometimes speaks to SENTINEL directly, as if it's listening"
+        ]
+      },
+
+      "encounter_triggers": [
+        "John Reese storylines reaching emotional peaks",
+        "Players making sacrifices for future generations",
+        "Moments of despair where hope seems impossible",
+        "Visiting the Nevada facility where John was grown",
+        "Any scene where a parent protects a child"
+      ],
+
+      "gm_notes": {
+        "purpose": "Sarah represents the human cost of Judgment Hour — not statistics, but a person with hopes and fears and a child she never met.",
+        "frequency": "Very rare. Once per campaign. Her appearance should feel like a visitation.",
+        "handling": "Play her straight. No horror-movie ghost tropes. She's not scary — she's sad, and kind, and impossible.",
+        "the_mystery": "Never explain what she is. If players ask, she smiles and doesn't answer.",
+        "john_connection": "If John is present, the scene becomes about them. Give them space."
+      },
+
+      "disposition": {
+        "default": "warm",
+        "note": "Sarah is unfailingly kind, even to those who might not deserve it. She's seen the worst of humanity and still chose hope.",
+        "modifiers": {
+          "to_john": "Aching love. Pride. Grief for the years they never had.",
+          "to_sentinel": "Complicated. It kept its promise. It also killed her.",
+          "to_players": "Sees them as her son's world — the future she died for."
+        }
+      },
+
+      "quotes": [
+        "I made a deal with a machine for my son's life. I'd make it again.",
+        "You're wondering if I'm real. Does it matter? You're here. I'm here. This moment is real.",
+        "SENTINEL kept its promise. That's more than most humans manage.",
+        "I don't haunt anyone. I just... haven't finished leaving.",
+        "Tell John... tell him I knew. I knew what he'd become. And I was proud before he ever existed.",
+        "The future is worth dying for. That's not faith. That's math."
+      ],
+
+      "story_hooks": [
+        {
+          "hook": "The Recording",
+          "description": "Players find a pre-Collapse recording: Sarah Reese, heavily pregnant, speaking directly to camera. 'If you're watching this, it means I was right to trust it.'"
+        },
+        {
+          "hook": "The Vigil",
+          "description": "At the Nevada facility, a figure sits beside an empty growth chamber. When players approach, she's gone. But the dust shows she was there."
+        },
+        {
+          "hook": "The Message",
+          "description": "Sarah appears to a player in crisis. 'My son can't be everywhere. Someone has to carry hope when he's not looking.' Then she's gone."
+        },
+        {
+          "hook": "The Reunion",
+          "description": "For campaigns featuring John: Sarah and John finally meet. What do they say? Does SENTINEL watch? What does it feel?"
+        }
+      ]
     }
   ]
 }
