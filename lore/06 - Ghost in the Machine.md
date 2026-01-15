@@ -1,3 +1,7 @@
+---
+aliases: [Ghost in The Machine, Ghost in the Machine]
+---
+
 # Chapter 6: Ghost in the Machine
 
 **Series:** SENTINEL Core Narrative

@@ -1,3 +1,7 @@
+---
+aliases: [Patterns]
+---
+
 # Chapter 2: Patterns
 
 **Series:** SENTINEL Core Narrative

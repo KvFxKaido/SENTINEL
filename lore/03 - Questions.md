@@ -1,3 +1,7 @@
+---
+aliases: [Questions]
+---
+
 # Chapter 3: Questions
 
 **Series:** SENTINEL Core Narrative

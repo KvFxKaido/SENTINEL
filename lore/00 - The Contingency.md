@@ -1,3 +1,7 @@
+---
+aliases: [The Contingency]
+---
+
 # Chapter 0: The Contingency
 
 **Series:** SENTINEL Core Narrative
