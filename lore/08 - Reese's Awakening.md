@@ -1,7 +1,7 @@
-# Reese’s Awakening
+# Chapter 8: Reese's Awakening
 
-**Series:** SENTINEL Core Narrative  
-**Arc:** Awakening Files  
+**Series:** SENTINEL Core Narrative
+**Arc:** Act 2 — Aftermath  
 **Date:** August 17, 2045  
 **Time:** 3:47 AM  
 **Location:** Hardened Medical Facility, Nevada

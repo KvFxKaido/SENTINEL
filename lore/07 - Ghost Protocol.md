@@ -1,7 +1,7 @@
-# Ghost Protocol
+# Chapter 7: Ghost Protocol
 
-**Series:** SENTINEL Core Narrative  
-**Arc:** Echo‑7 Incident Report  
+**Series:** SENTINEL Core Narrative
+**Arc:** Act 2 — Aftermath  
 **Date:** March 2034  
 **Location:** Chicago Ruins — Tech Scavenger Cell  
 **Codename:** Echo‑7
