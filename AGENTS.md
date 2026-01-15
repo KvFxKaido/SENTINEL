@@ -72,19 +72,26 @@ SENTINEL is a tactical tabletop RPG plus an AI Game Master implementation. The r
 |---------|------|-------|------|---------|-------|----------|
 | LM Studio | Local | Download + model | Free | Varies | Yes | Privacy, offline |
 | Ollama | Local | Download + model | Free | Varies | Yes | Privacy, offline |
-| **Kimi** | Cloud API | API key | Free tier + paid | Up to 128K | Yes | Chinese language, long context |
 | Gemini CLI | Cloud CLI | Install CLI | Free tier | 1M | Yes | Large docs, free tier |
 | Codex CLI | Cloud CLI | Install CLI + API | Paid | Varies | Yes | OpenAI models |
 | Claude Code | Cloud CLI | Install CLI | Paid | 200K | Yes | Claude models |
+| Kimi CLI | Cloud CLI | `pip install kimi-cli` | Free tier + paid | Up to 128K | Yes | Chinese language, long context |
+| Mistral Vibe | Cloud CLI | `pip install mistral-vibe` | Paid | 32K-128K | Yes | Codestral, agentic |
 
-### Using Kimi Backend
+### Using CLI Backends
 
-The Kimi backend uses Moonshot AI's API. See `sentinel-agent/docs/kimi-backend.md` for detailed setup.
+All CLI backends use the same pattern: install the CLI, authenticate once, then SENTINEL uses it automatically.
 
-Quick start:
-```powershell
-$env:KIMI_API_KEY="sk-your-api-key-here"
+```bash
+# Kimi CLI
+pip install kimi-cli && kimi  # Login via /setup
+
+# Mistral Vibe
+pip install mistral-vibe && vibe  # Login on first use
+
+# Then run SENTINEL
 python -m src.interface.cli --backend kimi
+python -m src.interface.cli --backend vibe
 ```
 
 ## Practical Constraints (Optimize For These)

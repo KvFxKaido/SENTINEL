@@ -111,7 +111,7 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 - **Local mode (`--local`)** — optimized for 8B-12B models: 5K budget, condensed prompts, phase-based tool subsets
 
 **Technical Infrastructure**
-- **Multi-backend LLM** — LM Studio, Ollama (local), Gemini CLI, Codex CLI, Claude Code, Kimi CLI (cloud)
+- **Multi-backend LLM** — LM Studio, Ollama (local), Gemini CLI, Codex CLI, Claude Code, Kimi CLI, Mistral Vibe (cloud)
 - **Test suite** — 380 tests covering core mechanics, local mode, simulation, lore retrieval, wiki integration
 - **Event queue** — MCP → Agent state sync via append-only queue (solves concurrency)
 - **CI/CD** — GitHub Actions (Python 3.10, 3.11, 3.12)
@@ -231,6 +231,7 @@ SENTINEL/
 │   │   │   ├── codex_cli.py      # Codex CLI backend (OpenAI o3/gpt-4o)
 │   │   │   ├── claude_code.py    # Claude Code CLI backend
 │   │   │   ├── kimi.py           # Kimi CLI backend (Moonshot AI)
+│   │   │   ├── mistral_vibe.py   # Mistral Vibe CLI backend
 │   │   │   └── skills.py         # Skill-based tool invocation
 │   │   ├── context/
 │   │   │   ├── tokenizer.py      # Token counting (tiktoken + fallback)

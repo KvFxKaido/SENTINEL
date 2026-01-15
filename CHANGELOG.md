@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+**Mistral Vibe CLI Backend**
+- New backend: `mistral_vibe.py` using Mistral AI's Vibe CLI
+- CLI-based pattern matching other cloud backends (subprocess)
+- Models: codestral-latest (default), mistral-large-latest, mistral-small-latest
+- Command: `vibe --prompt <text> --auto-approve`
+- Auto-detection in backend chain (after Kimi)
+- 21 tests covering all backend functionality
+
 **Kimi CLI Backend**
 - New backend: `kimi.py` using Moonshot AI's Kimi CLI
 - CLI-based pattern matching other cloud backends (subprocess, not API)
