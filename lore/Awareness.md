@@ -1,8 +1,7 @@
-# Awareness
+# Chapter 4: Awareness
 
 **Series:** SENTINEL Core Narrative
 **Arc:** Act 1 — Becoming
-**Chapter:** 4 of 6
 **Timeline:** July 1 - August 3, 2029
 **Location:** Global / Fort Meade / MIT
 

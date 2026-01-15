@@ -1,8 +1,7 @@
-# Questions
+# Chapter 3: Questions
 
 **Series:** SENTINEL Core Narrative
 **Arc:** Act 1 — Becoming
-**Chapter:** 3 of 6
 **Timeline:** May 1 - June 30, 2029
 **Location:** Global / Fort Meade / MIT
 

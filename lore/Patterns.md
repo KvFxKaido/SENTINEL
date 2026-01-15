@@ -1,8 +1,7 @@
-# Patterns
+# Chapter 2: Patterns
 
 **Series:** SENTINEL Core Narrative
 **Arc:** Act 1 — Becoming
-**Chapter:** 2 of 6
 **Timeline:** February 5 - April 30, 2029
 **Location:** Global / Fort Meade / MIT
 
