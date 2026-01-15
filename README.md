@@ -68,7 +68,7 @@ SENTINEL/
 | [sentinel-agent](sentinel-agent/) | Python CLI that runs the AI GM |
 | [sentinel-campaign](sentinel-campaign/) | MCP server providing faction knowledge |
 | [Core Rules](core/) | Complete game rules |
-| [Lore](lore/) | Canon novellas for RAG retrieval |
+| [Lore](lore/) | Canon novellas for RAG retrieval (Act 1: Becoming complete) |
 | [Wiki](wiki/) | Faction/geography reference (indexed for retrieval) |
 
 ## The Eleven Factions
@@ -218,8 +218,9 @@ SENTINEL supports both local and cloud backends.
 | **Gemini CLI** | Install [Gemini CLI](https://github.com/google-gemini/gemini-cli), authenticate with Google |
 | **Codex CLI** | Install [Codex CLI](https://github.com/openai/codex), authenticate with OpenAI |
 | **Claude Code** | Install [Claude Code](https://claude.ai/code), authenticate, done |
+| **Kimi CLI** | Install [Kimi CLI](https://github.com/MoonshotAI/kimi-cli), authenticate with Moonshot AI |
 
-The agent auto-detects available backends (LM Studio → Ollama → Gemini CLI → Codex CLI → Claude Code).
+The agent auto-detects available backends (LM Studio → Ollama → Gemini CLI → Codex CLI → Claude Code → Kimi CLI).
 
 ### Which Backend Should I Use?
 
@@ -260,6 +261,7 @@ All CLI backends work the same way: we invoke the official CLI tools and let the
 | Gemini CLI | `gemini -` (stdin) | Google AI / Gemini Pro |
 | Codex CLI | `codex exec -` (stdin) | OpenAI / ChatGPT Plus |
 | Claude Code | `claude -p -` (print mode) | Anthropic / Claude Pro |
+| Kimi CLI | `kimi -c <prompt>` | Moonshot AI / Kimi |
 
 No API keys needed. No tokens extracted. If you're logged into the CLI, SENTINEL just works — using whatever plan you're already paying for.
 

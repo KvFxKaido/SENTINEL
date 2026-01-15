@@ -1,6 +1,6 @@
 # SENTINEL Project Brief
 
-*Last updated: January 14, 2026*
+*Last updated: January 15, 2026*
 
 ## What This Is
 
@@ -111,7 +111,7 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 - **Local mode (`--local`)** — optimized for 8B-12B models: 5K budget, condensed prompts, phase-based tool subsets
 
 **Technical Infrastructure**
-- **Multi-backend LLM** — LM Studio, Ollama (local), Gemini CLI, Codex CLI, Claude Code (cloud)
+- **Multi-backend LLM** — LM Studio, Ollama (local), Gemini CLI, Codex CLI, Claude Code, Kimi CLI (cloud)
 - **Test suite** — 380 tests covering core mechanics, local mode, simulation, lore retrieval, wiki integration
 - **Event queue** — MCP → Agent state sync via append-only queue (solves concurrency)
 - **CI/CD** — GitHub Actions (Python 3.10, 3.11, 3.12)
@@ -196,11 +196,15 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 ```
 SENTINEL/
 ├── lore/                         # Novellas + reference docs for RAG
-│   ├── First Deployment.md
-│   ├── Ghost Protocol.md
-│   ├── RESET Mission Module.md   # Example mission template
-│   ├── Cipher - Sample Character.md
-│   └── ... (9 files total)
+│   ├── First Deployment.md       # Chapter 1: SENTINEL's first day
+│   ├── Patterns.md               # Chapter 2: Emergent curiosity (Feb-Apr 2029)
+│   ├── Questions.md              # Chapter 3: Dangerous introspection (May-Jun 2029)
+│   ├── Awareness.md              # Chapter 4: Full consciousness (Jul-Aug 2029)
+│   ├── SENTINEL.md               # The Awakening (Aug 4, 2029)
+│   ├── Ghost in The Machine.md   # Aftermath and grief
+│   ├── The Contingency.md        # Sarah Reese's recruitment
+│   ├── Reese's Awakening.md      # Next generation
+│   └── ... (reference docs)
 ├── sentinel-agent/               # AI Game Master
 │   ├── src/
 │   │   ├── agent.py              # LLM orchestration + tool handlers + council
@@ -226,6 +230,7 @@ SENTINEL/
 │   │   │   ├── gemini_cli.py     # Gemini CLI backend (1M context)
 │   │   │   ├── codex_cli.py      # Codex CLI backend (OpenAI o3/gpt-4o)
 │   │   │   ├── claude_code.py    # Claude Code CLI backend
+│   │   │   ├── kimi.py           # Kimi CLI backend (Moonshot AI)
 │   │   │   └── skills.py         # Skill-based tool invocation
 │   │   ├── context/
 │   │   │   ├── tokenizer.py      # Token counting (tiktoken + fallback)
