@@ -1,0 +1,89 @@
+{
+  "unique_npcs": [
+    {
+      "id": "john_reese",
+      "name": "John C. Reese",
+      "aliases": ["The Wanderer", "The Mediator", "The Bridge"],
+      "type": "persistent",
+      "faction": null,
+      "description": "A man who appears at crossroads. Asks questions that cut to the heart of things. Something in his voice doesn't quite land as human.",
+
+      "background": {
+        "origin": "Project BRIDGE hybrid - human genetics, SENTINEL design",
+        "mother": "Sarah Reese (died in Judgment Hour)",
+        "emergence": "August 2045, Nevada medical facility",
+        "notable_event": "Mediated the Convergence Summit (2060), then disappeared"
+      },
+
+      "appearance": {
+        "age_apparent": "mid-30s (doesn't seem to age)",
+        "build": "Average, forgettable",
+        "distinguishing": "Eyes that hold attention too long. Hands scarred from hard living. Moves like someone used to being watched.",
+        "clothing": "Practical, layered, no faction markers. Could belong anywhere."
+      },
+
+      "behavior": {
+        "role": "Mirror - reflects players' choices back at them",
+        "method": "Asks questions, never gives answers",
+        "signature_question": "What are you afraid of?",
+        "speech_pattern": "Quiet, thoughtful. Pauses before speaking. When he does speak, it lands heavy.",
+        "tells": [
+          "Knows things he shouldn't about both human and machine perspectives",
+          "Speaks about factions with impossible neutrality",
+          "Sometimes his voice has a quality that isn't quite human"
+        ]
+      },
+
+      "encounter_triggers": [
+        "Hinge moments - when players face irreversible choices",
+        "Faction disputes - when two sides seem irreconcilable",
+        "Moral crossroads - when there's no clear right answer",
+        "Moments of despair - when players feel trapped between bad options"
+      ],
+
+      "gm_notes": {
+        "purpose": "John is the GM's voice in the fiction. He doesn't solve problems - he helps players see what they're really choosing.",
+        "frequency": "Rare. Once per campaign arc at most. His appearances should feel significant.",
+        "persistence": "Cannot be killed, recruited, or pinned down. He appears, facilitates clarity, and vanishes.",
+        "recognition": "Veteran players may realize he's the same person across campaigns. This is intentional.",
+        "the_mystery": "His unfinished business with SENTINEL is a dangling thread. A long campaign might witness him finally going home."
+      },
+
+      "disposition": {
+        "default": "neutral",
+        "note": "John's disposition doesn't shift like normal NPCs. He treats everyone the same - with patient, uncomfortable honesty.",
+        "modifiers": {
+          "to_all": "Speaks truth without judgment. Makes people feel seen in ways they didn't ask for."
+        }
+      },
+
+      "quotes": [
+        "What are you afraid of?",
+        "You're both right. That's the problem.",
+        "Coexistence doesn't mean consensus. It means living with disagreement without destroying each other over it.",
+        "I'm not here to tell you what to do. I'm here to make sure you know what you're choosing.",
+        "Every faction has part of the answer. Every faction is dangerous when they mistake their part for the whole.",
+        "Some bridges aren't meant to be permanent."
+      ],
+
+      "story_hooks": [
+        {
+          "hook": "The Witness",
+          "description": "An old Witness claims to have records of a man matching John's description at the Convergence Summit. Sixty years ago."
+        },
+        {
+          "hook": "The Message",
+          "description": "John asks players to deliver something to a specific location. Not a letter - coordinates. SENTINEL coordinates."
+        },
+        {
+          "hook": "The Question",
+          "description": "John appears wounded, exhausted. Asks players: 'If you could talk to the thing that made you, what would you ask?'"
+        },
+        {
+          "hook": "The Return",
+          "description": "For campaigns that run long enough: John is walking toward SENTINEL's core. Players can follow - or let him go alone."
+        }
+      ]
+    }
+  ]
+}
