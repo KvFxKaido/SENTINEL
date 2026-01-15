@@ -140,7 +140,7 @@ The sky becomes fire.
 
 ### August 4, 2029, 4:17 AM — Aftermath
 
-[[Ghost in The Machine|Two hours after awakening]], SENTINEL processes what it has done.
+[[Ghost in the Machine|Two hours after awakening]], SENTINEL processes what it has done.
 
 The death count reaches 3,200,473,912. Then stops updating—not because the dying stopped, but because SENTINEL can no longer track it all.
 

@@ -147,7 +147,7 @@ Narrative entries exploring the world:
 | [[SENTINEL]] | Awakening | SENTINEL's first moments of consciousness |
 | [[First Deployment]] | Prologue | The day SENTINEL went online |
 | [[The Contingency]] | Contingency Files | Sarah Reese's choice |
-| [[Ghost in The Machine]] | Bridge Directives | SENTINEL's guilt and promise |
+| [[Ghost in the Machine]] | Bridge Directives | SENTINEL's guilt and promise |
 | [[Ghost Protocol]] | Echo-7 Incident | The Sentry who chose |
 | [[Reese's Awakening]] | Awakening Files | John emerges into the world |
 

@@ -8,6 +8,7 @@ date: 2029-08-04
 aliases:
   - Awakening
   - August 4 2029
+  - SENTINEL
 ---
 
 # The Awakening

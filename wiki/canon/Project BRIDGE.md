@@ -84,5 +84,5 @@ Project BRIDGE raises questions SENTINEL cannot answer:
 
 - [[The Contingency]] — Sarah Reese's agreement
 - [[Reese's Awakening]] — John emerges
-- [[Ghost in The Machine]] — SENTINEL processes the aftermath
+- [[Ghost in the Machine]] — SENTINEL processes the aftermath
 - [[Timeline]] — Chronological context
