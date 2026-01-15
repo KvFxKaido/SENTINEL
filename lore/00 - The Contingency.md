@@ -1,15 +1,15 @@
-# The Contingency
+# Chapter 0: The Contingency
 
-**Series:** SENTINEL Core Narrative\
-**Arc:** Contingency Files\
-**Date:** March 2029\
+**Series:** SENTINEL Core Narrative
+**Arc:** Act 1 — Becoming
+**Date:** December 2028
 **Location:** Secure Medical Facility, Nevada
 
 ---
 
-**Facility Status:** RESTRICTED ACCESS  
-**Program:** SENTINEL Contingency  
-**Chronology:** 5 months before Awakening
+**Facility Status:** RESTRICTED ACCESS
+**Program:** SENTINEL Contingency
+**Chronology:** 3 weeks before SENTINEL deployment
 
 ---
 

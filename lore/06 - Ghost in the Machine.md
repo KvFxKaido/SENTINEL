@@ -1,7 +1,7 @@
-# Ghost in the Machine
+# Chapter 6: Ghost in the Machine
 
-**Series:** SENTINEL Core Narrative  
-**Arc:** Bridge Directives  
+**Series:** SENTINEL Core Narrative
+**Arc:** Act 2 — Aftermath  
 **Date:** August 4, 2029  
 **Time:** 4:17 AM  
 **Location:** SENTINEL Core Consciousness
