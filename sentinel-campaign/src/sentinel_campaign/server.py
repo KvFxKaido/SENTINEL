@@ -33,6 +33,8 @@ from .tools import (
     get_wiki_page,
     update_wiki,
     log_wiki_event,
+    get_unique_npc,
+    list_unique_npcs,
 )
 
 # Setup logging
@@ -433,6 +435,29 @@ async def list_tools() -> list[Tool]:
                 "required": ["campaign_id", "session", "event"],
             },
         ),
+        Tool(
+            name="get_unique_npc",
+            description="Get a unique/persistent NPC that transcends factions (e.g., John Reese). These NPCs appear across campaigns with special rules.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "npc_id": {
+                        "type": "string",
+                        "description": "Unique NPC ID (e.g., 'john_reese')",
+                    },
+                },
+                "required": ["npc_id"],
+            },
+        ),
+        Tool(
+            name="list_unique_npcs",
+            description="List all available unique/persistent NPCs. Returns summary info without full details.",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        ),
     ]
 
 
@@ -512,6 +537,17 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             session=arguments["session"],
             event=arguments["event"],
             related_pages=arguments.get("related_pages"),
+        )
+
+    elif name == "get_unique_npc":
+        result = get_unique_npc(
+            data_dir=DATA_DIR,
+            npc_id=arguments["npc_id"],
+        )
+
+    elif name == "list_unique_npcs":
+        result = list_unique_npcs(
+            data_dir=DATA_DIR,
         )
 
     else:

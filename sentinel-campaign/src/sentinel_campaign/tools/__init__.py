@@ -724,6 +724,80 @@ def update_wiki(
         }
 
 
+# -----------------------------------------------------------------------------
+# Unique NPCs
+# -----------------------------------------------------------------------------
+
+def get_unique_npc(
+    data_dir: Path,
+    npc_id: str,
+) -> dict:
+    """
+    Get a unique/persistent NPC that transcends factions.
+
+    These are special NPCs like John C. Reese who appear across campaigns
+    and don't follow normal faction rules.
+    """
+    # Validate npc_id to prevent path traversal
+    try:
+        _validate_safe_name(npc_id, allow_spaces=False)
+    except ValueError as e:
+        return {"error": str(e)}
+
+    unique_npcs_file = data_dir / "unique_npcs.json"
+    if not unique_npcs_file.exists():
+        return {"error": "Unique NPCs data not found"}
+
+    try:
+        data = json.loads(unique_npcs_file.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {"error": "Failed to parse unique NPCs data"}
+
+    # Find the requested NPC
+    for npc in data.get("unique_npcs", []):
+        if npc.get("id") == npc_id:
+            return {
+                "npc": npc,
+                "note": "Unique NPCs transcend factions. See gm_notes for handling.",
+            }
+
+    return {"error": f"Unique NPC not found: {npc_id}"}
+
+
+def list_unique_npcs(
+    data_dir: Path,
+) -> dict:
+    """
+    List all available unique/persistent NPCs.
+
+    Returns summary info for each unique NPC without full details.
+    """
+    unique_npcs_file = data_dir / "unique_npcs.json"
+    if not unique_npcs_file.exists():
+        return {"error": "Unique NPCs data not found", "npcs": []}
+
+    try:
+        data = json.loads(unique_npcs_file.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {"error": "Failed to parse unique NPCs data", "npcs": []}
+
+    # Return summary list
+    summaries = []
+    for npc in data.get("unique_npcs", []):
+        summaries.append({
+            "id": npc.get("id"),
+            "name": npc.get("name"),
+            "aliases": npc.get("aliases", []),
+            "type": npc.get("type"),
+            "description": npc.get("description"),
+        })
+
+    return {
+        "npcs": summaries,
+        "count": len(summaries),
+    }
+
+
 def log_wiki_event(
     wiki_dir: Path,
     campaign_id: str,
