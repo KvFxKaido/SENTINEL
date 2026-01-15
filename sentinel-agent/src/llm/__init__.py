@@ -10,6 +10,7 @@ from .kimi import KimiClient, KimiCliClient
 from .claude_code import ClaudeCodeClient
 from .gemini_cli import GeminiCliClient
 from .codex_cli import CodexCliClient
+from .mistral_vibe import MistralVibeClient
 from .skills import parse_skills, format_tools_for_prompt, strip_skill_tags
 
 __all__ = [
@@ -25,6 +26,7 @@ __all__ = [
     "ClaudeCodeClient",
     "GeminiCliClient",
     "CodexCliClient",
+    "MistralVibeClient",
     "MockLLMClient",
     "create_llm_client",
     "detect_backend",
@@ -130,11 +132,11 @@ class MockLLMClient(LLMClient):
 # Backend Detection and Factory
 # -----------------------------------------------------------------------------
 
-BackendType = Literal["lmstudio", "ollama", "kimi", "claude", "gemini", "codex", "auto"]
+BackendType = Literal["lmstudio", "ollama", "kimi", "claude", "gemini", "codex", "vibe", "auto"]
 
 # CLI-based backends with massive context windows (no meaningful pressure tracking)
 # These use existing CLI authentication and have 100K+ token context
-CLI_BACKENDS = frozenset({"claude", "gemini", "codex", "kimi"})
+CLI_BACKENDS = frozenset({"claude", "gemini", "codex", "kimi", "vibe"})
 
 # Local backends with finite context (pressure tracking relevant)
 LOCAL_BACKENDS = frozenset({"lmstudio", "ollama"})
@@ -204,6 +206,14 @@ def detect_backend(
         client = ClaudeCodeClient()
         if client.is_available():
             return ("claude", client)
+    except Exception:
+        pass
+
+    # Try Mistral Vibe CLI (uses existing auth)
+    try:
+        client = MistralVibeClient()
+        if client.is_available():
+            return ("vibe", client)
     except Exception:
         pass
 
@@ -280,6 +290,14 @@ def create_llm_client(
         except Exception as e:
             print(f"Codex CLI error: {e}")
             return ("codex", None)
+
+    if backend == "vibe":
+        try:
+            from .mistral_vibe import create_mistral_vibe_client
+            return ("vibe", create_mistral_vibe_client())
+        except Exception as e:
+            print(f"Mistral Vibe error: {e}")
+            return ("vibe", None)
 
     print(f"Unknown backend: {backend}")
     return (backend, None)

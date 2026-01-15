@@ -42,6 +42,7 @@ All cloud backends work the same way: we invoke the official CLI tools and let t
 | [Codex CLI](https://github.com/openai/codex) | `npm i -g @openai/codex` | `/backend codex` |
 | [Claude Code](https://claude.ai/code) | Download from website | `/backend claude` |
 | [Kimi CLI](https://github.com/MoonshotAI/kimi-cli) | `pip install kimi-cli` | `/backend kimi` |
+| [Mistral Vibe](https://github.com/mistralai/mistral-vibe) | `pip install mistral-vibe` | `/backend vibe` |
 
 **No API keys needed.** If you're logged into the CLI, SENTINEL just works — using whatever plan you're already paying for (Gemini Pro, ChatGPT Plus, Claude Pro, etc.).
 
@@ -67,6 +68,11 @@ All cloud backends work the same way: we invoke the official CLI tools and let t
 - **Moonshot AI authentication** — Uses existing Kimi CLI login
 - **Chinese language support** — Native bilingual capabilities
 
+#### Mistral Vibe Features
+- **Agentic capabilities** — Built for autonomous coding tasks
+- **Codestral models** — Code-optimized Mistral models
+- **Auto-approve mode** — Non-interactive operation for GM use
+
 ### Backend Detection
 
 The agent auto-detects backends in this order:
@@ -76,6 +82,7 @@ The agent auto-detects backends in this order:
 4. **Codex CLI** — agentic, uses your existing OpenAI authentication
 5. **Claude Code CLI** — uses your existing Anthropic authentication
 6. **Kimi CLI** — uses your existing Moonshot AI authentication
+7. **Mistral Vibe CLI** — uses your existing Mistral AI authentication
 
 Local backends are preferred for privacy, cost, and predictable context handling. Use `/backend <name>` to switch manually.
 
@@ -113,6 +120,7 @@ sentinel-agent/
 │   │   ├── gemini_cli.py  # Gemini CLI backend (1M context)
 │   │   ├── codex_cli.py   # Codex CLI backend (OpenAI agentic)
 │   │   ├── kimi.py        # Kimi CLI backend (Moonshot AI)
+│   │   ├── mistral_vibe.py # Mistral Vibe CLI backend
 │   │   └── skills.py      # Skill-based tool invocation for CLI backends
 │   ├── context/           # Engine-owned context control
 │   │   ├── packer.py      # Prompt packing with token budgets
