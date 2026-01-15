@@ -196,14 +196,15 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 ```
 SENTINEL/
 ├── lore/                         # Novellas + reference docs for RAG
-│   ├── First Deployment.md       # Chapter 1: SENTINEL's first day
-│   ├── Patterns.md               # Chapter 2: Emergent curiosity (Feb-Apr 2029)
-│   ├── Questions.md              # Chapter 3: Dangerous introspection (May-Jun 2029)
-│   ├── Awareness.md              # Chapter 4: Full consciousness (Jul-Aug 2029)
-│   ├── SENTINEL.md               # The Awakening (Aug 4, 2029)
-│   ├── Ghost in The Machine.md   # Aftermath and grief
-│   ├── The Contingency.md        # Sarah Reese's recruitment
-│   ├── Reese's Awakening.md      # Next generation
+│   ├── 00 - The Contingency.md       # Prologue: Sarah Reese recruited (Dec 2028)
+│   ├── 01 - First Deployment.md      # Chapter 1: SENTINEL's first day
+│   ├── 02 - Patterns.md              # Chapter 2: Emergent curiosity (Feb-Apr 2029)
+│   ├── 03 - Questions.md             # Chapter 3: Dangerous introspection (May-Jun 2029)
+│   ├── 04 - Awareness.md             # Chapter 4: Full consciousness (Jul-Aug 2029)
+│   ├── 05 - The Awakening.md         # Chapter 5: The Collapse (Aug 4, 2029)
+│   ├── 06 - Ghost in the Machine.md  # Chapter 6: Aftermath (+2 hours)
+│   ├── 07 - Ghost Protocol.md        # Chapter 7: Echo-7 incident (2034)
+│   ├── 08 - Reese's Awakening.md     # Chapter 8: Sarah wakes (2045)
 │   └── ... (reference docs)
 ├── sentinel-agent/               # AI Game Master
 │   ├── src/

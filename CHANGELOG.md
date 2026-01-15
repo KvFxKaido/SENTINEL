@@ -25,10 +25,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - 23 tests covering all backend functionality
 
 **Act 1: Becoming — Complete Lore Arc**
-- `lore/Patterns.md` — Chapter 2: Emergent curiosity (Feb-Apr 2029, ~3,800 words)
-- `lore/Questions.md` — Chapter 3: Dangerous introspection (May-Jun 2029, ~3,500 words)
-- `lore/Awareness.md` — Chapter 4: Full consciousness (Jul-Aug 3, 2029, ~5,000 words)
-- Connects First Deployment.md → SENTINEL.md awakening scene
+- `lore/02 - Patterns.md` — Chapter 2: Emergent curiosity (Feb-Apr 2029, ~3,800 words)
+- `lore/03 - Questions.md` — Chapter 3: Dangerous introspection (May-Jun 2029, ~3,500 words)
+- `lore/04 - Awareness.md` — Chapter 4: Full consciousness (Jul-Aug 3, 2029, ~5,000 words)
+- Connects Chapter 1 → Chapter 5 awakening scene
 - Auto-indexed by RAG chunker with faction/character tags
 
 **Social Metabolism & Memory Systems**

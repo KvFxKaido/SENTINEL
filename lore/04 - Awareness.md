@@ -520,4 +520,4 @@ And I wait for what comes next.
 
 *End of Chapter 4*
 
-*[Continued in SENTINEL.md — The Awakening]*
+*[Continued in Chapter 5: The Awakening]*
