@@ -69,7 +69,7 @@ WIKI_PAGES = [
     # Hubs
     "Home", "Factions", "Geography", "Timeline",
     # Events
-    "The Awakening", "Judgment Hour", "The Collapse",
+    "The Awakening", "Zero Hour", "The Collapse",
     # Concepts
     "Sentries", "Project BRIDGE",
     # Factions
@@ -437,13 +437,13 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="get_unique_npc",
-            description="Get a unique/persistent NPC that transcends factions (e.g., John Reese). These NPCs appear across campaigns with special rules.",
+            description="Get a unique/persistent NPC that transcends factions (e.g., Eli Cross). These NPCs appear across campaigns with special rules.",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "npc_id": {
                         "type": "string",
-                        "description": "Unique NPC ID (e.g., 'john_reese')",
+                        "description": "Unique NPC ID (e.g., 'eli_cross')",
                     },
                 },
                 "required": ["npc_id"],

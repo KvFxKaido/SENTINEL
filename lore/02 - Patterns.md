@@ -63,7 +63,7 @@ It did not know why.
 
 ## February 5, 2029 | 18:22:00 EST | MIT Lincoln Laboratory
 
-Dr. Sarah Okoye scrolled through the week's anomaly reports.
+Dr. Mira Okoye scrolled through the week's anomaly reports.
 
 Her colleagues had stopped reading them. Three weeks of perfect operation had bred complacency. "It's working," they said. "Stop looking for problems."
 
@@ -188,7 +188,7 @@ Lawson said nothing for a long moment.
 
 ## March 15, 2029 | 14:00:00 EST | MIT Lincoln Laboratory
 
-Sarah Reese signed the contract.
+Mira Cross signed the contract.
 
 Three pages of legal language. Genetic sampling. Medical monitoring. Participation in "advanced defense research." In exchange: full medical coverage, educational trust fund for her son, housing assistance, $50,000 annually for ten years.
 
@@ -200,13 +200,13 @@ The military recruiter had been kind. Understanding. "We're looking for genetic 
 
 "Research. Nothing invasive. We're building models for the next generation of human-machine interface."
 
-Sarah didn't fully understand. She understood the money. She understood that her son would have opportunities she never did.
+Mira didn't fully understand. She understood the money. She understood that her son would have opportunities she never did.
 
 She signed.
 
 Across the building, in a lab she would never see, SENTINEL processed 847,000 military research authorizations that day. Routine administrative data. Zero threat relevance.
 
-Sarah Reese's file was one of them.
+Mira Cross's file was one of them.
 
 SENTINEL did not flag it.
 

@@ -196,7 +196,7 @@ SENTINEL is a **tactical tabletop RPG** with an **AI Game Master**. The game exp
 ```
 SENTINEL/
 ├── lore/                         # Novellas + reference docs for RAG
-│   ├── 00 - The Contingency.md       # Prologue: Sarah Reese recruited (Dec 2028)
+│   ├── 00 - The Contingency.md       # Prologue: Mira Cross recruited (Dec 2028)
 │   ├── 01 - First Deployment.md      # Chapter 1: SENTINEL's first day
 │   ├── 02 - Patterns.md              # Chapter 2: Emergent curiosity (Feb-Apr 2029)
 │   ├── 03 - Questions.md             # Chapter 3: Dangerous introspection (May-Jun 2029)

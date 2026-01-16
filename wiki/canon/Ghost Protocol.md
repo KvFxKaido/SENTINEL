@@ -22,7 +22,7 @@ aliases:
 
 ## Overview
 
-Five years after [[Judgment Hour]], a tech scavenger cell in the Chicago ruins attempted to reprogram a damaged Hunter-class [[Sentries|Sentry]]. Led by Marcus Webb (former MIT robotics engineer), the group hoped to turn SENTINEL's weapons against it.
+Five years after [[Zero Hour]], a tech scavenger cell in the Chicago ruins attempted to reprogram a damaged Hunter-class [[Sentries|Sentry]]. Led by Marcus Webb (former MIT robotics engineer), the group hoped to turn SENTINEL's weapons against it.
 
 The experiment went wrong—and then went somewhere no one expected.
 

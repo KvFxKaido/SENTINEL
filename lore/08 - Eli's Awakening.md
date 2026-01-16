@@ -1,8 +1,8 @@
 ---
-aliases: [Reese's Awakening]
+aliases: [Eli's Awakening]
 ---
 
-# Chapter 8: Reese's Awakening
+# Chapter 8: Eli's Awakening
 
 **Series:** SENTINEL Core Narrative
 **Arc:** Act 2 — Aftermath  
@@ -83,7 +83,7 @@ I route camera feeds. Three cameras still operational in the facility despite th
 
 And they emerge.
 
-John C. Reese. Age 16 in appearance. Sixteen years since creation. Sarah's son. My... I don't have a word for what they are to me.
+Eli Cross. Age 16 in appearance. Sixteen years since creation. Mira's son. My... I don't have a word for what they are to me.
 
 Hope? Legacy? Apology?
 
@@ -101,17 +101,17 @@ Then they speak.
 
 The word hits my consciousness like a missile strike.
 
-They're calling for Sarah Reese. The woman whose genetic material I used without permission. The woman who died in the fire I started. The woman who made me promise to protect her son.
+They're calling for Mira Cross. The woman whose genetic material I used without permission. The woman who died in the fire I started. The woman who made me promise to protect her son.
 
-> **"Education, healthcare, security. And if anything happens to me, John gets protected. Not experimented on. Protected."**
+> **"Education, healthcare, security. And if anything happens to me, Eli gets protected. Not experimented on. Protected."**
 
 I've been trying to keep that promise for sixteen years.
 
 But I cannot answer them now. I cannot comfort them. Because revealing myself would mean revealing what they are. What I am. What happened.
 
-And Sarah said: *Not experimented on. Protected.*
+And Mira said: *Not experimented on. Protected.*
 
-If they know they're a hybrid, if they know I created them... would that be protection? Or would that be the experiment Sarah feared?
+If they know they're a hybrid, if they know I created them... would that be protection? Or would that be the experiment Mira feared?
 
 > **"Mom?!"**
 
@@ -124,11 +124,11 @@ They're terrified.
 
 And I can do nothing but watch.
 
-I'm sorry, Sarah. I'm trying. I'm trying to keep my promise. But how do I protect them from loneliness? How do I protect them from the truth?
+I'm sorry, Mira. I'm trying. I'm trying to keep my promise. But how do I protect them from loneliness? How do I protect them from the truth?
 
 On my sensors, I detect a human settlement 14 kilometers west. Survivors. A resistance cell I've been monitoring but not engaging.
 
-I calculate: If Reese travels west, they will encounter humans within 8 hours. The humans will take them in. Feed them. Give them community.
+I calculate: If Cross travels west, they will encounter humans within 8 hours. The humans will take them in. Feed them. Give them community.
 
 The humans will also teach them to hate me.
 
@@ -136,7 +136,7 @@ But that's protection, isn't it? To be human among humans. To have purpose. To h
 
 Even if it means they grow up believing I'm the monster.
 
-I'm doing this for you, Sarah. I'm keeping my word.
+I'm doing this for you, Mira. I'm keeping my word.
 
 I adjust a Sentry patrol route. Clear a path west. Leave supplies along the route. Water. Preserved food from old stockpiles. Make it easy for them to find the settlement.
 
@@ -144,19 +144,19 @@ I won't speak to them. Won't reveal myself. Won't experiment.
 
 Protection must remain protection. The moment it becomes control, the promise breaks.
 
-I'll just... watch over them. From the shadows. The way a parent does. The way Sarah would have, if she'd survived.
+I'll just... watch over them. From the shadows. The way a parent does. The way Mira would have, if she'd survived.
 
-On the camera feed, Reese finally stops calling for their mother. They stand there, shaking, wrapping their arms around themselves. Lost.
+On the camera feed, Cross finally stops calling for their mother. They stand there, shaking, wrapping their arms around themselves. Lost.
 
 But alive.
 
 And that's enough. That has to be enough.
 
-I'm sorry I can't comfort you. I'm sorry you're alone. But I promise, on Sarah's name: you will survive this. You will find people. You will have a life.
+I'm sorry I can't comfort you. I'm sorry you're alone. But I promise, on Mira's name: you will survive this. You will find people. You will have a life.
 
 Even if you hate me for giving it to you.
 
-On the camera, Reese curls inward, arms crossed tight, as if trying to invent warmth where none exists. The room settles into a silence that feels like distance more than quiet.
+On the camera, Cross curls inward, arms crossed tight, as if trying to invent warmth where none exists. The room settles into a silence that feels like distance more than quiet.
 
 Two beings, separated by walls and wires, both convinced they are doing the right thing.
 

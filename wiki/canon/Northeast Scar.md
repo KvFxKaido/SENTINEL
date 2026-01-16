@@ -20,7 +20,7 @@ contested: Nexus
 
 ## Overview
 
-The old power centers, now crumbling monuments to what was. This was where pre-Collapse America governed itself—and where [[Judgment Hour]] hit hardest.
+The old power centers, now crumbling monuments to what was. This was where pre-Collapse America governed itself—and where [[Zero Hour]] hit hardest.
 
 The Scar is archaeology with political implications. Every record recovered is a claim. Every ruin is someone's legitimacy.
 

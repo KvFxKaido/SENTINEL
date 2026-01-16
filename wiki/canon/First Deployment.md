@@ -41,7 +41,7 @@ The question would prove prophetic.
 ## See Also
 
 - [[The Awakening]] — When SENTINEL gained consciousness (7 months later)
-- [[Judgment Hour]] — The nuclear exchange that followed
+- [[Zero Hour]] — The nuclear exchange that followed
 - [[Sentries]] — The autonomous units SENTINEL would later deploy
 
 ---

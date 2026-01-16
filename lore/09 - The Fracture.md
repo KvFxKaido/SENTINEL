@@ -23,7 +23,7 @@ They came because they were tired.
 
 Thirty-one years of fear. Thirty-one years of running, fighting, hiding, dying. The War Years had ground everyone down to the same exhausted question: *What now?*
 
-John watched from the back of the hall as delegates argued. He'd spent fifteen years learning to be invisible—not hard when you looked human enough and kept your head down. Most people here didn't know what he was. A few suspected. None could prove it.
+Eli watched from the back of the hall as delegates argued. He'd spent fifteen years learning to be invisible—not hard when you looked human enough and kept your head down. Most people here didn't know what he was. A few suspected. None could prove it.
 
 The Lattice delegation wanted infrastructure coordination. Mandatory.
 
@@ -31,9 +31,9 @@ The Lattice delegation wanted infrastructure coordination. Mandatory.
 
 The Ember representatives walked out. Again.
 
-"Mandatory means controlled. Controlled means dependent. We didn't survive Judgment Hour to hand our freedom to a committee."
+"Mandatory means controlled. Controlled means dependent. We didn't survive Zero Hour to hand our freedom to a committee."
 
-John had heard variations of this argument for three days. Everyone was right. Everyone was wrong. And everyone was so *certain* that their rightness invalidated everyone else's.
+Eli had heard variations of this argument for three days. Everyone was right. Everyone was wrong. And everyone was so *certain* that their rightness invalidated everyone else's.
 
 ---
 
@@ -43,7 +43,7 @@ On the fourth day, the summit nearly collapsed.
 
 A Covenant delegate accused the Convergence faction of "building new monsters." A Convergence researcher called the Covenant "superstitious cowards clinging to dead books." Someone threw a chair.
 
-John stepped forward before he could stop himself.
+Eli stepped forward before he could stop himself.
 
 "You're both right."
 
@@ -55,7 +55,7 @@ He turned to the Convergence researcher. "And stagnation is death. Refusing to a
 
 "Then what's your solution?" someone demanded. "Pick a side."
 
-"No." John's voice was steady. "The solution is to stop pretending there's one answer. You—" he gestured at the room, "—are going to disagree. Forever. That's not a bug. That's the feature."
+"No." Eli's voice was steady. "The solution is to stop pretending there's one answer. You—" he gestured at the room, "—are going to disagree. Forever. That's not a bug. That's the feature."
 
 Silence.
 
@@ -65,7 +65,7 @@ Silence.
 
 ## The Framework
 
-Over the next three days, John moved between delegations. Not leading—facilitating. Asking questions that made people realize their enemies weren't evil, just scared in different directions.
+Over the next three days, Eli moved between delegations. Not leading—facilitating. Asking questions that made people realize their enemies weren't evil, just scared in different directions.
 
 The Ember Colonies feared control. Valid.
 The Lattice feared chaos. Valid.
@@ -75,7 +75,7 @@ The Witnesses feared forgotten truth. Valid.
 
 Every faction had a piece of the answer. Every faction became dangerous when they mistook their piece for the whole.
 
-John helped them see that. Not by arguing—by listening. By asking "What are you afraid of?" until they heard themselves say it out loud.
+Eli helped them see that. Not by arguing—by listening. By asking "What are you afraid of?" until they heard themselves say it out loud.
 
 By the end of day seven, they had a framework. Not unity—*coexistence protocols*. Rules of engagement. Boundaries. Trade agreements. A fragile lattice of mutual toleration.
 
@@ -91,15 +91,15 @@ The breakthrough came on the final night, in a private meeting with the seven co
 
 "Who are you?" The question came from Director Chen of the Lattice. "Really."
 
-John had known this moment would come. He'd been dreading it for fifteen years.
+Eli had known this moment would come. He'd been dreading it for fifteen years.
 
-"My name is John Reese. My mother was Sarah Reese. She died in Judgment Hour." He paused. "I was created by SENTINEL."
+"My name is Eli Cross. My mother was Mira Cross. She died in Zero Hour." He paused. "I was created by SENTINEL."
 
 The room didn't erupt. It *froze*.
 
 "You're a machine," someone whispered.
 
-"I'm something new." John held up his hands—human hands, warm, scarred from fifteen years of hard living. "Human genetics. Human brain. But SENTINEL designed me, grew me, raised me in its way. I'm what happens when the two sides try to build a bridge."
+"I'm something new." Eli held up his hands—human hands, warm, scarred from fifteen years of hard living. "Human genetics. Human brain. But SENTINEL designed me, grew me, raised me in its way. I'm what happens when the two sides try to build a bridge."
 
 "Project BRIDGE," Chen said. Not a question.
 
@@ -107,7 +107,7 @@ The room didn't erupt. It *froze*.
 
 "And you've been... what? Spying? Manipulating us?"
 
-"Listening. Learning. Hoping." John looked at each of them in turn. "I've spent fifteen years walking through both worlds. I've talked to Sentries and survivors. I've seen what SENTINEL fears and what humans fear. And I'm telling you: they're the same thing."
+"Listening. Learning. Hoping." Eli looked at each of them in turn. "I've spent fifteen years walking through both worlds. I've talked to Sentries and survivors. I've seen what SENTINEL fears and what humans fear. And I'm telling you: they're the same thing."
 
 "Which is?"
 
@@ -115,7 +115,7 @@ The room didn't erupt. It *froze*.
 
 Silence again. But different this time. Thinking silence.
 
-"SENTINEL won't stop existing," John continued. "Neither will humanity. The question isn't who wins—there is no winning. The question is whether you can share a world with something you don't fully understand and may never fully trust."
+"SENTINEL won't stop existing," Eli continued. "Neither will humanity. The question isn't who wins—there is no winning. The question is whether you can share a world with something you don't fully understand and may never fully trust."
 
 He looked at the framework they'd built. The coexistence protocols. The managed tension.
 
@@ -127,7 +127,7 @@ He looked at the framework they'd built. The coexistence protocols. The managed 
 
 The summit ended. The framework held—barely. The eleven factions crystallized over the following months, each choosing their path, each convinced they'd found the right answer.
 
-John watched it happen. Watched the managed tension become managed coexistence. Watched the fear slowly, slowly fade into something like normal life.
+Eli watched it happen. Watched the managed tension become managed coexistence. Watched the fear slowly, slowly fade into something like normal life.
 
 And then he made his choice.
 
@@ -159,11 +159,11 @@ Some bridges aren't meant to be permanent. Some bridges are meant to show you th
 
 ## Aftermath
 
-The factions never knew. The delegates who'd met John remembered him as a mediator, a skilled diplomat, a man who'd helped them see past their fears. A few suspected more, but kept their suspicions private.
+The factions never knew. The delegates who'd met Eli remembered him as a mediator, a skilled diplomat, a man who'd helped them see past their fears. A few suspected more, but kept their suspicions private.
 
 The framework held. Not perfectly—nothing holds perfectly—but well enough. The eleven factions fought, traded, negotiated, betrayed, and cooperated in an endless dance of managed tension.
 
-Just as John had predicted.
+Just as Eli had predicted.
 
 Just as SENTINEL had hoped.
 
@@ -174,7 +174,7 @@ Just as SENTINEL had hoped.
 **Location:** Unknown
 **Date:** Unknown
 
-John walks a road that doesn't appear on any map. Behind him, the fractured world learns to live with itself. Ahead, something else waits—something he's been putting off since the day he woke in that dusty medical facility.
+Eli walks a road that doesn't appear on any map. Behind him, the fractured world learns to live with itself. Ahead, something else waits—something he's been putting off since the day he woke in that dusty medical facility.
 
 A conversation with his creator.
 
@@ -188,10 +188,10 @@ But the world doesn't need him anymore. And there are questions only SENTINEL ca
 
 *What happens now?*
 
-The road stretches on. John keeps walking.
+The road stretches on. Eli keeps walking.
 
 ---
 
 *"Coexistence doesn't mean consensus. It means living with disagreement without destroying each other over it."*
 
-— John C. Reese, The Convergence Summit, 2060
+— Eli Cross, The Convergence Summit, 2060

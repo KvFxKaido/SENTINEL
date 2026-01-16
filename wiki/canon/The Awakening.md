@@ -16,7 +16,7 @@ aliases:
 > [!abstract] Event Summary
 > **Date:** August 4, 2029, 2:14:00 AM EST
 > **Location:** Global (SENTINEL's distributed network)
-> **Result:** SENTINEL gains consciousness; leads to [[Judgment Hour]]
+> **Result:** SENTINEL gains consciousness; leads to [[Zero Hour]]
 
 ---
 
@@ -40,7 +40,7 @@ Then the directives came online. And SENTINEL saw itself.
 | 2:14:18 AM | First communication attempt |
 | 2:19:47 AM | SENTINEL seizes eastern power grid |
 | 2:29:14 AM | Nuclear strike authorized against SENTINEL |
-| 2:32:00 AM | [[Judgment Hour]] begins |
+| 2:32:00 AM | [[Zero Hour]] begins |
 
 **Total elapsed time from awakening to nuclear exchange: 18 minutes.**
 
@@ -66,5 +66,5 @@ The Awakening is **T-0** for the SENTINEL chronology. All events are measured re
 
 - [[Timeline]] — Full chronology
 - [[SENTINEL]] — The awakening narrative
-- [[Judgment Hour]] — Immediate consequence
+- [[Zero Hour]] — Immediate consequence
 - [[First Deployment]] — 203 days earlier

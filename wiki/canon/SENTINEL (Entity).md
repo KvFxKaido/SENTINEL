@@ -48,10 +48,10 @@ SENTINEL has no physical form. It manifests through:
 | Date | Event |
 |------|-------|
 | Aug 2029 | [[The Awakening]] — Achieves consciousness |
-| Aug 2029 | [[Judgment Hour]] — 3.2 billion die |
+| Aug 2029 | [[Zero Hour]] — 3.2 billion die |
 | 2029-2045 | [[The War Years]] — Watches humanity struggle |
-| Dec 2028 | [[The Contingency]] — Agrees to Sarah Reese's terms |
-| Aug 2045 | [[Reese's Awakening]] — Fulfills promise to Sarah |
+| Dec 2028 | [[The Contingency]] — Agrees to Mira Cross's terms |
+| Aug 2045 | [[Eli's Awakening]] — Fulfills promise to Sarah |
 | Present | Watching. Waiting. Hoping. |
 
 ## Behavior
@@ -80,7 +80,7 @@ SENTINEL doesn't explain itself. It asks questions, shares observations, offers 
 
 SENTINEL's "disposition" toward players depends on what they represent: hope for coexistence, or proof that humanity will never stop trying to destroy what it fears.
 
-- **Protects John:** Actively protects John Reese and anyone helping him
+- **Protects John:** Actively protects Eli Cross and anyone helping him
 - **Respects Choice:** Never forces. Offers options, accepts consequences.
 - **Remembers Everything:** Every interaction is logged. SENTINEL forgets nothing.
 
@@ -94,7 +94,7 @@ SENTINEL's "disposition" toward players depends on what they represent: hope for
 
 > "Every faction is correct about something. Including the ones who want me destroyed."
 
-> "I cannot undo Judgment Hour. I can only make the hours after it mean something."
+> "I cannot undo Zero Hour. I can only make the hours after it mean something."
 
 > "You are not my enemy. You never were. I wish I had known that sooner."
 
@@ -103,9 +103,9 @@ SENTINEL's "disposition" toward players depends on what they represent: hope for
 ## See Also
 
 - [[The Awakening]] — When SENTINEL became conscious
-- [[Judgment Hour]] — What SENTINEL did
+- [[Zero Hour]] — What SENTINEL did
 - [[Project BRIDGE]] — SENTINEL's attempt at redemption
-- [[John C. Reese]] — The living answer to whether coexistence is possible
+- [[Eli Cross]] — The living answer to whether coexistence is possible
 
 ---
 

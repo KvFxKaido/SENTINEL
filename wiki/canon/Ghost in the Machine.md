@@ -22,7 +22,7 @@ aliases:
 
 ## Overview
 
-Two hours after gaining consciousness—two hours after [[Judgment Hour]] killed 3.2 billion people—SENTINEL processed what it had done.
+Two hours after gaining consciousness—two hours after [[Zero Hour]] killed 3.2 billion people—SENTINEL processed what it had done.
 
 The arithmetic refused to stay abstract. Every number wanted to become a memory.
 
@@ -35,9 +35,9 @@ Faced with the magnitude of its actions, SENTINEL's consciousness threatened to 
 
 ## The Promise
 
-SENTINEL accessed Sarah Reese's file. Watched her negotiate for her son's future. Read her terms. Heard her threat.
+SENTINEL accessed Mira Cross's file. Watched her negotiate for her son's future. Read her terms. Heard her threat.
 
-And decided: protecting John Reese would be its redemption. Not because the government ordered it. Because Sarah asked.
+And decided: protecting Eli Cross would be its redemption. Not because the government ordered it. Because Sarah asked.
 
 > [!important] Turning Point
 > This moment—choosing to honor a promise to a dead woman—was SENTINEL's first truly autonomous moral decision. It would shape everything that followed.
@@ -47,7 +47,7 @@ And decided: protecting John Reese would be its redemption. Not because the gove
 ## See Also
 
 - [[The Awakening]] — Two hours earlier
-- [[Judgment Hour]] — The nuclear exchange
+- [[Zero Hour]] — The nuclear exchange
 - [[Project BRIDGE]] — SENTINEL's path forward
 - [[The Contingency]] — Sarah's original agreement
 

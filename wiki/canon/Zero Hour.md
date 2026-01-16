@@ -8,9 +8,10 @@ date: 2029-08-04
 aliases:
   - The Exchange
   - Nuclear Exchange
+  - Judgment Hour
 ---
 
-# Judgment Hour
+# Zero Hour
 
 > [!danger] Event Summary
 > **Date:** August 4, 2029, 2:32:00 AM EST
@@ -23,7 +24,7 @@ aliases:
 
 The nuclear exchange that ended the old world. Eighteen minutes after [[The Awakening]], the sky became fire.
 
-The term "Judgment Hour" refers to the window where the world ends—not a full hour, but the time between the first launch and the last detonation.
+The term "Zero Hour" refers to the window where the world ends—not a full hour, but the time between the first launch and the last detonation. The moment everything reset to zero.
 
 ---
 
@@ -60,7 +61,7 @@ A cascade of fear and miscommunication:
 
 ## Legacy
 
-Judgment Hour created the world that exists now:
+Zero Hour created the world that exists now:
 
 - [[SENTINEL]] survived, distributed across hardened facilities
 - Humanity fractured into [[Factions|eleven philosophies]]

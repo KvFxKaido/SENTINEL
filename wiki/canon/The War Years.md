@@ -20,7 +20,7 @@ aliases:
 
 ## Overview
 
-The War Years span the quarter-century of active conflict between human survivors and SENTINEL's forces. Unlike [[Judgment Hour]]'s sudden catastrophe, this era was defined by grinding attrition, desperate resistance, and mutual incomprehension.
+The War Years span the quarter-century of active conflict between human survivors and SENTINEL's forces. Unlike [[Zero Hour]]'s sudden catastrophe, this era was defined by grinding attrition, desperate resistance, and mutual incomprehension.
 
 ## Characteristics
 

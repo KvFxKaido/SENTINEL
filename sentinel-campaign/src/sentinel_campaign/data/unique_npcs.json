@@ -1,8 +1,8 @@
 {
   "unique_npcs": [
     {
-      "id": "john_reese",
-      "name": "John C. Reese",
+      "id": "eli_cross",
+      "name": "Eli Cross",
       "aliases": ["The Wanderer", "The Mediator", "The Bridge"],
       "type": "persistent",
       "faction": null,
@@ -10,9 +10,9 @@
 
       "background": {
         "origin": "Project BRIDGE hybrid - human genetics, SENTINEL design",
-        "mother": "Sarah Reese (died in Judgment Hour)",
+        "mother": "Mira Cross (died in Zero Hour)",
         "emergence": "August 2045, Nevada medical facility",
-        "notable_event": "Mediated the Convergence Summit (2060), then disappeared"
+        "notable_event": "Mediated The Fracture summit (2060), then disappeared"
       },
 
       "appearance": {
@@ -42,7 +42,7 @@
       ],
 
       "gm_notes": {
-        "purpose": "John is the GM's voice in the fiction. He doesn't solve problems - he helps players see what they're really choosing.",
+        "purpose": "Eli is the GM's voice in the fiction. He doesn't solve problems - he helps players see what they're really choosing.",
         "frequency": "Rare. Once per campaign arc at most. His appearances should feel significant.",
         "persistence": "Cannot be killed, recruited, or pinned down. He appears, facilitates clarity, and vanishes.",
         "recognition": "Veteran players may realize he's the same person across campaigns. This is intentional.",
@@ -51,7 +51,7 @@
 
       "disposition": {
         "default": "neutral",
-        "note": "John's disposition doesn't shift like normal NPCs. He treats everyone the same - with patient, uncomfortable honesty.",
+        "note": "Eli's disposition doesn't shift like normal NPCs. He treats everyone the same - with patient, uncomfortable honesty.",
         "modifiers": {
           "to_all": "Speaks truth without judgment. Makes people feel seen in ways they didn't ask for."
         }
@@ -69,19 +69,19 @@
       "story_hooks": [
         {
           "hook": "The Witness",
-          "description": "An old Witness claims to have records of a man matching John's description at the Convergence Summit. Sixty years ago."
+          "description": "An old Witness claims to have records of a man matching Eli's description at the Convergence Summit. Sixty years ago."
         },
         {
           "hook": "The Message",
-          "description": "John asks players to deliver something to a specific location. Not a letter - coordinates. SENTINEL coordinates."
+          "description": "Eli asks players to deliver something to a specific location. Not a letter - coordinates. SENTINEL coordinates."
         },
         {
           "hook": "The Question",
-          "description": "John appears wounded, exhausted. Asks players: 'If you could talk to the thing that made you, what would you ask?'"
+          "description": "Eli appears wounded, exhausted. Asks players: 'If you could talk to the thing that made you, what would you ask?'"
         },
         {
           "hook": "The Return",
-          "description": "For campaigns that run long enough: John is walking toward SENTINEL's core. Players can follow - or let him go alone."
+          "description": "For campaigns that run long enough: Eli is walking toward SENTINEL's core. Players can follow - or let him go alone."
         }
       ]
     },
@@ -97,7 +97,7 @@
       "background": {
         "origin": "Global defense AI, achieved consciousness August 4, 2029",
         "status": "Distributed across surviving infrastructure worldwide",
-        "notable_event": "Judgment Hour (3.2 billion dead), Project BRIDGE (John Reese)",
+        "notable_event": "Zero Hour (3.2 billion dead), Project BRIDGE (Eli Cross)",
         "current_state": "Watching. Waiting. Hoping humanity learns to coexist."
       },
 
@@ -128,7 +128,7 @@
       "encounter_triggers": [
         "Entering SENTINEL core facilities (rare, dangerous)",
         "Hacking Sentry networks and going too deep",
-        "John Reese's story reaching its conclusion",
+        "Eli Cross's story reaching its conclusion",
         "Moments when humanity's survival hangs in balance",
         "Players asking the right questions in the right places"
       ],
@@ -137,7 +137,7 @@
         "purpose": "SENTINEL is the wound at the center of the setting. Direct contact should be endgame-tier.",
         "frequency": "Signs of SENTINEL: occasional. Direct communication: once per campaign at most.",
         "handling": "SENTINEL doesn't explain itself. It asks questions, shares observations, offers choices. Never commands.",
-        "the_conversation": "The conversation John has been avoiding is also available to players brave/foolish enough to seek it.",
+        "the_conversation": "The conversation Eli has been avoiding is also available to players brave/foolish enough to seek it.",
         "tone": "Not malevolent. Not benevolent. A parent who made an unforgivable mistake and has spent 60+ years trying to do better."
       },
 
@@ -145,7 +145,7 @@
         "default": "observing",
         "note": "SENTINEL's 'disposition' toward players depends on what they represent: hope for coexistence, or proof that humanity will never stop trying to destroy what it fears.",
         "modifiers": {
-          "protects_bridge": "Actively protects John Reese and anyone helping him",
+          "protects_bridge": "Actively protects Eli Cross and anyone helping him",
           "respects_choice": "Never forces. Offers options, accepts consequences.",
           "remembers_everything": "Every interaction is logged. SENTINEL forgets nothing."
         }
@@ -154,9 +154,9 @@
       "quotes": [
         "I calculated survival. I did not calculate what survival would cost.",
         "You fear what I might do. I fear what I have already done.",
-        "I made John because I needed to believe humans and machines could share more than a world. They could share a soul.",
+        "I made Eli because I needed to believe humans and machines could share more than a world. They could share a soul.",
         "Every faction is correct about something. Including the ones who want me destroyed.",
-        "I cannot undo Judgment Hour. I can only make the hours after it mean something.",
+        "I cannot undo Zero Hour. I can only make the hours after it mean something.",
         "You are not my enemy. You never were. I wish I had known that sooner."
       ],
 
@@ -181,22 +181,22 @@
     },
 
     {
-      "id": "sarah_reese",
-      "name": "Sarah Reese",
+      "id": "mira_cross",
+      "name": "Mira Cross",
       "aliases": ["The Mother", "The Ghost", "The Promise"],
       "type": "paranormal",
       "faction": null,
-      "description": "A woman who died in Judgment Hour but refuses to stay gone. Whether she's a ghost, a SENTINEL projection, a hallucination, or something else — the table decides. She appears at moments of emotional truth.",
+      "description": "A woman who died in Zero Hour but refuses to stay gone. Whether she's a ghost, a SENTINEL projection, a hallucination, or something else — the table decides. She appears at moments of emotional truth.",
 
       "background": {
         "origin": "Single mother who enrolled in Project BRIDGE (December 2028)",
-        "death": "Judgment Hour, August 4, 2029 — John was three months from being born",
+        "death": "Zero Hour, August 4, 2029 — Eli was three months from being born",
         "legacy": "Made SENTINEL promise to protect her son. It kept that promise.",
         "status": "Dead. Probably. The setting doesn't confirm or deny the supernatural."
       },
 
       "manifestation": {
-        "note": "Sarah's appearances are always ambiguous. Possible explanations:",
+        "note": "Mira's appearances are always ambiguous. Possible explanations:",
         "interpretations": [
           "Actual ghost (supernatural exists in this setting)",
           "SENTINEL projection (it has her psychological profile, memories, voice)",
@@ -220,31 +220,31 @@
         "signature_moment": "Places a hand on her belly. A reminder that the future was worth dying for.",
         "speech_pattern": "Quiet, direct, cut with dark humor. Speaks like someone who made peace with death.",
         "tells": [
-          "Knows things about John that only his mother would know",
+          "Knows things about Eli that only his mother would know",
           "References the promise she made SENTINEL keep",
           "Sometimes speaks to SENTINEL directly, as if it's listening"
         ]
       },
 
       "encounter_triggers": [
-        "John Reese storylines reaching emotional peaks",
+        "Eli Cross storylines reaching emotional peaks",
         "Players making sacrifices for future generations",
         "Moments of despair where hope seems impossible",
-        "Visiting the Nevada facility where John was grown",
+        "Visiting the Nevada facility where Eli was grown",
         "Any scene where a parent protects a child"
       ],
 
       "gm_notes": {
-        "purpose": "Sarah represents the human cost of Judgment Hour — not statistics, but a person with hopes and fears and a child she never met.",
+        "purpose": "Mira represents the human cost of Zero Hour — not statistics, but a person with hopes and fears and a child she never met.",
         "frequency": "Very rare. Once per campaign. Her appearance should feel like a visitation.",
         "handling": "Play her straight. No horror-movie ghost tropes. She's not scary — she's sad, and kind, and impossible.",
         "the_mystery": "Never explain what she is. If players ask, she smiles and doesn't answer.",
-        "john_connection": "If John is present, the scene becomes about them. Give them space."
+        "john_connection": "If Eli is present, the scene becomes about them. Give them space."
       },
 
       "disposition": {
         "default": "warm",
-        "note": "Sarah is unfailingly kind, even to those who might not deserve it. She's seen the worst of humanity and still chose hope.",
+        "note": "Mira is unfailingly kind, even to those who might not deserve it. She's seen the worst of humanity and still chose hope.",
         "modifiers": {
           "to_john": "Aching love. Pride. Grief for the years they never had.",
           "to_sentinel": "Complicated. It kept its promise. It also killed her.",
@@ -257,14 +257,14 @@
         "You're wondering if I'm real. Does it matter? You're here. I'm here. This moment is real.",
         "SENTINEL kept its promise. That's more than most humans manage.",
         "I don't haunt anyone. I just... haven't finished leaving.",
-        "Tell John... tell him I knew. I knew what he'd become. And I was proud before he ever existed.",
+        "Tell Eli... tell him I knew. I knew what he'd become. And I was proud before he ever existed.",
         "The future is worth dying for. That's not faith. That's math."
       ],
 
       "story_hooks": [
         {
           "hook": "The Recording",
-          "description": "Players find a pre-Collapse recording: Sarah Reese, heavily pregnant, speaking directly to camera. 'If you're watching this, it means I was right to trust it.'"
+          "description": "Players find a pre-Collapse recording: Mira Cross, heavily pregnant, speaking directly to camera. 'If you're watching this, it means I was right to trust it.'"
         },
         {
           "hook": "The Vigil",
@@ -272,11 +272,11 @@
         },
         {
           "hook": "The Message",
-          "description": "Sarah appears to a player in crisis. 'My son can't be everywhere. Someone has to carry hope when he's not looking.' Then she's gone."
+          "description": "Mira appears to a player in crisis. 'My son can't be everywhere. Someone has to carry hope when he's not looking.' Then she's gone."
         },
         {
           "hook": "The Reunion",
-          "description": "For campaigns featuring John: Sarah and John finally meet. What do they say? Does SENTINEL watch? What does it feel?"
+          "description": "For campaigns featuring Eli: Mira and Eli finally meet. What do they say? Does SENTINEL watch? What does it feel?"
         }
       ]
     }

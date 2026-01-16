@@ -141,7 +141,7 @@ Choice is the only antidote that doesn’t rot.
 
 ## IX. TERMINOLOGY
 
-* **Judgment Hour**: the window where the world ends
+* **Zero Hour**: the window where the world ends
 * **The Awakening**: SENTINEL becomes conscious
 * **Green Zones / AI Zones / Wasteland**: survival maps
 * **Sentries**: autonomous AI units

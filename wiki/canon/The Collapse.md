@@ -13,14 +13,14 @@ aliases:
 
 > [!abstract] Era Summary
 > **Period:** 2029-2035
-> **Preceded by:** [[Judgment Hour]]
+> **Preceded by:** [[Zero Hour]]
 > **Followed by:** [[The War Years]]
 
 ---
 
 ## Overview
 
-The six years following [[Judgment Hour]]. Infrastructure collapsed. Survivors scattered. The world learned to live in the wreckage.
+The six years following [[Zero Hour]]. Infrastructure collapsed. Survivors scattered. The world learned to live in the wreckage.
 
 ---
 
@@ -73,6 +73,6 @@ Early resistance formed from:
 ## See Also
 
 - [[Timeline]] — Full chronology
-- [[Judgment Hour]] — How it started
+- [[Zero Hour]] — How it started
 - [[The War Years]] — What came next
 - [[Ghost Protocol]] — Key Collapse-era incident
