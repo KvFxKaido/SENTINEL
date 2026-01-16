@@ -46,8 +46,11 @@ server = Server("sentinel-campaign")
 
 # Configuration
 DATA_DIR = Path(__file__).parent / "data"
-CAMPAIGNS_DIR = Path.cwd() / "campaigns"  # Can be overridden
-WIKI_DIR = Path.cwd() / "wiki"  # Wiki pages directory
+# Project root is 4 levels up from this file: server.py → sentinel_campaign → src → sentinel-campaign → SENTINEL
+PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
+CAMPAIGNS_DIR = PROJECT_ROOT / "sentinel-agent" / "campaigns"
+WIKI_DIR = PROJECT_ROOT / "wiki"
+PERSONAL_CONTEXT = PROJECT_ROOT / ".claude" / "personal.md"  # Gitignored personal context
 
 # Available factions
 FACTIONS = [
@@ -122,6 +125,16 @@ async def list_resources() -> list[Resource]:
             name="Inter-Faction Relationships",
             description="Relationships and tensions between all factions",
             mimeType="application/json",
+        )
+    )
+
+    # GM resources (personal context, design philosophy)
+    resources.append(
+        Resource(
+            uri="gm://designer",
+            name="Designer Context",
+            description="Personal design philosophy, preferences, and context for the GM/designer",
+            mimeType="text/markdown",
         )
     )
 
@@ -205,6 +218,19 @@ async def read_resource(uri) -> str:
             raise ValueError(f"Unknown resource type: {resource_type}")
 
         return json.dumps(data, indent=2)
+
+    # GM resources: gm://{resource_type}
+    if uri.startswith("gm://"):
+        resource_type = uri[len("gm://"):]
+
+        if resource_type == "designer":
+            # Read personal context from gitignored file
+            if PERSONAL_CONTEXT.exists():
+                return PERSONAL_CONTEXT.read_text(encoding="utf-8")
+            else:
+                return "# Designer Context\n\nNo personal context configured.\n\nCreate `.claude/personal.md` (gitignored) to provide design preferences and context."
+
+        raise ValueError(f"Unknown GM resource: {resource_type}")
 
     raise ValueError(f"Unknown URI scheme: {uri}")
 

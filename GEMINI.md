@@ -7,6 +7,18 @@ Context and guidelines for Gemini models working on the SENTINEL project.
 SENTINEL is an AI-driven tabletop RPG engine focusing on political tension, ethical tradeoffs, and survival.
 The system is composed of a Python-based CLI agent (`sentinel-agent`) and a Model Context Protocol server (`sentinel-campaign`) that manages world state and faction dynamics.
 
+## Designer Context
+
+Before proposing changes, understand the design constraints:
+
+| Resource | Location | Purpose |
+|----------|----------|---------|
+| Design philosophy | `architecture/design-philosophy.md` | Non-negotiable design principles |
+| Personal context | `.claude/personal.md` | Shawn's preferences (gitignored) |
+| MCP resource | `gm://designer` | Query context via sentinel-campaign MCP |
+
+The design philosophy is postmortem-driven — every rule exists because something broke when it was ignored. Read it before architectural changes.
+
 ## System Architecture
 
 ### Core Components
