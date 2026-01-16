@@ -219,8 +219,9 @@ SENTINEL supports both local and cloud backends.
 | **Codex CLI** | Install [Codex CLI](https://github.com/openai/codex), authenticate with OpenAI |
 | **Claude Code** | Install [Claude Code](https://claude.ai/code), authenticate, done |
 | **Kimi CLI** | Install [Kimi CLI](https://github.com/MoonshotAI/kimi-cli), authenticate with Moonshot AI |
+| **Mistral Vibe** | `pip install mistral-vibe` or `uv tool install mistral-vibe`, authenticate with Mistral AI |
 
-The agent auto-detects available backends (LM Studio → Ollama → Gemini CLI → Codex CLI → Claude Code → Kimi CLI).
+The agent auto-detects available backends (LM Studio → Ollama → Kimi API → Gemini CLI → Codex CLI → Claude Code → Mistral Vibe).
 
 ### Which Backend Should I Use?
 
@@ -228,11 +229,12 @@ The agent auto-detects available backends (LM Studio → Ollama → Gemini CLI �
 |----------|----------------|
 | Best narrative quality | Claude (via Claude Code) |
 | Best agentic capability | Codex CLI (OpenAI o3/gpt-4o) |
+| Code-focused play | Mistral Vibe (Codestral optimized for coding) |
 | Free + huge context | Gemini CLI (1M tokens, 60 req/min free) |
 | Free + private | LM Studio or Ollama with 14B+ model |
 | Budget hardware | 8B model with `--local` flag |
 | Offline play | Local only |
-| Potato PC | Claude, Codex, or Gemini (offload compute to cloud) |
+| Potato PC | Claude, Codex, Gemini, or Mistral Vibe (offload compute to cloud) |
 
 Local models are fully playable — the mechanics work identically. Claude shines in nuanced NPC interactions, faction politics, and long-term consequence tracking.
 
@@ -262,6 +264,7 @@ All CLI backends work the same way: we invoke the official CLI tools and let the
 | Codex CLI | `codex exec -` (stdin) | OpenAI / ChatGPT Plus |
 | Claude Code | `claude -p -` (print mode) | Anthropic / Claude Pro |
 | Kimi CLI | `kimi -c <prompt>` | Moonshot AI / Kimi |
+| Mistral Vibe | `vibe --prompt <text>` | Mistral AI (free tier available) |
 
 No API keys needed. No tokens extracted. If you're logged into the CLI, SENTINEL just works — using whatever plan you're already paying for.
 
