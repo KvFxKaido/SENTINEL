@@ -62,6 +62,7 @@ WARP.md
 Vigil/
 workspace.cmd
 workspace.ps1
+.claude/personal.md
 
 # Environment
 .env

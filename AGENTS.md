@@ -9,6 +9,18 @@ SENTINEL is a tactical tabletop RPG plus an AI Game Master implementation. The r
 - **`sentinel-agent/`**: the Python AI GM (CLI + state + tools + prompts + lore retrieval)
 - **`sentinel-campaign/`**: an MCP server exposing faction lore + campaign-aware faction utilities
 
+## Designer Context
+
+Before making changes, understand the constraints:
+
+| Resource | Location | Purpose |
+|----------|----------|---------|
+| Design philosophy | `architecture/design-philosophy.md` | Non-negotiable principles (postmortem-driven) |
+| Personal context | `.claude/personal.md` | Shawn's preferences (gitignored) |
+| MCP resource | `gm://designer` | Query context via sentinel-campaign MCP |
+
+Read the design philosophy before proposing architectural changes — these rules exist because things broke.
+
 ## Repo Map (Start Here)
 
 - `core/` — canonical game rules and sheets

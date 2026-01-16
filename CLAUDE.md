@@ -53,6 +53,18 @@ SENTINEL/
 
 SENTINEL is a tactical tabletop RPG about navigating political tension, ethical tradeoffs, and survival under fractured systems. The `sentinel-agent` subdirectory contains an AI Game Master that runs the game.
 
+## Designer Context
+
+Before diving into code, understand who you're working with:
+
+| Resource | Location | Purpose |
+|----------|----------|---------|
+| Design philosophy | `architecture/design-philosophy.md` | Non-negotiable design principles |
+| Personal context | `.claude/personal.md` | Shawn's preferences, communication style (gitignored) |
+| MCP resource | `gm://designer` | Query personal context programmatically |
+
+The design philosophy is real — these aren't aspirational guidelines, they're postmortem-driven rules. Read it before proposing architectural changes.
+
 ## Key Documents
 
 | Document | Purpose |
