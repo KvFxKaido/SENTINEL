@@ -735,7 +735,7 @@ def get_unique_npc(
     """
     Get a unique/persistent NPC that transcends factions.
 
-    These are special NPCs like John C. Reese who appear across campaigns
+    These are special NPCs like Eli Cross who appear across campaigns
     and don't follow normal faction rules.
     """
     # Validate npc_id to prevent path traversal

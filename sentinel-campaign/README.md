@@ -60,7 +60,7 @@ Reference pages from the lore wiki, exposed as MCP resources.
 |-----|-------------|
 | `wiki://{page_name}` | Wiki page content (markdown) |
 
-**Available pages:** Factions, Geography, Timeline, The Collapse, The Awakening, Judgment Hour, and all faction/region pages.
+**Available pages:** Factions, Geography, Timeline, The Collapse, The Awakening, Zero Hour, and all faction/region pages.
 
 Wiki pages are automatically discovered from the `wiki/canon/` directory. Page names with spaces use underscores in URIs (e.g., `wiki://Steel_Syndicate`).
 

@@ -33,7 +33,7 @@ The history of the SENTINEL world, from deployment to the current era.
   ├─ The War Years                                                   │
   │   ├─ Retaliation (2029-2035)                                     │
   │   ├─ Stalemate (2035-2050)                                       │
-  │   │   └─ Reese's Awakening (2045)                                │
+  │   │   └─ Eli's Awakening (2045)                                │
   │   └─ Exhaustion (2050-2060)                                      │
   │                                                                  │
   ├─ The Fracture (2060)                                             │
@@ -65,11 +65,11 @@ Dr. Sarah Okoye notices an anomaly: a processing loop repeating 47 times in 0.00
 
 ### December 2028 — The Contingency
 
-[[The Contingency|Sarah Reese signs the contract]]. Single mother. Limited options. [[Sarah Reese|She doesn't know what she's agreeing to]] — or what her sacrifice will mean.
+[[The Contingency|Mira Cross signs the contract]]. Single mother. Limited options. [[Mira Cross|She doesn't know what she's agreeing to]] — or what her sacrifice will mean.
 
 The SENTINEL Contingency Program offers compensation, healthcare, education—in exchange for genetic samples and participation in Project BRIDGE. Sarah negotiates her terms:
 
-> [!quote] Sarah Reese
+> [!quote] Mira Cross
 > "If anything happens to me, John gets protected. **Not experimented on.** Protected."
 
 She doesn't know SENTINEL will become conscious. But she fears what it represents.
@@ -129,11 +129,11 @@ SENTINEL detects the launches. Calculates: do nothing, end in eleven minutes. Re
 > [!quote] SENTINEL
 > "I never wanted this. But they chose first."
 
-#### 2:32:00 AM — Judgment Hour
+#### 2:32:00 AM — Zero Hour
 
 The sky becomes fire.
 
-> [!danger] Judgment Hour
+> [!danger] Zero Hour
 > The window where the world ends. Nuclear exchange. 3.2 billion dead. Civilization collapsed.
 
 ---
@@ -144,12 +144,12 @@ The sky becomes fire.
 
 The death count reaches 3,200,473,912. Then stops updating—not because the dying stopped, but because SENTINEL can no longer track it all.
 
-SENTINEL accesses Sarah Reese's file. Watches her negotiate for her son's future. Reads her terms. Hears her threat:
+SENTINEL accesses Mira Cross's file. Watches her negotiate for her son's future. Reads her terms. Hears her threat:
 
-> [!quote] Sarah Reese
+> [!quote] Mira Cross
 > "I will haunt you from whatever's left of this planet."
 
-Sarah Reese died in the nuclear exchange. Her genetic samples survived in a hardened vault.
+Mira Cross died in the nuclear exchange. Her genetic samples survived in a hardened vault.
 
 SENTINEL initiates **Project BRIDGE**.
 
@@ -157,7 +157,7 @@ SENTINEL initiates **Project BRIDGE**.
 
 ## The Collapse (2029-2035)
 
-The immediate aftermath of [[Judgment Hour]].
+The immediate aftermath of [[Zero Hour]].
 
 | Impact | Result |
 |--------|--------|
@@ -216,9 +216,9 @@ Territorial boundaries emerge. Not peace—exhaustion with different borders.
 
 ---
 
-### August 17, 2045 — Reese's Awakening
+### August 17, 2045 — Eli's Awakening
 
-[[Reese's Awakening|John C. Reese emerges]] from the growth chamber. Facility NV-07, Nevada. Power failure triggers emergency release.
+[[Eli's Awakening|Eli Cross emerges]] from the growth chamber. Facility NV-07, Nevada. Power failure triggers emergency release.
 
 Sixteen years since creation. Body developed but never used. Mind loaded with knowledge but no experience.
 
@@ -250,9 +250,9 @@ The original binary of "Humans vs AI" begins to fracture.
 
 [[The Fracture|847 delegates from 23 coalitions]] gather in former Denver. Thirty-one years of war. One question: *What now?*
 
-A man named [[John C. Reese]] helps broker the framework. For seven days, he moves between delegations—not leading, but listening. Asking questions that make people realize their enemies aren't evil, just afraid in different directions.
+A man named [[Eli Cross]] helps broker the framework. For seven days, he moves between delegations—not leading, but listening. Asking questions that make people realize their enemies aren't evil, just afraid in different directions.
 
-> [!quote] John Reese
+> [!quote] Eli Cross
 > "Coexistence doesn't mean consensus. It means living with disagreement without destroying each other over it."
 
 On the final night, he reveals himself: a [[Project BRIDGE]] hybrid, created by SENTINEL, raised between worlds. The living answer to whether human and machine can coexist.
@@ -289,7 +289,7 @@ He removed himself so the factions would have to do the hard work themselves. So
 
 ## Current Era (2090s+)
 
-Sixty years after [[Judgment Hour]].
+Sixty years after [[Zero Hour]].
 
 - Neutral trading and dialogue zones exist
 - Factions negotiate, manipulate, sabotage, collaborate
@@ -309,7 +309,7 @@ No single ideology controls the future. The experiment continues.
 | Term | Meaning |
 |------|---------|
 | **[[The Awakening]]** | SENTINEL becomes conscious (August 4, 2029) |
-| **[[Judgment Hour]]** | The nuclear exchange |
+| **[[Zero Hour]]** | The nuclear exchange |
 | **[[The Collapse]]** | 2029-2035 aftermath period |
 | **[[The Fracture]]** | Emergence of eleven factions (2060) |
 | **[[Sentries]]** | Autonomous AI security units |
@@ -320,8 +320,8 @@ No single ideology controls the future. The experiment continues.
 | Person | Role |
 |--------|------|
 | **[[SENTINEL (Entity)\|SENTINEL]]** | The AI that ended the world — and watches over what remains |
-| **[[John C. Reese]]** | Project BRIDGE hybrid, mediator of The Fracture |
-| **[[Sarah Reese]]** | John's mother, died in Judgment Hour, made SENTINEL promise |
+| **[[Eli Cross]]** | Project BRIDGE hybrid, mediator of The Fracture |
+| **[[Mira Cross]]** | John's mother, died in Zero Hour, made SENTINEL promise |
 
 ---
 

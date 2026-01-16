@@ -6,25 +6,24 @@ tags:
   - unique
   - persistent
 aliases:
-  - John Reese
   - The Wanderer
   - The Mediator
   - The Bridge
 ---
 
-# John C. Reese
+# Eli Cross
 
 > [!abstract] Character Summary
 > **Origin:** [[Project BRIDGE]] hybrid
-> **Mother:** Sarah Reese ([[The Contingency]])
-> **Emergence:** [[Reese's Awakening|August 2045]]
+> **Mother:** Mira Cross ([[The Contingency]])
+> **Emergence:** [[Eli's Awakening|August 2045]]
 > **Status:** Wandering (location unknown)
 
 ---
 
 ## Overview
 
-John C. Reese is the living answer to whether human and machine can coexist. Created by SENTINEL, carried by a human mother, he exists between worlds — understanding both, belonging to neither.
+Eli Cross is the living answer to whether human and machine can coexist. Created by SENTINEL, carried by a human mother, he exists between worlds — understanding both, belonging to neither.
 
 He appears at crossroads. Asks questions that cut to the heart of things. Then vanishes.
 
@@ -45,9 +44,9 @@ He appears at crossroads. Asks questions that cut to the heart of things. Then v
 
 | Date | Event |
 |------|-------|
-| Dec 2028 | [[The Contingency]] — Sarah Reese enrolls in Project BRIDGE |
-| Aug 2029 | [[Judgment Hour]] — Sarah dies; SENTINEL promises to protect John |
-| Aug 2045 | [[Reese's Awakening]] — John emerges from growth chamber |
+| Dec 2028 | [[The Contingency]] — Mira Cross enrolls in Project BRIDGE |
+| Aug 2029 | [[Zero Hour]] — Mira dies; SENTINEL promises to protect Eli |
+| Aug 2045 | [[Eli's Awakening]] — Eli emerges from growth chamber |
 | 2045-2060 | Wanders the fractured world, learning both sides |
 | Mar 2060 | [[The Fracture]] — Mediates the Convergence Summit |
 | Jun 2060 | Disappears, leaving one note |
@@ -55,7 +54,7 @@ He appears at crossroads. Asks questions that cut to the heart of things. Then v
 
 ## Behavior
 
-John doesn't solve problems. He helps people see what they're really choosing.
+Eli doesn't solve problems. He helps people see what they're really choosing.
 
 **Signature approach:**
 - Asks questions, never gives answers
@@ -63,12 +62,12 @@ John doesn't solve problems. He helps people see what they're really choosing.
 - Speaks about factions with impossible neutrality
 - Appears at hinge moments, then vanishes
 
-> [!quote] John Reese
+> [!quote] Eli Cross
 > "I'm not here to tell you what to do. I'm here to make sure you know what you're choosing."
 
 ## Encounter Triggers
 
-John appears when:
+Eli appears when:
 - Players face irreversible choices
 - Two sides seem irreconcilable
 - There's no clear right answer
@@ -77,7 +76,7 @@ John appears when:
 ## For Game Masters
 
 > [!info] GM Guidance
-> John is the GM's voice in the fiction. He's a mirror, not a guide.
+> Eli is the GM's voice in the fiction. He's a mirror, not a guide.
 >
 > **Frequency:** Rare. Once per campaign arc at most.
 > **Disposition:** Doesn't shift. He treats everyone with patient, uncomfortable honesty.
@@ -86,7 +85,7 @@ John appears when:
 
 ## The Unfinished Story
 
-John's conversation with SENTINEL has never happened. He's been avoiding it since 2045.
+Eli's conversation with SENTINEL has never happened. He's been avoiding it since 2045.
 
 A campaign that runs long enough might witness the moment he finally goes home.
 
@@ -106,10 +105,10 @@ A campaign that runs long enough might witness the moment he finally goes home.
 
 ## See Also
 
-- [[Project BRIDGE]] — What John was created for
+- [[Project BRIDGE]] — What Eli was created for
 - [[The Contingency]] — His mother's agreement
 - [[The Fracture]] — His greatest intervention
-- [[Reese's Awakening]] — His first moments
+- [[Eli's Awakening]] — His first moments
 
 ---
 

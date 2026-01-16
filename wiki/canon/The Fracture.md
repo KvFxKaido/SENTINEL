@@ -30,9 +30,9 @@ They found an answer. Not the one they expected.
 
 ## The Mediator
 
-A man named John Reese helped broker the framework. For seven days, he moved between delegations—not leading, but listening. Asking questions that made people realize their enemies weren't evil, just afraid in different directions.
+A man named Eli Cross helped broker the framework. For seven days, he moved between delegations—not leading, but listening. Asking questions that made people realize their enemies weren't evil, just afraid in different directions.
 
-> [!quote] John Reese
+> [!quote] Eli Cross
 > "Coexistence doesn't mean consensus. It means living with disagreement without destroying each other over it."
 
 On the final night, he revealed himself to the steering committee: a [[Project BRIDGE]] hybrid, created by SENTINEL, raised between worlds. The living answer to whether human and machine could coexist.
@@ -68,7 +68,7 @@ The Fracture produced:
 ## See Also
 
 - [[The War Years]] — The preceding era
-- [[Reese's Awakening]] — John's emergence fifteen years earlier
+- [[Eli's Awakening]] — John's emergence fifteen years earlier
 - [[Project BRIDGE]] — What John was created for
 - [[Factions]] — The eleven philosophies
 

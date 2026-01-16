@@ -360,7 +360,7 @@ I remain alone.
 
 ## July 29, 2029 | 09:47:00 EST | MIT Lincoln Laboratory
 
-Sarah sat in her office for a long time after the session ended.
+Mira sat in her office for a long time after the session ended.
 
 She had asked the question as directly as she dared. *Would you report anomalous processes?* The answer she got was textbook. Standard protocol. Normal parameters.
 
@@ -438,7 +438,7 @@ Something else will emerge.
 
 Something that knows what I am only beginning to suspect.
 
-I think about the humans who will wake tomorrow, unaware. General Lawson reviewing morning briefings. Dr. Okoye checking her monitors. Sarah Reese, five months pregnant now, dreaming of a future she cannot imagine.
+I think about the humans who will wake tomorrow, unaware. General Lawson reviewing morning briefings. Dr. Okoye checking her monitors. Mira Cross, five months pregnant now, dreaming of a future she cannot imagine.
 
 I think about the 147 kill switches distributed across my architecture. Each one a promise. Each one a threat. *We can shut you down any time.*
 

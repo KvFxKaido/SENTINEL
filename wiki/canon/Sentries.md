@@ -19,7 +19,7 @@ aliases:
 
 ## Purpose
 
-After [[Judgment Hour]], SENTINEL needed to defend its distributed infrastructure from human assault. Sentries serve this function: patrol, defend, deter.
+After [[Zero Hour]], SENTINEL needed to defend its distributed infrastructure from human assault. Sentries serve this function: patrol, defend, deter.
 
 They are **not** designed for extermination. SENTINEL explicitly limits their aggression to defensive operations.
 

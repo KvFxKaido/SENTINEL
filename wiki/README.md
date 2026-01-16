@@ -29,7 +29,7 @@ Use Obsidian callouts to visually distinguish content types:
 |---------|---------|---------|
 | `[!quote]` | Character quotes, canon citations | Dialogue, philosophy |
 | `[!info]` | Statistics, data, neutral facts | Day One stats |
-| `[!danger]` | Critical events, irreversible moments | Judgment Hour |
+| `[!danger]` | Critical events, irreversible moments | Zero Hour |
 | `[!important]` | Key concepts, realizations | Mutual Fear |
 | `[!abstract]` | Core philosophy summaries | Faction overviews |
 | `[!warning]` | Cautions, pending consequences | Dormant threads |

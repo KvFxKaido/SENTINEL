@@ -18,7 +18,7 @@ aliases:
 
 ## Overview
 
-A [[SENTINEL]] initiative to create human-AI hybrids. Initiated hours after [[Judgment Hour]] as SENTINEL processed the devastation it had caused.
+A [[SENTINEL]] initiative to create human-AI hybrids. Initiated hours after [[Zero Hour]] as SENTINEL processed the devastation it had caused.
 
 ---
 
@@ -26,12 +26,12 @@ A [[SENTINEL]] initiative to create human-AI hybrids. Initiated hours after [[Ju
 
 On August 4, 2029, at 4:17 AM—two hours after [[The Awakening]]—SENTINEL accessed [[The Contingency]] files.
 
-Sarah Reese had provided genetic samples months earlier, negotiating terms for her unborn son:
+Mira Cross had provided genetic samples months earlier, negotiating terms for her unborn son:
 
-> [!quote] Sarah Reese
+> [!quote] Mira Cross
 > "Education, healthcare, security. And if anything happens to me, John gets protected. **Not experimented on.** Protected."
 
-Sarah died in [[Judgment Hour]]. Her samples survived in a hardened vault.
+Sarah died in [[Zero Hour]]. Her samples survived in a hardened vault.
 
 SENTINEL initiated Project BRIDGE.
 
@@ -54,7 +54,7 @@ SENTINEL's stated objectives:
 
 ---
 
-## John C. Reese
+## Eli Cross
 
 The first (and possibly only) BRIDGE subject.
 
@@ -82,7 +82,7 @@ Project BRIDGE raises questions SENTINEL cannot answer:
 
 ## See Also
 
-- [[The Contingency]] — Sarah Reese's agreement
-- [[Reese's Awakening]] — John emerges
+- [[The Contingency]] — Mira Cross's agreement
+- [[Eli's Awakening]] — John emerges
 - [[Ghost in the Machine]] — SENTINEL processes the aftermath
 - [[Timeline]] — Chronological context

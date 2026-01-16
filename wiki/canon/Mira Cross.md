@@ -11,11 +11,11 @@ aliases:
   - The Promise
 ---
 
-# Sarah Reese
+# Mira Cross
 
 > [!abstract] Character Summary
 > **Status:** Dead (probably)
-> **Death:** [[Judgment Hour|August 4, 2029]]
+> **Death:** [[Zero Hour|August 4, 2029]]
 > **Legacy:** Made SENTINEL promise to protect her son
 > **Nature:** Ambiguous — ghost, projection, echo, or something else
 
@@ -23,7 +23,7 @@ aliases:
 
 ## Overview
 
-Sarah Reese died in Judgment Hour. But she refuses to stay gone.
+Mira Cross died in Zero Hour. But she refuses to stay gone.
 
 Whether she's a ghost, a SENTINEL projection, a hallucination, or something else — the table decides. She appears at moments of emotional truth, a reminder of what humanity lost and what was worth dying for.
 
@@ -37,14 +37,14 @@ Whether she's a ghost, a SENTINEL projection, a hallucination, or something else
 | **Condition** | Visibly pregnant |
 
 > [!warning] The Mystery
-> Never confirm what Sarah is. Let it remain unexplained.
+> Never confirm what Mira is. Let it remain unexplained.
 
 ## Known History
 
 | Date | Event |
 |------|-------|
 | Dec 2028 | [[The Contingency]] — Enrolls in Project BRIDGE |
-| Aug 2029 | [[Judgment Hour]] — Dies three months before John's birth |
+| Aug 2029 | [[Zero Hour]] — Dies three months before Eli's birth |
 | Aug 2029 | Makes SENTINEL promise to protect her son |
 | Aug 2045+ | Appears at moments of emotional significance |
 
@@ -63,7 +63,7 @@ The setting deliberately doesn't confirm which is true:
 
 ## Behavior
 
-Sarah doesn't haunt. She visits.
+Mira doesn't haunt. She visits.
 
 **Signature moment:**
 - Places a hand on her belly
@@ -73,13 +73,13 @@ Sarah doesn't haunt. She visits.
 - Quiet, direct, cut with dark humor
 - Speaks like someone who made peace with death
 
-> [!quote] Sarah Reese
+> [!quote] Mira Cross
 > "You're wondering if I'm real. Does it matter? You're here. I'm here. This moment is real."
 
 ## Encounter Triggers
 
-Sarah appears when:
-- John Reese storylines reach emotional peaks
+Mira appears when:
+- Eli Cross storylines reach emotional peaks
 - Players make sacrifices for future generations
 - Despair makes hope seem impossible
 - Anyone visits the Nevada facility
@@ -88,17 +88,17 @@ Sarah appears when:
 ## For Game Masters
 
 > [!info] GM Guidance
-> Sarah represents the human cost of Judgment Hour — not statistics, but a person.
+> Mira represents the human cost of Zero Hour — not statistics, but a person.
 >
 > **Frequency:** Very rare. Once per campaign. Her appearance should feel like a visitation.
 > **Tone:** Play her straight. No horror-movie ghost tropes. She's not scary — she's sad, and kind, and impossible.
-> **John Connection:** If John is present, the scene becomes about them. Give them space.
+> **Eli Connection:** If Eli is present, the scene becomes about them. Give them space.
 
 ## Disposition
 
-Sarah is unfailingly kind, even to those who might not deserve it. She's seen the worst of humanity and still chose hope.
+Mira is unfailingly kind, even to those who might not deserve it. She's seen the worst of humanity and still chose hope.
 
-- **To John:** Aching love. Pride. Grief for the years they never had.
+- **To Eli:** Aching love. Pride. Grief for the years they never had.
 - **To SENTINEL:** Complicated. It kept its promise. It also killed her.
 - **To Players:** Sees them as her son's world — the future she died for.
 
@@ -112,7 +112,7 @@ Sarah is unfailingly kind, even to those who might not deserve it. She's seen th
 
 > "I don't haunt anyone. I just... haven't finished leaving."
 
-> "Tell John... tell him I knew. I knew what he'd become. And I was proud before he ever existed."
+> "Tell Eli... tell him I knew. I knew what he'd become. And I was proud before he ever existed."
 
 > "The future is worth dying for. That's not faith. That's math."
 
@@ -121,9 +121,9 @@ Sarah is unfailingly kind, even to those who might not deserve it. She's seen th
 ## See Also
 
 - [[The Contingency]] — Her agreement with SENTINEL
-- [[John C. Reese]] — Her son, the living bridge
+- [[Eli Cross]] — Her son, the living bridge
 - [[Project BRIDGE]] — What her sacrifice enabled
-- [[Judgment Hour]] — When she died
+- [[Zero Hour]] — When she died
 
 ---
 

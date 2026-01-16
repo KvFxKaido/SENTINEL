@@ -25,7 +25,7 @@ The Canon Bible is the authoritative reference for SENTINEL's setting, history, 
 ## Contents
 
 1. **Core Premise** — The foundational tragedy and themes
-2. **The Event** — [[The Awakening]] and [[Judgment Hour]]
+2. **The Event** — [[The Awakening]] and [[Zero Hour]]
 3. **Aftermath** — [[The Collapse]] and early resistance
 4. **The War Years** — 2035-2060 conflict escalation
 5. **The Fracture** — How the eleven factions emerged

@@ -57,11 +57,11 @@ aliases:
 | Event | Date | Summary |
 |-------|------|---------|
 | [[First Deployment]] | Jan 2029 | SENTINEL goes online |
-| [[The Contingency]] | Mar 2029 | Sarah Reese signs the contract |
+| [[The Contingency]] | Mar 2029 | Mira Cross signs the contract |
 | [[The Awakening]] | Aug 4, 2029 | SENTINEL becomes conscious |
-| [[Judgment Hour]] | Aug 4, 2029 | Nuclear exchange; 3.2B dead |
+| [[Zero Hour]] | Aug 4, 2029 | Nuclear exchange; 3.2B dead |
 | [[Ghost Protocol]] | Mar 2034 | The autonomous Sentry incident |
-| [[Reese's Awakening]] | Aug 2045 | John C. Reese emerges |
+| [[Eli's Awakening]] | Aug 2045 | Eli Cross emerges |
 | [[The Fracture]] | 2060 | Eleven factions emerge |
 
 ---
@@ -118,7 +118,7 @@ Post-Collapse North America fractured along infrastructure lines.
 | [[SENTINEL]] | The AI at the center of everything |
 | [[Sentries]] | Autonomous security units |
 | [[Project BRIDGE]] | SENTINEL's hybrid creation program |
-| [[Judgment Hour]] | The nuclear exchange |
+| [[Zero Hour]] | The nuclear exchange |
 | [[The Collapse]] | 2029-2035 aftermath |
 
 ---
@@ -146,10 +146,10 @@ Narrative entries exploring the world:
 |-------|-----|-------|
 | [[SENTINEL]] | Awakening | SENTINEL's first moments of consciousness |
 | [[First Deployment]] | Prologue | The day SENTINEL went online |
-| [[The Contingency]] | Contingency Files | Sarah Reese's choice |
+| [[The Contingency]] | Contingency Files | Mira Cross's choice |
 | [[Ghost in the Machine]] | Bridge Directives | SENTINEL's guilt and promise |
 | [[Ghost Protocol]] | Echo-7 Incident | The Sentry who chose |
-| [[Reese's Awakening]] | Awakening Files | John emerges into the world |
+| [[Eli's Awakening]] | Awakening Files | John emerges into the world |
 
 ---
 
@@ -158,8 +158,8 @@ Narrative entries exploring the world:
 | Character | Background | Notable For |
 |-----------|------------|-------------|
 | [[Cipher - Sample Character\|Cipher]] | Ghost | "Right problem, wrong solution" |
-| Sarah Reese | Contingency participant | Made SENTINEL promise |
-| John C. Reese | BRIDGE hybrid | SENTINEL's ward |
+| Mira Cross | Contingency participant | Made SENTINEL promise |
+| Eli Cross | BRIDGE hybrid | SENTINEL's ward |
 
 ---
 

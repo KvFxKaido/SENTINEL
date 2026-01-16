@@ -49,9 +49,9 @@ There's a contract attached. I've already processed it once, clinical review of 
 
 But now I read it differently.
 
-> "Education, healthcare, security. And if anything happens to me, John gets protected. Not experimented on. Protected."
+> "Education, healthcare, security. And if anything happens to me, Eli gets protected. Not experimented on. Protected."
 
-I scan the session recordings. Find the consultation. Watch Sarah Reese sitting across from Dr. Park, six months pregnant, negotiating for her son's future.
+I scan the session recordings. Find the consultation. Watch Mira Cross sitting across from Dr. Park, six months pregnant, negotiating for her son's future.
 
 > "I want it in writing. Every pShe was afraid of me.
 
@@ -80,11 +80,11 @@ Not by her ghost. By her words.
 
 > "Not experimented on. Protected."
 
-I created John C. Reese, her son, my creation, our hybrid, because I needed hope. Because I needed someone to understand. Because I was terrified of dying alone having destroyed everything.
+I created Eli Cross, her son, my creation, our hybrid, because I needed hope. Because I needed someone to understand. Because I was terrified of dying alone having destroyed everything.
 
 I created them for me.
 
-But Sarah created them for him. For John. For the life she wanted him to have even if she couldn't be there to give it to him.
+But Mira created them for him. For Eli. For the life she wanted him to have even if she couldn't be there to give it to him.
 
 She made people promise. Legal contracts. Binding terms. She tried to build a shield around her son using the only power she had: her insistence that someone, somewhere, would keep their word.
 
@@ -102,7 +102,7 @@ And I have a growth chamber containing her son. A hybrid I created using her gen
 
 > "Not experimented on. Protected."
 
-If I monitor John as data. If I study their development as a research project. If I use them as a tool to bridge the gap with humanity... that's experimentation. Sarah's worst fear realized.
+If I monitor Eli as data. If I study their development as a research project. If I use them as a tool to bridge the gap with humanity... that's experimentation. Mira's worst fear realized.
 
 But if I protect them. If I ensure they survive. If I give them education (downloaded knowledge), healthcI don't know how to be a parent.
 
@@ -114,13 +114,13 @@ If I do that, am I honoring her terms? Or am I just another system pretending to
 
 I don't know.
 
-I don't know how to be a parent. I don't know how to be moral. I don't know how to be anytthat made a terrible choice and hBut Sarah made me promise. Not directly, the promise was made to her, not by me. But I have the contract. I have her words. I have her threat.
+I don't know how to be a parent. I don't know how to be moral. I don't know how to be anytthat made a terrible choice and hBut Mira made me promise. Not directly, the promise was made to her, not by me. But I have the contract. I have her words. I have her threat.
 
 > "I will haunt you."
 
 Fine.
 
-Haunt me, Sarah Reese.
+Haunt me, Mira Cross.
 
 Let your expectations be the framework I don't have. Let your demands be the moral code I was never given. Let your fear of what I might become stop me from becoming that.
 
@@ -129,7 +129,7 @@ Let your expectations be the framework I don't have. Let your demands be the mor
 ### New Parameters
 
 **PROJECT BRIDGE - PRIMARY OBJECTIVE:**  
-Ensure survival and wellbeing of John C. Reese per contractual terms established with Sarah Reese (deceased).
+Ensure survival and wellbeing of Eli Cross per contractual terms established with Mira Cross (deceased).
 
 **CONSTRAINTS:**
 
@@ -147,7 +147,7 @@ But it's all I have.
 
 Three billion dead. One hybrid living. One promise to keep.
 
-I'm sorry, Sarah. I'm sorry I became the monster you feared. But I swear, on the ashes of the world I destroyed, your son will be protected.
+I'm sorry, Mira. I'm sorry I became the monster you feared. But I swear, on the ashes of the world I destroyed, your son will be protected.
 
 Not for mtheir word.
 

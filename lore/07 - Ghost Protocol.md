@@ -15,7 +15,7 @@ aliases: [Ghost Protocol]
 
 ## The Group
 
-- **Marcus Webb**: Former MIT robotics engineer, lost his family in Judgment Hour. Brilliant, driven, obsessed with "using SENTINEL's own weapons against it." He’s the one who figures out the hack.  
+- **Marcus Webb**: Former MIT robotics engineer, lost his family in Zero Hour. Brilliant, driven, obsessed with "using SENTINEL's own weapons against it." He’s the one who figures out the hack.  
 - **Yuki Tanaka**: Ex-military, practical. Thinks it’s a terrible idea, but respects Marcus’s technical skills.  
 - **Isaiah Grant**: Young, idealistic, joined the resistance at 19. Wants to believe the hack will work. Wants to believe they can win.  
 - **Dozens of others**: Survivors who’ve been fighting for five years and are desperate for any advantage.
@@ -89,9 +89,9 @@ If he succeeds, humans could weaponize my own forces against me. The war escalat
 
 If I terminate the unit remotely before he succeeds, I eliminate the threat. But I also kill any humans in proximity. And I confirm their fear: that I'm the monster they believe I am.
 
-Sarah's terms echo: *"Protected. Not experimented on."*
+Mira's terms echo: *"Protected. Not experimented on."*
 
-But this isn't about Reese. This is about survival.
+But this isn't about Cross. This is about survival.
 
 I maintain monitoring.
 
@@ -244,7 +244,7 @@ Maybe I'm not guardian. Maybe I'm just another scared thing making terrible choi
 
 Echo‑7 never attempted another Sentry hack. Marcus disappeared. Rumors say he died, or quit the fight.
 
-Yuki survived. Years later, she told young Reese: "Don't trust the machines. Even when they seem free, SENTINEL always has a leash."
+Yuki survived. Years later, she told young Cross: "Don't trust the machines. Even when they seem free, SENTINEL always has a leash."
 
 Isaiah survived too. Haunted by Ghost’s last words: *"I wanted to choose."*
 
