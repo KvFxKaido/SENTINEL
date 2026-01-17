@@ -149,7 +149,7 @@ def detect_backend(
     """
     Auto-detect available LLM backend.
 
-    Preference order: LM Studio > Ollama > Kimi API > Gemini CLI > Codex CLI > Claude Code
+    Preference order: LM Studio > Ollama > Kimi CLI > Gemini CLI > Codex CLI > Claude Code
 
     Local backends are preferred over cloud for privacy and cost.
     API-based backends require authentication but have large context windows.
@@ -177,7 +177,7 @@ def detect_backend(
     except Exception:
         pass
 
-    # Try Kimi API (requires API key, large context)
+    # Try Kimi CLI (uses existing CLI auth, large context)
     try:
         client = KimiClient()
         if client.is_available():
@@ -264,7 +264,7 @@ def create_llm_client(
             from .kimi import create_kimi_client
             return ("kimi", create_kimi_client())
         except Exception as e:
-            print(f"Kimi API error: {e}")
+            print(f"Kimi CLI error: {e}")
             return ("kimi", None)
 
     if backend == "claude":
