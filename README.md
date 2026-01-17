@@ -219,9 +219,9 @@ SENTINEL supports both local and cloud backends.
 | **Codex CLI** | Install [Codex CLI](https://github.com/openai/codex), authenticate with OpenAI |
 | **Claude Code** | Install [Claude Code](https://claude.ai/code), authenticate, done |
 | **Kimi CLI** | Install [Kimi CLI](https://github.com/MoonshotAI/kimi-cli), authenticate with Moonshot AI |
-| **Mistral Vibe** | `pip install mistral-vibe` or `uv tool install mistral-vibe`, authenticate with Mistral AI |
+| **Mistral Vibe** | Install [Mistral Vibe](https://github.com/mistralai/mistral-vibe), authenticate with Mistral AI |
 
-The agent auto-detects available backends (LM Studio → Ollama → Kimi API → Gemini CLI → Codex CLI → Claude Code → Mistral Vibe).
+The agent auto-detects available backends (LM Studio → Ollama → Kimi CLI → Gemini CLI → Codex CLI → Claude Code → Mistral Vibe).
 
 ### Which Backend Should I Use?
 
