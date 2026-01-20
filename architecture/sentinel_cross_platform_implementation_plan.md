@@ -6,6 +6,8 @@ This plan outlines a **phased, low-risk path** from the current Sentinel CLI pro
 
 Sentinel remains the authoritative engine. All other layers are bridges, shells, or observers.
 
+**Related:** [Visual & Aesthetic Roadmap](sentinel_visual_roadmap.md) — UI polish, portraits, sound, Fallout/MGS feel
+
 ---
 
 ## Guiding Principles (Non-Negotiable)
@@ -136,56 +138,35 @@ deno task dev
 
 ---
 
-## Phase 3 — Persistence Upgrade (Optional, Turso)
+## Phase 3 — Polished UI Layer (Astro)
 
-**Goal:** Enable durable, portable state without central servers
-
-### Tasks
-
-1. **Abstract Persistence Layer**
-   - File-based (default)
-   - Turso-backed (optional)
-
-2. **Local-First Writes**
-   - All writes happen locally first
-   - Sync is asynchronous and optional
-
-3. **Conflict Policy**
-   - Sentinel state always wins
-   - Sync conflicts surfaced, not hidden
-
-4. **Offline Guarantees**
-   - No feature requires connectivity
-
-**Exit condition:** Campaigns survive restarts and can sync across devices
-
----
-
-## Phase 4 — Polished UI Layer (Astro)
-
-**Status:** 🚧 In Progress (scaffold complete)
+**Status:** ✅ Complete
 
 **Goal:** Visual clarity without architectural gravity
 
 ### Tasks
 
-1. ✅ **Read-Only First UI** — `sentinel-ui/src/components/`
-   - Header with connection status
-   - Narrative log for GM conversation
-   - Side panel with state, factions, events
+1. ✅ **TUI-Style Web Interface** — `sentinel-ui/src/components/`
+   - 3-column layout (SELF | NARRATIVE | WORLD)
+   - Header with connection status, campaign name, backend info
+   - Narrative log with GM/player message styling
+   - Side panels with character state, factions, events
 
 2. ✅ **Interactive Islands (Minimal)** — Vanilla JS
    - Command input with form submission
    - Quick command buttons
    - SSE subscription for live events
+   - State refresh on commands
 
 3. ✅ **State as Projection**
    - UI renders Sentinel output via bridge API
    - No local derivation of truth
+   - Type-safe discriminated unions for responses
 
 4. ✅ **Performance Constraints**
    - Zero framework JS (vanilla only)
    - Astro static-first with minimal hydration
+   - AMOLED-optimized dark theme
 
 ### Setup
 
@@ -197,46 +178,44 @@ cd sentinel-ui && npm run dev         # Terminal 2
 # Open http://localhost:4321
 ```
 
-**Exit condition:** In progress — needs live testing with Sentinel
+**Exit condition:** ✅ Web UI functional with live Sentinel integration
 
 ---
 
-## Phase 5 — Desktop Packaging (Optional)
+## Future Possibilities
+
+These are potential extensions without a required sequence. Implement as needed.
+
+See also: [Visual & Aesthetic Roadmap](sentinel_visual_roadmap.md) for UI polish, portraits, sound design.
+
+### Desktop Packaging (Tauri)
 
 **Goal:** Native feel without native rewrites
 
-### Options
-
-- Tauri (recommended)
-- Minimal WebView shell
-
-### Tasks
-
-- Bundle Deno + Sentinel
-- Embed Astro UI
+- Bundle Deno + Sentinel into single executable
+- Embed Astro UI in WebView
 - Ensure filesystem access is explicit
+- One-click install, offline-capable
 
-**Exit condition:** One-click desktop app, offline-capable
-
----
-
-## Phase 6 — Mobile Shell (Optional, Later)
+### Mobile Shell
 
 **Goal:** Mobile access without redefining Sentinel
 
-### Tasks
-
-- WebView-based mobile shell
-- Local Deno bridge
+- WebView-based mobile shell (Capacitor or similar)
+- Local Deno bridge running on device
 - Touch-friendly UI adjustments
 - Background suspension handling
 
-**Non-goals**
-- Rewriting Sentinel in JS
-- Real-time multiplayer
-- Always-online requirements
+**Non-goals:** Rewriting Sentinel in JS, real-time multiplayer, always-online requirements
 
-**Exit condition:** Sentinel sessions playable on mobile devices
+### Persistence Upgrade (Turso)
+
+**Goal:** Enable durable, portable state without central servers
+
+- Abstract persistence layer (file-based default, Turso optional)
+- Local-first writes — sync is asynchronous
+- Conflict policy: Sentinel state always wins
+- No feature requires connectivity
 
 ---
 
