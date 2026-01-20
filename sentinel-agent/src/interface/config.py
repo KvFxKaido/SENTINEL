@@ -18,7 +18,7 @@ class Config(TypedDict, total=False):
 
 
 DEFAULT_CONFIG: Config = {
-    "backend": "auto",
+    "backend": "claude",  # Default to Claude for best experience
     "model": None,
     "animate_banner": True,
     "show_status_bar": True,

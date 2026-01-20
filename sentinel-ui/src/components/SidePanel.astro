@@ -1,148 +1,301 @@
 ---
-// Side panel - shows state, factions, and events
+// Side panel - TUI-style character and world state
 ---
 
-<div class="state-panel panel">
-  <div class="panel-header">State</div>
+<!-- SELF Panel (Character) -->
+<div class="tui-panel self-panel">
+  <div class="tui-panel-title">SELF</div>
 
-  <div class="state-grid">
-    <div class="state-item">
-      <span class="state-label">Phase</span>
-      <span class="state-value" id="state-phase">—</span>
+  <div class="tui-section">
+    <div class="character-name" id="char-name">—</div>
+    <div class="character-background" id="char-background">[No character]</div>
+  </div>
+
+  <div class="tui-section">
+    <div class="tui-section-header">-- STATUS --</div>
+    <div class="status-row">
+      <span class="status-label">Pistachios</span>
+      <div class="progress-bar" id="energy-bar">
+        <div class="progress-fill" style="width: 75%"></div>
+      </div>
+      <span class="status-value" id="energy-value">75%</span>
     </div>
-    <div class="state-item">
-      <span class="state-label">Region</span>
-      <span class="state-value" id="state-region">—</span>
+    <div class="status-row">
+      <span class="status-label">Credits</span>
+      <span class="status-value mono" id="credits-value">500c</span>
     </div>
-    <div class="state-item">
-      <span class="state-label">Energy</span>
-      <span class="state-value" id="state-energy">—</span>
+    <div class="status-row">
+      <span class="status-label">Location</span>
+      <span class="status-value" id="location-value">Safe House</span>
     </div>
-    <div class="state-item">
-      <span class="state-label">Credits</span>
-      <span class="state-value mono" id="state-credits">—</span>
+    <div class="status-row">
+      <span class="status-label">Region</span>
+      <span class="status-value" id="region-value">Rust Corridor</span>
+    </div>
+  </div>
+
+  <div class="tui-section">
+    <div class="tui-section-header">-- LOADOUT --</div>
+    <div class="loadout-list" id="loadout-list">
+      <div class="loadout-item muted">[Empty]</div>
+    </div>
+  </div>
+
+  <div class="tui-section">
+    <div class="tui-section-header">-- ENHANCEMENTS --</div>
+    <div class="enhancement-list" id="enhancement-list">
+      <div class="enhancement-item muted">[None]</div>
     </div>
   </div>
 </div>
 
-<div class="factions-panel panel">
-  <div class="panel-header">Factions</div>
+<!-- WORLD Panel (Factions/Threads) -->
+<div class="tui-panel world-panel">
+  <div class="tui-panel-title">WORLD</div>
 
-  <div class="faction-list" id="faction-list">
-    <div class="faction-item">
-      <span class="faction-name">Nexus</span>
-      <span class="faction-standing disposition-neutral">Neutral</span>
+  <div class="tui-section">
+    <div class="tui-section-header">-- STANDINGS --</div>
+    <div class="standings-list" id="standings-list">
+      <!-- Populated dynamically -->
     </div>
-    <div class="faction-item">
-      <span class="faction-name">Ember Colonies</span>
-      <span class="faction-standing disposition-neutral">Neutral</span>
-    </div>
-    <div class="faction-item">
-      <span class="faction-name">Lattice</span>
-      <span class="faction-standing disposition-neutral">Neutral</span>
-    </div>
-    <!-- More factions populated dynamically -->
   </div>
-</div>
 
-<div class="events-panel panel">
-  <div class="panel-header">Events</div>
+  <div class="tui-section">
+    <div class="tui-section-header">-- THREADS --</div>
+    <div class="threads-list" id="threads-list">
+      <div class="thread-item muted">[No active threads]</div>
+    </div>
+  </div>
 
-  <div class="event-log" id="event-log">
-    <div class="event-entry muted">Waiting for events...</div>
+  <div class="tui-section">
+    <div class="tui-section-header">-- EVENTS --</div>
+    <div class="event-log" id="event-log">
+      <div class="event-entry muted">Waiting...</div>
+    </div>
   </div>
 </div>
 
 <style>
-  .state-panel,
-  .factions-panel,
-  .events-panel {
-    flex-shrink: 0;
+  .tui-panel {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    padding: var(--space-sm);
   }
 
-  .events-panel {
-    flex: 1;
-    min-height: 150px;
+  .tui-panel-title {
+    text-align: center;
+    color: var(--accent-cyan);
+    font-weight: bold;
+    letter-spacing: 0.1em;
+    padding-bottom: var(--space-xs);
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: var(--space-sm);
+  }
+
+  .tui-section {
+    margin-bottom: var(--space-md);
+  }
+
+  .tui-section:last-child {
+    margin-bottom: 0;
+  }
+
+  .tui-section-header {
+    color: var(--text-muted);
+    font-size: 0.65rem;
+    letter-spacing: 0.05em;
+    margin-bottom: var(--space-xs);
+  }
+
+  /* Character */
+  .character-name {
+    color: var(--accent-steel);
+    font-weight: bold;
+    text-transform: uppercase;
+  }
+
+  .character-background {
+    color: var(--text-muted);
+    font-size: 0.65rem;
+  }
+
+  /* Status rows */
+  .status-row {
     display: flex;
-    flex-direction: column;
+    align-items: center;
+    gap: var(--space-xs);
+    margin-bottom: 2px;
+  }
+
+  .status-label {
+    color: var(--text-secondary);
+    min-width: 70px;
+  }
+
+  .status-value {
+    color: var(--text-primary);
+    margin-left: auto;
+  }
+
+  /* Progress bar */
+  .progress-bar {
+    flex: 1;
+    height: 8px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
     overflow: hidden;
   }
 
-  /* State grid */
-  .state-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-sm);
+  .progress-fill {
+    height: 100%;
+    background: var(--accent-cyan);
+    transition: width 0.3s ease;
   }
 
-  .state-item {
+  .progress-fill.low {
+    background: var(--status-danger);
+  }
+
+  .progress-fill.medium {
+    background: var(--status-warning);
+  }
+
+  /* Loadout */
+  .loadout-list {
     display: flex;
     flex-direction: column;
     gap: 2px;
   }
 
-  .state-label {
-    font-size: 0.65rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+  .loadout-item {
+    color: var(--text-secondary);
+    padding-left: var(--space-xs);
+  }
+
+  /* Enhancements */
+  .enhancement-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .enhancement-item {
+    color: var(--faction-convergence);
+    padding-left: var(--space-xs);
+  }
+
+  .enhancement-item.refused {
     color: var(--text-muted);
   }
 
-  .state-value {
-    font-size: 0.9rem;
-    color: var(--text-primary);
-  }
-
-  /* Faction list */
-  .faction-list {
+  /* Standings */
+  .standings-list {
     display: flex;
     flex-direction: column;
+    gap: 4px;
+  }
+
+  .standing-row {
+    display: flex;
+    align-items: center;
     gap: var(--space-xs);
   }
 
-  .faction-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: var(--space-xs) 0;
-    font-size: 0.8rem;
-  }
-
-  .faction-name {
+  .standing-name {
     color: var(--text-secondary);
+    min-width: 85px;
+    font-size: 0.7rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
-  .faction-standing {
+  .standing-bar {
+    flex: 1;
+    height: 6px;
+    background: var(--bg-tertiary);
+    position: relative;
+  }
+
+  .standing-fill {
+    height: 100%;
+    transition: width 0.3s ease;
+  }
+
+  .standing-fill.hostile { background: var(--status-danger); }
+  .standing-fill.unfriendly { background: #f0883e; }
+  .standing-fill.neutral { background: var(--text-muted); }
+  .standing-fill.friendly { background: var(--status-success); }
+  .standing-fill.allied { background: var(--accent-cyan); }
+
+  .standing-label {
+    font-size: 0.6rem;
+    min-width: 55px;
+    text-align: right;
+  }
+
+  .standing-label.hostile { color: var(--status-danger); }
+  .standing-label.unfriendly { color: #f0883e; }
+  .standing-label.neutral { color: var(--text-muted); }
+  .standing-label.friendly { color: var(--status-success); }
+  .standing-label.allied { color: var(--accent-cyan); }
+
+  /* Threads */
+  .threads-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .thread-item {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-xs);
     font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
+  }
+
+  .thread-icon {
+    color: var(--status-warning);
+  }
+
+  .thread-text {
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   /* Event log */
   .event-log {
-    flex: 1;
+    max-height: 80px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: var(--space-xs);
-    font-size: 0.75rem;
-    font-family: var(--font-mono);
+    gap: 2px;
   }
 
   .event-entry {
-    padding: var(--space-xs);
-    background: var(--bg-tertiary);
-    border-radius: 3px;
+    font-size: 0.65rem;
     color: var(--text-secondary);
+    padding: 2px var(--space-xs);
   }
 
-  .event-entry.muted {
-    background: transparent;
+  .event-entry .event-type {
+    color: var(--accent-cyan);
+  }
+
+  .muted {
     color: var(--text-muted);
     font-style: italic;
   }
 
-  :global(.event-entry .event-type) {
-    color: var(--accent-cyan);
+  /* Responsive */
+  @media (max-width: 1200px) {
+    .self-panel,
+    .world-panel {
+      font-size: 0.7rem;
+    }
   }
 </style>

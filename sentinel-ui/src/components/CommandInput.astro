@@ -2,62 +2,113 @@
 // Command input - interactive island for sending commands to Sentinel
 ---
 
-<div class="command-input panel">
-  <form id="command-form" class="input-form">
+<div class="tui-command">
+  <form id="command-form" class="command-form">
+    <span class="prompt-char">></span>
     <input
       type="text"
       id="command-input"
       name="command"
-      placeholder="Type a message or /command..."
+      placeholder="Enter command or message..."
       autocomplete="off"
       autofocus
     />
-    <button type="submit" class="send-button primary">
-      Send
-    </button>
+    <button type="submit" class="send-btn">SEND</button>
   </form>
 
   <div class="quick-commands">
+    <span class="quick-label">Quick:</span>
     <button type="button" class="quick-cmd" data-cmd="/status">status</button>
     <button type="button" class="quick-cmd" data-cmd="/jobs">jobs</button>
     <button type="button" class="quick-cmd" data-cmd="/wiki">wiki</button>
     <button type="button" class="quick-cmd" data-cmd="/save">save</button>
+    <button type="button" class="quick-cmd" data-cmd="/help">help</button>
   </div>
 </div>
 
 <style>
-  .command-input {
+  .tui-command {
     display: flex;
     flex-direction: column;
-    gap: var(--space-sm);
+    gap: var(--space-xs);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-top-color: var(--accent-steel);
+    padding: var(--space-sm);
+    font-family: var(--font-mono);
   }
 
-  .input-form {
+  .command-form {
     display: flex;
+    align-items: center;
     gap: var(--space-sm);
   }
 
-  .input-form input {
-    flex: 1;
+  .prompt-char {
+    color: var(--accent-cyan);
+    font-weight: bold;
+    font-size: 0.9rem;
   }
 
-  .send-button {
-    flex-shrink: 0;
-    min-width: 80px;
+  .command-form input {
+    flex: 1;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    padding: var(--space-xs) var(--space-sm);
+  }
+
+  .command-form input:focus {
+    outline: none;
+    border-color: var(--accent-cyan);
+  }
+
+  .command-form input::placeholder {
+    color: var(--text-muted);
+  }
+
+  .send-btn {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--accent-steel);
+    color: var(--accent-steel);
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: bold;
+    letter-spacing: 0.05em;
+    padding: var(--space-xs) var(--space-md);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .send-btn:hover {
+    background: var(--accent-steel);
+    color: var(--bg-primary);
   }
 
   .quick-commands {
     display: flex;
+    align-items: center;
     gap: var(--space-xs);
     flex-wrap: wrap;
   }
 
-  .quick-cmd {
-    font-size: 0.7rem;
-    padding: var(--space-xs) var(--space-sm);
-    background: var(--bg-tertiary);
-    border: 1px solid transparent;
+  .quick-label {
+    font-size: 0.65rem;
     color: var(--text-muted);
+    text-transform: uppercase;
+  }
+
+  .quick-cmd {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    padding: 2px var(--space-xs);
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
   }
 
   .quick-cmd:hover {
@@ -71,14 +122,14 @@
   }
 
   /* Loading state */
-  .input-form.loading input,
-  .input-form.loading button {
-    opacity: 0.6;
+  .command-form.loading input,
+  .command-form.loading button {
+    opacity: 0.5;
     pointer-events: none;
   }
 
-  .input-form.loading button::after {
-    content: '...';
+  .command-form.loading .prompt-char {
+    animation: pulse 1s ease-in-out infinite;
   }
 </style>
 
@@ -113,12 +164,18 @@
         result = await slash(cmd, args);
 
         if (result.ok) {
-          // Show output if available (captured Rich console output)
+          // Show any system output first (captured Rich console output)
           if (result.output) {
             addMessage('system', result.output);
-          } else if (result.result) {
+          }
+
+          // Show GM response if command triggered agent (e.g., /start, /mission)
+          if (result.response) {
+            addMessage('gm', result.response);
+          } else if (result.result && !result.output) {
+            // Show result only if no output was shown
             addMessage('system', result.result);
-          } else {
+          } else if (!result.output && !result.response) {
             addMessage('system', `Command /${cmd} executed`);
           }
 
@@ -128,8 +185,9 @@
             await (window as any).refreshCampaignState();
           }
 
-          // Refresh bridge state after backend change
-          if (cmd.toLowerCase() === 'backend' && (window as any).refreshBridgeState) {
+          // Refresh bridge state after backend or campaign change
+          const bridgeCommands = ['backend', 'load', 'new'];
+          if (bridgeCommands.includes(cmd.toLowerCase()) && (window as any).refreshBridgeState) {
             await (window as any).refreshBridgeState();
           }
         } else {
