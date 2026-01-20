@@ -113,10 +113,24 @@
         result = await slash(cmd, args);
 
         if (result.ok) {
-          if (result.result) {
+          // Show output if available (captured Rich console output)
+          if (result.output) {
+            addMessage('system', result.output);
+          } else if (result.result) {
             addMessage('system', result.result);
           } else {
             addMessage('system', `Command /${cmd} executed`);
+          }
+
+          // Refresh campaign state after state-modifying commands
+          const stateCommands = ['load', 'new', 'start', 'save', 'jobs', 'shop', 'roll'];
+          if (stateCommands.includes(cmd.toLowerCase()) && (window as any).refreshCampaignState) {
+            await (window as any).refreshCampaignState();
+          }
+
+          // Refresh bridge state after backend change
+          if (cmd.toLowerCase() === 'backend' && (window as any).refreshBridgeState) {
+            await (window as any).refreshBridgeState();
           }
         } else {
           addMessage('error', result.error || 'Command failed');
@@ -127,6 +141,11 @@
 
         if (result.ok && result.response) {
           addMessage('gm', result.response);
+
+          // Refresh state after GM interaction (might have changed things)
+          if ((window as any).refreshCampaignState) {
+            await (window as any).refreshCampaignState();
+          }
         } else {
           addMessage('error', result.error || 'Failed to get response');
         }

@@ -60,7 +60,16 @@ import CommandInput from '../components/CommandInput.astro';
 </style>
 
 <script>
-  import { subscribeToEvents, getState, checkHealth } from '../lib/bridge';
+  import { subscribeToEvents, getState, checkHealth, getCampaignState, type CampaignState } from '../lib/bridge';
+
+  // Standing to CSS class mapping
+  const STANDING_CLASSES: Record<string, string> = {
+    hostile: 'disposition-hostile',
+    unfriendly: 'disposition-wary',
+    neutral: 'disposition-neutral',
+    friendly: 'disposition-warm',
+    allied: 'disposition-loyal',
+  };
 
   // Initialize on page load
   document.addEventListener('DOMContentLoaded', async () => {
@@ -74,7 +83,15 @@ import CommandInput from '../components/CommandInput.astro';
       // Get initial state
       try {
         const state = await getState();
-        updateUI(state);
+        updateBridgeUI(state);
+
+        // If a campaign is loaded, get detailed state
+        if (state.sentinel?.campaign) {
+          const campaignState = await getCampaignState();
+          if (campaignState.ok) {
+            updateCampaignUI(campaignState);
+          }
+        }
       } catch (err) {
         console.error('Failed to get initial state:', err);
       }
@@ -90,7 +107,7 @@ import CommandInput from '../components/CommandInput.astro';
     }
   });
 
-  function updateUI(state: any) {
+  function updateBridgeUI(state: any) {
     // Update connection status
     const bridgeState = document.getElementById('bridge-state');
     if (bridgeState) {
@@ -114,20 +131,106 @@ import CommandInput from '../components/CommandInput.astro';
     }
   }
 
-  function handleEvent(event: any) {
+  function updateCampaignUI(state: CampaignState) {
+    // Update state panel
+    const phaseEl = document.getElementById('state-phase');
+    const regionEl = document.getElementById('state-region');
+    const energyEl = document.getElementById('state-energy');
+    const creditsEl = document.getElementById('state-credits');
+
+    if (phaseEl) {
+      // Session phase or campaign phase
+      if (state.session_phase) {
+        phaseEl.textContent = state.session_phase.replace('_', ' ').toUpperCase();
+      } else {
+        phaseEl.textContent = state.location.replace('_', ' ').toUpperCase();
+      }
+    }
+
+    if (regionEl) {
+      regionEl.textContent = state.region.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    if (energyEl && state.character) {
+      const energy = state.character.social_energy;
+      const percent = Math.round((energy.current / energy.max) * 100);
+      energyEl.textContent = `${energy.current}/${energy.max}`;
+      // Color based on level
+      if (percent <= 25) {
+        energyEl.style.color = 'var(--status-danger)';
+      } else if (percent <= 50) {
+        energyEl.style.color = 'var(--status-warning)';
+      } else {
+        energyEl.style.color = 'var(--text-primary)';
+      }
+    }
+
+    if (creditsEl && state.character) {
+      creditsEl.textContent = `${state.character.credits}c`;
+    }
+
+    // Update factions list
+    updateFactionsList(state.factions);
+  }
+
+  function updateFactionsList(factions: CampaignState['factions']) {
+    const container = document.getElementById('faction-list');
+    if (!container) return;
+
+    // Clear existing content
+    container.innerHTML = '';
+
+    // Add each faction
+    for (const faction of factions) {
+      const item = document.createElement('div');
+      item.className = 'faction-item';
+
+      const name = document.createElement('span');
+      name.className = 'faction-name';
+      name.textContent = faction.name;
+
+      const standing = document.createElement('span');
+      const standingClass = STANDING_CLASSES[faction.standing.toLowerCase()] || 'disposition-neutral';
+      standing.className = `faction-standing ${standingClass}`;
+      standing.textContent = faction.standing.toUpperCase();
+
+      item.appendChild(name);
+      item.appendChild(standing);
+      container.appendChild(item);
+    }
+  }
+
+  async function handleEvent(event: any) {
     // Add event to log
     const log = document.getElementById('event-log');
     if (log) {
+      // Remove "Waiting for events..." message
+      const waiting = log.querySelector('.muted');
+      if (waiting) waiting.remove();
+
       const entry = document.createElement('div');
       entry.className = 'event-entry fade-in';
-      entry.innerHTML = `<span class="event-type">${event.event_type}</span>`;
+      entry.innerHTML = `<span class="event-type">${event.event_type || 'unknown'}</span>`;
       log.appendChild(entry);
       log.scrollTop = log.scrollHeight;
+
+      // Keep only last 20 events
+      while (log.children.length > 20) {
+        log.removeChild(log.firstChild!);
+      }
     }
 
-    // Handle specific event types
-    if (event.event_type === 'faction.changed') {
-      // Could update faction display
+    // Refresh campaign state on relevant events
+    const refreshEvents = ['campaign.loaded', 'faction.changed', 'social_energy.changed', 'session.started', 'session.ended'];
+    if (refreshEvents.includes(event.event_type)) {
+      try {
+        const campaignState = await getCampaignState();
+        if (campaignState.ok) {
+          updateCampaignUI(campaignState);
+        }
+      } catch (err) {
+        console.error('Failed to refresh campaign state:', err);
+      }
     }
   }
 
@@ -144,6 +247,27 @@ import CommandInput from '../components/CommandInput.astro';
       `;
     }
   }
+
+  // Expose refresh functions globally for command input to use
+  (window as any).refreshCampaignState = async () => {
+    try {
+      const campaignState = await getCampaignState();
+      if (campaignState.ok) {
+        updateCampaignUI(campaignState);
+      }
+    } catch (err) {
+      console.error('Failed to refresh campaign state:', err);
+    }
+  };
+
+  (window as any).refreshBridgeState = async () => {
+    try {
+      const state = await getState();
+      updateBridgeUI(state);
+    } catch (err) {
+      console.error('Failed to refresh bridge state:', err);
+    }
+  };
 </script>
 
 <style>

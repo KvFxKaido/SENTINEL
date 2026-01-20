@@ -35,12 +35,42 @@ export interface CommandResult {
   error?: string;
   response?: string;
   result?: string;
+  output?: string;
   campaign?: {
     id: string;
     name: string;
     session: number;
   };
   [key: string]: unknown;
+}
+
+export interface CampaignState {
+  ok: boolean;
+  error?: string;
+  campaign?: {
+    id: string;
+    name: string;
+    session: number;
+    phase: number;
+  };
+  character?: {
+    name: string | null;
+    social_energy: {
+      current: number;
+      max: number;
+    };
+    credits: number;
+  };
+  region: string;
+  location: string;
+  session_phase: string | null;
+  factions: Array<{
+    id: string;
+    name: string;
+    standing: string;
+  }>;
+  active_jobs: number;
+  dormant_threads: number;
 }
 
 export interface GameEvent {
@@ -115,6 +145,14 @@ export async function slash(command: string, args: string[] = []): Promise<Comma
  */
 export async function status(): Promise<CommandResult> {
   return sendCommand('status');
+}
+
+/**
+ * Get detailed campaign state for UI rendering.
+ */
+export async function getCampaignState(): Promise<CampaignState> {
+  const result = await sendCommand('campaign_state');
+  return result as unknown as CampaignState;
 }
 
 /**
