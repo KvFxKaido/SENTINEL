@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "exports": "./src/main.ts",
   "tasks": {
-    "dev": "deno run --allow-net --allow-run --allow-read --allow-env src/main.ts",
+    "dev": "deno run --allow-net --allow-run --allow-read --allow-env src/main.ts --sentinel C:/Users/ishaw/AppData/Roaming/Python/Python314/Scripts/sentinel.exe",
     "start": "deno run --allow-net --allow-run --allow-read --allow-env src/main.ts",
     "test": "deno test --allow-net --allow-run --allow-read --allow-env"
   },

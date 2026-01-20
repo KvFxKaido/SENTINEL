@@ -12,6 +12,11 @@ from rich.table import Table
 from rich.panel import Panel
 from rich.prompt import Prompt
 
+
+def _is_interactive() -> bool:
+    """Check if we're running in an interactive terminal (not headless)."""
+    return sys.stdin.isatty() and sys.stdout.isatty()
+
 from ..state import CampaignManager, Character, Background
 from ..state.schema import SessionReflection, HistoryType
 from ..agent import SentinelAgent
@@ -45,7 +50,7 @@ def cmd_new(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
 def cmd_load(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
     """Load a campaign."""
     if not args:
-        # Show list and prompt
+        # Show list and prompt (only in interactive mode)
         campaigns = manager.list_campaigns()
         if not campaigns:
             console.print("[yellow]No campaigns found. Use /new to create one.[/yellow]")
@@ -66,6 +71,12 @@ def cmd_load(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
             )
 
         console.print(table)
+
+        # In headless mode, can't prompt - just show the list
+        if not _is_interactive():
+            console.print("[dim]Use /load <number> or /load <name> to load a campaign[/dim]")
+            return
+
         selection = Prompt.ask("Load campaign #")
         args = [selection]
 
@@ -114,7 +125,7 @@ def cmd_save(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
 def cmd_delete(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
     """Delete a campaign."""
     if not args:
-        # Show list and prompt
+        # Show list and prompt (only in interactive mode)
         campaigns = manager.list_campaigns()
         if not campaigns:
             console.print("[yellow]No campaigns to delete.[/yellow]")
@@ -135,6 +146,12 @@ def cmd_delete(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
             )
 
         console.print(table)
+
+        # In headless mode, can't prompt - just show the list
+        if not _is_interactive():
+            console.print("[dim]Use /delete <number> or /delete <name> to delete[/dim]")
+            return
+
         selection = Prompt.ask("Delete campaign #")
         args = [selection]
 
@@ -154,6 +171,15 @@ def cmd_delete(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
     else:
         # Find by ID
         campaign_name = next((c["name"] for c in campaigns if c["id"] == campaign_id), campaign_id)
+
+    # In headless mode, skip confirmation (caller must be explicit)
+    if not _is_interactive():
+        deleted_id = manager.delete_campaign(campaign_id)
+        if deleted_id:
+            console.print(f"[{THEME['accent']}]Deleted campaign: {campaign_name}[/{THEME['accent']}]")
+        else:
+            console.print("[red]Campaign not found[/red]")
+        return
 
     confirm = Prompt.ask(
         f"[{THEME['danger']}]Delete '{campaign_name}'? This cannot be undone[/{THEME['danger']}]",

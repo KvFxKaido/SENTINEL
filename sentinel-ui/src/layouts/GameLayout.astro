@@ -32,11 +32,11 @@ const { title = 'SENTINEL' } = Astro.props;
    */
 
   :root {
-    /* Base colors */
-    --bg-primary: #0d1117;
-    --bg-secondary: #161b22;
-    --bg-tertiary: #21262d;
-    --bg-hover: #30363d;
+    /* AMOLED Base colors - pure black for OLED displays */
+    --bg-primary: #000000;
+    --bg-secondary: #0a0a0a;
+    --bg-tertiary: #121212;
+    --bg-hover: #1a1a1a;
 
     /* Text colors */
     --text-primary: #e6edf3;
@@ -78,8 +78,8 @@ const { title = 'SENTINEL' } = Astro.props;
     --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
     --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 
-    /* Borders */
-    --border-color: #30363d;
+    /* Borders - subtle against AMOLED black */
+    --border-color: #1e1e1e;
     --border-radius: 6px;
   }
 

@@ -10,14 +10,42 @@ This enables embedding SENTINEL in other processes (Deno bridge, testing, etc.)
 
 import json
 import sys
+import io
+from contextlib import contextmanager
 from pathlib import Path
-from typing import TextIO
+from typing import TextIO, Generator
 
 from ..state import CampaignManager, get_event_bus, EventType, GameEvent
 from ..agent import SentinelAgent
 from ..llm.base import Message
 from .commands import register_all_commands
 from .tui_commands import register_tui_handlers
+
+
+@contextmanager
+def capture_console_output() -> Generator[io.StringIO, None, None]:
+    """
+    Context manager to capture Rich console output.
+
+    CLI commands use console.print() which goes to stdout.
+    In headless mode, we need to capture this output to include
+    it in the JSON response instead of polluting the JSON stream.
+    """
+    from .renderer import console
+
+    # Store the original file
+    original_file = console.file
+
+    # Create a buffer to capture output
+    buffer = io.StringIO()
+
+    try:
+        # Redirect console output to our buffer
+        console.file = buffer
+        yield buffer
+    finally:
+        # Restore original file
+        console.file = original_file
 
 
 class HeadlessRunner:
@@ -107,6 +135,8 @@ class HeadlessRunner:
         
         if cmd_type == "status":
             return self._cmd_status()
+        elif cmd_type == "campaign_state":
+            return self._cmd_campaign_state()
         elif cmd_type == "say":
             return self._cmd_say(cmd.get("text", ""))
         elif cmd_type == "slash":
@@ -132,6 +162,60 @@ class HeadlessRunner:
                 "session": campaign.meta.session_count if campaign else 0,
             } if campaign else None,
             "conversation_length": len(self.conversation),
+        }
+
+    def _cmd_campaign_state(self) -> dict:
+        """Return detailed campaign state for UI rendering."""
+        campaign = self.manager.current
+        if not campaign:
+            return {"ok": False, "error": "No campaign loaded"}
+
+        # Get the first character (player character)
+        char = campaign.characters[0] if campaign.characters else None
+
+        # Build faction standings from FactionRegistry attributes
+        factions = []
+        faction_attrs = [
+            'nexus', 'ember_colonies', 'lattice', 'convergence', 'covenant',
+            'wanderers', 'cultivators', 'steel_syndicate', 'witnesses',
+            'architects', 'ghost_networks'
+        ]
+        for attr in faction_attrs:
+            faction_standing = getattr(campaign.factions, attr, None)
+            if faction_standing:
+                factions.append({
+                    "id": attr,
+                    "name": attr.replace("_", " ").title(),
+                    "standing": faction_standing.standing.value,
+                })
+
+        # Get session phase if in mission
+        session_phase = None
+        if campaign.session:
+            session_phase = campaign.session.mission.phase.value if campaign.session.mission else None
+
+        return {
+            "ok": True,
+            "campaign": {
+                "id": campaign.meta.id,
+                "name": campaign.meta.name,
+                "session": campaign.meta.session_count,
+                "phase": campaign.meta.phase,
+            },
+            "character": {
+                "name": char.name if char else None,
+                "social_energy": {
+                    "current": char.social_energy.current if char else 0,
+                    "max": 100,  # Social energy is always 0-100
+                },
+                "credits": char.credits if char else 0,
+            } if char else None,
+            "region": campaign.region.value if hasattr(campaign.region, 'value') else str(campaign.region),
+            "location": campaign.location.value if hasattr(campaign.location, 'value') else str(campaign.location),
+            "session_phase": session_phase,
+            "factions": factions,
+            "active_jobs": len(campaign.jobs.active),
+            "dormant_threads": len(campaign.dormant_threads),
         }
     
     def _cmd_say(self, text: str) -> dict:
@@ -161,19 +245,33 @@ class HeadlessRunner:
     def _cmd_slash(self, command: str, args: list) -> dict:
         """Execute a slash command."""
         from .command_registry import get_registry
-        
+
         if not command.startswith("/"):
             command = "/" + command
-        
+
         registry = get_registry()
-        handler = registry.get(command)
-        
-        if not handler:
+        cmd_obj = registry.get(command)
+
+        if not cmd_obj:
             return {"ok": False, "error": f"Unknown command: {command}"}
-        
+
         try:
-            result = handler(self.manager, self.agent, args)
-            return {"ok": True, "result": str(result) if result else None}
+            # Capture any Rich console output (tables, formatted text)
+            # so it doesn't pollute the JSON stream
+            with capture_console_output() as buffer:
+                # cmd_obj is a Command dataclass with a .handler attribute
+                result = cmd_obj.handler(self.manager, self.agent, args)
+
+            # Get captured console output (strip ANSI codes for clean text)
+            console_output = buffer.getvalue().strip()
+
+            response: dict = {"ok": True}
+            if result:
+                response["result"] = str(result)
+            if console_output:
+                response["output"] = console_output
+
+            return response
         except Exception as e:
             return {"ok": False, "error": str(e)}
     
