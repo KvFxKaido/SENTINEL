@@ -1,0 +1,19 @@
+{
+  "name": "@sentinel/bridge",
+  "version": "0.1.0",
+  "exports": "./src/main.ts",
+  "tasks": {
+    "dev": "deno run --allow-net --allow-run --allow-read --allow-env src/main.ts",
+    "start": "deno run --allow-net --allow-run --allow-read --allow-env src/main.ts",
+    "test": "deno test --allow-net --allow-run --allow-read --allow-env"
+  },
+  "imports": {
+    "@std/async": "jsr:@std/async@^1.0.0",
+    "@std/http": "jsr:@std/http@^1.0.0",
+    "@std/json": "jsr:@std/json@^1.0.0"
+  },
+  "compilerOptions": {
+    "strict": true,
+    "noImplicitAny": true
+  }
+}
