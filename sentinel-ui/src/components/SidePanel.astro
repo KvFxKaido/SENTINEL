@@ -1,0 +1,148 @@
+---
+// Side panel - shows state, factions, and events
+---
+
+<div class="state-panel panel">
+  <div class="panel-header">State</div>
+
+  <div class="state-grid">
+    <div class="state-item">
+      <span class="state-label">Phase</span>
+      <span class="state-value" id="state-phase">—</span>
+    </div>
+    <div class="state-item">
+      <span class="state-label">Region</span>
+      <span class="state-value" id="state-region">—</span>
+    </div>
+    <div class="state-item">
+      <span class="state-label">Energy</span>
+      <span class="state-value" id="state-energy">—</span>
+    </div>
+    <div class="state-item">
+      <span class="state-label">Credits</span>
+      <span class="state-value mono" id="state-credits">—</span>
+    </div>
+  </div>
+</div>
+
+<div class="factions-panel panel">
+  <div class="panel-header">Factions</div>
+
+  <div class="faction-list" id="faction-list">
+    <div class="faction-item">
+      <span class="faction-name">Nexus</span>
+      <span class="faction-standing disposition-neutral">Neutral</span>
+    </div>
+    <div class="faction-item">
+      <span class="faction-name">Ember Colonies</span>
+      <span class="faction-standing disposition-neutral">Neutral</span>
+    </div>
+    <div class="faction-item">
+      <span class="faction-name">Lattice</span>
+      <span class="faction-standing disposition-neutral">Neutral</span>
+    </div>
+    <!-- More factions populated dynamically -->
+  </div>
+</div>
+
+<div class="events-panel panel">
+  <div class="panel-header">Events</div>
+
+  <div class="event-log" id="event-log">
+    <div class="event-entry muted">Waiting for events...</div>
+  </div>
+</div>
+
+<style>
+  .state-panel,
+  .factions-panel,
+  .events-panel {
+    flex-shrink: 0;
+  }
+
+  .events-panel {
+    flex: 1;
+    min-height: 150px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* State grid */
+  .state-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-sm);
+  }
+
+  .state-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .state-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+  }
+
+  .state-value {
+    font-size: 0.9rem;
+    color: var(--text-primary);
+  }
+
+  /* Faction list */
+  .faction-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+  }
+
+  .faction-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-xs) 0;
+    font-size: 0.8rem;
+  }
+
+  .faction-name {
+    color: var(--text-secondary);
+  }
+
+  .faction-standing {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  /* Event log */
+  .event-log {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    font-size: 0.75rem;
+    font-family: var(--font-mono);
+  }
+
+  .event-entry {
+    padding: var(--space-xs);
+    background: var(--bg-tertiary);
+    border-radius: 3px;
+    color: var(--text-secondary);
+  }
+
+  .event-entry.muted {
+    background: transparent;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
+  :global(.event-entry .event-type) {
+    color: var(--accent-cyan);
+  }
+</style>

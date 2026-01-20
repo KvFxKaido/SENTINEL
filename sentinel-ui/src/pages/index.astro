@@ -1,0 +1,169 @@
+---
+import GameLayout from '../layouts/GameLayout.astro';
+import Header from '../components/Header.astro';
+import NarrativeLog from '../components/NarrativeLog.astro';
+import SidePanel from '../components/SidePanel.astro';
+import CommandInput from '../components/CommandInput.astro';
+---
+
+<GameLayout title="SENTINEL">
+  <Header />
+
+  <main class="main-content">
+    <NarrativeLog />
+  </main>
+
+  <aside class="side-panel">
+    <SidePanel />
+  </aside>
+
+  <footer class="command-area">
+    <CommandInput />
+  </footer>
+</GameLayout>
+
+<style>
+  .main-content {
+    grid-column: 1;
+    grid-row: 2;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .side-panel {
+    grid-column: 2;
+    grid-row: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    overflow-y: auto;
+  }
+
+  .command-area {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  @media (max-width: 900px) {
+    .side-panel {
+      grid-column: 1;
+      grid-row: 3;
+      flex-direction: row;
+      flex-wrap: wrap;
+    }
+
+    .command-area {
+      grid-row: 4;
+    }
+  }
+</style>
+
+<script>
+  import { subscribeToEvents, getState, checkHealth } from '../lib/bridge';
+
+  // Initialize on page load
+  document.addEventListener('DOMContentLoaded', async () => {
+    // Check if bridge is available
+    const healthy = await checkHealth();
+    const statusDot = document.querySelector('.bridge-status .status-dot');
+
+    if (healthy) {
+      statusDot?.classList.add('ready');
+
+      // Get initial state
+      try {
+        const state = await getState();
+        updateUI(state);
+      } catch (err) {
+        console.error('Failed to get initial state:', err);
+      }
+
+      // Subscribe to events
+      subscribeToEvents((event) => {
+        console.log('Event received:', event);
+        handleEvent(event);
+      });
+    } else {
+      statusDot?.classList.add('error');
+      showConnectionError();
+    }
+  });
+
+  function updateUI(state: any) {
+    // Update connection status
+    const bridgeState = document.getElementById('bridge-state');
+    if (bridgeState) {
+      bridgeState.textContent = state.state;
+    }
+
+    // Update backend info
+    const backendInfo = document.getElementById('backend-info');
+    if (backendInfo && state.sentinel?.backend) {
+      backendInfo.textContent = `${state.sentinel.backend.backend} (${state.sentinel.backend.model})`;
+    }
+
+    // Update campaign info
+    const campaignInfo = document.getElementById('campaign-info');
+    if (campaignInfo) {
+      if (state.sentinel?.campaign) {
+        campaignInfo.textContent = `${state.sentinel.campaign.name} (Session ${state.sentinel.campaign.session})`;
+      } else {
+        campaignInfo.textContent = 'No campaign loaded';
+      }
+    }
+  }
+
+  function handleEvent(event: any) {
+    // Add event to log
+    const log = document.getElementById('event-log');
+    if (log) {
+      const entry = document.createElement('div');
+      entry.className = 'event-entry fade-in';
+      entry.innerHTML = `<span class="event-type">${event.event_type}</span>`;
+      log.appendChild(entry);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    // Handle specific event types
+    if (event.event_type === 'faction.changed') {
+      // Could update faction display
+    }
+  }
+
+  function showConnectionError() {
+    const log = document.getElementById('narrative-log');
+    if (log) {
+      log.innerHTML = `
+        <div class="connection-error">
+          <h3>Bridge Not Connected</h3>
+          <p>Start the Deno bridge to connect:</p>
+          <pre>cd sentinel-bridge && deno task dev</pre>
+          <p>Then refresh this page.</p>
+        </div>
+      `;
+    }
+  }
+</script>
+
+<style>
+  .connection-error {
+    text-align: center;
+    padding: var(--space-xl);
+    color: var(--text-secondary);
+  }
+
+  .connection-error h3 {
+    color: var(--status-warning);
+    margin-bottom: var(--space-md);
+  }
+
+  .connection-error pre {
+    background: var(--bg-tertiary);
+    padding: var(--space-md);
+    border-radius: var(--border-radius);
+    margin: var(--space-md) 0;
+    font-family: var(--font-mono);
+    color: var(--accent-cyan);
+  }
+</style>

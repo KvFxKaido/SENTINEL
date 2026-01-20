@@ -1,0 +1,15 @@
+{
+  "name": "sentinel-ui",
+  "type": "module",
+  "version": "0.1.0",
+  "description": "Web UI for SENTINEL - connects to the Deno bridge",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "astro": "^5.16.11"
+  }
+}

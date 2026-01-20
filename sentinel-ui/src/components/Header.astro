@@ -1,0 +1,103 @@
+---
+// Header component - shows game title, status, and connection info
+---
+
+<header class="header panel">
+  <div class="title-area">
+    <h1 class="game-title">
+      <span class="title-glyph">◆</span>
+      SENTINEL
+    </h1>
+    <span class="subtitle">Tactical TTRPG • AI Game Master</span>
+  </div>
+
+  <div class="status-area">
+    <div class="status-item bridge-status">
+      <span class="status-dot"></span>
+      <span class="status-label">Bridge</span>
+      <span class="status-value" id="bridge-state">connecting...</span>
+    </div>
+
+    <div class="status-item">
+      <span class="status-label">Backend</span>
+      <span class="status-value mono" id="backend-info">—</span>
+    </div>
+
+    <div class="status-item">
+      <span class="status-label">Campaign</span>
+      <span class="status-value" id="campaign-info">—</span>
+    </div>
+  </div>
+</header>
+
+<style>
+  .header {
+    grid-column: 1;
+    grid-row: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-lg);
+    padding: var(--space-sm) var(--space-md);
+  }
+
+  .title-area {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-md);
+  }
+
+  .game-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+  }
+
+  .title-glyph {
+    color: var(--accent-steel);
+    font-size: 0.9em;
+  }
+
+  .subtitle {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .status-area {
+    display: flex;
+    gap: var(--space-lg);
+  }
+
+  .status-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-size: 0.8rem;
+  }
+
+  .status-label {
+    color: var(--text-muted);
+  }
+
+  .status-value {
+    color: var(--text-secondary);
+  }
+
+  @media (max-width: 700px) {
+    .header {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .status-area {
+      flex-wrap: wrap;
+      gap: var(--space-md);
+    }
+  }
+</style>

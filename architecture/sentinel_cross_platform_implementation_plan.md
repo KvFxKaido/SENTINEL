@@ -163,29 +163,41 @@ deno task dev
 
 ## Phase 4 — Polished UI Layer (Astro)
 
+**Status:** 🚧 In Progress (scaffold complete)
+
 **Goal:** Visual clarity without architectural gravity
 
 ### Tasks
 
-1. **Read-Only First UI**
-   - Narrative logs
-   - Faction dashboards
-   - Timeline and consequence views
+1. ✅ **Read-Only First UI** — `sentinel-ui/src/components/`
+   - Header with connection status
+   - Narrative log for GM conversation
+   - Side panel with state, factions, events
 
-2. **Interactive Islands (Minimal)**
-   - Choice selection
-   - Command entry
-   - Context inspection
+2. ✅ **Interactive Islands (Minimal)** — Vanilla JS
+   - Command input with form submission
+   - Quick command buttons
+   - SSE subscription for live events
 
-3. **State as Projection**
-   - UI renders Sentinel output
+3. ✅ **State as Projection**
+   - UI renders Sentinel output via bridge API
    - No local derivation of truth
 
-4. **Performance Constraints**
-   - Zero JS by default
-   - Hydration only where necessary
+4. ✅ **Performance Constraints**
+   - Zero framework JS (vanilla only)
+   - Astro static-first with minimal hydration
 
-**Exit condition:** Sentinel is legible and pleasant outside the terminal
+### Setup
+
+```bash
+# Start the full stack
+cd sentinel-bridge && deno task dev   # Terminal 1
+cd sentinel-ui && npm run dev         # Terminal 2
+
+# Open http://localhost:4321
+```
+
+**Exit condition:** In progress — needs live testing with Sentinel
 
 ---
 

@@ -52,6 +52,13 @@ SENTINEL/
 │   │   ├── types.ts         # Shared TypeScript types
 │   │   └── main.ts          # Entry point
 │   └── README.md
+├── sentinel-ui/             # Astro web interface (Phase 4)
+│   ├── src/
+│   │   ├── layouts/         # Dark tactical theme
+│   │   ├── pages/           # Main game view
+│   │   ├── components/      # UI components
+│   │   └── lib/bridge.ts    # Bridge API client
+│   └── README.md
 ├── lore/                    # World-building documents (novellas)
 └── wiki/                    # Reference encyclopedia (Obsidian vault)
 ```
@@ -84,6 +91,7 @@ The design philosophy is real — these aren't aspirational guidelines, they're 
 | `sentinel-agent/GEMINI.md` | Dev guide for Gemini CLI |
 | `sentinel-campaign/README.md` | Campaign MCP server (factions, history, tools) |
 | `sentinel-bridge/README.md` | Deno bridge for UI integration |
+| `sentinel-ui/README.md` | Astro web interface |
 
 ## Game Philosophy
 

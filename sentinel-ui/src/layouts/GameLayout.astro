@@ -1,0 +1,280 @@
+---
+interface Props {
+  title?: string;
+}
+
+const { title = 'SENTINEL' } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="SENTINEL - Tactical TTRPG AI Game Master" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title}</title>
+  </head>
+  <body>
+    <div class="game-container">
+      <slot />
+    </div>
+  </body>
+</html>
+
+<style is:global>
+  /* SENTINEL Dark Tactical Theme
+   * Colors match the Textual TUI aesthetic:
+   * - Steel blue accents
+   * - Dim grays for backgrounds
+   * - Danger red for warnings
+   * - High contrast for readability
+   */
+
+  :root {
+    /* Base colors */
+    --bg-primary: #0d1117;
+    --bg-secondary: #161b22;
+    --bg-tertiary: #21262d;
+    --bg-hover: #30363d;
+
+    /* Text colors */
+    --text-primary: #e6edf3;
+    --text-secondary: #8b949e;
+    --text-muted: #6e7681;
+
+    /* Accent colors */
+    --accent-blue: #58a6ff;
+    --accent-steel: #79c0ff;
+    --accent-cyan: #56d4dd;
+
+    /* Status colors */
+    --status-success: #3fb950;
+    --status-warning: #d29922;
+    --status-danger: #f85149;
+    --status-info: #58a6ff;
+
+    /* Faction colors */
+    --faction-nexus: #58a6ff;
+    --faction-ember: #f0883e;
+    --faction-lattice: #a371f7;
+    --faction-convergence: #56d4dd;
+    --faction-covenant: #d2a8ff;
+    --faction-wanderers: #7ee787;
+    --faction-cultivators: #3fb950;
+    --faction-syndicate: #8b949e;
+    --faction-witnesses: #f8e3a1;
+    --faction-architects: #79c0ff;
+    --faction-ghost: #6e7681;
+
+    /* Spacing */
+    --space-xs: 0.25rem;
+    --space-sm: 0.5rem;
+    --space-md: 1rem;
+    --space-lg: 1.5rem;
+    --space-xl: 2rem;
+
+    /* Typography */
+    --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+
+    /* Borders */
+    --border-color: #30363d;
+    --border-radius: 6px;
+  }
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html {
+    font-size: 16px;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--bg-hover);
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+  }
+
+  /* Game container */
+  .game-container {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    grid-template-rows: auto 1fr auto;
+    gap: var(--space-md);
+    min-height: 100vh;
+    padding: var(--space-md);
+    max-width: 1600px;
+    margin: 0 auto;
+  }
+
+  @media (max-width: 900px) {
+    .game-container {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* Common component styles */
+  .panel {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: var(--space-md);
+  }
+
+  .panel-header {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-sm);
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+  }
+
+  .panel-header::before {
+    content: '';
+    display: inline-block;
+    width: 3px;
+    height: 1em;
+    background: var(--accent-steel);
+    border-radius: 1px;
+  }
+
+  /* Code/monospace text */
+  code, .mono {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+  }
+
+  /* Links */
+  a {
+    color: var(--accent-blue);
+    text-decoration: none;
+  }
+
+  a:hover {
+    text-decoration: underline;
+  }
+
+  /* Buttons */
+  button, .button {
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    font-weight: 500;
+    padding: var(--space-sm) var(--space-md);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  button:hover, .button:hover {
+    background: var(--bg-hover);
+    border-color: var(--text-muted);
+  }
+
+  button:active, .button:active {
+    transform: translateY(1px);
+  }
+
+  button.primary, .button.primary {
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
+    color: var(--bg-primary);
+  }
+
+  button.primary:hover, .button.primary:hover {
+    background: var(--accent-steel);
+    border-color: var(--accent-steel);
+  }
+
+  /* Input fields */
+  input, textarea {
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    padding: var(--space-sm) var(--space-md);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    width: 100%;
+  }
+
+  input:focus, textarea:focus {
+    outline: none;
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.2);
+  }
+
+  input::placeholder, textarea::placeholder {
+    color: var(--text-muted);
+  }
+
+  /* Status indicators */
+  .status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-muted);
+  }
+
+  .status-dot.ready { background: var(--status-success); }
+  .status-dot.error { background: var(--status-danger); }
+  .status-dot.starting { background: var(--status-warning); }
+
+  /* Disposition colors */
+  .disposition-hostile { color: var(--status-danger); }
+  .disposition-wary { color: var(--status-warning); }
+  .disposition-neutral { color: var(--text-secondary); }
+  .disposition-warm { color: var(--status-info); }
+  .disposition-loyal { color: var(--status-success); }
+
+  /* Animations */
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  .pulse {
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .fade-in {
+    animation: fadeIn 0.2s ease-out;
+  }
+</style>

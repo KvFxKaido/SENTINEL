@@ -1,0 +1,108 @@
+---
+// Narrative log - displays the conversation with the GM
+---
+
+<div class="narrative-container panel">
+  <div class="panel-header">Narrative</div>
+
+  <div class="narrative-log" id="narrative-log">
+    <div class="welcome-message">
+      <p>Welcome to <strong>SENTINEL</strong>.</p>
+      <p class="hint">Enter a command below or type a message to the GM.</p>
+    </div>
+  </div>
+</div>
+
+<style>
+  .narrative-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .narrative-log {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-sm);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+
+  .welcome-message {
+    text-align: center;
+    padding: var(--space-xl);
+    color: var(--text-secondary);
+  }
+
+  .welcome-message strong {
+    color: var(--accent-steel);
+    letter-spacing: 0.1em;
+  }
+
+  .welcome-message .hint {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-top: var(--space-sm);
+  }
+
+  /* Message styles */
+  :global(.message) {
+    padding: var(--space-md);
+    border-radius: var(--border-radius);
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  :global(.message.user) {
+    background: var(--bg-tertiary);
+    border-left: 3px solid var(--accent-blue);
+    margin-left: var(--space-xl);
+  }
+
+  :global(.message.gm) {
+    background: var(--bg-secondary);
+    border-left: 3px solid var(--accent-steel);
+  }
+
+  :global(.message .role) {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-bottom: var(--space-xs);
+  }
+
+  :global(.message.user .role) {
+    color: var(--accent-blue);
+  }
+
+  :global(.message.gm .role) {
+    color: var(--accent-steel);
+  }
+
+  :global(.message .content) {
+    line-height: 1.7;
+    white-space: pre-wrap;
+  }
+
+  /* Error messages */
+  :global(.message.error) {
+    background: rgba(248, 81, 73, 0.1);
+    border-left-color: var(--status-danger);
+  }
+
+  :global(.message.error .role) {
+    color: var(--status-danger);
+  }
+
+  /* System messages */
+  :global(.message.system) {
+    background: transparent;
+    border: 1px dashed var(--border-color);
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+</style>
