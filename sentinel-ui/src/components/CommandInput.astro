@@ -1,0 +1,186 @@
+---
+// Command input - interactive island for sending commands to Sentinel
+---
+
+<div class="command-input panel">
+  <form id="command-form" class="input-form">
+    <input
+      type="text"
+      id="command-input"
+      name="command"
+      placeholder="Type a message or /command..."
+      autocomplete="off"
+      autofocus
+    />
+    <button type="submit" class="send-button primary">
+      Send
+    </button>
+  </form>
+
+  <div class="quick-commands">
+    <button type="button" class="quick-cmd" data-cmd="/status">status</button>
+    <button type="button" class="quick-cmd" data-cmd="/jobs">jobs</button>
+    <button type="button" class="quick-cmd" data-cmd="/wiki">wiki</button>
+    <button type="button" class="quick-cmd" data-cmd="/save">save</button>
+  </div>
+</div>
+
+<style>
+  .command-input {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+  }
+
+  .input-form {
+    display: flex;
+    gap: var(--space-sm);
+  }
+
+  .input-form input {
+    flex: 1;
+  }
+
+  .send-button {
+    flex-shrink: 0;
+    min-width: 80px;
+  }
+
+  .quick-commands {
+    display: flex;
+    gap: var(--space-xs);
+    flex-wrap: wrap;
+  }
+
+  .quick-cmd {
+    font-size: 0.7rem;
+    padding: var(--space-xs) var(--space-sm);
+    background: var(--bg-tertiary);
+    border: 1px solid transparent;
+    color: var(--text-muted);
+  }
+
+  .quick-cmd:hover {
+    color: var(--accent-cyan);
+    border-color: var(--accent-cyan);
+  }
+
+  .quick-cmd::before {
+    content: '/';
+    opacity: 0.5;
+  }
+
+  /* Loading state */
+  .input-form.loading input,
+  .input-form.loading button {
+    opacity: 0.6;
+    pointer-events: none;
+  }
+
+  .input-form.loading button::after {
+    content: '...';
+  }
+</style>
+
+<script>
+  import { say, slash, status } from '../lib/bridge';
+
+  const form = document.getElementById('command-form') as HTMLFormElement;
+  const input = document.getElementById('command-input') as HTMLInputElement;
+  const narrativeLog = document.getElementById('narrative-log');
+
+  // Handle form submission
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text) return;
+
+    // Clear input immediately
+    input.value = '';
+
+    // Add user message to log
+    addMessage('user', text);
+
+    // Set loading state
+    form.classList.add('loading');
+
+    try {
+      let result;
+
+      if (text.startsWith('/')) {
+        // Slash command
+        const [cmd, ...args] = text.slice(1).split(' ');
+        result = await slash(cmd, args);
+
+        if (result.ok) {
+          if (result.result) {
+            addMessage('system', result.result);
+          } else {
+            addMessage('system', `Command /${cmd} executed`);
+          }
+        } else {
+          addMessage('error', result.error || 'Command failed');
+        }
+      } else {
+        // Regular message to GM
+        result = await say(text);
+
+        if (result.ok && result.response) {
+          addMessage('gm', result.response);
+        } else {
+          addMessage('error', result.error || 'Failed to get response');
+        }
+      }
+    } catch (err) {
+      addMessage('error', `Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      form.classList.remove('loading');
+      input.focus();
+    }
+  });
+
+  // Quick command buttons
+  document.querySelectorAll('.quick-cmd').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const cmd = (btn as HTMLElement).dataset.cmd;
+      if (cmd) {
+        input.value = cmd;
+        input.focus();
+      }
+    });
+  });
+
+  // Helper to add messages to the log
+  function addMessage(role: 'user' | 'gm' | 'system' | 'error', content: string) {
+    // Remove welcome message if present
+    const welcome = narrativeLog?.querySelector('.welcome-message');
+    if (welcome) {
+      welcome.remove();
+    }
+
+    const message = document.createElement('div');
+    message.className = `message ${role} fade-in`;
+
+    const roleLabel = {
+      user: 'You',
+      gm: 'GM',
+      system: 'System',
+      error: 'Error',
+    }[role];
+
+    message.innerHTML = `
+      <div class="role">${roleLabel}</div>
+      <div class="content">${escapeHtml(content)}</div>
+    `;
+
+    narrativeLog?.appendChild(message);
+    narrativeLog?.scrollTo({ top: narrativeLog.scrollHeight, behavior: 'smooth' });
+  }
+
+  // Escape HTML to prevent XSS
+  function escapeHtml(text: string): string {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+</script>
