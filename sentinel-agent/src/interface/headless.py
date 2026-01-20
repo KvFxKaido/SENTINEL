@@ -20,6 +20,7 @@ from ..agent import SentinelAgent
 from ..llm.base import Message
 from .commands import register_all_commands
 from .tui_commands import register_tui_handlers
+from .config import load_config, set_backend
 
 
 @contextmanager
@@ -70,7 +71,12 @@ class HeadlessRunner:
         base_dir = Path(__file__).parent.parent.parent.parent
         self.lore_dir = lore_dir or (base_dir / "lore" if (base_dir / "lore").exists() else None)
         self.output = output
-        
+
+        # Load saved backend preference if "auto" is passed
+        if backend == "auto":
+            config = load_config(self.campaigns_dir)
+            backend = config.get("backend", "claude")
+
         self.manager = CampaignManager(self.campaigns_dir)
         self.agent = SentinelAgent(
             self.manager,
@@ -194,6 +200,31 @@ class HeadlessRunner:
         if campaign.session:
             session_phase = campaign.session.mission.phase.value if campaign.session.mission else None
 
+        # Build gear list
+        gear = []
+        if char:
+            for item in char.gear:
+                gear.append({
+                    "id": item.id,
+                    "name": item.name,
+                    "category": item.category,
+                    "used": item.used,
+                })
+
+        # Build enhancements list
+        enhancements = []
+        if char:
+            for enh in char.enhancements:
+                enhancements.append({
+                    "id": enh.id,
+                    "name": enh.name,
+                    "source": enh.source.value if hasattr(enh.source, 'value') else str(enh.source),
+                    "benefit": enh.benefit,
+                })
+
+        # Get current loadout (gear IDs selected for mission)
+        loadout_ids = campaign.session.loadout if campaign.session else []
+
         return {
             "ok": True,
             "campaign": {
@@ -204,15 +235,19 @@ class HeadlessRunner:
             },
             "character": {
                 "name": char.name if char else None,
+                "background": char.background.value if char and hasattr(char.background, 'value') else None,
                 "social_energy": {
                     "current": char.social_energy.current if char else 0,
                     "max": 100,  # Social energy is always 0-100
                 },
                 "credits": char.credits if char else 0,
+                "gear": gear,
+                "enhancements": enhancements,
             } if char else None,
             "region": campaign.region.value if hasattr(campaign.region, 'value') else str(campaign.region),
             "location": campaign.location.value if hasattr(campaign.location, 'value') else str(campaign.location),
             "session_phase": session_phase,
+            "loadout": loadout_ids,
             "factions": factions,
             "active_jobs": len(campaign.jobs.active),
             "dormant_threads": len(campaign.dormant_threads),
@@ -264,6 +299,48 @@ class HeadlessRunner:
 
             # Get captured console output (strip ANSI codes for clean text)
             console_output = buffer.getvalue().strip()
+
+            # Handle backend switch - result contains new backend name
+            if command == "/backend" and result and isinstance(result, str):
+                new_backend = result
+                # Save preference
+                set_backend(new_backend, self.campaigns_dir)
+                # Recreate agent with new backend
+                self.agent = SentinelAgent(
+                    self.manager,
+                    prompts_dir=self.prompts_dir,
+                    lore_dir=self.lore_dir,
+                    backend=new_backend,
+                    local_mode=self.agent.local_mode,
+                )
+                return {
+                    "ok": True,
+                    "result": f"Switched to {new_backend}",
+                    "backend": self.agent.backend_info,
+                }
+
+            # Handle GM prompt - commands like /start return ("gm_prompt", text)
+            # which means "send this to the agent and return the response"
+            if isinstance(result, tuple) and len(result) == 2 and result[0] == "gm_prompt":
+                gm_prompt = result[1]
+                if self.agent.is_available:
+                    try:
+                        gm_response = self.agent.respond(gm_prompt, self.conversation)
+                        self.conversation.append(Message(role="user", content=gm_prompt))
+                        self.conversation.append(Message(role="assistant", content=gm_response))
+                        return {
+                            "ok": True,
+                            "response": gm_response,
+                            "output": console_output if console_output else None,
+                        }
+                    except Exception as e:
+                        return {"ok": False, "error": f"Agent error: {e}"}
+                else:
+                    return {
+                        "ok": False,
+                        "error": "No LLM backend available",
+                        "output": console_output if console_output else None,
+                    }
 
             response: dict = {"ok": True}
             if result:

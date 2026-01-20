@@ -1,24 +1,43 @@
 ---
-// Narrative log - displays the conversation with the GM
+// Narrative log - TUI-style terminal output
 ---
 
-<div class="narrative-container panel">
-  <div class="panel-header">Narrative</div>
+<div class="tui-panel narrative-panel">
+  <div class="tui-panel-title">NARRATIVE</div>
 
   <div class="narrative-log" id="narrative-log">
     <div class="welcome-message">
-      <p>Welcome to <strong>SENTINEL</strong>.</p>
-      <p class="hint">Enter a command below or type a message to the GM.</p>
+      <div class="welcome-ascii">
+╔══════════════════════════════════════╗
+║           S E N T I N E L            ║
+║      Tactical TTRPG • AI GM          ║
+╚══════════════════════════════════════╝
+      </div>
+      <div class="welcome-hint">Type a message or /command below</div>
     </div>
   </div>
 </div>
 
 <style>
-  .narrative-container {
+  .narrative-panel {
     flex: 1;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    font-family: var(--font-mono);
+  }
+
+  .narrative-panel .tui-panel-title {
+    text-align: center;
+    color: var(--accent-cyan);
+    font-weight: bold;
+    letter-spacing: 0.1em;
+    font-size: 0.75rem;
+    padding: var(--space-xs) var(--space-sm);
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
   }
 
   .narrative-log {
@@ -27,82 +46,112 @@
     padding: var(--space-sm);
     display: flex;
     flex-direction: column;
-    gap: var(--space-md);
+    gap: var(--space-sm);
+    font-size: 0.85rem;
   }
 
   .welcome-message {
-    text-align: center;
-    padding: var(--space-xl);
-    color: var(--text-secondary);
-  }
-
-  .welcome-message strong {
-    color: var(--accent-steel);
-    letter-spacing: 0.1em;
-  }
-
-  .welcome-message .hint {
-    font-size: 0.85rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
     color: var(--text-muted);
-    margin-top: var(--space-sm);
   }
 
-  /* Message styles */
+  .welcome-ascii {
+    color: var(--accent-steel);
+    white-space: pre;
+    font-size: 0.7rem;
+    line-height: 1.2;
+  }
+
+  .welcome-hint {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: var(--space-md);
+  }
+
+  /* TUI-style message formatting */
   :global(.message) {
-    padding: var(--space-md);
-    border-radius: var(--border-radius);
+    padding: var(--space-xs) var(--space-sm);
     animation: fadeIn 0.2s ease-out;
-  }
-
-  :global(.message.user) {
-    background: var(--bg-tertiary);
-    border-left: 3px solid var(--accent-blue);
-    margin-left: var(--space-xl);
-  }
-
-  :global(.message.gm) {
-    background: var(--bg-secondary);
-    border-left: 3px solid var(--accent-steel);
   }
 
   :global(.message .role) {
     font-size: 0.7rem;
-    font-weight: 600;
+    font-weight: bold;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: var(--text-muted);
-    margin-bottom: var(--space-xs);
+    margin-bottom: 2px;
   }
 
   :global(.message.user .role) {
     color: var(--accent-blue);
   }
 
+  :global(.message.user .role)::before {
+    content: '> ';
+    color: var(--text-muted);
+  }
+
   :global(.message.gm .role) {
     color: var(--accent-steel);
   }
 
+  :global(.message.gm .role)::before {
+    content: '◆ ';
+    color: var(--accent-steel);
+  }
+
   :global(.message .content) {
-    line-height: 1.7;
+    line-height: 1.5;
     white-space: pre-wrap;
+    color: var(--text-primary);
+    padding-left: var(--space-sm);
+    border-left: 1px solid var(--border-color);
+    margin-left: 2px;
+  }
+
+  :global(.message.user .content) {
+    color: var(--text-secondary);
+    border-left-color: var(--accent-blue);
+  }
+
+  :global(.message.gm .content) {
+    border-left-color: var(--accent-steel);
   }
 
   /* Error messages */
-  :global(.message.error) {
-    background: rgba(248, 81, 73, 0.1);
-    border-left-color: var(--status-danger);
-  }
-
   :global(.message.error .role) {
     color: var(--status-danger);
   }
 
+  :global(.message.error .role)::before {
+    content: '✗ ';
+    color: var(--status-danger);
+  }
+
+  :global(.message.error .content) {
+    color: var(--status-danger);
+    border-left-color: var(--status-danger);
+  }
+
   /* System messages */
   :global(.message.system) {
-    background: transparent;
-    border: 1px dashed var(--border-color);
     text-align: center;
-    font-size: 0.85rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    padding: var(--space-xs);
+  }
+
+  :global(.message.system .role) {
+    display: none;
+  }
+
+  :global(.message.system .content) {
+    border: none;
+    padding: 0;
     color: var(--text-muted);
   }
 </style>

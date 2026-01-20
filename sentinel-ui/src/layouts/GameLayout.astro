@@ -120,19 +120,25 @@ const { title = 'SENTINEL' } = Astro.props;
     background: var(--text-muted);
   }
 
-  /* Game container */
+  /* Game container - 3 column TUI layout */
   .game-container {
     display: grid;
-    grid-template-columns: 1fr 280px;
+    grid-template-columns: 180px 1fr 180px;
     grid-template-rows: auto 1fr auto;
-    gap: var(--space-md);
+    gap: var(--space-sm);
     min-height: 100vh;
-    padding: var(--space-md);
-    max-width: 1600px;
+    padding: var(--space-sm);
+    max-width: 1800px;
     margin: 0 auto;
   }
 
-  @media (max-width: 900px) {
+  @media (max-width: 1200px) {
+    .game-container {
+      grid-template-columns: 160px 1fr 160px;
+    }
+  }
+
+  @media (max-width: 1000px) {
     .game-container {
       grid-template-columns: 1fr;
     }

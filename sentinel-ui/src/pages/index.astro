@@ -2,19 +2,89 @@
 import GameLayout from '../layouts/GameLayout.astro';
 import Header from '../components/Header.astro';
 import NarrativeLog from '../components/NarrativeLog.astro';
-import SidePanel from '../components/SidePanel.astro';
 import CommandInput from '../components/CommandInput.astro';
 ---
 
 <GameLayout title="SENTINEL">
   <Header />
 
+  <aside class="left-panel">
+    <div class="tui-panel self-panel">
+      <div class="tui-panel-title">SELF</div>
+
+      <div class="tui-section">
+        <div class="character-name" id="char-name">—</div>
+        <div class="character-background" id="char-background">[No character]</div>
+      </div>
+
+      <div class="tui-section">
+        <div class="tui-section-header">-- STATUS --</div>
+        <div class="status-row">
+          <span class="status-label">Pistachios</span>
+          <div class="progress-bar" id="energy-bar">
+            <div class="progress-fill" id="energy-fill" style="width: 75%"></div>
+          </div>
+          <span class="status-value" id="energy-value">—</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Credits</span>
+          <span class="status-value mono" id="credits-value">—</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Location</span>
+          <span class="status-value" id="location-value">—</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Region</span>
+          <span class="status-value" id="region-value">—</span>
+        </div>
+      </div>
+
+      <div class="tui-section">
+        <div class="tui-section-header">-- LOADOUT --</div>
+        <div class="loadout-list" id="loadout-list">
+          <div class="loadout-item muted">[Empty]</div>
+        </div>
+      </div>
+
+      <div class="tui-section">
+        <div class="tui-section-header">-- ENHANCEMENTS --</div>
+        <div class="enhancement-list" id="enhancement-list">
+          <div class="enhancement-item muted">[None]</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
   <main class="main-content">
     <NarrativeLog />
   </main>
 
-  <aside class="side-panel">
-    <SidePanel />
+  <aside class="right-panel">
+    <div class="tui-panel world-panel">
+      <div class="tui-panel-title">WORLD</div>
+
+      <div class="tui-section">
+        <div class="tui-section-header">-- STANDINGS --</div>
+        <div class="standings-list" id="standings-list">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+
+      <div class="tui-section">
+        <div class="tui-section-header">-- THREADS --</div>
+        <div class="threads-list" id="threads-list">
+          <div class="thread-item muted">[No active threads]</div>
+        </div>
+      </div>
+
+      <div class="tui-section">
+        <div class="tui-section-header">-- EVENTS --</div>
+        <div class="event-log" id="event-log">
+          <div class="event-entry muted">Waiting...</div>
+        </div>
+      </div>
+    </div>
   </aside>
 
   <footer class="command-area">
@@ -23,38 +93,275 @@ import CommandInput from '../components/CommandInput.astro';
 </GameLayout>
 
 <style>
-  .main-content {
+  .left-panel {
     grid-column: 1;
+    grid-row: 2;
+    overflow-y: auto;
+  }
+
+  .main-content {
+    grid-column: 2;
     grid-row: 2;
     overflow: hidden;
     display: flex;
     flex-direction: column;
   }
 
-  .side-panel {
-    grid-column: 2;
-    grid-row: 1 / -1;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-md);
+  .right-panel {
+    grid-column: 3;
+    grid-row: 2;
     overflow-y: auto;
   }
 
   .command-area {
-    grid-column: 1;
+    grid-column: 1 / -1;
     grid-row: 3;
   }
 
-  @media (max-width: 900px) {
-    .side-panel {
-      grid-column: 1;
-      grid-row: 3;
-      flex-direction: row;
-      flex-wrap: wrap;
+  /* TUI Panel Styles */
+  .tui-panel {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    padding: var(--space-sm);
+    height: 100%;
+    overflow-y: auto;
+  }
+
+  .tui-panel-title {
+    text-align: center;
+    color: var(--accent-cyan);
+    font-weight: bold;
+    letter-spacing: 0.1em;
+    padding-bottom: var(--space-xs);
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: var(--space-sm);
+  }
+
+  .tui-section {
+    margin-bottom: var(--space-md);
+  }
+
+  .tui-section:last-child {
+    margin-bottom: 0;
+  }
+
+  .tui-section-header {
+    color: var(--text-muted);
+    font-size: 0.65rem;
+    letter-spacing: 0.05em;
+    margin-bottom: var(--space-xs);
+  }
+
+  /* Character */
+  .character-name {
+    color: var(--accent-steel);
+    font-weight: bold;
+    text-transform: uppercase;
+  }
+
+  .character-background {
+    color: var(--text-muted);
+    font-size: 0.65rem;
+  }
+
+  /* Status rows */
+  .status-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    margin-bottom: 2px;
+  }
+
+  .status-label {
+    color: var(--text-secondary);
+    min-width: 70px;
+  }
+
+  .status-value {
+    color: var(--text-primary);
+    margin-left: auto;
+  }
+
+  /* Progress bar */
+  .progress-bar {
+    flex: 1;
+    height: 8px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: var(--accent-cyan);
+    transition: width 0.3s ease;
+  }
+
+  .progress-fill.low {
+    background: var(--status-danger);
+  }
+
+  .progress-fill.medium {
+    background: var(--status-warning);
+  }
+
+  /* Loadout & Enhancements */
+  .loadout-list, .enhancement-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .loadout-item {
+    color: var(--text-secondary);
+    padding-left: var(--space-xs);
+    font-size: 0.7rem;
+  }
+
+  .loadout-item.equipped {
+    color: var(--accent-cyan);
+  }
+
+  .loadout-item.used {
+    color: var(--text-muted);
+    text-decoration: line-through;
+  }
+
+  .enhancement-item {
+    color: var(--faction-convergence);
+    padding-left: var(--space-xs);
+    font-size: 0.7rem;
+  }
+
+  /* Standings */
+  .standings-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  :global(.standing-row) {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+  }
+
+  :global(.standing-name) {
+    color: var(--text-secondary);
+    min-width: 75px;
+    font-size: 0.7rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  :global(.standing-bar) {
+    flex: 1;
+    height: 6px;
+    background: var(--bg-tertiary);
+  }
+
+  :global(.standing-fill) {
+    height: 100%;
+    transition: width 0.3s ease;
+  }
+
+  :global(.standing-fill.hostile) { background: var(--status-danger); }
+  :global(.standing-fill.unfriendly) { background: #f0883e; }
+  :global(.standing-fill.neutral) { background: var(--text-muted); }
+  :global(.standing-fill.friendly) { background: var(--status-success); }
+  :global(.standing-fill.allied) { background: var(--accent-cyan); }
+
+  :global(.standing-label) {
+    font-size: 0.6rem;
+    min-width: 50px;
+    text-align: right;
+  }
+
+  :global(.standing-label.hostile) { color: var(--status-danger); }
+  :global(.standing-label.unfriendly) { color: #f0883e; }
+  :global(.standing-label.neutral) { color: var(--text-muted); }
+  :global(.standing-label.friendly) { color: var(--status-success); }
+  :global(.standing-label.allied) { color: var(--accent-cyan); }
+
+  /* Threads */
+  .threads-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  :global(.thread-item) {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-xs);
+    font-size: 0.7rem;
+  }
+
+  :global(.thread-icon) {
+    color: var(--status-warning);
+  }
+
+  :global(.thread-text) {
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Event log */
+  .event-log {
+    max-height: 100px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  :global(.event-entry) {
+    font-size: 0.65rem;
+    color: var(--text-secondary);
+    padding: 2px var(--space-xs);
+  }
+
+  :global(.event-entry .event-type) {
+    color: var(--accent-cyan);
+  }
+
+  .muted {
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
+  .connection-error {
+    text-align: center;
+    padding: var(--space-xl);
+    color: var(--text-secondary);
+  }
+
+  .connection-error h3 {
+    color: var(--status-warning);
+    margin-bottom: var(--space-md);
+  }
+
+  .connection-error pre {
+    background: var(--bg-tertiary);
+    padding: var(--space-md);
+    border-radius: var(--border-radius);
+    margin: var(--space-md) 0;
+    font-family: var(--font-mono);
+    color: var(--accent-cyan);
+  }
+
+  @media (max-width: 1000px) {
+    .left-panel, .right-panel {
+      display: none;
     }
 
-    .command-area {
-      grid-row: 4;
+    .main-content {
+      grid-column: 1 / -1;
     }
   }
 </style>
@@ -62,30 +369,27 @@ import CommandInput from '../components/CommandInput.astro';
 <script>
   import { subscribeToEvents, getState, checkHealth, getCampaignState, type CampaignState } from '../lib/bridge';
 
-  // Standing to CSS class mapping
-  const STANDING_CLASSES: Record<string, string> = {
-    hostile: 'disposition-hostile',
-    unfriendly: 'disposition-wary',
-    neutral: 'disposition-neutral',
-    friendly: 'disposition-warm',
-    allied: 'disposition-loyal',
+  // Standing to display info
+  const STANDING_INFO: Record<string, { width: number; class: string }> = {
+    hostile: { width: 10, class: 'hostile' },
+    unfriendly: { width: 30, class: 'unfriendly' },
+    neutral: { width: 50, class: 'neutral' },
+    friendly: { width: 70, class: 'friendly' },
+    allied: { width: 90, class: 'allied' },
   };
 
   // Initialize on page load
   document.addEventListener('DOMContentLoaded', async () => {
-    // Check if bridge is available
     const healthy = await checkHealth();
     const statusDot = document.querySelector('.bridge-status .status-dot');
 
     if (healthy) {
       statusDot?.classList.add('ready');
 
-      // Get initial state
       try {
         const state = await getState();
         updateBridgeUI(state);
 
-        // If a campaign is loaded, get detailed state
         if (state.sentinel?.campaign) {
           const campaignState = await getCampaignState();
           if (campaignState.ok) {
@@ -96,7 +400,6 @@ import CommandInput from '../components/CommandInput.astro';
         console.error('Failed to get initial state:', err);
       }
 
-      // Subscribe to events
       subscribeToEvents((event) => {
         console.log('Event received:', event);
         handleEvent(event);
@@ -108,103 +411,164 @@ import CommandInput from '../components/CommandInput.astro';
   });
 
   function updateBridgeUI(state: any) {
-    // Update connection status
     const bridgeState = document.getElementById('bridge-state');
     if (bridgeState) {
       bridgeState.textContent = state.state;
     }
 
-    // Update backend info
     const backendInfo = document.getElementById('backend-info');
     if (backendInfo && state.sentinel?.backend) {
       backendInfo.textContent = `${state.sentinel.backend.backend} (${state.sentinel.backend.model})`;
     }
 
-    // Update campaign info
     const campaignInfo = document.getElementById('campaign-info');
     if (campaignInfo) {
       if (state.sentinel?.campaign) {
         campaignInfo.textContent = `${state.sentinel.campaign.name} (Session ${state.sentinel.campaign.session})`;
       } else {
-        campaignInfo.textContent = 'No campaign loaded';
+        campaignInfo.textContent = 'No campaign';
       }
     }
   }
 
   function updateCampaignUI(state: CampaignState) {
-    // Update state panel
-    const phaseEl = document.getElementById('state-phase');
-    const regionEl = document.getElementById('state-region');
-    const energyEl = document.getElementById('state-energy');
-    const creditsEl = document.getElementById('state-credits');
-
-    if (phaseEl) {
-      // Session phase or campaign phase
-      if (state.session_phase) {
-        phaseEl.textContent = state.session_phase.replace('_', ' ').toUpperCase();
-      } else {
-        phaseEl.textContent = state.location.replace('_', ' ').toUpperCase();
-      }
+    // Character info
+    const charName = document.getElementById('char-name');
+    const charBg = document.getElementById('char-background');
+    if (charName && state.character) {
+      charName.textContent = state.character.name || '—';
+    }
+    if (charBg && state.character) {
+      charBg.textContent = state.character.background ? `[${formatLabel(state.character.background)}]` : '[No background]';
+    } else if (charBg) {
+      charBg.textContent = '[No character]';
     }
 
-    if (regionEl) {
-      regionEl.textContent = state.region.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
+    // Energy
+    const energyFill = document.getElementById('energy-fill');
+    const energyValue = document.getElementById('energy-value');
+    if (energyFill && energyValue && state.character) {
+      const percent = Math.round((state.character.social_energy.current / state.character.social_energy.max) * 100);
+      energyFill.style.width = `${percent}%`;
+      energyValue.textContent = `${percent}%`;
+
+      energyFill.classList.remove('low', 'medium');
+      if (percent <= 25) energyFill.classList.add('low');
+      else if (percent <= 50) energyFill.classList.add('medium');
     }
 
-    if (energyEl && state.character) {
-      const energy = state.character.social_energy;
-      const percent = Math.round((energy.current / energy.max) * 100);
-      energyEl.textContent = `${energy.current}/${energy.max}`;
-      // Color based on level
-      if (percent <= 25) {
-        energyEl.style.color = 'var(--status-danger)';
-      } else if (percent <= 50) {
-        energyEl.style.color = 'var(--status-warning)';
-      } else {
-        energyEl.style.color = 'var(--text-primary)';
-      }
+    // Credits
+    const creditsValue = document.getElementById('credits-value');
+    if (creditsValue && state.character) {
+      creditsValue.textContent = `${state.character.credits}c`;
     }
 
-    if (creditsEl && state.character) {
-      creditsEl.textContent = `${state.character.credits}c`;
+    // Location & Region
+    const locationValue = document.getElementById('location-value');
+    const regionValue = document.getElementById('region-value');
+    if (locationValue) {
+      locationValue.textContent = formatLabel(state.location);
+    }
+    if (regionValue) {
+      regionValue.textContent = formatLabel(state.region);
     }
 
-    // Update factions list
-    updateFactionsList(state.factions);
+    // Standings
+    updateStandingsList(state.factions);
+
+    // Gear/Loadout
+    updateGearList(state.character?.gear || [], state.loadout || []);
+
+    // Enhancements
+    updateEnhancementsList(state.character?.enhancements || []);
   }
 
-  function updateFactionsList(factions: CampaignState['factions']) {
-    const container = document.getElementById('faction-list');
+  function updateGearList(gear: CampaignState['character']['gear'], loadout: string[]) {
+    const container = document.getElementById('loadout-list');
     if (!container) return;
 
-    // Clear existing content
     container.innerHTML = '';
 
-    // Add each faction
-    for (const faction of factions) {
-      const item = document.createElement('div');
-      item.className = 'faction-item';
-
-      const name = document.createElement('span');
-      name.className = 'faction-name';
-      name.textContent = faction.name;
-
-      const standing = document.createElement('span');
-      const standingClass = STANDING_CLASSES[faction.standing.toLowerCase()] || 'disposition-neutral';
-      standing.className = `faction-standing ${standingClass}`;
-      standing.textContent = faction.standing.toUpperCase();
-
-      item.appendChild(name);
-      item.appendChild(standing);
-      container.appendChild(item);
+    if (gear.length === 0) {
+      container.innerHTML = '<div class="loadout-item muted">[Empty]</div>';
+      return;
     }
+
+    for (const item of gear) {
+      const inLoadout = loadout.includes(item.id);
+      const div = document.createElement('div');
+      div.className = `loadout-item${item.used ? ' used' : ''}${inLoadout ? ' equipped' : ''}`;
+      div.innerHTML = `${inLoadout ? '▸ ' : '  '}${item.name}${item.used ? ' (used)' : ''}`;
+      div.title = item.category;
+      container.appendChild(div);
+    }
+  }
+
+  function updateEnhancementsList(enhancements: CampaignState['character']['enhancements']) {
+    const container = document.getElementById('enhancement-list');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    if (enhancements.length === 0) {
+      container.innerHTML = '<div class="enhancement-item muted">[None]</div>';
+      return;
+    }
+
+    for (const enh of enhancements) {
+      const div = document.createElement('div');
+      div.className = 'enhancement-item';
+      div.innerHTML = `▸ ${enh.name}`;
+      div.title = `${enh.source}: ${enh.benefit}`;
+      container.appendChild(div);
+    }
+  }
+
+  function updateStandingsList(factions: CampaignState['factions']) {
+    const container = document.getElementById('standings-list');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    // Sort factions: allied/friendly first, then neutral, then hostile
+    const sorted = [...factions].sort((a, b) => {
+      const order = ['allied', 'friendly', 'neutral', 'unfriendly', 'hostile'];
+      return order.indexOf(a.standing.toLowerCase()) - order.indexOf(b.standing.toLowerCase());
+    });
+
+    for (const faction of sorted) {
+      const standingKey = faction.standing.toLowerCase();
+      const info = STANDING_INFO[standingKey] || STANDING_INFO.neutral;
+
+      const row = document.createElement('div');
+      row.className = 'standing-row';
+      row.innerHTML = `
+        <span class="standing-name">${abbreviateFaction(faction.name)}</span>
+        <div class="standing-bar">
+          <div class="standing-fill ${info.class}" style="width: ${info.width}%"></div>
+        </div>
+        <span class="standing-label ${info.class}">${faction.standing}</span>
+      `;
+      container.appendChild(row);
+    }
+  }
+
+  function abbreviateFaction(name: string): string {
+    const abbrevs: Record<string, string> = {
+      'Steel Syndicate': 'Steel Synd.',
+      'Ember Colonies': 'Ember Colon.',
+      'Ghost Networks': 'Ghost Net.',
+    };
+    return abbrevs[name] || name;
+  }
+
+  function formatLabel(str: string): string {
+    return str.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   }
 
   async function handleEvent(event: any) {
-    // Add event to log
     const log = document.getElementById('event-log');
     if (log) {
-      // Remove "Waiting for events..." message
       const waiting = log.querySelector('.muted');
       if (waiting) waiting.remove();
 
@@ -214,13 +578,11 @@ import CommandInput from '../components/CommandInput.astro';
       log.appendChild(entry);
       log.scrollTop = log.scrollHeight;
 
-      // Keep only last 20 events
-      while (log.children.length > 20) {
+      while (log.children.length > 15) {
         log.removeChild(log.firstChild!);
       }
     }
 
-    // Refresh campaign state on relevant events
     const refreshEvents = ['campaign.loaded', 'faction.changed', 'social_energy.changed', 'session.started', 'session.ended'];
     if (refreshEvents.includes(event.event_type)) {
       try {
@@ -248,7 +610,7 @@ import CommandInput from '../components/CommandInput.astro';
     }
   }
 
-  // Expose refresh functions globally for command input to use
+  // Global refresh functions
   (window as any).refreshCampaignState = async () => {
     try {
       const campaignState = await getCampaignState();
@@ -269,25 +631,3 @@ import CommandInput from '../components/CommandInput.astro';
     }
   };
 </script>
-
-<style>
-  .connection-error {
-    text-align: center;
-    padding: var(--space-xl);
-    color: var(--text-secondary);
-  }
-
-  .connection-error h3 {
-    color: var(--status-warning);
-    margin-bottom: var(--space-md);
-  }
-
-  .connection-error pre {
-    background: var(--bg-tertiary);
-    padding: var(--space-md);
-    border-radius: var(--border-radius);
-    margin: var(--space-md) 0;
-    font-family: var(--font-mono);
-    color: var(--accent-cyan);
-  }
-</style>

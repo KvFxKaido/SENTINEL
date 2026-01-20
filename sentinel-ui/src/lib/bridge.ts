@@ -44,6 +44,20 @@ export interface CommandResult {
   [key: string]: unknown;
 }
 
+export interface GearItem {
+  id: string;
+  name: string;
+  category: string;
+  used: boolean;
+}
+
+export interface Enhancement {
+  id: string;
+  name: string;
+  source: string;
+  benefit: string;
+}
+
 export interface CampaignState {
   ok: boolean;
   error?: string;
@@ -55,15 +69,19 @@ export interface CampaignState {
   };
   character?: {
     name: string | null;
+    background: string | null;
     social_energy: {
       current: number;
       max: number;
     };
     credits: number;
+    gear: GearItem[];
+    enhancements: Enhancement[];
   };
   region: string;
   location: string;
   session_phase: string | null;
+  loadout: string[];
   factions: Array<{
     id: string;
     name: string;
