@@ -241,6 +241,26 @@ The primary interface uses reactive patterns:
 
 **Aesthetic is intentional:** Dark tactical theme (steel blue, dim grays, danger red). No user customization — the constraints are the identity.
 
+### Web UI Architecture (Astro)
+Browser-based alternative to the TUI, connecting via Deno bridge:
+
+```
+Astro UI (4321) → HTTP → Deno Bridge (3333) → stdin/stdout → Sentinel (Python)
+```
+
+**3-Column Layout:**
+- **SELF** (left) — Character stats, loadout, enhancements
+- **NARRATIVE** (center) — Conversation log with `> YOU` and `◆ GM` prefixes
+- **WORLD** (right) — Faction standings with progress bars, threads, events
+
+**State Flow:**
+- `getCampaignState()` returns detailed UI state (character, factions, gear)
+- Commands that trigger GM (`/start`, `/mission`) return `response` field
+- SSE stream (`/events`) provides real-time event updates
+- Backend preference persists to `campaigns/.sentinel_config.json`
+
+**To run:** Start bridge (`deno task dev` in sentinel-bridge), then UI (`npm run dev` in sentinel-ui).
+
 ## MCP Server: sentinel-campaign
 
 When enabled, provides faction tools, wiki resources, and campaign state.

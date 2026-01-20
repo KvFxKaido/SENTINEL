@@ -50,6 +50,17 @@ curl -X POST http://localhost:3333/command \
   -H "Content-Type: application/json" \
   -d '{"cmd": "slash", "command": "/jobs", "args": []}'
 
+# Run /start (triggers GM response)
+curl -X POST http://localhost:3333/command \
+  -H "Content-Type: application/json" \
+  -d '{"cmd": "slash", "command": "/start", "args": []}'
+# Returns: {"ok": true, "response": "The derelict transit hub smells like..."}
+
+# Get detailed campaign state (for UI rendering)
+curl -X POST http://localhost:3333/command \
+  -H "Content-Type: application/json" \
+  -d '{"cmd": "campaign_state"}'
+
 # Load a campaign
 curl -X POST http://localhost:3333/command \
   -H "Content-Type: application/json" \
@@ -59,6 +70,35 @@ curl -X POST http://localhost:3333/command \
 curl -X POST http://localhost:3333/command \
   -H "Content-Type: application/json" \
   -d '{"cmd": "save"}'
+```
+
+### Command: campaign_state
+
+Returns detailed state for UI rendering:
+
+```json
+{
+  "ok": true,
+  "campaign": { "id": "cipher", "name": "Cipher", "session": 5, "phase": 1 },
+  "character": {
+    "name": "Cipher",
+    "background": "Ghost",
+    "social_energy": { "current": 75, "max": 100 },
+    "credits": 500,
+    "gear": [
+      { "id": "...", "name": "Encrypted laptop", "category": "tech", "used": false }
+    ],
+    "enhancements": []
+  },
+  "region": "Rust Corridor",
+  "location": "Safe House",
+  "factions": [
+    { "id": "steel_syndicate", "name": "Steel Syndicate", "standing": "Allied" }
+  ],
+  "loadout": [],
+  "active_jobs": 0,
+  "dormant_threads": 2
+}
 ```
 
 ### GET /state
@@ -114,8 +154,10 @@ deno task start --port 8080 --local --backend lmstudio
 | `--port, -p` | API port | 3333 |
 | `--sentinel` | Path to sentinel executable | `sentinel` |
 | `--cwd` | Working directory for Sentinel | `../sentinel-agent` |
-| `--backend` | LLM backend | `auto` |
+| `--backend` | LLM backend | `auto` (uses saved preference, defaults to `claude`) |
 | `--local` | Use local mode for smaller models | false |
+
+**Backend Persistence:** When you switch backends via `/backend <name>`, the preference is saved to `campaigns/.sentinel_config.json` and restored on next startup.
 
 ### Environment Variables
 
