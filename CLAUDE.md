@@ -45,6 +45,13 @@ SENTINEL/
 │   │   ├── tools/           # Standing, interactions, intel
 │   │   └── data/factions/   # Faction JSON files
 │   └── README.md
+├── sentinel-bridge/         # Deno orchestration layer (Phase 2)
+│   ├── src/
+│   │   ├── process.ts       # Sentinel process manager
+│   │   ├── api.ts           # Local HTTP API
+│   │   ├── types.ts         # Shared TypeScript types
+│   │   └── main.ts          # Entry point
+│   └── README.md
 ├── lore/                    # World-building documents (novellas)
 └── wiki/                    # Reference encyclopedia (Obsidian vault)
 ```
@@ -72,9 +79,11 @@ The design philosophy is real — these aren't aspirational guidelines, they're 
 | `core/SENTINEL Playbook — Core Rules.md` | The complete game rules |
 | `architecture/AGENT_ARCHITECTURE.md` | Agent design, state schema, tools |
 | `architecture/sentinel_warp_vision.md` | Terminal UI/UX roadmap (Warp + MGS inspired) |
+| `architecture/sentinel_cross_platform_implementation_plan.md` | Cross-platform roadmap (Phases 0-6) |
 | `sentinel-agent/CLAUDE.md` | Dev guide for Claude assistants |
 | `sentinel-agent/GEMINI.md` | Dev guide for Gemini CLI |
 | `sentinel-campaign/README.md` | Campaign MCP server (factions, history, tools) |
+| `sentinel-bridge/README.md` | Deno bridge for UI integration |
 
 ## Game Philosophy
 

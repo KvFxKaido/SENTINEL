@@ -32,7 +32,7 @@ Sentinel remains the authoritative engine. All other layers are bridges, shells,
 
 ## Phase 0 — Baseline (Already Complete)
 
-**Status:** Done
+**Status:** ✅ Done
 
 - Sentinel runs as a standalone Python CLI/TUI
 - State is persisted locally (JSON/files)
@@ -46,33 +46,38 @@ Sentinel remains the authoritative engine. All other layers are bridges, shells,
 
 ## Phase 1 — Engine Boundary Hardening
 
+**Status:** ✅ Done
+
 **Goal:** Make Sentinel explicitly embeddable without changing behavior
 
 ### Tasks
 
-1. **Define a Stable Command Interface**
-   - Canonical input commands (play, choose, consult, simulate, etc.)
-   - Canonical structured output (events, narrative blocks, state diffs)
+1. ✅ **Define a Stable Command Interface**
+   - Commands: `status`, `say`, `slash`, `load`, `save`, `quit`
+   - Structured JSON responses with `ok`, `error`, and result fields
+   - See: `sentinel-agent/src/interface/headless.py`
 
-2. **Formalize Engine I/O Contract**
-   - Input: JSON commands via stdin or IPC
-   - Output: JSON events + narrative payloads via stdout
-   - Errors: explicit, typed, non-fatal where possible
+2. ✅ **Formalize Engine I/O Contract**
+   - Input: JSON commands via stdin (one per line)
+   - Output: JSON events + responses via stdout (newline-delimited)
+   - Errors: explicit `ok: false` with `error` message
 
-3. **Headless Execution Mode**
+3. ✅ **Headless Execution Mode**
    - `sentinel --headless`
-   - No TUI assumptions
-   - Deterministic output
+   - Emits `{"type": "ready"}` on startup
+   - Subscribes to event bus, emits all game events as JSON
 
-4. **State Snapshot + Restore**
-   - Explicit save/load boundaries
-   - No implicit global state
+4. ✅ **State Snapshot + Restore**
+   - `{"cmd": "save"}` and `{"cmd": "load", "campaign_id": "..."}` commands
+   - Campaign manager handles persistence
 
-**Exit condition:** Sentinel can be driven entirely by another process
+**Exit condition:** ✅ Sentinel can be driven entirely by another process
 
 ---
 
 ## Phase 2 — Local Bridge (Deno)
+
+**Status:** ✅ Complete and Tested
 
 **Goal:** Introduce a local orchestration layer without logic leakage
 
@@ -93,26 +98,41 @@ Sentinel remains the authoritative engine. All other layers are bridges, shells,
 
 ### Tasks
 
-1. **Deno Bridge Process**
-   - Spawns Sentinel
-   - Manages lifecycle
-   - Handles restart/crash recovery
+1. ✅ **Deno Bridge Process** — `sentinel-bridge/src/process.ts`
+   - `SentinelProcess` class spawns `sentinel --headless`
+   - Manages lifecycle (start, stop, status)
+   - Auto-restart on crash (up to 3 attempts with backoff)
 
-2. **Local API Surface**
-   - `POST /command`
-   - `GET /state`
-   - `GET /events`
-   - Localhost only
+2. ✅ **Local API Surface** — `sentinel-bridge/src/api.ts`
+   - `POST /command` — Send command to Sentinel
+   - `GET /state` — Get bridge + Sentinel state
+   - `GET /events` — SSE stream of game events
+   - `POST /start` / `POST /stop` — Lifecycle control
+   - `GET /health` — Health check
 
-3. **IPC / HTTP Choice**
-   - Start with HTTP over localhost
-   - Keep transport swappable
+3. ✅ **IPC / HTTP Choice**
+   - HTTP over localhost (default port 3333)
+   - CORS enabled for local development
+   - Transport is internal, swappable if needed
 
-4. **Graceful Degradation**
-   - If Sentinel crashes → UI notified
-   - If models unavailable → Sentinel continues
+4. ✅ **Graceful Degradation**
+   - Crash detection → auto-restart → event broadcast
+   - API returns 503 when Sentinel unavailable
+   - SSE broadcasts `bridge_state_change` events
 
-**Exit condition:** Sentinel can be controlled programmatically via Deno
+### Setup
+
+```bash
+# Install Deno (if not installed)
+# Windows: irm https://deno.land/install.ps1 | iex
+# macOS/Linux: curl -fsSL https://deno.land/install.sh | sh
+
+# Start the bridge
+cd sentinel-bridge
+deno task dev
+```
+
+**Exit condition:** ✅ Sentinel can be controlled programmatically via Deno
 
 ---
 
