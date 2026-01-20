@@ -25,6 +25,20 @@ sentinel-cli                   # Dev CLI with simulation
 
 Then: `/new` → `/char` → `/start` → play
 
+### Web UI (Alternative)
+
+Play in your browser with a TUI-style interface:
+
+```bash
+# Terminal 1: Start the bridge
+cd sentinel-bridge && deno task dev
+
+# Terminal 2: Start the UI
+cd sentinel-ui && npm run dev
+```
+
+Open http://localhost:4321 — the web UI mirrors the Textual TUI with a 3-column layout (SELF | NARRATIVE | WORLD).
+
 ### Commands at a Glance
 
 | Command | What it does |
@@ -49,7 +63,9 @@ Then: `/new` → `/char` → `/start` → play
 
 ```
 SENTINEL/
-├── sentinel-agent/     # AI Game Master
+├── sentinel-agent/     # AI Game Master (Python)
+├── sentinel-bridge/    # Local HTTP API (Deno)
+├── sentinel-ui/        # Web interface (Astro)
 ├── sentinel-campaign/  # Faction MCP Server
 ├── core/               # Game rules document
 ├── lore/               # Novellas and world-building
@@ -65,7 +81,9 @@ SENTINEL/
 
 | Component | Description |
 |-----------|-------------|
-| [sentinel-agent](sentinel-agent/) | Python CLI that runs the AI GM |
+| [sentinel-agent](sentinel-agent/) | Python engine — AI GM with state management |
+| [sentinel-bridge](sentinel-bridge/) | Deno orchestration — spawns agent, exposes HTTP API |
+| [sentinel-ui](sentinel-ui/) | Astro web UI — TUI-style browser interface |
 | [sentinel-campaign](sentinel-campaign/) | MCP server providing faction knowledge |
 | [Core Rules](core/) | Complete game rules |
 | [Lore](lore/) | Canon novellas for RAG retrieval (Act 1: Becoming complete) |
@@ -347,6 +365,8 @@ pytest
 | [Agent Architecture](architecture/AGENT_ARCHITECTURE.md) | Technical design |
 | [Obsidian Integration](architecture/OBSIDIAN_INTEGRATION.md) | Wiki features (complete) |
 | [Campaign MCP Server](sentinel-campaign/README.md) | Faction server design |
+| [Deno Bridge](sentinel-bridge/README.md) | HTTP API for UI integration |
+| [Web UI](sentinel-ui/README.md) | Browser interface guide |
 | [Agent Dev Guide](sentinel-agent/CLAUDE.md) | Contributor guide |
 
 ## License
