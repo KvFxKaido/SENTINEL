@@ -269,7 +269,7 @@ import CommandInput from '../components/CommandInput.astro';
   }
 
   :global(.standing-fill.hostile) { background: var(--status-danger); }
-  :global(.standing-fill.unfriendly) { background: #f0883e; }
+  :global(.standing-fill.unfriendly) { background: var(--status-unfriendly); }
   :global(.standing-fill.neutral) { background: var(--text-muted); }
   :global(.standing-fill.friendly) { background: var(--status-success); }
   :global(.standing-fill.allied) { background: var(--accent-cyan); }
@@ -281,7 +281,7 @@ import CommandInput from '../components/CommandInput.astro';
   }
 
   :global(.standing-label.hostile) { color: var(--status-danger); }
-  :global(.standing-label.unfriendly) { color: #f0883e; }
+  :global(.standing-label.unfriendly) { color: var(--status-unfriendly); }
   :global(.standing-label.neutral) { color: var(--text-muted); }
   :global(.standing-label.friendly) { color: var(--status-success); }
   :global(.standing-label.allied) { color: var(--accent-cyan); }
@@ -448,7 +448,9 @@ import CommandInput from '../components/CommandInput.astro';
     const energyFill = document.getElementById('energy-fill');
     const energyValue = document.getElementById('energy-value');
     if (energyFill && energyValue && state.character) {
-      const percent = Math.round((state.character.social_energy.current / state.character.social_energy.max) * 100);
+      const max = state.character.social_energy.max || 100;
+      const current = state.character.social_energy.current ?? 0;
+      const percent = max > 0 ? Math.round((current / max) * 100) : 0;
       energyFill.style.width = `${percent}%`;
       energyValue.textContent = `${percent}%`;
 
@@ -562,7 +564,8 @@ import CommandInput from '../components/CommandInput.astro';
     return abbrevs[name] || name;
   }
 
-  function formatLabel(str: string): string {
+  function formatLabel(str: string | null | undefined): string {
+    if (!str) return '—';
     return str.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   }
 

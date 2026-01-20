@@ -16,7 +16,7 @@ export interface BridgeState {
       backend: string;
       model: string;
       supports_tools: boolean;
-    };
+    } | null;
     campaign: {
       id: string;
       name: string;
@@ -29,20 +29,29 @@ export interface BridgeState {
   uptime: number | null;
 }
 
-export interface CommandResult {
-  type: 'result';
-  ok: boolean;
-  error?: string;
-  response?: string;
-  result?: string;
-  output?: string;
-  campaign?: {
-    id: string;
-    name: string;
-    session: number;
-  };
-  [key: string]: unknown;
-}
+export type CommandResult =
+  | {
+      ok: true;
+      response?: string;
+      result?: string;
+      output?: string;
+      campaign?: {
+        id: string;
+        name: string;
+        session: number;
+      };
+      backend?: {
+        available: boolean;
+        backend: string;
+        model: string;
+        supports_tools: boolean;
+      };
+      [key: string]: unknown;
+    }
+  | {
+      ok: false;
+      error: string;
+    };
 
 export interface GearItem {
   id: string;
@@ -58,38 +67,42 @@ export interface Enhancement {
   benefit: string;
 }
 
-export interface CampaignState {
-  ok: boolean;
-  error?: string;
-  campaign?: {
-    id: string;
-    name: string;
-    session: number;
-    phase: number;
-  };
-  character?: {
-    name: string | null;
-    background: string | null;
-    social_energy: {
-      current: number;
-      max: number;
+export type CampaignState =
+  | {
+      ok: true;
+      campaign: {
+        id: string;
+        name: string;
+        session: number;
+        phase: number;
+      };
+      character: {
+        name: string | null;
+        background: string | null;
+        social_energy: {
+          current: number;
+          max: number;
+        };
+        credits: number;
+        gear: GearItem[];
+        enhancements: Enhancement[];
+      } | null;
+      region: string;
+      location: string;
+      session_phase: string | null;
+      loadout: string[];
+      factions: Array<{
+        id: string;
+        name: string;
+        standing: string;
+      }>;
+      active_jobs: number;
+      dormant_threads: number;
+    }
+  | {
+      ok: false;
+      error: string;
     };
-    credits: number;
-    gear: GearItem[];
-    enhancements: Enhancement[];
-  };
-  region: string;
-  location: string;
-  session_phase: string | null;
-  loadout: string[];
-  factions: Array<{
-    id: string;
-    name: string;
-    standing: string;
-  }>;
-  active_jobs: number;
-  dormant_threads: number;
-}
 
 export interface GameEvent {
   type: 'event';
@@ -169,8 +182,17 @@ export async function status(): Promise<CommandResult> {
  * Get detailed campaign state for UI rendering.
  */
 export async function getCampaignState(): Promise<CampaignState> {
-  const result = await sendCommand('campaign_state');
-  return result as unknown as CampaignState;
+  const response = await fetch(`${BRIDGE_URL}/command`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cmd: 'campaign_state' }),
+  });
+
+  if (!response.ok) {
+    return { ok: false, error: `Request failed: ${response.statusText}` };
+  }
+
+  return response.json();
 }
 
 /**
