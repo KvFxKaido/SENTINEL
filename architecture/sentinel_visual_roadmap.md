@@ -40,15 +40,38 @@ The crown jewel. When talking to NPCs, switch to a **codec-style dialogue view**
 │                   │                                                 │
 │   DISPOSITION     │  ─────────────────────────────────────────────  │
 │   ████████░░      │                                                 │
-│   WARM            │  [SPEECH 45] "I saved your courier. We're even."│
-│                   │  [BARTER 30] "Name your price for forgiveness." │
-│   FACTION         │  [HONEST] "I made a call. It cost us both."     │
-│   Steel Syndicate │  > Ask about the job instead                    │
+│   WARM            │  [NEGOTIATOR] "Let's find common ground."       │
+│                   │  [STEEL SYNDICATE: Friendly] "Malik sent me."   │
+│   FACTION         │  [HISTORY: Saved her courier] "We're even."     │
+│   Steel Syndicate │  [LOW ENERGY] "I don't have time for games."    │
+│                   │  > Say something else...                        │
 │                   │                                                 │
 ├───────────────────┴─────────────────────────────────────────────────┤
 │ ▸ Type response or select option...                                 │
 └─────────────────────────────────────────────────────────────────────┘
 ```
+
+### Dialogue Option Tags
+
+Unlike Fallout's numeric skill checks, SENTINEL uses **contextual unlocks** based on who you are and what you've done:
+
+| Tag Type | Format | What It Represents |
+|----------|--------|-------------------|
+| **Background** | `[NEGOTIATOR]` | Your professional training unlocks this approach |
+| **Faction** | `[LATTICE: Allied]` | Your standing with a faction opens doors |
+| **Enhancement** | `[NEURAL LINK]` | Faction-granted ability enables this option |
+| **Gear** | `[FORGED PAPERS]` | An item in your inventory creates opportunity |
+| **History** | `[Saved their sister]` | Past actions with this NPC are remembered |
+| **Energy** | `[LOW ENERGY]` | Exhaustion unlocks desperate/aggressive options |
+| **Disposition** | `[WARM+]` | Only available if NPC already trusts you |
+
+### Why This Is Better Than Skill Numbers
+
+1. **No grinding** — Your background is your background, not a number to farm
+2. **Relationships matter** — Faction standing unlocks options, not abstract charisma
+3. **Gear has narrative weight** — That forged ID isn't +5 Speech, it's a specific tool
+4. **History echoes** — The game remembers you helped this NPC's courier last session
+5. **Energy as choice** — Low social energy doesn't just debuff, it unlocks darker paths
 
 ### Features
 
@@ -57,7 +80,7 @@ The crown jewel. When talking to NPCs, switch to a **codec-style dialogue view**
 | **Portrait box** | Character portrait (NanoBanana-generated or placeholder) |
 | **Disposition bar** | Visual indicator of current relationship |
 | **Faction badge** | Shows affiliation and standing impact |
-| **Skill checks** | Fallout-style `[SKILL ##]` options with success threshold |
+| **Contextual tags** | Options unlocked by background, faction, gear, history, energy |
 | **Typing effect** | NPC dialogue types out character-by-character (skippable) |
 | **Voice line hints** | Tone indicators: `(coldly)`, `(laughing)`, `(hesitant)` |
 
@@ -65,9 +88,10 @@ The crown jewel. When talking to NPCs, switch to a **codec-style dialogue view**
 
 1. **Phase 1: Static codec layout** — CSS/HTML for the codec frame
 2. **Phase 2: Portrait integration** — Pull from `assets/portraits/` or generate
-3. **Phase 3: Dialogue options** — Parse GM response for skill check patterns
-4. **Phase 4: Typing animation** — Character-by-character with sound
-5. **Phase 5: Transition effects** — Codec open/close animations
+3. **Phase 3: Dialogue options** — Parse GM response for tag patterns `[TAG]`
+4. **Phase 4: Tag rendering** — Color-code by type (background=cyan, faction=purple, etc.)
+5. **Phase 5: Typing animation** — Character-by-character with sound
+6. **Phase 6: Transition effects** — Codec open/close animations
 
 ---
 
@@ -252,7 +276,7 @@ See also: [Sound Roadmap](sentinel_sound_roadmap.md)
 |----------|---------|--------|--------|
 | 🔴 High | NPC codec dialogue system | Large | Transformative |
 | 🔴 High | Character portraits (NanoBanana) | Medium | High immersion |
-| 🟡 Medium | Skill check display in options | Small | Fallout feel |
+| 🟡 Medium | Contextual dialogue tags | Medium | SENTINEL-native feel |
 | 🟡 Medium | Typing animation for NPC text | Small | MGS feel |
 | 🟡 Medium | Sound effects (UI feedback) | Medium | Polish |
 | 🟢 Low | World map visualization | Medium | Nice-to-have |
@@ -284,8 +308,8 @@ See also: [Sound Roadmap](sentinel_sound_roadmap.md)
 
 ## References
 
-- **Fallout 1/2** — Dialogue trees with skill checks
-- **Fallout: New Vegas** — [Speech 75] option format
-- **Metal Gear Solid** — Codec call framing, portrait boxes
-- **Deus Ex** — Information density, dark UI
-- **Caves of Qud** — ASCII aesthetic with depth
+- **Fallout 1/2/New Vegas** — Dialogue trees with contextual options, consequences
+- **Metal Gear Solid** — Codec call framing, portrait boxes, dramatic tension
+- **Deus Ex** — Information density, dark UI, meaningful choices
+- **Disco Elysium** — Skill checks as character expression, not power fantasy
+- **Caves of Qud** — ASCII aesthetic with depth, emergent narrative
