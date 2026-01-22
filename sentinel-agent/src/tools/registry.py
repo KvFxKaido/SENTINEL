@@ -6,6 +6,7 @@ Agent imports the registry and delegates tool execution.
 """
 
 from typing import Callable, Any
+from ..state import get_event_bus, EventType
 from ..state.schema import FactionName, LeverageWeight
 
 
@@ -737,6 +738,36 @@ def create_default_registry(manager: "CampaignManager") -> ToolRegistry:
         npc_name: str, message: str, urgency: str = "medium", **kwargs
     ) -> dict:
         """Signal TUI to show codec interrupt modal."""
+        npc_id = None
+        faction = None
+        disposition = None
+        if manager.current:
+            target = npc_name.strip().lower()
+            candidates = manager.current.npcs.active + manager.current.npcs.dormant
+            for npc in candidates:
+                if npc.name.strip().lower() == target:
+                    npc_id = npc.id
+                    faction = npc.faction.value if npc.faction else None
+                    faction_standing = None
+                    if npc.faction:
+                        faction_standing = manager.current.factions.get(npc.faction).standing
+                    disposition = npc.get_effective_disposition(faction_standing).value
+                    break
+
+        if manager.current:
+            get_event_bus().emit(
+                EventType.NPC_INTERRUPT,
+                campaign_id=manager.current.meta.id,
+                session=manager.current.meta.session_count,
+                npc_id=npc_id,
+                npc_name=npc_name,
+                faction=faction,
+                disposition=disposition,
+                message=message,
+                urgency=urgency,
+                state="incoming",
+            )
+
         return {
             "interrupt": True,
             "npc_name": npc_name,

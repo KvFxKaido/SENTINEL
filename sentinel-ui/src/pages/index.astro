@@ -22,9 +22,9 @@ import CommandInput from '../components/CommandInput.astro';
         <div class="status-row">
           <span class="status-label">Pistachios</span>
           <div class="progress-bar" id="energy-bar">
-            <div class="progress-fill" id="energy-fill" style="width: 75%"></div>
-          </div>
-          <span class="status-value" id="energy-value">—</span>
+          <div class="progress-fill" id="energy-fill" style="width: 0%"></div>
+        </div>
+        <span class="status-value" id="energy-value">0%</span>
         </div>
         <div class="status-row">
           <span class="status-label">Credits</span>
@@ -105,6 +105,7 @@ import CommandInput from '../components/CommandInput.astro';
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    min-height: 0;
   }
 
   .right-panel {
@@ -432,6 +433,8 @@ import CommandInput from '../components/CommandInput.astro';
   }
 
   function updateCampaignUI(state: CampaignState) {
+    (window as any).__campaignState = state;
+
     // Character info
     const charName = document.getElementById('char-name');
     const charBg = document.getElementById('char-background');
@@ -483,6 +486,9 @@ import CommandInput from '../components/CommandInput.astro';
 
     // Enhancements
     updateEnhancementsList(state.character?.enhancements || []);
+
+    // Threads
+    updateThreadsList(state.threads || []);
   }
 
   function updateGearList(gear: CampaignState['character']['gear'], loadout: string[]) {
@@ -522,6 +528,41 @@ import CommandInput from '../components/CommandInput.astro';
       div.className = 'enhancement-item';
       div.innerHTML = `▸ ${enh.name}`;
       div.title = `${enh.source}: ${enh.benefit}`;
+      container.appendChild(div);
+    }
+  }
+
+  function updateThreadsList(threads: CampaignState['threads']) {
+    const container = document.getElementById('threads-list');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    if (!threads.length) {
+      container.innerHTML = '<div class="thread-item muted">[No active threads]</div>';
+      return;
+    }
+
+    const ordered = [...threads].sort((a, b) => {
+      const severityOrder: Record<string, number> = {
+        major: 0,
+        moderate: 1,
+        minor: 2,
+      };
+      const aRank = severityOrder[a.severity.toLowerCase()] ?? 3;
+      const bRank = severityOrder[b.severity.toLowerCase()] ?? 3;
+      if (aRank !== bRank) return aRank - bRank;
+      return a.created_session - b.created_session;
+    });
+
+    for (const thread of ordered) {
+      const div = document.createElement('div');
+      div.className = 'thread-item';
+      div.innerHTML = `
+        <span class="thread-icon">!</span>
+        <span class="thread-text">${escapeHtml(thread.origin)}</span>
+      `;
+      div.title = `${thread.trigger} | ${thread.consequence}`;
       container.appendChild(div);
     }
   }
@@ -586,7 +627,35 @@ import CommandInput from '../components/CommandInput.astro';
       }
     }
 
-    const refreshEvents = ['campaign.loaded', 'faction.changed', 'social_energy.changed', 'session.started', 'session.ended'];
+    if (event.event_type === 'npc.interrupt') {
+      const sendMessage = (window as any).addNarrativeMessage;
+      if (typeof sendMessage === 'function') {
+        const payload = event.data || {};
+        sendMessage('gm', payload.message || '', {
+          state: 'incoming',
+          speaker: {
+            name: payload.npc_name,
+            faction: payload.faction,
+            disposition: payload.disposition,
+          },
+        });
+      }
+    }
+
+    const refreshEvents = [
+      'campaign.loaded',
+      'faction.changed',
+      'social_energy.changed',
+      'session.started',
+      'session.ended',
+      'npc.added',
+      'npc.disposition_changed',
+      'npc.memory_added',
+      'thread.queued',
+      'thread.surfaced',
+      'enhancement.granted',
+      'enhancement.called',
+    ];
     if (refreshEvents.includes(event.event_type)) {
       try {
         const campaignState = await getCampaignState();

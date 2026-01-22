@@ -67,6 +67,17 @@ export interface Enhancement {
   benefit: string;
 }
 
+export interface NpcSummary {
+  id: string;
+  name: string;
+  faction: string | null;
+  disposition: string;
+  base_disposition: string;
+  personal_standing: number;
+  status: "active" | "dormant";
+  last_interaction: string;
+}
+
 export type CampaignState =
   | {
       ok: true;
@@ -95,6 +106,15 @@ export type CampaignState =
         id: string;
         name: string;
         standing: string;
+      }>;
+      npcs: NpcSummary[];
+      threads: Array<{
+        id: string;
+        origin: string;
+        trigger: string;
+        consequence: string;
+        severity: string;
+        created_session: number;
       }>;
       active_jobs: number;
       dormant_threads: number;
