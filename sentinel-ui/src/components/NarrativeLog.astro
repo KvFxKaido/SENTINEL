@@ -1,5 +1,11 @@
 ---
 // Narrative log - TUI-style terminal output
+const welcomeBanner = `            /\\
+           /  \\
+          /    \\       S E N T I N E L
+          \\    /       T A C T I C A L   T T R P G
+           \\  /
+            \\/`;
 ---
 
 <div class="tui-panel narrative-panel">
@@ -7,12 +13,8 @@
 
   <div class="narrative-log" id="narrative-log">
     <div class="welcome-message">
-      <div class="welcome-ascii">
-╔══════════════════════════════════════╗
-║           S E N T I N E L            ║
-║      Tactical TTRPG • AI GM          ║
-╚══════════════════════════════════════╝
-      </div>
+      <pre class="welcome-ascii">{welcomeBanner}</pre>
+      
       <div class="welcome-hint">Type a message or /command below</div>
     </div>
   </div>
@@ -27,6 +29,7 @@
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
     font-family: var(--font-mono);
+    min-height: 0;
   }
 
   .narrative-panel .tui-panel-title {
@@ -48,6 +51,7 @@
     flex-direction: column;
     gap: var(--space-sm);
     font-size: 0.85rem;
+    min-height: 0;
   }
 
   .welcome-message {

@@ -4,6 +4,9 @@ Web interface for SENTINEL — a TUI-style browser UI that connects to the Deno 
 
 ## Screenshots
 
+Note: This ASCII mock-up is illustrative. The UI is still partially reactive and
+uses placeholder metadata in some panels.
+
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ SENTINEL │ ● ready │     Cipher (Session 5)     │ Backend: claude (sonnet) │
@@ -72,18 +75,18 @@ The UI uses a 3-column TUI-style layout:
 
 | Column | Content | Updates |
 |--------|---------|---------|
-| **SELF** (left) | Character name, background, status (pistachios, credits), location, loadout, enhancements | On campaign state change |
-| **NARRATIVE** (center) | Conversation log with GM responses | On command/message |
-| **WORLD** (right) | Faction standings with progress bars, active threads, event stream | On campaign state change |
+| **SELF** (left) | Character name, background, status (pistachios, credits), location, loadout, enhancements | Refreshes after specific commands or select bridge events |
+| **NARRATIVE** (center) | Conversation log with GM responses | Appends on command/message (local, no backfill) |
+| **WORLD** (right) | Faction standings with progress bars, active threads, event stream | Refreshes after specific commands or select bridge events |
 
 ### Message Types
 
-| Prefix | Style | Source |
-|--------|-------|--------|
-| `> YOU` | Blue border | Player commands/messages |
-| `◆ GM` | Steel border | GM narrative responses |
-| (centered) | Muted | System messages |
-| `✗` | Red | Errors |
+| Role | Style | Notes |
+|------|-------|-------|
+| Player | Codec frame | Defaults to `YOU` + placeholder faction/portrait; header text is decorative |
+| GM | Codec frame | Name is parsed when response starts with `Name:` and mapped to campaign NPC metadata; `npc.interrupt` events render as incoming transmissions |
+| System | Centered, muted | Command outputs or system notices |
+| Error | Red | Failed commands or bridge errors |
 
 ## Components
 
@@ -91,8 +94,9 @@ The UI uses a 3-column TUI-style layout:
 |-----------|---------|
 | `GameLayout.astro` | AMOLED dark theme, CSS variables, 3-column grid |
 | `Header.astro` | Status bar: SENTINEL │ status │ campaign │ backend |
-| `NarrativeLog.astro` | ASCII welcome, conversation history |
-| `CommandInput.astro` | Prompt input with `>` prefix, quick command buttons |
+| `CodecFrame.astro` | MGS-style codec frame used for dialogue cards |
+| `NarrativeLog.astro` | Narrative container + welcome splash (messages inserted client-side) |
+| `CommandInput.astro` | Prompt input + command dispatch + codec card rendering |
 | `index.astro` | Main page with SELF/WORLD panels, state management |
 
 ## API Client
@@ -129,6 +133,10 @@ The UI refreshes state automatically after certain commands:
 | `/start`, `/save`, `/jobs`, `/shop`, `/roll` | Campaign state |
 | `/backend` | Bridge state |
 | Any message to GM | Campaign state |
+
+The UI also refreshes campaign state on select SSE events:
+
+`campaign.loaded`, `faction.changed`, `social_energy.changed`, `session.started`, `session.ended`.
 
 ## Theme
 

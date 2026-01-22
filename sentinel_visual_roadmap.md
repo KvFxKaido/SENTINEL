@@ -298,13 +298,11 @@ See also: [Sound Roadmap](sentinel_sound_roadmap.md)
 
 ## Success Criteria
 
-Scope tags: [web], [tui], [both]
-
-- [x] NPC conversations feel like codec calls, not chat logs [web]
-- [ ] Skill checks are visible before committing to dialogue [both]
-- [ ] Portraits exist for key NPCs (at least 1 per faction) [both]
-- [ ] Sound enhances without annoying (mute is always available) [web]
-- [ ] The UI feels like salvaged post-collapse tech, not a modern web app [both]
+- [ ] NPC conversations feel like codec calls, not chat logs
+- [ ] Skill checks are visible before committing to dialogue
+- [ ] Portraits exist for key NPCs (at least 1 per faction)
+- [ ] Sound enhances without annoying (mute is always available)
+- [ ] The UI feels like salvaged post-collapse tech, not a modern web app
 
 ---
 

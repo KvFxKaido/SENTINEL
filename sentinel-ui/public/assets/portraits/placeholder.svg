@@ -1,0 +1,14 @@
+<svg width="256" height="256" xmlns="http://www.w3.org/2000/svg">
+  <rect width="100%" height="100%" fill="#1a1a1a"/>
+  <rect x="20" y="20" width="216" height="216" stroke="#79c0ff" stroke-width="2" fill="none" opacity="0.5"/>
+  <path d="M64 192 L192 192 L192 210 L64 210 Z" fill="#79c0ff" opacity="0.2"/>
+  <circle cx="128" cy="110" r="50" fill="#79c0ff" opacity="0.2"/>
+  <circle cx="128" cy="90" r="20" fill="#79c0ff" opacity="0.4"/>
+  <rect x="0" y="0" width="256" height="256" fill="url(#scanlines)" opacity="0.2"/>
+  <defs>
+    <pattern id="scanlines" patternUnits="userSpaceOnUse" width="4" height="4">
+      <path d="M0 4L4 0M-1 1L1 -1M3 5L5 3" stroke="#000" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#79c0ff" font-family="monospace" font-size="24" opacity="0.8">NO SIGNAL</text>
+</svg>

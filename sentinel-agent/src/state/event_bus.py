@@ -35,6 +35,7 @@ class EventType(Enum):
     NPC_ADDED = "npc.added"
     NPC_DISPOSITION_CHANGED = "npc.disposition_changed"
     NPC_MEMORY_ADDED = "npc.memory_added"
+    NPC_INTERRUPT = "npc.interrupt"
 
     # Thread events
     THREAD_QUEUED = "thread.queued"
