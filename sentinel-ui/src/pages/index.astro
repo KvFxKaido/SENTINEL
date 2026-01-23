@@ -20,11 +20,11 @@ import CommandInput from '../components/CommandInput.astro';
       <div class="tui-section">
         <div class="tui-section-header">-- STATUS --</div>
         <div class="status-row">
-          <span class="status-label">Pistachios</span>
+          <span class="status-label">Energy</span>
           <div class="progress-bar" id="energy-bar">
-          <div class="progress-fill" id="energy-fill" style="width: 0%"></div>
-        </div>
-        <span class="status-value" id="energy-value">0%</span>
+            <div class="progress-fill" id="energy-fill" style="width: 0%"></div>
+          </div>
+          <span class="status-value" id="energy-value">0%</span>
         </div>
         <div class="status-row">
           <span class="status-label">Credits</span>
@@ -450,7 +450,7 @@ import CommandInput from '../components/CommandInput.astro';
     // Energy
     const energyFill = document.getElementById('energy-fill');
     const energyValue = document.getElementById('energy-value');
-    if (energyFill && energyValue && state.character) {
+    if (energyFill && energyValue && state.character?.social_energy) {
       const max = state.character.social_energy.max || 100;
       const current = state.character.social_energy.current ?? 0;
       const percent = max > 0 ? Math.round((current / max) * 100) : 0;
@@ -472,10 +472,10 @@ import CommandInput from '../components/CommandInput.astro';
     const locationValue = document.getElementById('location-value');
     const regionValue = document.getElementById('region-value');
     if (locationValue) {
-      locationValue.textContent = formatLabel(state.location);
+      locationValue.textContent = state.location ? formatLabel(state.location) : '—';
     }
     if (regionValue) {
-      regionValue.textContent = formatLabel(state.region);
+      regionValue.textContent = state.region ? formatLabel(state.region) : '—';
     }
 
     // Standings

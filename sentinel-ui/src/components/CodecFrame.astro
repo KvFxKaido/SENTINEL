@@ -3,7 +3,7 @@ interface Props {
   name: string;
   title?: string;
   faction?: string;
-  disposition?: 'hostile' | 'unfriendly' | 'neutral' | 'friendly' | 'allied' | 'wary' | 'loyal' | 'warm';
+  disposition?: 'hostile' | 'wary' | 'unfriendly' | 'neutral' | 'friendly' | 'warm' | 'allied' | 'loyal';
   portrait?: string;
   state?: 'incoming' | 'active' | 'terminated';
 }
@@ -51,9 +51,9 @@ const factionColorVar = `--faction-${faction.toLowerCase().replace(' ', '-')}`;
         <div class="stat-label">DISPOSITION</div>
         <div class="disposition-bar">
           <!-- Disposition levels visualized -->
-          <div class={`disp-segment ${['hostile', 'wary', 'unfriendly', 'neutral', 'friendly', 'allied', 'warm', 'loyal'].indexOf(disposition) >= 0 ? 'filled' : ''}`}></div>
-          <div class={`disp-segment ${['neutral', 'friendly', 'allied', 'warm', 'loyal'].indexOf(disposition) >= 0 ? 'filled' : ''}`}></div>
-          <div class={`disp-segment ${['friendly', 'allied', 'loyal'].indexOf(disposition) >= 0 ? 'filled' : ''}`}></div>
+          <div class={`disp-segment ${['hostile', 'wary', 'unfriendly', 'neutral', 'friendly', 'warm', 'allied', 'loyal'].indexOf(disposition) >= 0 ? 'filled' : ''}`}></div>
+          <div class={`disp-segment ${['neutral', 'friendly', 'warm', 'allied', 'loyal'].indexOf(disposition) >= 0 ? 'filled' : ''}`}></div>
+          <div class={`disp-segment ${['friendly', 'warm', 'allied', 'loyal'].indexOf(disposition) >= 0 ? 'filled' : ''}`}></div>
           <div class={`disp-segment ${['allied', 'loyal'].indexOf(disposition) >= 0 ? 'filled' : ''}`}></div>
         </div>
         <div class={`stat-value disposition-${disposition}`}>{disposition.toUpperCase()}</div>
