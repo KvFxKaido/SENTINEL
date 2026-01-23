@@ -225,6 +225,38 @@ class HeadlessRunner:
         # Get current loadout (gear IDs selected for mission)
         loadout_ids = campaign.session.loadout if campaign.session else []
 
+        # Build dormant thread list for UI rendering
+        thread_list = []
+        for thread in campaign.dormant_threads:
+            thread_list.append({
+                "id": thread.id,
+                "origin": thread.origin,
+                "trigger": thread.trigger_condition,
+                "consequence": thread.consequence,
+                "severity": thread.severity.value,
+                "created_session": thread.created_session,
+            })
+
+        # Build NPC list for UI metadata
+        npc_list = []
+        active_ids = {n.id for n in campaign.npcs.active}
+        for npc in campaign.npcs.active + campaign.npcs.dormant:
+            faction_value = npc.faction.value if npc.faction else None
+            faction_standing = None
+            if npc.faction:
+                faction_standing = campaign.factions.get(npc.faction).standing
+            effective_disposition = npc.get_effective_disposition(faction_standing)
+            npc_list.append({
+                "id": npc.id,
+                "name": npc.name,
+                "faction": faction_value,
+                "disposition": effective_disposition.value,
+                "base_disposition": npc.disposition.value,
+                "personal_standing": npc.personal_standing,
+                "status": "active" if npc.id in active_ids else "dormant",
+                "last_interaction": npc.last_interaction,
+            })
+
         return {
             "ok": True,
             "campaign": {
@@ -249,6 +281,8 @@ class HeadlessRunner:
             "session_phase": session_phase,
             "loadout": loadout_ids,
             "factions": factions,
+            "npcs": npc_list,
+            "threads": thread_list,
             "active_jobs": len(campaign.jobs.active),
             "dormant_threads": len(campaign.dormant_threads),
         }
