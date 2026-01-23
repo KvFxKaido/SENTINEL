@@ -100,6 +100,43 @@ const { title = 'SENTINEL' } = Astro.props;
     color: var(--text-primary);
     line-height: 1.6;
     min-height: 100vh;
+    text-shadow: 0 0 6px rgba(86, 212, 221, 0.06);
+  }
+
+  /* Subtle CRT overlay */
+  body::before,
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  body::before {
+    background-image: linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.02),
+      rgba(255, 255, 255, 0.02) 1px,
+      rgba(0, 0, 0, 0.03) 1px,
+      rgba(0, 0, 0, 0.03) 2px
+    );
+    background-size: 100% 3px;
+    opacity: 0.2;
+    mix-blend-mode: soft-light;
+  }
+
+  body::after {
+    background:
+      radial-gradient(120% 80% at 50% 0%, rgba(86, 212, 221, 0.06), transparent 60%),
+      radial-gradient(140% 120% at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.6) 100%);
+    opacity: 0.35;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    body {
+      text-shadow: none;
+    }
   }
 
   /* Scrollbar styling */
@@ -127,7 +164,7 @@ const { title = 'SENTINEL' } = Astro.props;
     grid-template-columns: 180px 1fr 180px;
     grid-template-rows: auto 1fr auto;
     gap: var(--space-sm);
-    min-height: 100vh;
+    height: 100vh;
     padding: var(--space-sm);
     max-width: 1800px;
     margin: 0 auto;
@@ -262,8 +299,11 @@ const { title = 'SENTINEL' } = Astro.props;
   /* Disposition colors */
   .disposition-hostile { color: var(--status-danger); }
   .disposition-wary { color: var(--status-warning); }
+  .disposition-unfriendly { color: var(--status-unfriendly); }
   .disposition-neutral { color: var(--text-secondary); }
+  .disposition-friendly { color: var(--status-success); }
   .disposition-warm { color: var(--status-info); }
+  .disposition-allied { color: var(--accent-cyan); }
   .disposition-loyal { color: var(--status-success); }
 
   /* Animations */

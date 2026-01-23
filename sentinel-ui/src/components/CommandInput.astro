@@ -135,6 +135,7 @@
 
 <script>
   import { say, slash, status } from '../lib/bridge';
+  import type { CampaignState } from '../lib/bridge';
 
   const form = document.getElementById('command-form') as HTMLFormElement;
   const input = document.getElementById('command-input') as HTMLInputElement;
@@ -161,6 +162,14 @@
       if (text.startsWith('/')) {
         // Slash command
         const [cmd, ...args] = text.slice(1).split(' ');
+        
+        // Client-side visual test
+        if (cmd === 'test') {
+          addMessage('gm', 'Kira Vance: "Secure channel established. Visual diagnostics green. The Codec system is operational."');
+          form.classList.remove('loading');
+          return;
+        }
+
         result = await slash(cmd, args);
 
         if (result.ok) {
@@ -227,31 +236,278 @@
     });
   });
 
+  type MessageState = 'incoming' | 'active' | 'terminated';
+  type CampaignStateOk = Extract<CampaignState, { ok: true }>;
+
+  type SpeakerMeta = {
+    name?: string;
+    title?: string;
+    faction?: string;
+    disposition?: string;
+    portrait?: string;
+  };
+
+  type MessageMeta = {
+    state?: MessageState;
+    speaker?: SpeakerMeta;
+  };
+
+  function getCampaignState(): CampaignStateOk | null {
+    const state = (window as any).__campaignState as CampaignState | undefined;
+    if (state && state.ok) return state as CampaignStateOk;
+    return null;
+  }
+
+  function formatSpeakerTitle(title: string | null | undefined): string {
+    if (!title) return 'Operative';
+    return title.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+
+  function parseSpeaker(content: string): { name?: string; message: string } {
+    const match = content.match(/^([A-Za-z0-9 .'\-]+):\s*([\s\S]+)$/);
+    if (!match) return { message: content };
+
+    let message = match[2].trim();
+    if (
+      (message.startsWith('"') && message.endsWith('"')) ||
+      (message.startsWith("'") && message.endsWith("'"))
+    ) {
+      message = message.slice(1, -1).trim();
+    }
+
+    return { name: match[1].trim(), message };
+  }
+
+  function parseChoices(text: string): { narrative: string; options: string[] } {
+    const blockMatch = text.match(/---CHOICE---[\s\S]*?---END---/);
+    if (blockMatch) {
+      const block = blockMatch[0];
+      const optionMatches = Array.from(block.matchAll(/- "([^"]+)"/g)).map((m) => m[1]);
+      const narrative = text.slice(0, text.indexOf(block)).trim();
+      return { narrative, options: optionMatches };
+    }
+
+    const optionMatches = Array.from(text.matchAll(/^(\d+)\.\s+(.+)$/gm));
+    if (optionMatches.length >= 2) {
+      const first = optionMatches[0];
+      const startIndex = first.index ?? 0;
+      const narrative = text.slice(0, startIndex).trim();
+      const options = optionMatches.map((match) => match[2].trim());
+      return { narrative, options };
+    }
+
+    return { narrative: text, options: [] };
+  }
+
+  function findNpcByName(name: string): CampaignStateOk['npcs'][number] | null {
+    const state = getCampaignState();
+    if (!state?.npcs || !name) return null;
+    const target = name.trim().toLowerCase();
+
+    for (const npc of state.npcs) {
+      if (npc.name.trim().toLowerCase() === target) {
+        return npc;
+      }
+    }
+
+    for (const npc of state.npcs) {
+      if (npc.name.trim().toLowerCase().includes(target)) {
+        return npc;
+      }
+    }
+
+    return null;
+  }
+
   // Helper to add messages to the log
-  function addMessage(role: 'user' | 'gm' | 'system' | 'error', content: string) {
+  function addMessage(
+    role: 'user' | 'gm' | 'system' | 'error',
+    content: string,
+    meta: MessageMeta = {}
+  ) {
     // Remove welcome message if present
     const welcome = narrativeLog?.querySelector('.welcome-message');
     if (welcome) {
       welcome.remove();
     }
 
+    // Parse simple NPC name from content if GM (Format: "Name: Content")
+    let parsedName: string | undefined;
+    let displayContent = escapeHtml(content);
+    let npcData: any = {};
+    const speaker = meta.speaker || {};
+    const stateMeta = meta.state || 'active';
+    let choiceOptions: string[] = [];
+    
+    if (role === 'gm') {
+      const parsed = parseSpeaker(content);
+      parsedName = speaker.name || parsed.name;
+      const choices = parseChoices(parsed.message);
+      displayContent = escapeHtml(choices.narrative);
+      choiceOptions = choices.options.map((option) => escapeHtml(option));
+    }
+
     const message = document.createElement('div');
-    message.className = `message ${role} fade-in`;
+    message.className = `message-container ${role} fade-in`;
+    
+    // Use Codec style for User and GM
+    if (role === 'user' || role === 'gm') {
+      // Setup defaults
+      if (role === 'user') {
+        const campaignState = getCampaignState();
+        const char = campaignState?.character;
+        npcData = { 
+          name: char?.name || 'YOU',
+          title: formatSpeakerTitle(char?.background),
+          faction: speaker.faction || 'wanderers',
+          disposition: 'loyal',
+          portrait: '/assets/portraits/placeholder.svg',
+          state: stateMeta,
+          ...npcData
+        };
+      } else {
+        const resolvedNpc = parsedName ? findNpcByName(parsedName) : null;
+        npcData = {
+          name: parsedName || 'GAMEMASTER',
+          title: speaker.title || (parsedName ? 'Contact' : 'System Overseer'),
+          faction: speaker.faction || resolvedNpc?.faction || 'nexus',
+          disposition: speaker.disposition || resolvedNpc?.disposition || 'neutral',
+          portrait: speaker.portrait || '/assets/portraits/placeholder.svg',
+          state: stateMeta,
+          ...npcData
+        };
+      }
 
-    const roleLabel = {
-      user: 'You',
-      gm: 'GM',
-      system: 'System',
-      error: 'Error',
-    }[role];
-
-    message.innerHTML = `
-      <div class="role">${roleLabel}</div>
-      <div class="content">${escapeHtml(content)}</div>
-    `;
+      message.innerHTML = createCodecHtml(role, displayContent, npcData, choiceOptions);
+    } else {
+      // System/Error fallback to simple style
+       const roleLabel = {
+        system: 'SYSTEM',
+        error: 'ERROR',
+      }[role];
+      
+      message.innerHTML = `
+        <div class="message ${role}">
+          <div class="role">${roleLabel}</div>
+          <div class="content">${displayContent}</div>
+        </div>
+      `;
+    }
 
     narrativeLog?.appendChild(message);
     narrativeLog?.scrollTo({ top: narrativeLog.scrollHeight, behavior: 'smooth' });
+  }
+
+  function createCodecHtml(
+    role: string,
+    content: string,
+    npcData: any = {},
+    options: string[] = []
+  ) {
+    const {
+      name,
+      title,
+      faction = 'nexus',
+      disposition = 'neutral',
+      portrait = '/assets/portraits/placeholder.svg',
+      state = 'active'
+    } = npcData;
+
+    const colorVar = `var(--faction-${faction.toLowerCase().replace(' ','-')}, var(--accent-steel))`;
+    
+    // Disposition segments logic
+    const dispositionKey = disposition === 'wary' ? 'unfriendly' : disposition;
+    const levels = ['hostile', 'unfriendly', 'neutral', 'friendly', 'allied', 'warm', 'loyal'];
+    const idx = levels.indexOf(dispositionKey);
+    const seg1 = idx >= 0 ? 'filled' : '';
+    const seg2 = idx >= 2 ? 'filled' : ''; // neutral+
+    const seg3 = idx >= 3 ? 'filled' : ''; // friendly+
+    const seg4 = idx >= 4 ? 'filled' : ''; // allied+
+
+    const stateText = state === 'incoming' ? 'INCOMING TRANSMISSION' : 'SECURE CONNECTION';
+
+    const optionsSection = options.length
+      ? `
+        <div class="dialogue-options">
+          <div class="choice-list">
+            ${options
+              .map(
+                (option, index) => `
+              <div class="choice-item">
+                <span class="choice-index">${index + 1}.</span>
+                <span class="choice-text">${formatTags(option)}</span>
+              </div>
+            `
+              )
+              .join('')}
+          </div>
+        </div>
+      `
+      : '';
+
+    return `
+      <div class="codec-container" data-state="${state}" style="--frame-color: ${colorVar}">
+        <div class="codec-header">
+          <div class="header-pattern"></div>
+          <div class="header-text">${stateText}</div>
+          <div class="header-pattern"></div>
+        </div>
+
+        <div class="codec-body">
+          <div class="codec-sidebar">
+            <div class="portrait-frame">
+              <div class="portrait-image" style="background-image: url('${portrait}');">
+                <div class="scanlines"></div>
+              </div>
+              <div class="corner-tl"></div>
+              <div class="corner-tr"></div>
+              <div class="corner-bl"></div>
+              <div class="corner-br"></div>
+            </div>
+
+            <div class="stats-box">
+              <div class="stat-label">DISPOSITION</div>
+              <div class="disposition-bar">
+                <div class="disp-segment ${seg1}"></div>
+                <div class="disp-segment ${seg2}"></div>
+                <div class="disp-segment ${seg3}"></div>
+                <div class="disp-segment ${seg4}"></div>
+              </div>
+              <div class="stat-value disposition-${disposition}">${disposition.toUpperCase()}</div>
+            </div>
+            
+            <div class="faction-badge">
+              ${faction.toUpperCase()}
+            </div>
+          </div>
+
+          <div class="codec-content">
+            <div class="content-header">
+              <div class="npc-name">${name.toUpperCase()}</div>
+              <div class="npc-title">${title}</div>
+              <div class="header-line"></div>
+            </div>
+
+            <div class="dialogue-text mono">
+              ${formatTags(content)}
+            </div>
+            ${optionsSection}
+          </div>
+        </div>
+
+        <div class="codec-footer">
+          <div class="footer-line"></div>
+        </div>
+      </div>
+    `;
+  }
+
+  function formatTags(text: string): string {
+    // Matches [TAG] or [TAG: Value]
+    return text.replace(/\[([a-zA-Z0-9\s_]+)(?::\s*([^\]]+))?\]/g, (match, tag, value) => {
+      const label = value ? `${tag}: ${value}` : tag;
+      return `<span class="codec-tag">${label}</span>`;
+    });
   }
 
   // Escape HTML to prevent XSS
@@ -260,4 +516,6 @@
     div.textContent = text;
     return div.innerHTML;
   }
+
+  (window as any).addNarrativeMessage = addMessage;
 </script>
