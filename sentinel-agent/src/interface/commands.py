@@ -709,7 +709,7 @@ def cmd_char(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
 
     Usage:
         /char           - Interactive character creation wizard
-        /char quick     - Create a default character (for testing/headless)
+    from ..state.schema import Character, Background, SocialEnergy
     """
     from ..state.schema import SocialEnergy, EstablishingIncident
 
