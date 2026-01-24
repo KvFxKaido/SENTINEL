@@ -70,6 +70,7 @@ class HeadlessRunner:
         self.prompts_dir = prompts_dir or Path(__file__).parent.parent.parent / "prompts"
         base_dir = Path(__file__).parent.parent.parent.parent
         self.lore_dir = lore_dir or (base_dir / "lore" if (base_dir / "lore").exists() else None)
+        self.wiki_dir = base_dir / "wiki" if (base_dir / "wiki").exists() else Path("wiki")
         self.output = output
 
         # Load saved backend preference if "auto" is passed
@@ -77,7 +78,7 @@ class HeadlessRunner:
             config = load_config(self.campaigns_dir)
             backend = config.get("backend", "claude")
 
-        self.manager = CampaignManager(self.campaigns_dir)
+        self.manager = CampaignManager(self.campaigns_dir, wiki_dir=self.wiki_dir)
         self.agent = SentinelAgent(
             self.manager,
             prompts_dir=self.prompts_dir,

@@ -1553,12 +1553,13 @@ class SentinelTUI(App):
         campaigns_dir = Path("campaigns")
         self.campaigns_dir = campaigns_dir
         self.lore_dir = base_dir / "lore"
+        wiki_dir = base_dir / "wiki" if (base_dir / "wiki").exists() else Path("wiki")
 
         config = load_config(campaigns_dir)
         saved_backend = config.get("backend", "auto")
         saved_model = config.get("model")
 
-        self.manager = CampaignManager(campaigns_dir)
+        self.manager = CampaignManager(campaigns_dir, wiki_dir=wiki_dir)
 
         # Initialize command registry with CLI and TUI handlers
         register_all_commands()

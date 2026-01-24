@@ -360,6 +360,15 @@ Deploys Codex or Gemini as working agents. Use when:
 - Bulk file operations or repetitive changes needed
 - You want a different implementation approach to compare
 
+### `/playtest` — Automated Bug Hunting
+Deploys Claude as a player to interact with SENTINEL through the bridge API. Use when:
+- After implementing new features or fixing bugs
+- Before releases to catch regressions
+- Testing edge cases systematically
+- Verifying state consistency across game actions
+
+**Requires:** Bridge running at `localhost:3333` with Claude backend.
+
 **Philosophy:** These aren't just tools for the user to invoke — they're force multipliers. If consulting would improve a decision or deploying would speed up work, do it.
 
 ---
