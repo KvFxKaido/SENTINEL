@@ -705,11 +705,31 @@ def _format_campaign_hit(hit: dict) -> str:
 # -----------------------------------------------------------------------------
 
 def cmd_char(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
-    """Create a character."""
+    """Create a character.
+
+    Usage:
+        /char           - Interactive character creation wizard
+        /char quick     - Create a default character (for testing/headless)
+    """
     from ..state.schema import SocialEnergy, EstablishingIncident
 
     if not manager.current:
         console.print("[yellow]Load or create a campaign first[/yellow]")
+        return
+
+    # Quick mode: create default character without prompts
+    if args and args[0].lower() == "quick":
+        character = Character(
+            name="Cipher",
+            background=Background.SURVIVOR,
+            social_energy=SocialEnergy(current=75),
+        )
+        manager.add_character(character)
+        console.print(f"\n[{THEME['accent']}]Created:[/{THEME['accent']}] [{THEME['secondary']}]{character.name}[/{THEME['secondary']}]")
+        console.print(f"  [{THEME['dim']}]Background:[/{THEME['dim']}] {character.background.value}")
+        console.print(f"  [{THEME['dim']}]Expertise:[/{THEME['dim']}] {', '.join(character.expertise)}")
+        console.print(f"  [{THEME['dim']}]Pistachios:[/{THEME['dim']}] [{THEME['accent']}]{character.social_energy.current}%[/{THEME['accent']}]")
+        console.print(f"\n[{THEME['dim']}]Type /start to begin your story[/{THEME['dim']}]")
         return
 
     # Identity
