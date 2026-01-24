@@ -56,9 +56,9 @@ async function findSentinelExecutable(): Promise<string> {
     console.log(`Found sentinel in PATH: ${pathResult}`);
     return "sentinel"; // Use PATH lookup at runtime
   }
-
-  // Fall back to scanning common installation locations
-  const isWindows = Deno.build.os === "windows";
+      if (appData) {
+        candidates.push(`${appData}\\\\Python\\\\${ver}\\\\Scripts\\\\${exe}`);
+      }
       if (localAppData) {
         candidates.push(`${localAppData}\\\\Programs\\\\Python\\\\${ver}\\\\Scripts\\\\${exe}`);
       }
