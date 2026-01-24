@@ -30,10 +30,9 @@ curl -s http://localhost:3333/state | jq -r '.sentinel.backend'
 ## Phase 1: Campaign Lifecycle
 
 ### 1.1 Create Campaign
-```bash
 curl -s -X POST http://localhost:3333/command \
   -H "Content-Type: application/json" \
-  -d '{"cmd": "slash", "command": "/new", "args": ["Playtest-'$(date +%s)'"]}'
+  -d '{"cmd": "slash", "command": "/new", "args": ["Playtest-Unique-ID"]}'
 ```
 **Expected**: `{"ok": true}` or campaign created message
 **Verify**: `/state` shows campaign loaded
