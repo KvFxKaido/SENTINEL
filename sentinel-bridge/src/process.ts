@@ -68,7 +68,7 @@ async function findSentinelExecutable(): Promise<string> {
     const userProfile = Deno.env.get("USERPROFILE");
 
     // Common Python version patterns (newest first)
-    const pyVersions = ["Python314", "Python313", "Python312", "Python311", "Python310"];
+      candidates.push(`${userProfile}\\\\.local\\\\bin\\\\${exe}`);
 
     for (const ver of pyVersions) {
       if (appData) {
