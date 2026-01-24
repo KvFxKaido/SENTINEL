@@ -16,7 +16,7 @@ export interface BridgeState {
       backend: string;
       model: string;
       supports_tools: boolean;
-    } | null;
+    } | null | undefined;
     campaign: {
       id: string;
       name: string;
@@ -98,10 +98,10 @@ export type CampaignState =
         gear: GearItem[];
         enhancements: Enhancement[];
       } | null;
-      region: string;
-      location: string;
+      region: string | null;
+      location: string | null;
       session_phase: string | null;
-      loadout: string[];
+      loadout: string[] | null;
       factions: Array<{
         id: string;
         name: string;
