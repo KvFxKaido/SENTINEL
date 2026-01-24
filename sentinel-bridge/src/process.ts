@@ -17,22 +17,58 @@ import type {
 } from "./types.ts";
 
 /**
- * Find the sentinel executable in common installation locations.
- * Returns the first path that exists, or "sentinel" to fall back to PATH.
+ * Check if sentinel is available in PATH.
+ * Returns the path if found, null otherwise.
+ */
+async function findInPath(): Promise<string | null> {
+  const isWindows = Deno.build.os === "windows";
+  const cmd = isWindows ? "where" : "which";
+
+  try {
+    const command = new Deno.Command(cmd, {
+      args: ["sentinel"],
+      stdout: "piped",
+      stderr: "null",
+    });
+    const { code, stdout } = await command.output();
+
+    if (code === 0) {
+      const path = new TextDecoder().decode(stdout).trim().split("\n")[0];
+      if (path) {
+        return path;
+      }
+    }
+  } catch {
+    // which/where not available or failed
+  }
+
+  return null;
+}
+
+/**
+ * Find the sentinel executable.
+ * Priority: 1) PATH lookup, 2) common installation locations, 3) bare "sentinel"
  */
 async function findSentinelExecutable(): Promise<string> {
-  const isWindows = Deno.build.os === "windows";
-  const exe = isWindows ? "sentinel.exe" : "sentinel";
-  const candidates: string[] = [];
-
+  // First, check if sentinel is in PATH (respects user's environment)
+  const pathResult = await findInPath();
+  if (pathResult) {
+    console.log(`Found sentinel in PATH: ${pathResult}`);
+    return "sentinel"; // Use PATH lookup at runtime
+  }
+      if (appData) {
+        candidates.push(`${appData}\\\\Python\\\\${ver}\\\\Scripts\\\\${exe}`);
+      }
+      if (localAppData) {
+        candidates.push(`${localAppData}\\\\Programs\\\\Python\\\\${ver}\\\\Scripts\\\\${exe}`);
+      }
   if (isWindows) {
-    // Windows: Check Python Scripts directories
     const appData = Deno.env.get("APPDATA");
     const localAppData = Deno.env.get("LOCALAPPDATA");
     const userProfile = Deno.env.get("USERPROFILE");
 
-    // Common Python version patterns
-    const pyVersions = ["Python314", "Python313", "Python312", "Python311", "Python310"];
+    // Common Python version patterns (newest first)
+      candidates.push(`${userProfile}\\\\.local\\\\bin\\\\${exe}`);
 
     for (const ver of pyVersions) {
       if (appData) {
@@ -41,20 +77,13 @@ async function findSentinelExecutable(): Promise<string> {
       if (localAppData) {
         candidates.push(`${localAppData}\\Programs\\Python\\${ver}\\Scripts\\${exe}`);
       }
-      if (appData) {
-        candidates.push(`${appData}\\\\Python\\\\${ver}\\\\Scripts\\\\${exe}`);
-      }
-      if (localAppData) {
-        candidates.push(`${localAppData}\\\\Programs\\\\Python\\\\${ver}\\\\Scripts\\\\${exe}`);
-      }
       // System-wide Python installs
-      candidates.push(`C:\\\\${ver}\\\\Scripts\\\\${exe}`);
-      candidates.push(`C:\\\\Program Files\\\\${ver}\\\\Scripts\\\\${exe}`);
+      candidates.push(`C:\\${ver}\\Scripts\\${exe}`);
+      candidates.push(`C:\\Program Files\\${ver}\\Scripts\\${exe}`);
     }
 
     // pipx location
     if (userProfile) {
-      candidates.push(`${userProfile}\\\\.local\\\\bin\\\\${exe}`);
       candidates.push(`${userProfile}\\.local\\bin\\${exe}`);
     }
   } else {
@@ -81,7 +110,8 @@ async function findSentinelExecutable(): Promise<string> {
     }
   }
 
-  // Fall back to PATH lookup
+  // Last resort: return "sentinel" and let spawn fail with clear error
+  console.log("sentinel not found in PATH or common locations");
   return "sentinel";
 }
 
