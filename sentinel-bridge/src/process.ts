@@ -59,9 +59,9 @@ async function findSentinelExecutable(): Promise<string> {
 
   // Fall back to scanning common installation locations
   const isWindows = Deno.build.os === "windows";
-  const exe = isWindows ? "sentinel.exe" : "sentinel";
-  const candidates: string[] = [];
-
+      if (localAppData) {
+        candidates.push(`${localAppData}\\\\Programs\\\\Python\\\\${ver}\\\\Scripts\\\\${exe}`);
+      }
   if (isWindows) {
     const appData = Deno.env.get("APPDATA");
     const localAppData = Deno.env.get("LOCALAPPDATA");
