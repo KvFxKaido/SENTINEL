@@ -16,6 +16,75 @@ import type {
   StatusResponse,
 } from "./types.ts";
 
+/**
+ * Find the sentinel executable in common installation locations.
+ * Returns the first path that exists, or "sentinel" to fall back to PATH.
+ */
+async function findSentinelExecutable(): Promise<string> {
+  const isWindows = Deno.build.os === "windows";
+  const exe = isWindows ? "sentinel.exe" : "sentinel";
+  const candidates: string[] = [];
+
+  if (isWindows) {
+    // Windows: Check Python Scripts directories
+    const appData = Deno.env.get("APPDATA");
+    const localAppData = Deno.env.get("LOCALAPPDATA");
+    const userProfile = Deno.env.get("USERPROFILE");
+
+    // Common Python version patterns
+    const pyVersions = ["Python314", "Python313", "Python312", "Python311", "Python310"];
+
+    for (const ver of pyVersions) {
+      if (appData) {
+        candidates.push(`${appData}\\Python\\${ver}\\Scripts\\${exe}`);
+      }
+      if (localAppData) {
+        candidates.push(`${localAppData}\\Programs\\Python\\${ver}\\Scripts\\${exe}`);
+      }
+      if (appData) {
+        candidates.push(`${appData}\\\\Python\\\\${ver}\\\\Scripts\\\\${exe}`);
+      }
+      if (localAppData) {
+        candidates.push(`${localAppData}\\\\Programs\\\\Python\\\\${ver}\\\\Scripts\\\\${exe}`);
+      }
+      // System-wide Python installs
+      candidates.push(`C:\\\\${ver}\\\\Scripts\\\\${exe}`);
+      candidates.push(`C:\\\\Program Files\\\\${ver}\\\\Scripts\\\\${exe}`);
+    }
+
+    // pipx location
+    if (userProfile) {
+      candidates.push(`${userProfile}\\\\.local\\\\bin\\\\${exe}`);
+      candidates.push(`${userProfile}\\.local\\bin\\${exe}`);
+    }
+  } else {
+    // Unix: Check common locations
+    const home = Deno.env.get("HOME");
+    if (home) {
+      candidates.push(`${home}/.local/bin/${exe}`);
+      candidates.push(`${home}/.pyenv/shims/${exe}`);
+    }
+    candidates.push(`/usr/local/bin/${exe}`);
+    candidates.push(`/usr/bin/${exe}`);
+  }
+
+  // Check each candidate
+  for (const path of candidates) {
+    try {
+      const stat = await Deno.stat(path);
+      if (stat.isFile) {
+        console.log(`Auto-detected sentinel at: ${path}`);
+        return path;
+      }
+    } catch {
+      // File doesn't exist, try next
+    }
+  }
+
+  // Fall back to PATH lookup
+  return "sentinel";
+}
+
 export interface ProcessConfig {
   /** Path to sentinel executable or 'sentinel' if in PATH */
   sentinelPath?: string;
@@ -117,6 +186,11 @@ export class SentinelProcess {
 
     this.setState("starting");
     this.lastError = null;
+
+    // Auto-detect sentinel path if using default
+    if (this.config.sentinelPath === "sentinel") {
+      this.config.sentinelPath = await findSentinelExecutable();
+    }
 
     try {
       await this.spawn();

@@ -97,7 +97,8 @@ class FavorSystem:
         at least one type of favor.
         """
         available = []
-        for npc in self._campaign.npcs.npcs:
+        all_npcs = self._campaign.npcs.active + self._campaign.npcs.dormant
+        for npc in all_npcs:
             # Get faction standing if NPC has a faction
             faction_standing = None
             if npc.faction:
@@ -271,7 +272,8 @@ class FavorSystem:
     def find_npc_by_name(self, name: str) -> NPC | None:
         """Find an NPC by name (case-insensitive partial match)."""
         name_lower = name.lower()
-        for npc in self._campaign.npcs.npcs:
+        all_npcs = self._campaign.npcs.active + self._campaign.npcs.dormant
+        for npc in all_npcs:
             if name_lower in npc.name.lower():
                 return npc
         return None

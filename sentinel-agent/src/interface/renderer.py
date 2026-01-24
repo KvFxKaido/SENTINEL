@@ -47,6 +47,7 @@ THEME = {
     "danger": "dark_red",           # rusted red - memory of violence
     "accent": "cyan",               # interface highlights
     "dim": "dim",                   # background text
+    "text": "grey85",               # standard body text
 }
 
 # Prompt toolkit style to match theme
