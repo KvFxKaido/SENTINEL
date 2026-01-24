@@ -41,13 +41,20 @@ async function findSentinelExecutable(): Promise<string> {
       if (localAppData) {
         candidates.push(`${localAppData}\\Programs\\Python\\${ver}\\Scripts\\${exe}`);
       }
+      if (appData) {
+        candidates.push(`${appData}\\\\Python\\\\${ver}\\\\Scripts\\\\${exe}`);
+      }
+      if (localAppData) {
+        candidates.push(`${localAppData}\\\\Programs\\\\Python\\\\${ver}\\\\Scripts\\\\${exe}`);
+      }
       // System-wide Python installs
-      candidates.push(`C:\\${ver}\\Scripts\\${exe}`);
-      candidates.push(`C:\\Program Files\\${ver}\\Scripts\\${exe}`);
+      candidates.push(`C:\\\\${ver}\\\\Scripts\\\\${exe}`);
+      candidates.push(`C:\\\\Program Files\\\\${ver}\\\\Scripts\\\\${exe}`);
     }
 
     // pipx location
     if (userProfile) {
+      candidates.push(`${userProfile}\\\\.local\\\\bin\\\\${exe}`);
       candidates.push(`${userProfile}\\.local\\bin\\${exe}`);
     }
   } else {
