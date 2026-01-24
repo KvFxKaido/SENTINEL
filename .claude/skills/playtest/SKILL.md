@@ -12,10 +12,9 @@ Deploy Claude as an AI player to find bugs in SENTINEL. The agent interacts with
 
 ## Prerequisites
 
-The Bridge must be running with Claude as the backend. Start it with:
+The Bridge must be running with Claude as the backend. Start it from the project root:
 ```bash
-cd C:\dev\SENTINEL\sentinel-bridge && deno task start --backend claude
-```
+cd sentinel-bridge && deno task start --backend claude
 
 **IMPORTANT**: Always use Claude as the backend for playtesting. This ensures consistent, high-quality GM responses and proper tool handling.
 
