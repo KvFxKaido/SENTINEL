@@ -4909,6 +4909,10 @@ def register_all_commands():
                      handler=cmd_factions, available_when=has_campaign)
 
     # Info Commands
+    register_command("/clarify", "Re-display last GM response", CommandCategory.INFO,
+                     handler=cmd_clarify, available_when=has_campaign)
+    register_command("/ask", "Show current situation summary", CommandCategory.INFO,
+                     handler=cmd_ask, available_when=has_campaign)
     register_command("/status", "Show campaign status", CommandCategory.INFO,
                      handler=cmd_status, available_when=has_campaign)
     register_command("/history", "View chronicle", CommandCategory.INFO,
@@ -4964,6 +4968,17 @@ def register_all_commands():
                      handler=lambda m, a, args: sys.exit(0))
     register_command("/exit", "Exit SENTINEL", CommandCategory.SYSTEM,
                      handler=lambda m, a, args: sys.exit(0), hidden=True)
+
+
+# Meta commands (TUI-only, these are stubs for CLI)
+def cmd_clarify(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
+    """Re-display last GM response (TUI-only in CLI)."""
+    console.print("[dim]This command works best in the TUI. Use 'sentinel' to launch it.[/dim]")
+
+
+def cmd_ask(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
+    """Show current situation summary (TUI-only in CLI)."""
+    console.print("[dim]This command works best in the TUI. Use 'sentinel' to launch it.[/dim]")
 
 
 # We need a cmd_status wrapper since the original uses a closure

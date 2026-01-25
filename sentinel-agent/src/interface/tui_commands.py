@@ -371,6 +371,108 @@ def tui_threads(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
 
 
 # -----------------------------------------------------------------------------
+# Meta Commands (OOC questions - no LLM calls)
+# -----------------------------------------------------------------------------
+
+def tui_clarify(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
+    """Re-display the last GM response.
+
+    Use when you need to re-read what the GM said without contaminating
+    the conversation context with meta-questions like 'what did you say?'
+    """
+    # Find the last assistant message in conversation
+    last_gm_response = None
+    for msg in reversed(app.conversation):
+        if msg.role == "assistant" and msg.content:
+            last_gm_response = msg.content
+            break
+
+    if last_gm_response:
+        log.write(Text.from_markup(f"\n[bold {Theme.DIM}]--- Last GM Response ---[/bold {Theme.DIM}]"))
+        # Re-render with word wrapping
+        log_width = (log.size.width or 80) - 4
+        from .choices import parse_response
+        narrative, choices = parse_response(last_gm_response)
+        if narrative:
+            from rich.text import Text as RichText
+            wrapped = RichText(narrative.strip())
+            wrapped.stylize(Theme.TEXT)
+            log.write(wrapped)
+        if choices:
+            log.write("")
+            for i, opt in enumerate(choices.options, 1):
+                log.write(Text.from_markup(f"  [{Theme.FRIENDLY}]{i}.[/{Theme.FRIENDLY}] {opt}"))
+        log.write(Text.from_markup(f"[bold {Theme.DIM}]------------------------[/bold {Theme.DIM}]\n"))
+    else:
+        log.write(Text.from_markup(f"[{Theme.DIM}]No GM response to show yet.[/{Theme.DIM}]"))
+
+
+def tui_ask(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
+    """Show current situation summary.
+
+    Use instead of asking 'what's going on?' - shows game state without
+    contaminating the conversation context.
+    """
+    from .shared import get_campaign_status, get_faction_standings
+
+    if not app.manager or not app.manager.current:
+        log.write(Text.from_markup(f"[{Theme.DIM}]No campaign loaded[/{Theme.DIM}]"))
+        return
+
+    campaign = app.manager.current
+    log.write(Text.from_markup(f"\n[bold {Theme.TEXT}]--- Current Situation ---[/bold {Theme.TEXT}]"))
+
+    # Campaign & character basics
+    status = get_campaign_status(app.manager)
+    if status:
+        log.write(Text.from_markup(f"[{Theme.TEXT}]Campaign:[/{Theme.TEXT}] {status['name']} (Session {status['session_count']})"))
+
+    # Character info
+    if campaign.characters:
+        char = campaign.characters[0]
+        energy = char.social_energy
+        energy_color = Theme.FRIENDLY if energy.current > 50 else Theme.WARNING if energy.current > 25 else Theme.DANGER
+        log.write(Text.from_markup(
+            f"[{Theme.TEXT}]Character:[/{Theme.TEXT}] {char.name} ({char.background.value}) | "
+            f"[{energy_color}]{energy.current}% energy[/{energy_color}] | {char.credits}cr"
+        ))
+
+    # Current mission
+    if campaign.session:
+        log.write(Text.from_markup(
+            f"[{Theme.TEXT}]Mission:[/{Theme.TEXT}] {campaign.session.mission_title} ({campaign.session.phase.value})"
+        ))
+
+    # Location
+    if campaign.current_region:
+        log.write(Text.from_markup(f"[{Theme.TEXT}]Location:[/{Theme.TEXT}] {campaign.current_region}"))
+
+    # Active NPCs
+    if campaign.npcs.active:
+        npc_names = [npc.name for npc in campaign.npcs.active[:3]]
+        more = f" (+{len(campaign.npcs.active) - 3} more)" if len(campaign.npcs.active) > 3 else ""
+        log.write(Text.from_markup(f"[{Theme.TEXT}]Active NPCs:[/{Theme.TEXT}] {', '.join(npc_names)}{more}"))
+
+    # Faction tensions (non-neutral only)
+    tensions = []
+    for faction, standing_obj in campaign.factions.items():
+        if standing_obj.standing.value != "Neutral":
+            tensions.append(f"{faction.value}: {standing_obj.standing.value}")
+    if tensions:
+        log.write(Text.from_markup(f"[{Theme.TEXT}]Faction tensions:[/{Theme.TEXT}] {', '.join(tensions)}"))
+
+    # Pending threads (count only)
+    if campaign.dormant_threads:
+        major = sum(1 for t in campaign.dormant_threads if t.severity.value == "major")
+        log.write(Text.from_markup(
+            f"[{Theme.TEXT}]Pending threads:[/{Theme.TEXT}] {len(campaign.dormant_threads)} "
+            f"({major} major) - use /threads for details"
+        ))
+
+    log.write(Text.from_markup(f"[bold {Theme.TEXT}]--------------------------[/bold {Theme.TEXT}]\n"))
+
+
+# -----------------------------------------------------------------------------
 # System Commands
 # -----------------------------------------------------------------------------
 
@@ -2629,6 +2731,10 @@ def register_tui_handlers() -> None:
     set_tui_handler("/npc", tui_npc)
     set_tui_handler("/describe", tui_describe)
     set_tui_handler("/lore", tui_lore)
+
+    # Meta (OOC - no LLM calls)
+    set_tui_handler("/clarify", tui_clarify)
+    set_tui_handler("/ask", tui_ask)
 
     # History
     set_tui_handler("/history", tui_history)

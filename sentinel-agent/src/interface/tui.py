@@ -37,6 +37,280 @@ from .command_registry import get_registry
 from .commands import register_all_commands
 from .tui_commands import register_tui_handlers
 from .codec import render_codec_frame, NPCDisplay, Disposition, FACTION_COLORS
+from enum import Enum
+from dataclasses import dataclass
+
+
+# =============================================================================
+# Input Validation Layer
+# =============================================================================
+# Validates input BEFORE sending to LLM backend. Only free-form player intent
+# needs LLM interpretation. Commands, choice selections, and invalid input
+# are handled locally for instant feedback and zero wasted API calls.
+
+
+class InputType(str, Enum):
+    """Classification of user input for routing."""
+    COMMAND = "command"              # Valid slash command → handle locally
+    CHOICE = "choice"                # Valid choice selection → queue for next GM turn
+    SOMETHING_ELSE = "something_else"  # "Something else" selected → prompt for elaboration
+    FREE_FORM = "free_form"          # Free-form input → send to LLM
+    INVALID = "invalid"              # Invalid input → show error locally
+
+
+@dataclass
+class InputValidation:
+    """Result of input validation."""
+    input_type: InputType
+    value: str                       # Original or processed value
+    error: str | None = None         # Error message for INVALID type
+    choice_index: int | None = None  # 0-indexed choice for CHOICE type
+
+
+# Patterns that indicate in-game narrative action
+ACTION_STARTERS = (
+    # First-person actions
+    "i ", "i'", "i\"",
+    # Group actions
+    "we ", "let's ", "let me ", "let us ",
+    # Direct action verbs
+    "ask ", "tell ", "say ", "speak ", "talk ",
+    "look ", "examine ", "inspect ", "search ", "check ",
+    "go ", "move ", "walk ", "run ", "head ", "travel ",
+    "take ", "grab ", "pick ", "get ", "give ", "hand ",
+    "try ", "attempt ",
+    "attack ", "fight ", "strike ", "hit ", "shoot ",
+    "hide ", "sneak ", "crouch ", "duck ",
+    "open ", "close ", "unlock ", "lock ",
+    "wait ", "listen ", "watch ", "observe ",
+    "follow ", "approach ", "leave ", "exit ", "enter ",
+    "use ", "activate ", "turn ",
+    "call ", "signal ", "wave ",
+    "draw ", "ready ", "pull ", "push ",
+    # Quoted dialogue (player speaking in-character)
+    '"', "'",
+)
+
+# Patterns that indicate meta-discussion (out of character)
+# NOTE: Order matters - more specific patterns should come first
+META_PATTERNS = (
+    # Questions about the game/situation (not in-character questions)
+    "what is ", "what's ", "what are ", "what was ",
+    "why is ", "why did ", "why are ", "why does ",
+    "how do ", "how does ", "how is ", "how can ",
+    "can you ", "could you ", "would you ", "will you ",
+    "do you ", "did you ", "are you ",
+    # Confusion/clarification
+    "i don't understand", "i dont understand",
+    "what do you mean", "what does that mean",
+    "can you explain", "please explain",
+    "can you repeat", "repeat that", "say that again",
+    "i'm confused", "im confused",
+    # Pure hesitation/filler (no action follows)
+    "um ", "umm ", "uh ", "uhh ",
+    "hmm ", "hmmm ", "huh",
+    "hold on", "hang on",
+    "ok so ", "okay so ",
+    # Meta-commentary
+    "actually ", "nevermind", "never mind",
+    "oops", "my bad",
+    # System questions
+    "what can i do", "what are my options",
+)
+
+# Patterns that are META unless followed by action verb or object
+# These are common in roleplay so we check context before blocking
+CONDITIONAL_META_PATTERNS = (
+    "wait ",      # "wait" alone is meta, "wait for them" is action
+    "so ",        # "so" alone is filler, "so I open the door" is action
+    "i think ",   # "i think" alone is meta, "i think we should run" is action
+    "i guess ",   # same pattern
+    "maybe ",     # "maybe" alone is meta, "maybe I should check" is action
+    "sorry ",     # "sorry" alone is meta, "sorry I meant to say" might be action
+    "help",       # "help" alone is meta, "help me lift this" is action
+    "explain ",   # "explain" alone is meta, "explain to him why" is action
+    "confused",   # "confused" alone is meta, "confused, I look around" is action
+)
+
+# Words that indicate an action follows a conditional meta pattern
+# These can appear at the start of remainder or embedded in it
+ACTION_CONTINUATION_STARTS = (
+    "i ", "we ", "me ", "us ", "them ", "him ", "her ", "it ",
+    "for ", "until ", "to ", "the ", "a ", "an ", "my ", "our ",
+    "should ", "could ", "would ", "will ", "can ", "might ",
+)
+ACTION_CONTINUATION_CONTAINS = (
+    " i ", " we ", " me ", " us ", " them ", " him ", " her ", " it ",
+    " for ", " until ", " to ", " the ", " a ", " an ", " my ", " our ",
+    " should ", " could ", " would ", " will ", " can ", " might ",
+)
+
+
+def looks_like_narrative_action(text: str) -> tuple[bool, str | None]:
+    """
+    Check if input looks like an in-game narrative action.
+
+    Returns:
+        (is_valid, error_hint) - error_hint suggests how to rephrase if invalid
+    """
+    text_lower = text.lower().strip()
+    text_stripped = text.strip()  # Preserve case for quote check
+
+    # Empty or too short
+    if len(text_lower) < 2:
+        return False, "Input too short. Describe what you do."
+
+    # Check for definite meta patterns first (these are always blocked)
+    for pattern in META_PATTERNS:
+        if text_lower.startswith(pattern):
+            # Provide specific guidance based on what they tried
+            if pattern.startswith(("what is", "what's", "what are", "what was",
+                                   "why is", "why did", "why are", "why does",
+                                   "how do", "how does", "how is", "how can")):
+                return False, "Questions go to /ask. For in-game: \"I ask about...\""
+            if "understand" in pattern or "repeat" in pattern:
+                return False, "Use /clarify for OOC questions. In-game: \"I ask them to explain.\""
+            if pattern in ("um ", "umm ", "uh ", "uhh ", "hmm ", "hmmm ", "huh", "hold on", "hang on"):
+                return False, "Hesitation noted. What do you actually do?"
+            return False, "Sounds like meta-talk. Describe an in-game action instead."
+
+    # Check conditional meta patterns - these need context
+    for pattern in CONDITIONAL_META_PATTERNS:
+        # Match with or without trailing space (handle "i think" vs "i think ")
+        pattern_base = pattern.rstrip()
+        if text_lower.startswith(pattern) or text_lower == pattern_base:
+            # Get the rest of the text after the pattern
+            if text_lower.startswith(pattern):
+                remainder = text_lower[len(pattern):].lstrip()
+            else:
+                remainder = ""
+            # If followed by action continuation, allow it immediately
+            has_continuation = (
+                any(remainder.startswith(cont) for cont in ACTION_CONTINUATION_STARTS) or
+                any(cont in remainder for cont in ACTION_CONTINUATION_CONTAINS)
+            )
+            if has_continuation and len(remainder) > 5:
+                return True, None  # This is a valid action
+            # If it's just the pattern alone or with short filler, block it
+            if len(remainder) < 3:
+                if pattern == "help":
+                    return False, "For rules help use /help. In-game: \"I call for help\" or \"Help me lift this.\""
+                if pattern in ("wait ", "hold on", "hang on"):
+                    return False, "Hesitation noted. What do you actually do? (e.g., \"Wait for them to pass\")"
+                if pattern in ("i think ", "i guess ", "maybe "):
+                    return False, "What's your action? (e.g., \"I think we should run\" or just \"I run\")"
+                return False, "Sounds like meta-talk. Describe an in-game action instead."
+
+    # Questions ending in ? are usually meta (unless quoted dialogue)
+    # Use stripped text to handle leading whitespace before quotes
+    if text_lower.endswith("?") and not (text_stripped.startswith('"') or text_stripped.startswith("'")):
+        return False, "Questions go to /ask. For in-game dialogue: '\"What's going on?\"'"
+
+    # Check for valid action starters
+    if text_lower.startswith(ACTION_STARTERS):
+        return True, None
+
+    # Fallback: if it doesn't match known patterns, give guidance
+    return False, "Start with 'I...' to describe your action. Example: \"I approach the door.\""
+
+
+def validate_input(
+    text: str,
+    active_choices: list[str] | None,
+    manager: "CampaignManager | None" = None,
+) -> InputValidation:
+    """
+    Validate and classify user input.
+
+    Args:
+        text: Raw user input
+        active_choices: List of current choice options, or None if no choices active
+        manager: Campaign manager for command context checks
+
+    Returns:
+        InputValidation with type and any error message
+    """
+    text = text.strip()
+
+    if not text:
+        return InputValidation(InputType.INVALID, text, "Empty input")
+
+    # Commands always take priority
+    if text.startswith("/"):
+        registry = get_registry()
+        parts = text.split()
+        cmd = parts[0].lower()
+
+        # Check if command exists (including after autocorrect)
+        cmd_obj = registry.get(cmd)
+        if cmd_obj:
+            return InputValidation(InputType.COMMAND, text)
+
+        # Try autocorrect
+        corrected, _ = registry.autocorrect(cmd)
+        if corrected != cmd and registry.get(corrected):
+            return InputValidation(InputType.COMMAND, text)
+
+        # Unknown command - provide helpful error with typo-aware suggestions
+        # First try registry's fuzzy search
+        results = registry.search(cmd.lstrip("/"), manager, include_unavailable=True)
+        if results:
+            suggestions = [r[0].name for r in results[:3]]
+            return InputValidation(
+                InputType.INVALID,
+                text,
+                f"Unknown command: {cmd}. Did you mean: {', '.join(suggestions)}?"
+            )
+
+        # Fall back to difflib for typo detection (handles transpositions, etc.)
+        all_cmds = [c.name for c in registry.all_commands() if not c.hidden]
+        close_matches = get_close_matches(cmd, all_cmds, n=3, cutoff=0.5)
+        if close_matches:
+            return InputValidation(
+                InputType.INVALID,
+                text,
+                f"Unknown command: {cmd}. Did you mean: {', '.join(close_matches)}?"
+            )
+
+        return InputValidation(InputType.INVALID, text, f"Unknown command: {cmd}. Type /help for available commands.")
+
+    # If choices are active, input MUST be a valid choice number
+    if active_choices:
+        if text.isdigit():
+            choice_num = int(text)
+            if 1 <= choice_num <= len(active_choices):
+                selected = active_choices[choice_num - 1]
+                if "something else" in selected.lower():
+                    return InputValidation(
+                        InputType.SOMETHING_ELSE,
+                        text,
+                        choice_index=choice_num - 1
+                    )
+                return InputValidation(
+                    InputType.CHOICE,
+                    selected,
+                    choice_index=choice_num - 1
+                )
+            else:
+                return InputValidation(
+                    InputType.INVALID,
+                    text,
+                    f"Invalid choice. Enter 1-{len(active_choices)}."
+                )
+        else:
+            # Non-numeric input during choice selection
+            return InputValidation(
+                InputType.INVALID,
+                text,
+                f"Choose an option (1-{len(active_choices)}) or select 'something else' to describe a different action."
+            )
+
+    # No active choices - validate narrative intent before sending to LLM
+    is_action, error_hint = looks_like_narrative_action(text)
+    if is_action:
+        return InputValidation(InputType.FREE_FORM, text)
+    else:
+        return InputValidation(InputType.INVALID, text, error_hint)
 
 
 def center_renderable(renderable: RenderableType, content_width: int, container_width: int) -> Padding:
@@ -2149,32 +2423,69 @@ class SentinelTUI(App):
         super().exit(*args, **kwargs)
 
     async def on_input_submitted(self, event: Input.Submitted):
-        """Handle input submission."""
+        """Handle input submission with validation layer.
+
+        Input is validated BEFORE hitting the LLM backend:
+        - Commands: handled locally (instant)
+        - Choice selections: queued for next GM turn (no extra LLM call)
+        - Invalid input: rejected with helpful error (instant)
+        - Free-form/something else: sent to LLM for interpretation
+        """
         user_input = event.value.strip()
         event.input.value = ""
 
         if not user_input:
             return
 
-        # Add to history via CommandInput
+        log = self.query_one("#output-log", RichLog)
+
+        # Get active choice options for validation
+        active_options = self.last_choices.options if self.last_choices else None
+
+        # Validate input before processing
+        validation = validate_input(user_input, active_options, self.manager)
+
+        # Handle invalid input immediately (no LLM call)
+        if validation.input_type == InputType.INVALID:
+            log.write(Text.from_markup(
+                f"[{Theme.WARNING}]{validation.error}[/{Theme.WARNING}]"
+            ))
+            return
+
+        # Add to history (only for valid input)
         cmd_input = self.query_one("#main-input", CommandInput)
         cmd_input.add_to_history(user_input)
-        # Also keep in app for persistence
         if not self._history or self._history[-1] != user_input:
             self._history.append(user_input)
-
-        log = self.query_one("#output-log", RichLog)
 
         # Echo input
         log.write(Text.from_markup(f"[bold {Theme.TEXT}]>[/bold {Theme.TEXT}] {user_input}"))
 
-        # Handle commands
-        if user_input.startswith("/"):
+        # Route based on validated input type
+        if validation.input_type == InputType.COMMAND:
             await self.handle_command(user_input)
-        elif user_input.isdigit() and self.last_choices:
-            await self.handle_choice(int(user_input))
-        else:
-            self.handle_action(user_input)  # @work decorator, don't await
+
+        elif validation.input_type == InputType.CHOICE:
+            # Valid choice - queue the selected action for next GM turn
+            action = validation.value
+            if not action.startswith("I "):
+                action = f"I {action.lower()}"
+            self.last_choices = None
+            self._clear_choice_buttons()
+            self.handle_action(action)
+
+        elif validation.input_type == InputType.SOMETHING_ELSE:
+            # "Something else" selected - prompt for elaboration
+            self.last_choices = None
+            self._clear_choice_buttons()
+            log.write(Text.from_markup(
+                f"[{Theme.DIM}]What do you want to do instead?[/{Theme.DIM}]"
+            ))
+            # Next free-form input will go to LLM
+
+        elif validation.input_type == InputType.FREE_FORM:
+            # Free-form input - send to LLM for interpretation
+            self.handle_action(user_input)
 
         self.refresh_all_panels()
 
@@ -2203,18 +2514,44 @@ class SentinelTUI(App):
         log.write(Text.from_markup(f"[{Theme.WARNING}]Unknown command: {cmd}[/{Theme.WARNING}]"))
 
     async def handle_choice(self, choice_num: int):
-        """Handle numbered choice selection."""
+        """Handle numbered choice selection (from keys or buttons).
+
+        Uses the same validation layer as typed input for consistency.
+        """
         if not self.last_choices:
             return
 
-        if 1 <= choice_num <= len(self.last_choices.options):
-            selected = self.last_choices.options[choice_num - 1]
-            if "something else" in selected.lower():
-                return
-            action = selected if selected.startswith("I ") else f"I {selected.lower()}"
+        log = self.query_one("#output-log", RichLog)
+        active_options = self.last_choices.options
+
+        # Use validation layer
+        validation = validate_input(str(choice_num), active_options, self.manager)
+
+        if validation.input_type == InputType.INVALID:
+            log.write(Text.from_markup(
+                f"[{Theme.WARNING}]{validation.error}[/{Theme.WARNING}]"
+            ))
+            return
+
+        # Echo the selection
+        log.write(Text.from_markup(
+            f"[bold {Theme.TEXT}]>[/bold {Theme.TEXT}] {choice_num}"
+        ))
+
+        if validation.input_type == InputType.CHOICE:
+            action = validation.value
+            if not action.startswith("I "):
+                action = f"I {action.lower()}"
             self.last_choices = None
-            self._clear_choice_buttons()  # Clear the choice buttons widget
-            self.handle_action(action)  # @work decorator, don't await
+            self._clear_choice_buttons()
+            self.handle_action(action)
+
+        elif validation.input_type == InputType.SOMETHING_ELSE:
+            self.last_choices = None
+            self._clear_choice_buttons()
+            log.write(Text.from_markup(
+                f"[{Theme.DIM}]What do you want to do instead?[/{Theme.DIM}]"
+            ))
 
     def _update_choice_buttons(self, options: list[str]):
         """Update the choice buttons widget with current options."""
