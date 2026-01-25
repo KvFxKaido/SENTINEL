@@ -319,6 +319,37 @@
     return null;
   }
 
+  // Known NPC portraits - maps name variations to portrait files
+  const NPC_PORTRAITS: Record<string, string> = {
+    // Direct file mappings
+    'cipher': '/assets/portraits/npcs/cipher.png',
+    'vex': '/assets/portraits/npcs/vex.png',
+    'rook': '/assets/portraits/npcs/rook.png',
+    'elder kara': '/assets/portraits/npcs/elder_kara.png',
+    'elder_kara': '/assets/portraits/npcs/elder_kara.png',
+    'kara': '/assets/portraits/npcs/elder_kara.png',
+    // Add more mappings as portraits are added
+  };
+
+  function resolvePortrait(name: string | undefined): string {
+    if (!name) return '/assets/portraits/placeholder.svg';
+
+    const normalized = name.trim().toLowerCase();
+
+    // Check direct mapping first
+    if (NPC_PORTRAITS[normalized]) {
+      return NPC_PORTRAITS[normalized];
+    }
+
+    // Try convention-based lookup (name -> name.png)
+    const slug = normalized.replace(/\s+/g, '_');
+    const conventionPath = `/assets/portraits/npcs/${slug}.png`;
+
+    // Check if it's a known portrait (from our mapping keys)
+    // Since we can't do async file checks, rely on the mapping
+    return NPC_PORTRAITS[slug] || '/assets/portraits/placeholder.svg';
+  }
+
   // Helper to add messages to the log
   function addMessage(
     role: 'user' | 'gm' | 'system' | 'error',
@@ -372,7 +403,7 @@
           title: speaker.title || (parsedName ? 'Contact' : 'System Overseer'),
           faction: speaker.faction || resolvedNpc?.faction || 'nexus',
           disposition: speaker.disposition || resolvedNpc?.disposition || 'neutral',
-          portrait: speaker.portrait || '/assets/portraits/placeholder.svg',
+          portrait: speaker.portrait || resolvePortrait(parsedName),
           state: stateMeta,
           ...npcData
         };
