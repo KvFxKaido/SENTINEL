@@ -37,8 +37,12 @@ const factionColorVar = `--faction-${faction.toLowerCase().replace(' ', '-')}`;
     <!-- Left Column: Portrait & Stats -->
     <div class="codec-sidebar">
       <div class="portrait-frame">
-        <div class="portrait-image" style={`background-image: url('${portrait}');`}>
-          <!-- Scanline overlay is CSS only -->
+        <div class="portrait-image">
+          <img
+            src={portrait}
+            alt={name}
+            onerror="this.onerror=null; this.src='/assets/portraits/placeholder.svg';"
+          />
           <div class="scanlines"></div>
         </div>
         <div class="corner-tl"></div>
@@ -156,13 +160,17 @@ const factionColorVar = `--faction-${faction.toLowerCase().replace(' ', '-')}`;
   .portrait-image {
     width: 100%;
     height: 100%;
-    background-size: cover;
-    background-position: center;
     background-color: var(--bg-tertiary);
     position: relative;
-    filter: sepia(20%) contrast(110%) hue-rotate(180deg) saturate(50%); /* Base "tech" look, overridden by portrait */
-    /* Reset filter if using actual colored portraits later */
-    filter: none; 
+    overflow: hidden;
+  }
+
+  .portrait-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center top;
+    display: block;
   }
 
   .scanlines {

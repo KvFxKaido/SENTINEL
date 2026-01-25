@@ -319,35 +319,51 @@
     return null;
   }
 
-  // Known NPC portraits - maps name variations to portrait files
-  const NPC_PORTRAITS: Record<string, string> = {
-    // Direct file mappings
-    'cipher': '/assets/portraits/npcs/cipher.png',
-    'vex': '/assets/portraits/npcs/vex.png',
-    'rook': '/assets/portraits/npcs/rook.png',
-    'elder kara': '/assets/portraits/npcs/elder_kara.png',
-    'elder_kara': '/assets/portraits/npcs/elder_kara.png',
-    'kara': '/assets/portraits/npcs/elder_kara.png',
-    // Add more mappings as portraits are added
+  // Name aliases for portraits with non-standard naming
+  const PORTRAIT_ALIASES: Record<string, string> = {
+    'elder kara': 'elder_kara',
+    'kara': 'elder_kara',
+    // Add aliases for names that don't match their filename
   };
 
+  const PLACEHOLDER = '/assets/portraits/placeholder.svg';
+
   function resolvePortrait(name: string | undefined): string {
-    if (!name) return '/assets/portraits/placeholder.svg';
+    if (!name) return PLACEHOLDER;
 
     const normalized = name.trim().toLowerCase();
 
-    // Check direct mapping first
-    if (NPC_PORTRAITS[normalized]) {
-      return NPC_PORTRAITS[normalized];
+    // Check aliases first (e.g., "Elder Kara" → "elder_kara")
+    const alias = PORTRAIT_ALIASES[normalized];
+    if (alias) {
+      return `/assets/portraits/npcs/${alias}.png`;
     }
 
-    // Try convention-based lookup (name -> name.png)
+    // Convention-based: lowercase, replace spaces with underscores
     const slug = normalized.replace(/\s+/g, '_');
-    const conventionPath = `/assets/portraits/npcs/${slug}.png`;
+    return `/assets/portraits/npcs/${slug}.png`;
+  }
 
-    // Check if it's a known portrait (from our mapping keys)
-    // Since we can't do async file checks, rely on the mapping
-    return NPC_PORTRAITS[slug] || '/assets/portraits/placeholder.svg';
+  // Cache for portrait existence checks
+  const portraitCache = new Map<string, boolean>();
+
+  function checkPortraitExists(path: string): Promise<boolean> {
+    if (portraitCache.has(path)) {
+      return Promise.resolve(portraitCache.get(path)!);
+    }
+
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        portraitCache.set(path, true);
+        resolve(true);
+      };
+      img.onerror = () => {
+        portraitCache.set(path, false);
+        resolve(false);
+      };
+      img.src = path;
+    });
   }
 
   // Helper to add messages to the log
@@ -487,7 +503,8 @@
         <div class="codec-body">
           <div class="codec-sidebar">
             <div class="portrait-frame">
-              <div class="portrait-image" style="background-image: url('${portrait}');">
+              <div class="portrait-image">
+                <img src="${portrait}" alt="${name}" onerror="this.onerror=null; this.src='${PLACEHOLDER}';" />
                 <div class="scanlines"></div>
               </div>
               <div class="corner-tl"></div>
