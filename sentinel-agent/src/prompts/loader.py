@@ -175,7 +175,7 @@ class PromptLoader:
         manager: "CampaignManager | None" = None,
     ) -> str:
         """Format current campaign state for injection into prompts."""
-        from ..state.schema import FactionName, ArcStatus
+        from ..state.schema import FactionName, ArcStatus, GearItem
 
         lines = [
             "# Current State",
@@ -333,5 +333,30 @@ class PromptLoader:
                 f"\n**Mission:** {campaign.session.mission_title} "
                 f"({campaign.session.phase.value})"
             )
+
+            # Show loadout if gear is selected (helps GM suggest gear-aware options)
+            # Token-optimized format: "Gear: lockpicks, medkit[1x], jammer"
+            if campaign.session.loadout and campaign.characters:
+                # Build gear lookup from all characters
+                gear_by_id: dict[str, GearItem] = {}
+                for char in campaign.characters:
+                    for item in char.gear:
+                        gear_by_id[item.id] = item
+
+                # Resolve loadout IDs to names (skip used items - they're irrelevant)
+                loadout_items = []
+                for gear_id in campaign.session.loadout:
+                    if gear_id in gear_by_id:
+                        item = gear_by_id[gear_id]
+                        if item.used:
+                            continue  # Skip expended items
+                        # Compact format: "name[1x]" for consumables, just "name" otherwise
+                        entry = item.name.lower()
+                        if item.single_use:
+                            entry += "[1x]"
+                        loadout_items.append(entry)
+
+                if loadout_items:
+                    lines.append("Gear: " + ", ".join(loadout_items))
 
         return "\n".join(lines)
