@@ -10,6 +10,8 @@ proactive: false
 
 Generate character portraits using Gemini's NanoBanana extension. Reads character appearance from YAML files and builds explicit prompts with all guardrails to prevent style drift.
 
+**Portraits are campaign-specific** - each campaign has its own portrait set in `portraits/campaigns/{campaign_id}/`.
+
 ## Usage
 
 ```
@@ -21,21 +23,38 @@ Generate character portraits using Gemini's NanoBanana extension. Reads characte
 
 ## How It Works
 
-1. Read the character YAML from `assets/characters/{name}.yaml`
-2. Build an explicit prompt with all guardrails
-3. Call `gemini --yolo -e nanobanana` directly via Bash
-4. Handle the nanobanana-output fallback if needed
-5. Report success with the file path
+1. **Determine current campaign ID** from bridge API or config
+2. Read the character YAML from campaign-specific folder (fall back to global)
+3. Build an explicit prompt with all guardrails
+4. Call `gemini --yolo -e nanobanana` directly via Bash
+5. Handle the nanobanana-output fallback if needed
+6. Report success with the file path
+
+## Step 0: Get Current Campaign ID
+
+First, get the current campaign ID. Check the bridge API:
+
+```bash
+curl -s http://localhost:3333/state | python -c "import json,sys; d=json.load(sys.stdin); print(d.get('sentinel',{}).get('campaign',{}).get('id',''))"
+```
+
+If bridge isn't running, check the config file:
+```bash
+cat C:/dev/SENTINEL/sentinel-agent/campaigns/.sentinel_config.json
+```
+
+The `last_campaign` field contains the campaign ID. If no campaign is loaded, ask the user to load one first.
+
+**IMPORTANT**: Store the campaign ID - you'll need it for all paths.
 
 ## Step 1: Find and Read Character YAML
 
-Look for the character file:
-```
-C:\dev\SENTINEL\assets\characters\{name}.yaml
-C:\dev\SENTINEL\assets\characters\{name}_detailed.yaml
-```
+Look for the character file in this order:
 
-If not found, ask the user if they want to create one.
+1. **Campaign-specific**: `C:\dev\SENTINEL\assets\characters\campaigns\{campaign_id}\{name}.yaml`
+2. **Legacy global**: `C:\dev\SENTINEL\assets\characters\{name}.yaml`
+
+If not found in either location, ask the user if they want to create one.
 
 ## Step 2: Build the Prompt
 
@@ -49,8 +68,10 @@ Modern post-apocalyptic cyberpunk aesthetic. NOT fantasy, NOT medieval, NOT anim
 Dark atmospheric background with [FACTION_COLOR] accent lighting.
 High detail, dramatic rim lighting, shallow depth of field.
 Bust framing, 3/4 angle, looking slightly off-camera.
-Save the image to C:\dev\SENTINEL\sentinel-ui\public\assets\portraits\npcs\{name}.png
+Save the image to C:\dev\SENTINEL\sentinel-ui\public\assets\portraits\campaigns\{campaign_id}\{name}.png
 ```
+
+**NOTE**: Always use the campaign-specific path for saving.
 
 ### Person Descriptor Mapping (CRITICAL)
 
@@ -95,7 +116,13 @@ For elderly characters, prepend "elderly" (e.g., "elderly olive-skinned woman").
 
 ## Step 3: Execute Generation
 
-Run the command directly via Bash:
+First, ensure the campaign portrait directory exists:
+
+```bash
+mkdir -p "C:/dev/SENTINEL/sentinel-ui/public/assets/portraits/campaigns/{campaign_id}"
+```
+
+Then run the generation:
 
 ```bash
 gemini --yolo -e nanobanana "Generate a portrait image: [FULL_PROMPT]"
@@ -107,20 +134,20 @@ Use a 3-minute timeout (180000ms).
 
 NanoBanana sometimes saves to `nanobanana-output/` instead of the requested path.
 
-1. Check if file exists at `sentinel-ui/public/assets/portraits/npcs/{name}.png`
+1. Check if file exists at `sentinel-ui/public/assets/portraits/campaigns/{campaign_id}/{name}.png`
 2. If not, check `nanobanana-output/` for recent PNG files
 3. Move the most recent one to the correct location:
    ```bash
-   mv "C:/dev/SENTINEL/nanobanana-output/[filename].png" "C:/dev/SENTINEL/sentinel-ui/public/assets/portraits/npcs/{name}.png"
+   mv "C:/dev/SENTINEL/nanobanana-output/[filename].png" "C:/dev/SENTINEL/sentinel-ui/public/assets/portraits/campaigns/{campaign_id}/{name}.png"
    ```
 
 ## Step 5: Report Result
 
 Show the user the generated portrait using the Read tool on the PNG file.
 
-## Example: Full Prompt for Cipher
+## Example: Full Prompt for Cipher (in campaign "cipher")
 
-Character YAML:
+Character YAML (from `assets/characters/campaigns/cipher/cipher.yaml`):
 ```yaml
 name: Cipher
 faction: nexus
@@ -148,11 +175,12 @@ Nexus analyst survivor. Data visors, sensor arrays, sleek tech fabric.
 Dark atmospheric background with blue (#00A8E8) accent lighting.
 High detail, dramatic rim lighting, shallow depth of field.
 Bust framing, 3/4 angle, looking slightly off-camera.
-Save the image to C:\dev\SENTINEL\sentinel-ui\public\assets\portraits\npcs\cipher.png
+Save the image to C:\dev\SENTINEL\sentinel-ui\public\assets\portraits\campaigns\cipher\cipher.png
 ```
 
 ## Error Handling
 
+- **No campaign loaded**: Ask user to load a campaign first with `/load <name>`
 - **YAML not found**: Ask user if they want to create one with `/portrait create {name}`
 - **Gemini not available**: Report error, suggest checking Gemini CLI installation
 - **Generation fails**: Show error output, suggest retrying
@@ -163,7 +191,7 @@ Save the image to C:\dev\SENTINEL\sentinel-ui\public\assets\portraits\npcs\ciphe
 If the user wants to create a new character:
 
 1. Ask for the key details (or use the table format from create_character.py)
-2. Create the YAML file in `assets/characters/{name}.yaml`
+2. Create the YAML file in `assets/characters/campaigns/{campaign_id}/{name}.yaml`
 3. Generate the portrait
 
 Or direct them to run:

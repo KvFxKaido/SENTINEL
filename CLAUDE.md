@@ -139,6 +139,21 @@ NPCs have disposition modifiers that change their behavior:
 - **Modifiers per level:** tone, reveals, withholds, tells
 - **Memory triggers:** NPCs react to tagged events (e.g., `helped_ember` shifts Lattice NPCs wary)
 
+### Character Appearance System (Campaign-Isolated)
+Each campaign has its own character appearances and portraits for emergent playthroughs:
+
+**Directory Structure:**
+```
+assets/characters/campaigns/{campaign_id}/{name}.yaml  # Appearance YAML
+sentinel-ui/public/assets/portraits/campaigns/{campaign_id}/{name}.png  # Portraits
+```
+
+**Auto-generation:** On first `/start`, the GM calls `describe_npc_appearance` to create the player character's YAML automatically.
+
+**Portrait generation:** Use `/portrait <name>` to generate portraits. Portraits are campaign-specific — the same NPC name can look different across campaigns.
+
+**Fallback:** For backward compatibility, the UI checks campaign folder first, then falls back to global `portraits/npcs/` folder.
+
 ### Geography System
 11 post-Collapse North American regions with faction control:
 - **Regions:** Rust Corridor, Appalachian Hollows, Gulf Passage, Breadbasket, Northern Reaches, Pacific Corridor, Desert Sprawl, Northeast Scar, Sovereign South, Texas Spine, Frozen Edge

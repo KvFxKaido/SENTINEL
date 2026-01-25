@@ -1,13 +1,12 @@
 """
-Character YAML stub generation and portrait sync for portrait workflow.
+Character YAML and portrait management with campaign isolation.
 
-When campaigns are saved, this module:
-1. Checks for NPCs without character YAML files and generates stubs
-2. Syncs portraits from the source directory to web UI and wiki
+Each campaign has its own character appearances and portraits:
+- Character YAML: assets/characters/campaigns/{campaign_id}/{name}.yaml
+- Portraits: sentinel-ui/public/assets/portraits/campaigns/{campaign_id}/{name}.png
 
-Portrait workflow for players:
-1. Drop portrait in assets/portraits/npcs/{name}.png (e.g., kira_vance.png)
-2. Run /save - portraits auto-sync to web UI and wiki
+This enables fully emergent playthroughs where the same NPC name
+can have different appearances across campaigns.
 """
 
 from pathlib import Path
@@ -44,61 +43,135 @@ def slugify(name: str) -> str:
     return name.strip().lower().replace(" ", "_").replace("'", "").replace("-", "_")
 
 
-def get_characters_dir() -> Path:
-    """Get the characters directory path."""
-    # Navigate from this file: src/state/ -> sentinel-agent/ -> SENTINEL/assets/characters/
-    return Path(__file__).parent.parent.parent.parent / "assets" / "characters"
+def _get_project_root() -> Path:
+    """Get the SENTINEL project root directory."""
+    # Navigate from this file: src/state/ -> sentinel-agent/ -> SENTINEL/
+    return Path(__file__).parent.parent.parent.parent
 
 
-def yaml_exists(name: str, characters_dir: Path | None = None) -> bool:
-    """Check if a character YAML file exists for the given NPC name."""
-    if characters_dir is None:
-        characters_dir = get_characters_dir()
-
-    slug = slugify(name)
-    yaml_path = characters_dir / f"{slug}.yaml"
-    return yaml_path.exists()
-
-
-def generate_stub_yaml(
-    name: str,
-    faction: str | None = None,
-    role: str | None = None,
-    characters_dir: Path | None = None,
-) -> Path | None:
+def get_characters_dir(campaign_id: str | None = None) -> Path:
     """
-    Generate a stub YAML file for an NPC if one doesn't exist.
+    Get the characters directory path.
 
     Args:
-        name: NPC name
-        faction: Faction affiliation (optional)
-        role: NPC role like "contact", "merchant" (optional)
-        characters_dir: Override characters directory (for testing)
+        campaign_id: If provided, returns campaign-specific directory.
+                    If None, returns legacy global directory for backward compat.
+    """
+    base = _get_project_root() / "assets" / "characters"
+    if campaign_id:
+        return base / "campaigns" / campaign_id
+    return base
+
+
+def get_portraits_dir(campaign_id: str | None = None) -> Path:
+    """
+    Get the portraits directory path for web UI.
+
+    Args:
+        campaign_id: If provided, returns campaign-specific directory.
+                    If None, returns legacy global directory.
+    """
+    base = _get_project_root() / "sentinel-ui" / "public" / "assets" / "portraits"
+    if campaign_id:
+        return base / "campaigns" / campaign_id
+    return base / "npcs"
+
+
+def get_wiki_portraits_dir(campaign_id: str | None = None) -> Path:
+    """
+    Get the wiki portraits directory path.
+
+    Args:
+        campaign_id: If provided, returns campaign-specific directory.
+    """
+    base = _get_project_root() / "wiki" / "assets" / "portraits"
+    if campaign_id:
+        return base / "campaigns" / campaign_id
+    return base / "npcs"
+
+
+def yaml_exists(name: str, campaign_id: str | None = None) -> bool:
+    """
+    Check if a character YAML file exists for the given name.
+
+    Args:
+        name: Character/NPC name
+        campaign_id: Campaign ID for campaign-specific lookup.
+                    If None, checks legacy global directory.
 
     Returns:
-        Path to created file, or None if file already exists
+        True if YAML file exists
     """
-    if characters_dir is None:
-        characters_dir = get_characters_dir()
+    characters_dir = get_characters_dir(campaign_id)
+    slug = slugify(name)
+    yaml_path = characters_dir / f"{slug}.yaml"
 
-    # Ensure directory exists
+    # Check campaign-specific first
+    if yaml_path.exists():
+        return True
+
+    # Fall back to global directory for backward compatibility
+    if campaign_id:
+        global_dir = get_characters_dir(None)
+        global_path = global_dir / f"{slug}.yaml"
+        return global_path.exists()
+
+    return False
+
+
+def load_character_yaml(name: str, campaign_id: str | None = None) -> dict | None:
+    """
+    Load character YAML data.
+
+    Args:
+        name: Character/NPC name
+        campaign_id: Campaign ID for campaign-specific lookup
+
+    Returns:
+        Character data dict or None if not found
+    """
+    slug = slugify(name)
+
+    # Check campaign-specific first
+    if campaign_id:
+        campaign_dir = get_characters_dir(campaign_id)
+        campaign_path = campaign_dir / f"{slug}.yaml"
+        if campaign_path.exists():
+            with open(campaign_path, "r", encoding="utf-8") as f:
+                return yaml.safe_load(f)
+
+    # Fall back to global directory
+    global_dir = get_characters_dir(None)
+    global_path = global_dir / f"{slug}.yaml"
+    if global_path.exists():
+        with open(global_path, "r", encoding="utf-8") as f:
+            return yaml.safe_load(f)
+
+    return None
+
+
+def save_character_yaml(
+    name: str,
+    data: dict,
+    campaign_id: str | None = None,
+) -> Path:
+    """
+    Save character YAML data.
+
+    Args:
+        name: Character/NPC name
+        data: Character data to save
+        campaign_id: Campaign ID for campaign-specific save
+
+    Returns:
+        Path to saved file
+    """
+    characters_dir = get_characters_dir(campaign_id)
     characters_dir.mkdir(parents=True, exist_ok=True)
 
     slug = slugify(name)
     yaml_path = characters_dir / f"{slug}.yaml"
 
-    # Don't overwrite existing files
-    if yaml_path.exists():
-        return None
-
-    # Build the YAML content
-    data = YAML_TEMPLATE.copy()
-    data["name"] = name
-    data["faction"] = faction or "unknown"
-    if role:
-        data["role"] = role
-
-    # Write with nice formatting
     with open(yaml_path, "w", encoding="utf-8") as f:
         yaml.dump(
             data,
@@ -112,13 +185,48 @@ def generate_stub_yaml(
     return yaml_path
 
 
-def generate_stubs_for_campaign(npcs: list, characters_dir: Path | None = None) -> list[Path]:
+def generate_stub_yaml(
+    name: str,
+    faction: str | None = None,
+    role: str | None = None,
+    campaign_id: str | None = None,
+) -> Path | None:
+    """
+    Generate a stub YAML file for an NPC if one doesn't exist.
+
+    Args:
+        name: NPC name
+        faction: Faction affiliation (optional)
+        role: NPC role like "contact", "merchant" (optional)
+        campaign_id: Campaign ID for campaign-specific save
+
+    Returns:
+        Path to created file, or None if file already exists
+    """
+    # Check if already exists (campaign-specific or global)
+    if yaml_exists(name, campaign_id):
+        return None
+
+    # Build the YAML content
+    data = YAML_TEMPLATE.copy()
+    data["name"] = name
+    data["faction"] = faction or "unknown"
+    if role:
+        data["role"] = role
+
+    return save_character_yaml(name, data, campaign_id)
+
+
+def generate_stubs_for_campaign(
+    npcs: list,
+    campaign_id: str | None = None,
+) -> list[Path]:
     """
     Generate YAML stubs for all NPCs in a campaign that don't have them.
 
     Args:
         npcs: List of NPC objects (must have .name and .faction attributes)
-        characters_dir: Override characters directory (for testing)
+        campaign_id: Campaign ID for campaign-specific saves
 
     Returns:
         List of paths to newly created YAML files
@@ -129,7 +237,6 @@ def generate_stubs_for_campaign(npcs: list, characters_dir: Path | None = None) 
         # Extract role from agenda if available
         role = None
         if hasattr(npc, "agenda") and npc.agenda:
-            # Agenda might hint at role based on wants/fears
             agenda = npc.agenda
             if hasattr(agenda, "wants"):
                 wants = agenda.wants.lower() if agenda.wants else ""
@@ -149,7 +256,7 @@ def generate_stubs_for_campaign(npcs: list, characters_dir: Path | None = None) 
             name=npc.name,
             faction=faction_str,
             role=role,
-            characters_dir=characters_dir,
+            campaign_id=campaign_id,
         )
 
         if path:
@@ -158,68 +265,116 @@ def generate_stubs_for_campaign(npcs: list, characters_dir: Path | None = None) 
     return created
 
 
-def get_portraits_dir() -> Path:
-    """Get the source portraits directory path (assets/portraits/npcs/)."""
-    return Path(__file__).parent.parent.parent.parent / "assets" / "portraits" / "npcs"
-
-
-def get_webui_portraits_dir() -> Path:
-    """Get the web UI portraits directory path."""
-    return Path(__file__).parent.parent.parent.parent / "sentinel-ui" / "public" / "assets" / "portraits" / "npcs"
-
-
-def get_wiki_portraits_dir() -> Path:
-    """Get the wiki portraits directory path."""
-    return Path(__file__).parent.parent.parent.parent / "wiki" / "assets" / "portraits" / "npcs"
-
-
-def sync_portraits() -> dict:
+def portrait_exists(name: str, campaign_id: str | None = None) -> bool:
     """
-    Sync portraits from source directory to web UI and wiki.
+    Check if a portrait exists for the given name.
 
-    Source: assets/portraits/npcs/
-    Destinations:
-      - sentinel-ui/public/assets/portraits/npcs/ (web UI)
-      - wiki/assets/portraits/npcs/ (Obsidian)
+    Args:
+        name: Character/NPC name
+        campaign_id: Campaign ID for campaign-specific lookup
 
     Returns:
-        dict with 'copied_to_webui' and 'copied_to_wiki' lists of filenames
+        True if portrait file exists
     """
-    source_dir = get_portraits_dir()
-    webui_dir = get_webui_portraits_dir()
-    wiki_dir = get_wiki_portraits_dir()
+    slug = slugify(name)
 
-    result = {
-        "copied_to_webui": [],
-        "copied_to_wiki": [],
-    }
+    # Check campaign-specific first
+    if campaign_id:
+        campaign_dir = get_portraits_dir(campaign_id)
+        if (campaign_dir / f"{slug}.png").exists():
+            return True
 
-    # Skip if source doesn't exist
+    # Fall back to global directory
+    global_dir = get_portraits_dir(None)
+    return (global_dir / f"{slug}.png").exists()
+
+
+def get_portrait_path(name: str, campaign_id: str | None = None) -> Path | None:
+    """
+    Get the path to a portrait file, checking campaign-specific first.
+
+    Args:
+        name: Character/NPC name
+        campaign_id: Campaign ID for campaign-specific lookup
+
+    Returns:
+        Path to portrait or None if not found
+    """
+    slug = slugify(name)
+
+    # Check campaign-specific first
+    if campaign_id:
+        campaign_dir = get_portraits_dir(campaign_id)
+        campaign_path = campaign_dir / f"{slug}.png"
+        if campaign_path.exists():
+            return campaign_path
+
+    # Fall back to global directory
+    global_dir = get_portraits_dir(None)
+    global_path = global_dir / f"{slug}.png"
+    if global_path.exists():
+        return global_path
+
+    return None
+
+
+def get_portrait_web_path(name: str, campaign_id: str | None = None) -> str:
+    """
+    Get the web URL path for a portrait.
+
+    Args:
+        name: Character/NPC name
+        campaign_id: Campaign ID for campaign-specific lookup
+
+    Returns:
+        Web URL path (e.g., "/assets/portraits/campaigns/axiom/kira_vance.png")
+    """
+    slug = slugify(name)
+
+    # Check campaign-specific first
+    if campaign_id:
+        campaign_dir = get_portraits_dir(campaign_id)
+        if (campaign_dir / f"{slug}.png").exists():
+            return f"/assets/portraits/campaigns/{campaign_id}/{slug}.png"
+
+    # Fall back to global directory
+    global_dir = get_portraits_dir(None)
+    if (global_dir / f"{slug}.png").exists():
+        return f"/assets/portraits/npcs/{slug}.png"
+
+    # Default placeholder
+    return "/assets/portraits/placeholder.svg"
+
+
+def sync_portraits(campaign_id: str | None = None) -> dict:
+    """
+    Sync portraits to wiki directory.
+
+    For campaign-specific portraits, syncs from web UI to wiki.
+
+    Args:
+        campaign_id: Campaign ID for campaign-specific sync
+
+    Returns:
+        dict with 'copied_to_wiki' list of filenames
+    """
+    source_dir = get_portraits_dir(campaign_id)
+    wiki_dir = get_wiki_portraits_dir(campaign_id)
+
+    result = {"copied_to_wiki": []}
+
     if not source_dir.exists():
         return result
 
-    # Ensure destination directories exist
-    webui_dir.mkdir(parents=True, exist_ok=True)
     wiki_dir.mkdir(parents=True, exist_ok=True)
 
-    # Sync each portrait
     for portrait in source_dir.glob("*.png"):
-        # Copy to web UI if missing or different size
-        webui_dest = webui_dir / portrait.name
-        if not webui_dest.exists() or webui_dest.stat().st_size != portrait.stat().st_size:
-            try:
-                shutil.copy2(portrait, webui_dest)
-                result["copied_to_webui"].append(portrait.name)
-            except Exception:
-                pass  # Best effort
-
-        # Copy to wiki if missing or different size
         wiki_dest = wiki_dir / portrait.name
         if not wiki_dest.exists() or wiki_dest.stat().st_size != portrait.stat().st_size:
             try:
                 shutil.copy2(portrait, wiki_dest)
                 result["copied_to_wiki"].append(portrait.name)
             except Exception:
-                pass  # Best effort
+                pass
 
     return result

@@ -1677,9 +1677,10 @@ def cmd_start(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
 
     char = manager.current.characters[0]
 
-    # Check if character needs appearance description
+    # Check if character needs appearance description (campaign-specific)
     from ..state.character_yaml import yaml_exists
-    needs_appearance = not yaml_exists(char.name)
+    campaign_id = manager.current.meta.id if manager.current else None
+    needs_appearance = not yaml_exists(char.name, campaign_id)
 
     # Build character context
     char_context = f"I'm playing {char.name}, a {char.background.value}."
