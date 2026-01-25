@@ -1270,9 +1270,16 @@ class Campaign(BaseModel):
 
     This is the root model that gets serialized to JSON.
     Versioned for migration support.
+
+    Note: _persisted tracks whether this campaign has been explicitly saved.
+    Campaigns exist in-memory by default and only write to disk on /save.
     """
     schema_version: str = "1.6.0"  # Added Session Bridging
     saved_at: datetime = Field(default_factory=datetime.now)
+
+    # Internal state - not serialized to JSON
+    # Tracks whether campaign has been explicitly saved to disk
+    persisted_: bool = Field(default=False, exclude=True, alias="_persisted")
 
     meta: CampaignMeta
     characters: list[Character] = Field(default_factory=list)
