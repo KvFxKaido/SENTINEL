@@ -105,10 +105,20 @@ Portraits appear in Codec frames for both player and NPC messages.
 
 ### Adding a Portrait
 
-1. **Create the image** — Any size PNG works, but square (1:1) or portrait (3:4) ratios look best
+1. **Create the image** — PNG format, see dimensions below
 2. **Name it** — Use lowercase with underscores: `alex_chen.png`, `elder_kara.png`
 3. **Drop it in** — Place in `public/assets/portraits/npcs/`
 4. **Done** — The UI auto-detects portraits by character name
+
+### Recommended Dimensions
+
+| Aspect | Size | Notes |
+|--------|------|-------|
+| **Square (1:1)** | 256×256 or 512×512 | Recommended — fills frame perfectly |
+| Portrait (3:4) | 384×512 | Works well — face stays visible |
+| Any size | — | Will be cropped to fit (center-top) |
+
+The frame displays at 128×128px (64×64 on mobile). Images are scaled with `object-fit: cover` and `object-position: center top`, so faces near the top of the image are preserved when cropping.
 
 ### Naming Convention
 
