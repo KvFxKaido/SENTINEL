@@ -369,6 +369,15 @@ Deploys Claude as a player to interact with SENTINEL through the bridge API. Use
 
 **Requires:** Bridge running at `localhost:3333` with Claude backend.
 
+### `/playtest-web` — Visual UI Testing
+Uses Chrome automation to test the web UI visually. Catches bugs that API testing misses:
+- Layout issues, CSS bugs, responsive breakpoints
+- State display sync (UI not updating after commands)
+- Codec frame styling and NPC rendering
+- Form interaction and accessibility
+
+**Requires:** Bridge at `localhost:3333` + Web UI at `localhost:4321` + Claude in Chrome extension.
+
 **Philosophy:** These aren't just tools for the user to invoke — they're force multipliers. If consulting would improve a decision or deploying would speed up work, do it.
 
 ---
