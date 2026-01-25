@@ -647,6 +647,33 @@ class MemoryTrigger(BaseModel):
     triggered: bool = False  # Has this already fired?
 
 
+class LeverageType(str, Enum):
+    """Types of leverage the player can hold over an NPC."""
+    FINANCIAL = "financial"          # Embezzlement, debt, bribery
+    PERSONAL = "personal"            # Affairs, secrets, hidden identity
+    PROFESSIONAL = "professional"    # Incompetence, fraud, unauthorized actions
+    FACTION = "faction"              # Betrayal, double-dealing, heresy
+    CRIMINAL = "criminal"            # Crimes, smuggling, violence
+
+
+class PlayerLeverage(BaseModel):
+    """
+    Compromising information the player holds over an NPC.
+
+    Using leverage is coercive — it works, but creates resentment
+    and can never lead to genuine loyalty.
+    """
+    type: LeverageType
+    description: str  # "Embezzled 2000 credits from Lattice infrastructure fund"
+    acquired_session: int
+    used: bool = False  # Has it been deployed?
+    burned: bool = False  # Has it been exposed publicly?
+
+    # Consequences of using this leverage
+    threat_made: bool = False  # Implicit threat (cooperation without exposure)
+    deployed: bool = False  # Explicit deployment (forced major cooperation)
+
+
 class NPCInteraction(BaseModel):
     """Record of a single interaction with an NPC."""
     session: int
@@ -709,6 +736,13 @@ class NPC(BaseModel):
 
     # Memory triggers - react to tagged events
     memory_triggers: list[MemoryTrigger] = Field(default_factory=list)
+
+    # Player leverage - compromising info player holds over this NPC
+    player_leverage: PlayerLeverage | None = None
+
+    # Coercion state - set when leverage is used
+    coerced: bool = False  # NPC is cooperating under duress
+    resentment: bool = False  # NPC is actively seeking counter-leverage
 
     def get_effective_disposition(self, faction_standing: Standing | None = None) -> Disposition:
         """
@@ -791,6 +825,90 @@ class NPC(BaseModel):
         """
         from ..rules.npc import check_triggers
         return check_triggers(self, tags)
+
+    def use_leverage(
+        self,
+        action: Literal["threaten", "deploy", "burn"],
+        session: int,
+    ) -> dict:
+        """
+        Use player leverage over this NPC.
+
+        Actions:
+        - threaten: Implicit threat, NPC cooperates this scene
+        - deploy: Explicit use, NPC fully cooperates but gains resentment
+        - burn: Expose publicly, NPC is ruined but becomes hostile
+
+        Returns dict with:
+        - success: bool
+        - social_cost: int (energy cost to player)
+        - disposition_change: int (effect on NPC)
+        - creates_thread: bool (whether a dormant thread should be created)
+        - error: str | None
+        """
+        if not self.player_leverage:
+            return {"success": False, "error": "No leverage held over this NPC"}
+
+        if self.player_leverage.burned:
+            return {"success": False, "error": "Leverage already burned (exposed publicly)"}
+
+        result = {
+            "success": True,
+            "social_cost": 0,
+            "disposition_change": 0,
+            "creates_thread": False,
+            "error": None,
+        }
+
+        if action == "threaten":
+            # Implicit threat - cooperation without full exposure
+            result["social_cost"] = 10
+            self.player_leverage.threat_made = True
+            self.player_leverage.used = True
+            self.coerced = True
+            # No disposition change yet, but they know
+
+        elif action == "deploy":
+            # Explicit deployment - forced major cooperation
+            result["social_cost"] = 15
+            result["disposition_change"] = -15  # Drop toward hostile
+            result["creates_thread"] = True  # They'll want revenge
+            self.player_leverage.deployed = True
+            self.player_leverage.used = True
+            self.coerced = True
+            self.resentment = True
+            self.personal_standing = max(-100, self.personal_standing - 15)
+
+        elif action == "burn":
+            # Public exposure - NPC is ruined
+            result["social_cost"] = 20
+            result["disposition_change"] = -50  # Straight to hostile
+            result["creates_thread"] = True  # Definite revenge arc
+            self.player_leverage.burned = True
+            self.player_leverage.used = True
+            self.coerced = True
+            self.resentment = True
+            self.disposition = Disposition.HOSTILE
+            self.personal_standing = -100
+
+        # Record the interaction
+        self.record_interaction(
+            session=session,
+            action=f"Used leverage ({action}): {self.player_leverage.description[:30]}...",
+            outcome="NPC cooperating under duress" if action != "burn" else "NPC publicly exposed",
+            standing_change=result["disposition_change"],
+            tags=["coercion", f"leverage_{action}"],
+        )
+
+        return result
+
+    @property
+    def can_reach_loyal(self) -> bool:
+        """Check if this NPC can ever reach Loyal disposition.
+
+        Coerced NPCs can never be truly loyal - the ceiling is Warm.
+        """
+        return not self.coerced
 
 
 class FactionStanding(BaseModel):

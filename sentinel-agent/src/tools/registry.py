@@ -251,6 +251,42 @@ NPC_SCHEMAS = [
             "required": ["name", "gender", "age", "skin_tone", "build", "hair_color", "eye_color"],
         },
     },
+    {
+        "name": "acquire_leverage",
+        "description": "Record that the player has discovered compromising information about an NPC. This creates leverage that can be used for coercive persuasion.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "npc_id": {"type": "string"},
+                "leverage_type": {
+                    "type": "string",
+                    "enum": ["financial", "personal", "professional", "faction", "criminal"],
+                    "description": "Category of compromising info",
+                },
+                "description": {
+                    "type": "string",
+                    "description": "What the player discovered (e.g., 'Embezzled 2000 credits from Lattice')",
+                },
+            },
+            "required": ["npc_id", "leverage_type", "description"],
+        },
+    },
+    {
+        "name": "use_leverage",
+        "description": "Use leverage the player holds over an NPC. Costs social energy and may create consequences.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "npc_id": {"type": "string"},
+                "action": {
+                    "type": "string",
+                    "enum": ["threaten", "deploy", "burn"],
+                    "description": "threaten=implicit pressure (-10 energy), deploy=explicit use (-15 energy, resentment), burn=public exposure (-20 energy, NPC ruined/hostile)",
+                },
+            },
+            "required": ["npc_id", "action"],
+        },
+    },
 ]
 
 # Hinge and thread tools
@@ -697,6 +733,103 @@ def create_default_registry(manager: "CampaignManager") -> ToolRegistry:
             "narrative_hint": f"Appearance recorded for {name}. Portrait can be generated with /portrait.",
         }
 
+    def handle_acquire_leverage(**kwargs) -> dict:
+        """Record player discovering compromising info about an NPC."""
+        from ..state.schema import PlayerLeverage, LeverageType
+
+        npc_id = kwargs["npc_id"]
+        leverage_type = kwargs["leverage_type"]
+        description = kwargs["description"]
+
+        # Find the NPC
+        npc = manager.get_npc(npc_id)
+        if not npc:
+            return {"error": f"NPC not found: {npc_id}"}
+
+        # Check if already has leverage
+        if npc.player_leverage:
+            return {
+                "error": "Already hold leverage over this NPC",
+                "existing": npc.player_leverage.description,
+            }
+
+        # Get current session
+        session = manager.current.meta.session_count if manager.current else 1
+
+        # Create the leverage record
+        npc.player_leverage = PlayerLeverage(
+            type=LeverageType(leverage_type),
+            description=description,
+            acquired_session=session,
+        )
+
+        # Save the campaign
+        manager.save()
+
+        return {
+            "acquired": True,
+            "npc": npc.name,
+            "leverage_type": leverage_type,
+            "description": description,
+            "narrative_hint": f"You now hold leverage over {npc.name}. This can be used for coercive persuasion, but comes with costs.",
+        }
+
+    def handle_use_leverage(**kwargs) -> dict:
+        """Use leverage the player holds over an NPC."""
+        npc_id = kwargs["npc_id"]
+        action = kwargs["action"]
+
+        # Find the NPC
+        npc = manager.get_npc(npc_id)
+        if not npc:
+            return {"error": f"NPC not found: {npc_id}"}
+
+        # Get current session
+        session = manager.current.meta.session_count if manager.current else 1
+
+        # Use the leverage
+        result = npc.use_leverage(action, session)
+
+        if not result["success"]:
+            return result
+
+        # Apply social energy cost
+        char = manager.current.characters[0] if manager.current and manager.current.characters else None
+        if char and char.social_energy:
+            char.social_energy.current = max(0, char.social_energy.current - result["social_cost"])
+
+        # Create dormant thread if needed
+        if result["creates_thread"]:
+            manager.queue_dormant_thread(
+                origin=f"{npc.name} coerced via leverage",
+                trigger_condition=f"{npc.name} finds opportunity for retaliation",
+                consequence=f"{npc.name} attempts to expose or harm the player",
+                severity="moderate" if action == "deploy" else "major",
+            )
+
+        # Save the campaign
+        manager.save()
+
+        return {
+            "success": True,
+            "npc": npc.name,
+            "action": action,
+            "social_cost": result["social_cost"],
+            "npc_coerced": npc.coerced,
+            "npc_resentful": npc.resentment,
+            "thread_created": result["creates_thread"],
+            "narrative_hint": _leverage_narrative(action, npc.name),
+        }
+
+    def _leverage_narrative(action: str, npc_name: str) -> str:
+        """Generate narrative hint for leverage use."""
+        if action == "threaten":
+            return f"{npc_name} cooperates, but you see the calculation in their eyes. They're weighing options."
+        elif action == "deploy":
+            return f"{npc_name} has no choice but to comply. The resentment is palpable. They will remember this."
+        else:  # burn
+            return f"{npc_name}'s reputation is destroyed. Whatever relationship existed is gone. They have nothing left to lose."
+
     # Consequence handlers
     def handle_log_hinge(**kwargs) -> dict:
         entry = manager.log_hinge_moment(
@@ -894,6 +1027,8 @@ def create_default_registry(manager: "CampaignManager") -> ToolRegistry:
         "update_npc": handle_update_npc,
         "trigger_npc_memory": handle_trigger_memory,
         "describe_npc_appearance": handle_describe_npc_appearance,
+        "acquire_leverage": handle_acquire_leverage,
+        "use_leverage": handle_use_leverage,
         "log_hinge_moment": handle_log_hinge,
         "queue_dormant_thread": handle_queue_thread,
         "surface_dormant_thread": handle_surface_thread,
