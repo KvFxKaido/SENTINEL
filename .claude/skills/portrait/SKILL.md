@@ -49,7 +49,7 @@ Modern post-apocalyptic cyberpunk aesthetic. NOT fantasy, NOT medieval, NOT anim
 Dark atmospheric background with [FACTION_COLOR] accent lighting.
 High detail, dramatic rim lighting, shallow depth of field.
 Bust framing, 3/4 angle, looking slightly off-camera.
-Save the image to C:\dev\SENTINEL\assets\portraits\npcs\{name}.png
+Save the image to C:\dev\SENTINEL\sentinel-ui\public\assets\portraits\npcs\{name}.png
 ```
 
 ### Person Descriptor Mapping (CRITICAL)
@@ -107,11 +107,11 @@ Use a 3-minute timeout (180000ms).
 
 NanoBanana sometimes saves to `nanobanana-output/` instead of the requested path.
 
-1. Check if file exists at `assets/portraits/npcs/{name}.png`
+1. Check if file exists at `sentinel-ui/public/assets/portraits/npcs/{name}.png`
 2. If not, check `nanobanana-output/` for recent PNG files
 3. Move the most recent one to the correct location:
    ```bash
-   mv "C:/dev/SENTINEL/nanobanana-output/[filename].png" "C:/dev/SENTINEL/assets/portraits/npcs/{name}.png"
+   mv "C:/dev/SENTINEL/nanobanana-output/[filename].png" "C:/dev/SENTINEL/sentinel-ui/public/assets/portraits/npcs/{name}.png"
    ```
 
 ## Step 5: Report Result
@@ -148,7 +148,7 @@ Nexus analyst survivor. Data visors, sensor arrays, sleek tech fabric.
 Dark atmospheric background with blue (#00A8E8) accent lighting.
 High detail, dramatic rim lighting, shallow depth of field.
 Bust framing, 3/4 angle, looking slightly off-camera.
-Save the image to C:\dev\SENTINEL\assets\portraits\npcs\cipher.png
+Save the image to C:\dev\SENTINEL\sentinel-ui\public\assets\portraits\npcs\cipher.png
 ```
 
 ## Error Handling

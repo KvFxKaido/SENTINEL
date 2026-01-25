@@ -284,13 +284,13 @@ export class SentinelProcess {
         reject(err);
       });
 
-      // Timeout after 30 seconds
+      // Timeout after 2 minutes (LLM calls can take a while)
       setTimeout(() => {
         if (this.pendingRequests.has(id)) {
           this.pendingRequests.delete(id);
-          reject(new Error("Request timed out"));
+          reject(new Error("Request timed out after 120 seconds"));
         }
-      }, 30000);
+      }, 120000);
     });
   }
 

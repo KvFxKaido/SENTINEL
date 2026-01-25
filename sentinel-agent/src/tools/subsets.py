@@ -18,6 +18,7 @@ CORE_TOOLS = {
 PHASE_TOOLS = {
     "briefing": CORE_TOOLS | {
         "update_npc",
+        "describe_npc_appearance",  # For character YAML on first /start
     },
     "planning": CORE_TOOLS | {
         "update_character",

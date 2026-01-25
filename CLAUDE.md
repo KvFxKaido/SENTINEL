@@ -390,6 +390,15 @@ Uses Chrome automation to test the web UI visually. Catches bugs that API testin
 4. **Honor player choices** — No "right answers," no punishment for creativity
 5. **Validate limits** — Social energy depletion should feel humane, not punitive
 
+## Test Campaigns
+
+| Campaign | Owner | Purpose |
+|----------|-------|---------|
+| `cipher` | Shawn | Primary playtest campaign |
+| `axiom` | Claude | AI assistant testing save (do not delete) |
+
+The `axiom` campaign is used by Claude for testing new features, command flows, and UI changes. It has a Ghost background character named "Axiom" and serves as a safe sandbox for development testing.
+
 ## License
 
 CC BY-NC 4.0

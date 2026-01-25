@@ -162,7 +162,7 @@
       if (text.startsWith('/')) {
         // Slash command
         const [cmd, ...args] = text.slice(1).split(' ');
-        
+
         // Client-side visual test
         if (cmd === 'test') {
           addMessage('gm', 'Kira Vance: "Secure channel established. Visual diagnostics green. The Codec system is operational."');
@@ -264,7 +264,10 @@
   }
 
   function parseSpeaker(content: string): { name?: string; message: string } {
-    const match = content.match(/^([A-Za-z0-9 .'\-]+):\s*([\s\S]+)$/);
+    // Strip markdown bold from the start if present (e.g., **Vex:** -> Vex:)
+    let normalizedContent = content.replace(/^\*\*([^*]+)\*\*:/, '$1:');
+
+    const match = normalizedContent.match(/^([A-Za-z0-9 .'\-]+):\s*([\s\S]+)$/);
     if (!match) return { message: content };
 
     let message = match[2].trim();

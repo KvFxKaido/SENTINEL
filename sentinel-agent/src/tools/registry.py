@@ -186,6 +186,71 @@ NPC_SCHEMAS = [
             "required": ["tags"],
         },
     },
+    {
+        "name": "describe_npc_appearance",
+        "description": "Record an NPC's physical appearance for portrait generation. Call this when first describing an NPC or when asked about their appearance.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "NPC's full name",
+                },
+                "faction": {
+                    "type": "string",
+                    "description": "Faction affiliation",
+                },
+                "gender": {
+                    "type": "string",
+                    "enum": ["masculine", "feminine", "androgynous"],
+                },
+                "age": {
+                    "type": "string",
+                    "enum": ["young", "adult", "middle-aged", "elder"],
+                },
+                "skin_tone": {
+                    "type": "string",
+                    "description": "e.g., pale, fair, medium, olive, brown, dark",
+                },
+                "build": {
+                    "type": "string",
+                    "enum": ["slight", "lean", "average", "athletic", "stocky", "heavy"],
+                },
+                "hair_color": {"type": "string"},
+                "hair_length": {
+                    "type": "string",
+                    "enum": ["bald", "short", "medium", "long"],
+                },
+                "hair_style": {
+                    "type": "string",
+                    "description": "e.g., straight, curly, braided, mohawk, dreadlocks",
+                },
+                "eye_color": {"type": "string"},
+                "facial_features": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Distinctive facial features like 'sharp jawline', 'high cheekbones'",
+                },
+                "augmentations": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Visible cybernetic enhancements",
+                },
+                "scars": {"type": "string", "description": "Notable scars"},
+                "tattoos": {"type": "string", "description": "Visible tattoos"},
+                "other_features": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Clothing, accessories, distinctive items always present",
+                },
+                "default_expression": {
+                    "type": "string",
+                    "description": "Typical expression: wary, stern, warm, amused, neutral",
+                },
+            },
+            "required": ["name", "gender", "age", "skin_tone", "build", "hair_color", "eye_color"],
+        },
+    },
 ]
 
 # Hinge and thread tools
@@ -589,6 +654,57 @@ def create_default_registry(manager: "CampaignManager") -> ToolRegistry:
             "reactions": triggered,
         }
 
+    def handle_describe_npc_appearance(**kwargs) -> dict:
+        """Save NPC appearance to character YAML for portrait generation."""
+        from ..state.character_yaml import get_characters_dir, slugify
+        import yaml
+
+        name = kwargs["name"]
+        characters_dir = get_characters_dir()
+        characters_dir.mkdir(parents=True, exist_ok=True)
+
+        slug = slugify(name)
+        yaml_path = characters_dir / f"{slug}.yaml"
+
+        # Build appearance data from kwargs
+        data = {
+            "name": name,
+            "faction": kwargs.get("faction", "unknown"),
+            "role": kwargs.get("role", "contact"),
+            "gender": kwargs.get("gender", "unknown"),
+            "age": kwargs.get("age", "adult"),
+            "skin_tone": kwargs.get("skin_tone", "unknown"),
+            "build": kwargs.get("build", "average"),
+            "hair_color": kwargs.get("hair_color", "unknown"),
+            "hair_length": kwargs.get("hair_length", "unknown"),
+            "hair_style": kwargs.get("hair_style", "unknown"),
+            "eye_color": kwargs.get("eye_color", "unknown"),
+            "facial_features": kwargs.get("facial_features", []),
+            "augmentations": kwargs.get("augmentations", []),
+            "scars": kwargs.get("scars"),
+            "tattoos": kwargs.get("tattoos"),
+            "other_features": kwargs.get("other_features", []),
+            "default_expression": kwargs.get("default_expression", "neutral"),
+        }
+
+        # Write YAML
+        with open(yaml_path, "w", encoding="utf-8") as f:
+            yaml.dump(
+                data,
+                f,
+                default_flow_style=False,
+                allow_unicode=True,
+                sort_keys=False,
+                width=80,
+            )
+
+        return {
+            "saved": True,
+            "path": str(yaml_path.name),
+            "name": name,
+            "narrative_hint": f"Appearance recorded for {name}. Portrait can be generated with /portrait.",
+        }
+
     # Consequence handlers
     def handle_log_hinge(**kwargs) -> dict:
         entry = manager.log_hinge_moment(
@@ -785,6 +901,7 @@ def create_default_registry(manager: "CampaignManager") -> ToolRegistry:
         "update_faction": handle_update_faction,
         "update_npc": handle_update_npc,
         "trigger_npc_memory": handle_trigger_memory,
+        "describe_npc_appearance": handle_describe_npc_appearance,
         "log_hinge_moment": handle_log_hinge,
         "queue_dormant_thread": handle_queue_thread,
         "surface_dormant_thread": handle_surface_thread,

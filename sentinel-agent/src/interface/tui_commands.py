@@ -81,8 +81,20 @@ def tui_load(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
 def tui_save(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
     """Save current campaign to disk."""
     if app.manager and app.manager.current:
-        app.manager.persist_campaign()
+        result = app.manager.persist_campaign()
         log.write(Text.from_markup(f"[{Theme.FRIENDLY}]Campaign saved![/{Theme.FRIENDLY}]"))
+
+        # Report any newly created character YAML stubs
+        if result.get("character_stubs"):
+            log.write(Text.from_markup(f"[{Theme.DIM}]Created character stubs for portrait generation:[/{Theme.DIM}]"))
+            for path in result["character_stubs"]:
+                log.write(Text.from_markup(f"  [{Theme.ACCENT}]{path.name}[/{Theme.ACCENT}]"))
+
+        # Report synced portraits
+        sync = result.get("portraits_synced", {})
+        synced_count = len(sync.get("copied_to_webui", [])) + len(sync.get("copied_to_wiki", []))
+        if synced_count > 0:
+            log.write(Text.from_markup(f"[{Theme.DIM}]Synced {synced_count} portrait(s) to web UI and wiki[/{Theme.DIM}]"))
     else:
         log.write(Text.from_markup(f"[{Theme.WARNING}]No campaign to save[/{Theme.WARNING}]"))
 
@@ -232,11 +244,101 @@ def tui_checkpoint(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
 # -----------------------------------------------------------------------------
 
 def tui_start(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
-    """Begin the story."""
+    """
+    Begin the story.
+
+    Smart behavior based on game state:
+    - No saves: Guides to /new
+    - One save: Auto-loads and begins
+    - Multiple saves: Shows list with quick-select numbers
+    - Campaign loaded: Begins the story
+
+    Usage:
+        /start          - Smart start (auto-load or show options)
+        /start <n>      - Load campaign #n and start
+        /start <name>   - Load campaign by name and start
+    """
+    campaigns = app.manager.list_campaigns()
+
+    # Smart loading: handle case where no campaign is loaded
     if not app.manager or not app.manager.current:
-        log.write(Text.from_markup(f"[{Theme.WARNING}]Load a campaign first[/{Theme.WARNING}]"))
+        # No saves exist - guide to character creation
+        if not campaigns:
+            log.write(Text.from_markup(f"[bold {Theme.ACCENT}]Welcome to SENTINEL[/bold {Theme.ACCENT}]"))
+            log.write(Text.from_markup(f"[{Theme.DIM}]No campaigns found. Create one with /new <name>[/{Theme.DIM}]"))
+            return
+
+        # Exactly one save - auto-load it
+        if len(campaigns) == 1:
+            campaign = app.manager.load_campaign("1")
+            if campaign:
+                log.write(Text.from_markup(f"[{Theme.DIM}]Auto-loaded: {campaign.meta.name}[/{Theme.DIM}]"))
+                app.refresh_all_panels()
+            # Fall through to start logic below
+
+        # Multiple saves - need selection
+        elif len(campaigns) > 1:
+            # If args provided, use as campaign selector
+            if args:
+                campaign = app.manager.load_campaign(args[0])
+                if campaign:
+                    log.write(Text.from_markup(f"[{Theme.FRIENDLY}]Loaded: {campaign.meta.name}[/{Theme.FRIENDLY}]"))
+                    app.refresh_all_panels()
+                    # Fall through to start logic below
+                else:
+                    log.write(Text.from_markup(f"[{Theme.DANGER}]Campaign not found[/{Theme.DANGER}]"))
+                    return
+            else:
+                # Show list with quick-select hint
+                log.write(Text.from_markup(f"[bold {Theme.TEXT}]Your Campaigns:[/bold {Theme.TEXT}]"))
+                for i, c in enumerate(campaigns, 1):
+                    char_name = c.get("character", "—")
+                    log.write(Text.from_markup(
+                        f"  [{Theme.ACCENT}]{i}[/{Theme.ACCENT}] {c['name']} "
+                        f"[{Theme.DIM}]({char_name}, {c['session_count']} sessions)[/{Theme.DIM}]"
+                    ))
+                log.write(Text.from_markup(f"[{Theme.DIM}]Type /start <number> to begin[/{Theme.DIM}]"))
+                return
+
+    # Now we should have a campaign loaded - check for character
+    if not app.manager or not app.manager.current:
+        log.write(Text.from_markup(f"[{Theme.DANGER}]Failed to load campaign[/{Theme.DANGER}]"))
         return
-    app.handle_action("BEGIN_SESSION")
+
+    if not app.manager.current.characters:
+        log.write(Text.from_markup(f"[{Theme.WARNING}]Create a character first (/char)[/{Theme.WARNING}]"))
+        return
+
+    char = app.manager.current.characters[0]
+
+    # Check if character needs appearance description
+    from ..state.character_yaml import yaml_exists
+    needs_appearance = not yaml_exists(char.name)
+
+    # Build character context
+    char_context = f"I'm playing {char.name}, a {char.background.value}."
+    if char.appearance:
+        char_context += f" Appearance notes: {char.appearance}"
+
+    # Base prompt
+    prompt = (
+        f"Begin the campaign. {char_context} "
+        f"Set an establishing scene that introduces the world and leads naturally "
+        f"toward a situation where my skills might be needed. Start in motion — "
+        f"don't over-explain, just drop me into the fiction."
+    )
+
+    # Add appearance description request if needed
+    if needs_appearance:
+        prompt += (
+            f"\n\nAs you introduce {char.name}, use the describe_npc_appearance tool to record "
+            f"their physical appearance based on their background as a {char.background.value}. "
+            f"Include details like build, skin tone, hair, eyes, any augmentations or distinguishing "
+            f"features, and typical expression. This will be used to generate their portrait."
+        )
+        log.write(Text.from_markup(f"[{Theme.DIM}]GM will describe {char.name}'s appearance for portrait generation...[/{Theme.DIM}]"))
+
+    app.handle_action(prompt)
 
 
 def tui_mission(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
@@ -689,6 +791,80 @@ def tui_npc(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
             log.write(Text.from_markup(f"  [{Theme.TEXT}]Wants:[/{Theme.TEXT}] {npc['wants']}"))
         if npc.get('fears'):
             log.write(Text.from_markup(f"  [{Theme.TEXT}]Fears:[/{Theme.TEXT}] {npc['fears']}"))
+
+
+def tui_describe(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
+    """Ask the GM to describe a character's appearance for portrait generation.
+
+    Usage:
+        /describe <name>   - Describe any character
+        /describe me       - Describe your own character
+    """
+    if not args:
+        log.write(Text.from_markup(f"[{Theme.WARNING}]Usage: /describe <character name>[/{Theme.WARNING}]"))
+        log.write(Text.from_markup(f"[{Theme.DIM}]Asks the GM to describe a character's appearance for portrait generation.[/{Theme.DIM}]"))
+        log.write(Text.from_markup(f"[{Theme.DIM}]Use '/describe me' for your own character.[/{Theme.DIM}]"))
+        return
+
+    if not app.agent or not app.agent.is_available:
+        log.write(Text.from_markup(f"[{Theme.WARNING}]No LLM backend available[/{Theme.WARNING}]"))
+        return
+
+    name_input = " ".join(args)
+
+    # Handle "me" or "myself" to describe player character
+    is_player = name_input.lower() in ("me", "myself", "my character")
+    if is_player:
+        if app.manager and app.manager.current and app.manager.current.characters:
+            char = app.manager.current.characters[0]
+            character_name = char.name
+            context = f"This is the player character, a {char.background.value}."
+            if char.appearance:
+                context += f" Player's notes: {char.appearance}"
+        else:
+            log.write(Text.from_markup(f"[{Theme.WARNING}]No character loaded. Use /describe <name> instead.[/{Theme.WARNING}]"))
+            return
+    else:
+        character_name = name_input
+        context = ""
+        # Try to get faction context from campaign NPCs
+        if app.manager and app.manager.current:
+            for npc in app.manager.current.npcs.active + app.manager.current.npcs.dormant:
+                if npc.name.lower() == character_name.lower():
+                    if npc.faction:
+                        context = f"This NPC belongs to the {npc.faction.value} faction."
+                    break
+
+    # Check if we already have a description
+    from ..state.character_yaml import yaml_exists, get_characters_dir
+    if yaml_exists(character_name):
+        yaml_dir = get_characters_dir()
+        slug = character_name.strip().lower().replace(" ", "_").replace("'", "").replace("-", "_")
+        log.write(Text.from_markup(f"[{Theme.FRIENDLY}]Character file exists: {slug}.yaml[/{Theme.FRIENDLY}]"))
+        log.write(Text.from_markup(f"[{Theme.DIM}]Location: {yaml_dir / f'{slug}.yaml'}[/{Theme.DIM}]"))
+        log.write(Text.from_markup(f"[{Theme.DIM}]Use /portrait {character_name} to generate a portrait[/{Theme.DIM}]"))
+        return
+
+    # Prompt the GM to describe and use the tool
+    log.write(Text.from_markup(f"[{Theme.DIM}]Asking GM to describe {character_name}...[/{Theme.DIM}]"))
+
+    # Construct a prompt that encourages the GM to use the describe_npc_appearance tool
+    describe_prompt = f"""Describe the physical appearance of {character_name} in detail.
+{context}
+
+Consider faction aesthetics if applicable. Use the describe_npc_appearance tool to record their appearance with these details:
+- Physical build and age
+- Skin tone and facial features
+- Hair (color, length, style)
+- Eyes (color, any augmentations)
+- Notable features (scars, tattoos, augmentations)
+- Typical expression and demeanor
+- Distinctive clothing or accessories
+
+After recording, give a brief narrative description of how they appear."""
+
+    # Send to agent via handle_action
+    app.handle_action(describe_prompt)
 
 
 def tui_arc(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
@@ -2239,6 +2415,7 @@ def register_tui_handlers() -> None:
     set_tui_handler("/threads", tui_threads)
     set_tui_handler("/consequences", tui_threads)  # Alias
     set_tui_handler("/npc", tui_npc)
+    set_tui_handler("/describe", tui_describe)
     set_tui_handler("/lore", tui_lore)
 
     # History
