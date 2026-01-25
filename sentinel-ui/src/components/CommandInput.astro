@@ -189,7 +189,7 @@
           }
 
           // Refresh campaign state after state-modifying commands
-          const stateCommands = ['load', 'new', 'start', 'save', 'jobs', 'shop', 'roll'];
+          const stateCommands = ['load', 'new', 'start', 'save', 'jobs', 'shop', 'roll', 'char', 'status'];
           if (stateCommands.includes(cmd.toLowerCase()) && (window as any).refreshCampaignState) {
             await (window as any).refreshCampaignState();
           }

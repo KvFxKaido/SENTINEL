@@ -1,4 +1,7 @@
 ---
+// Import CodecFrame to load its global styles (used by CommandInput's createCodecHtml)
+import CodecFrame from '../components/CodecFrame.astro';
+
 interface Props {
   title?: string;
 }
@@ -16,6 +19,9 @@ const { title = 'SENTINEL' } = Astro.props;
     <title>{title}</title>
   </head>
   <body>
+    <!-- Hidden CodecFrame to load its global styles -->
+    <div style="display:none"><CodecFrame name="" /></div>
+
     <div class="game-container">
       <slot />
     </div>

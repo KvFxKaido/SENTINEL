@@ -56,20 +56,19 @@ async function findSentinelExecutable(): Promise<string> {
     console.log(`Found sentinel in PATH: ${pathResult}`);
     return "sentinel"; // Use PATH lookup at runtime
   }
-      if (appData) {
-        candidates.push(`${appData}\\\\Python\\\\${ver}\\\\Scripts\\\\${exe}`);
-      }
-      if (localAppData) {
-        candidates.push(`${localAppData}\\\\Programs\\\\Python\\\\${ver}\\\\Scripts\\\\${exe}`);
-      }
+
+  // Fallback: check common installation locations
+  const isWindows = Deno.build.os === "windows";
+  const exe = isWindows ? "sentinel.exe" : "sentinel";
+  const candidates: string[] = [];
+  const pyVersions = ["Python314", "Python313", "Python312", "Python311", "Python310", "Python39"];
+
   if (isWindows) {
     const appData = Deno.env.get("APPDATA");
     const localAppData = Deno.env.get("LOCALAPPDATA");
     const userProfile = Deno.env.get("USERPROFILE");
 
     // Common Python version patterns (newest first)
-      candidates.push(`${userProfile}\\\\.local\\\\bin\\\\${exe}`);
-
     for (const ver of pyVersions) {
       if (appData) {
         candidates.push(`${appData}\\Python\\${ver}\\Scripts\\${exe}`);
