@@ -387,12 +387,12 @@
       if (role === 'user') {
         const campaignState = getCampaignState();
         const char = campaignState?.character;
-        npcData = { 
+        npcData = {
           name: char?.name || 'YOU',
           title: formatSpeakerTitle(char?.background),
           faction: speaker.faction || 'wanderers',
           disposition: 'loyal',
-          portrait: '/assets/portraits/placeholder.svg',
+          portrait: resolvePortrait(char?.name),
           state: stateMeta,
           ...npcData
         };
