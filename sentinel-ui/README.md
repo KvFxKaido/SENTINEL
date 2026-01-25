@@ -99,6 +99,50 @@ The UI uses a 3-column TUI-style layout:
 | `CommandInput.astro` | Prompt input + command dispatch + codec card rendering |
 | `index.astro` | Main page with SELF/WORLD panels, state management |
 
+## Character Portraits
+
+Portraits appear in Codec frames for both player and NPC messages.
+
+### Adding a Portrait
+
+1. **Create the image** — Any size PNG works, but square (1:1) or portrait (3:4) ratios look best
+2. **Name it** — Use lowercase with underscores: `alex_chen.png`, `elder_kara.png`
+3. **Drop it in** — Place in `public/assets/portraits/npcs/`
+4. **Done** — The UI auto-detects portraits by character name
+
+### Naming Convention
+
+| Character Name | Expected Filename |
+|---------------|-------------------|
+| Cipher | `cipher.png` |
+| Elder Kara | `elder_kara.png` |
+| Alex Chen | `alex_chen.png` |
+| DR-7 | `dr-7.png` |
+
+### Fallback Behavior
+
+If no portrait exists for a character, a "NO SIGNAL" placeholder is shown. The `<img onerror>` handler ensures graceful degradation — no broken image icons.
+
+### Name Aliases
+
+For characters whose names don't match their portrait filename, add an alias in `CommandInput.astro`:
+
+```javascript
+const PORTRAIT_ALIASES: Record<string, string> = {
+  'elder kara': 'elder_kara',  // Spaces → underscores
+  'kara': 'elder_kara',        // Nickname → full name
+};
+```
+
+### Current Portraits
+
+| Character | File | Notes |
+|-----------|------|-------|
+| Cipher | `cipher.png` | Player character |
+| Vex | `vex.png` | NPC |
+| Rook | `rook.png` | NPC |
+| Elder Kara | `elder_kara.png` | NPC (aliased from "Kara") |
+
 ## API Client
 
 `src/lib/bridge.ts` provides typed functions:
