@@ -134,14 +134,18 @@ const PORTRAIT_ALIASES: Record<string, string> = {
 };
 ```
 
-### Current Portraits
+### Example Portraits
+
+The repo includes sample portraits from a test campaign. These serve as examples — your campaign will have different characters:
 
 | Character | File | Notes |
 |-----------|------|-------|
-| Cipher | `cipher.png` | Player character |
-| Vex | `vex.png` | NPC |
-| Rook | `rook.png` | NPC |
-| Elder Kara | `elder_kara.png` | NPC (aliased from "Kara") |
+| Cipher | `cipher.png` | Example player character |
+| Vex | `vex.png` | Example NPC |
+| Rook | `rook.png` | Example NPC |
+| Elder Kara | `elder_kara.png` | Example NPC (aliased from "Kara") |
+
+Characters without portraits automatically show a "NO SIGNAL" placeholder — no setup required.
 
 ## API Client
 
