@@ -51,6 +51,25 @@ Tracks emotional bandwidth for interaction.
 **Personal Trigger:** +5% extra drain in specific situations
 **Sanctuary:** +5% bonus recovery in specific places
 
+## Coercive Leverage
+
+Player can discover compromising info about NPCs during investigation/hacking.
+
+**Using Leverage (costs social energy):**
+
+| Action | Cost | Effect |
+|--------|------|--------|
+| Threaten | -10% | NPC cooperates this scene |
+| Deploy | -15% | Full cooperation, NPC gains resentment, creates thread |
+| Burn | -20% | NPC ruined publicly, becomes Hostile, creates major thread |
+
+**Consequences:**
+- Coerced NPCs can never reach Loyal disposition (ceiling is Warm)
+- Resentful NPCs actively seek counter-leverage
+- Burned leverage creates dormant revenge threads
+
+**Tools:** `acquire_leverage`, `use_leverage`
+
 ## Reputation
 
 Five-tier scale per faction:
