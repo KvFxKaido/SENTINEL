@@ -100,12 +100,60 @@ class WikiAdapter:
             # Also create subdirectories
             (self.overlay_dir / "NPCs").mkdir(exist_ok=True)
             (self.overlay_dir / "sessions").mkdir(exist_ok=True)
+            (self.overlay_dir / "Characters").mkdir(exist_ok=True)
             # Create shared assets directory for portraits
             (self.wiki_dir / "assets" / "portraits" / "npcs").mkdir(parents=True, exist_ok=True)
             logger.debug(f"Wiki overlay directory: {self.overlay_dir}")
+            # Initialize dashboard templates if not present
+            self._init_dashboard_templates()
         except Exception as e:
             logger.error(f"Failed to create overlay directory: {e}")
             self.enabled = False
+
+    def _init_dashboard_templates(self) -> None:
+        """Copy dashboard templates to campaign folder if not present."""
+        templates_dir = self.wiki_dir / "templates"
+        if not templates_dir.exists():
+            logger.debug(f"No templates directory at {templates_dir}")
+            return
+
+        # Template file -> destination file mapping
+        template_mapping = {
+            "campaign_index.md": "_index.md",
+            "npc_tracker.md": "_npcs.md",
+            "thread_tracker.md": "_threads.md",
+            "faction_overview.md": "_factions.md",
+        }
+
+        # Replace campaign placeholders only - character name stays as placeholder
+        # until save_character_page is called
+        placeholders = {
+            "{{campaign_id}}": self.campaign_id,
+            "{{campaign_name}}": self.campaign_id.replace("_", " ").title(),
+            # Keep {{character_name}} as-is - will be replaced by save_character_page
+        }
+
+        for template_name, dest_name in template_mapping.items():
+            template_path = templates_dir / template_name
+            dest_path = self.overlay_dir / dest_name
+
+            # Skip if already exists (don't overwrite user edits)
+            if dest_path.exists():
+                continue
+
+            if not template_path.exists():
+                logger.debug(f"Template not found: {template_path}")
+                continue
+
+            try:
+                content = template_path.read_text(encoding="utf-8")
+                # Replace placeholders
+                for placeholder, value in placeholders.items():
+                    content = content.replace(placeholder, value)
+                dest_path.write_text(content, encoding="utf-8")
+                logger.info(f"Created dashboard: {dest_name}")
+            except Exception as e:
+                logger.warning(f"Failed to create {dest_name}: {e}")
 
     def _copy_portrait_to_wiki(self, npc_name: str) -> bool:
         """
@@ -848,6 +896,9 @@ class WikiAdapter:
             # Copy portrait to wiki if it exists
             self._copy_character_portrait_to_wiki(campaign.meta.id, name_slug)
 
+            # Update campaign index with character name
+            self._update_index_character(character.name, campaign.meta.name)
+
             logger.debug(f"Updated character page: {character.name}")
             return True
 
@@ -856,6 +907,43 @@ class WikiAdapter:
             import traceback
             traceback.print_exc()
             return False
+
+    def _update_index_character(self, character_name: str, campaign_name: str) -> None:
+        """Update the campaign index with the actual character name."""
+        index_path = self.overlay_dir / "_index.md"
+        if not index_path.exists():
+            return
+
+        try:
+            content = index_path.read_text(encoding="utf-8")
+            updated = False
+
+            # Replace character placeholder (template form)
+            if "{{character_name}}" in content:
+                content = content.replace("{{character_name}}", character_name)
+                updated = True
+
+            # Also replace generic "Character" embed that might have been set
+            # This handles the case where templates were copied with wrong default
+            # Note: Obsidian wikilinks use \| for the display text separator
+            old_embed = "![[Characters/Character\\|Character]]"
+            new_embed = f"![[Characters/{character_name}\\|{character_name}]]"
+            if old_embed in content:
+                content = content.replace(old_embed, new_embed)
+                updated = True
+
+            # Update campaign name if it was using ID as fallback
+            old_title = f"# {self.campaign_id.replace('_', ' ').title()} — Campaign Hub"
+            new_title = f"# {campaign_name} — Campaign Hub"
+            if old_title in content and old_title != new_title:
+                content = content.replace(old_title, new_title)
+                updated = True
+
+            if updated:
+                index_path.write_text(content, encoding="utf-8")
+                logger.debug(f"Updated index with character: {character_name}")
+        except Exception as e:
+            logger.warning(f"Failed to update index character: {e}")
 
     def _load_character_appearance(self, campaign_id: str, name_slug: str) -> dict | None:
         """Load character appearance from YAML file if it exists."""
