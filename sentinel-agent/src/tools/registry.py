@@ -655,16 +655,15 @@ def create_default_registry(manager: "CampaignManager") -> ToolRegistry:
         }
 
     def handle_describe_npc_appearance(**kwargs) -> dict:
-        """Save NPC appearance to character YAML for portrait generation."""
-        from ..state.character_yaml import get_characters_dir, slugify
-        import yaml
+        """Save NPC appearance to campaign-specific character YAML for portrait generation."""
+        from ..state.character_yaml import save_character_yaml
 
         name = kwargs["name"]
-        characters_dir = get_characters_dir()
-        characters_dir.mkdir(parents=True, exist_ok=True)
 
-        slug = slugify(name)
-        yaml_path = characters_dir / f"{slug}.yaml"
+        # Get campaign ID for campaign-specific storage
+        campaign_id = None
+        if manager.current:
+            campaign_id = manager.current.meta.id
 
         # Build appearance data from kwargs
         data = {
@@ -687,20 +686,13 @@ def create_default_registry(manager: "CampaignManager") -> ToolRegistry:
             "default_expression": kwargs.get("default_expression", "neutral"),
         }
 
-        # Write YAML
-        with open(yaml_path, "w", encoding="utf-8") as f:
-            yaml.dump(
-                data,
-                f,
-                default_flow_style=False,
-                allow_unicode=True,
-                sort_keys=False,
-                width=80,
-            )
+        # Save to campaign-specific directory
+        yaml_path = save_character_yaml(name, data, campaign_id)
 
         return {
             "saved": True,
             "path": str(yaml_path.name),
+            "campaign_id": campaign_id,
             "name": name,
             "narrative_hint": f"Appearance recorded for {name}. Portrait can be generated with /portrait.",
         }

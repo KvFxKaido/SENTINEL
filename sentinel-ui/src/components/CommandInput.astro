@@ -331,19 +331,23 @@
 
   const PLACEHOLDER = '/assets/portraits/placeholder.svg';
 
-  function resolvePortrait(name: string | undefined): string {
+  /**
+   * Resolve portrait path with campaign-specific lookup.
+   * Checks campaign folder first, falls back to global npcs folder.
+   */
+  function resolvePortrait(name: string | undefined, campaignId?: string | null): string {
     if (!name) return PLACEHOLDER;
 
     const normalized = name.trim().toLowerCase();
-
-    // Check aliases first (e.g., "Elder Kara" → "elder_kara")
     const alias = PORTRAIT_ALIASES[normalized];
-    if (alias) {
-      return `/assets/portraits/npcs/${alias}.png`;
+    const slug = alias || normalized.replace(/\s+/g, '_');
+
+    // Campaign-specific path takes priority
+    if (campaignId) {
+      return `/assets/portraits/campaigns/${campaignId}/${slug}.png`;
     }
 
-    // Convention-based: lowercase, replace spaces with underscores
-    const slug = normalized.replace(/\s+/g, '_');
+    // Fall back to global npcs folder (legacy support)
     return `/assets/portraits/npcs/${slug}.png`;
   }
 
@@ -403,15 +407,17 @@
     // Use Codec style for User and GM
     if (role === 'user' || role === 'gm') {
       // Setup defaults
+      const campaignState = getCampaignState();
+      const campaignId = campaignState?.campaign?.id;
+
       if (role === 'user') {
-        const campaignState = getCampaignState();
         const char = campaignState?.character;
         npcData = {
           name: char?.name || 'YOU',
           title: formatSpeakerTitle(char?.background),
           faction: speaker.faction || 'wanderers',
           disposition: 'loyal',
-          portrait: resolvePortrait(char?.name),
+          portrait: resolvePortrait(char?.name, campaignId),
           state: stateMeta,
           ...npcData
         };
@@ -422,7 +428,7 @@
           title: speaker.title || (parsedName ? 'Contact' : 'System Overseer'),
           faction: speaker.faction || resolvedNpc?.faction || 'nexus',
           disposition: speaker.disposition || resolvedNpc?.disposition || 'neutral',
-          portrait: speaker.portrait || resolvePortrait(parsedName),
+          portrait: speaker.portrait || resolvePortrait(parsedName, campaignId),
           state: stateMeta,
           ...npcData
         };
@@ -507,7 +513,19 @@
           <div class="codec-sidebar">
             <div class="portrait-frame">
               <div class="portrait-image">
-                <img src="${portrait}" alt="${name}" onerror="this.onerror=null; this.src='${PLACEHOLDER}';" />
+                <img src="${portrait}" alt="${name}" onerror="
+                  // Cascade: campaign → global → placeholder
+                  const src = this.src;
+                  if (src.includes('/campaigns/')) {
+                    // Try global folder
+                    const filename = src.split('/').pop();
+                    this.onerror = function() { this.onerror=null; this.src='${PLACEHOLDER}'; };
+                    this.src = '/assets/portraits/npcs/' + filename;
+                  } else {
+                    this.onerror = null;
+                    this.src = '${PLACEHOLDER}';
+                  }
+                " />
                 <div class="scanlines"></div>
               </div>
               <div class="corner-tl"></div>
