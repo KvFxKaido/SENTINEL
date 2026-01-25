@@ -52,10 +52,10 @@ LIMIT 5
 
 ```dataview
 TABLE WITHOUT ID
-  origin AS "Origin",
+  file.link AS "Thread",
   trigger AS "Trigger",
   severity AS "Severity"
-FROM this.file.folder
+FROM this.file.folder + "/threads"
 WHERE type = "thread" AND status != "resolved"
 SORT severity DESC
 LIMIT 5
@@ -68,8 +68,10 @@ See [[_threads]] for full list.
 ## Recent Hinges
 
 ```dataview
-LIST WITHOUT ID choice + " — " + what_shifted
-FROM this.file.folder
+TABLE WITHOUT ID
+  file.link AS "Hinge",
+  what_shifted AS "What Shifted"
+FROM this.file.folder + "/hinges"
 WHERE type = "hinge"
 SORT session DESC
 LIMIT 5
@@ -83,7 +85,7 @@ LIMIT 5
 TABLE WITHOUT ID
   file.link AS "Faction",
   standing AS "Standing"
-FROM this.file.folder
+FROM this.file.folder + "/factions"
 WHERE type = "faction-overlay"
 SORT standing DESC
 ```

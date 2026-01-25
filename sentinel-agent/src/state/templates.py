@@ -456,6 +456,219 @@ type: session
 - Standing changed: {{ from_standing }} → {{ to_standing }}
 - Cause: {{ cause }}
 """,
+
+    # -------------------------------------------------------------------------
+    # Individual Note Templates (for Dataview queries)
+    # -------------------------------------------------------------------------
+
+    "notes/thread.md.j2": """\
+---
+type: thread
+tags:
+  - thread
+  - {{ severity }}
+  - {{ campaign_id }}
+campaign: {{ campaign_id }}
+origin: "{{ origin }}"
+trigger: "{{ trigger_condition }}"
+consequence: "{{ consequence }}"
+severity: {{ severity }}
+status: {{ status }}
+created_session: {{ created_session }}
+{% if resolved_session %}resolved_session: {{ resolved_session }}{% endif %}
+---
+
+# Thread: {{ origin }}
+
+> [!{{ severity_callout }}] {{ severity | upper }} Consequence
+> **Created:** Session {{ created_session }}
+> **Status:** {{ status | title }}
+
+## Trigger Condition
+
+{{ trigger_condition }}
+
+## Consequence
+
+{{ consequence }}
+
+{% if resolution %}
+## Resolution
+
+> Resolved in Session {{ resolved_session }}
+
+{{ resolution }}
+{% endif %}
+
+---
+
+*Origin: {{ origin }}*
+""",
+
+    "notes/hinge.md.j2": """\
+---
+type: hinge
+tags:
+  - hinge
+  - {{ campaign_id }}
+{% if faction_tag %}  - {{ faction_tag }}{% endif %}
+campaign: {{ campaign_id }}
+session: {{ session }}
+choice: "{{ choice }}"
+what_shifted: "{{ what_shifted }}"
+---
+
+# Hinge: {{ choice }}
+
+> [!hinge] Irreversible Choice
+> **Session:** {{ session }}
+
+## The Situation
+
+{{ situation }}
+
+## The Choice
+
+{{ choice }}
+
+## What Shifted
+
+{{ what_shifted }}
+
+{% if effects %}
+## Immediate Effects
+
+{% for effect in effects %}- {{ effect }}
+{% endfor %}
+{% endif %}
+
+---
+
+*This moment cannot be undone.*
+""",
+
+    "notes/session.md.j2": """\
+---
+type: session
+tags:
+  - session
+  - {{ campaign_id }}
+campaign: {{ campaign_id }}
+session: {{ session_number }}
+date: {{ date }}
+title: "{{ title }}"
+---
+
+# Session {{ session_number }}: {{ title }}
+
+> **Date:** {{ date }}
+> **Location:** {{ location }}
+> **Region:** {{ region }}
+
+## Summary
+
+{{ summary }}
+
+{% if mission %}
+## Mission
+
+**{{ mission.title }}** ({{ mission.faction }})
+
+{{ mission.outcome }}
+{% endif %}
+
+{% if key_choices %}
+## Key Choices
+
+{% for choice in key_choices %}- [[hinges/{{ choice.id }}|{{ choice.choice }}]]
+{% endfor %}
+{% endif %}
+
+{% if threads_queued %}
+## Threads Queued
+
+{% for thread in threads_queued %}- [[threads/{{ thread.id }}|{{ thread.origin }}]] ({{ thread.severity | upper }})
+{% endfor %}
+{% endif %}
+
+{% if faction_changes %}
+## Faction Changes
+
+{% for change in faction_changes %}- **{{ change.faction }}:** {{ change.from }} → {{ change.to }}
+{% endfor %}
+{% endif %}
+
+{% if npcs_encountered %}
+## NPCs Encountered
+
+{% for npc in npcs_encountered %}- [[NPCs/{{ npc }}]]
+{% endfor %}
+{% endif %}
+
+---
+
+## Game Log
+
+![[_game_log]]
+""",
+
+    "notes/faction_overlay.md.j2": """\
+---
+type: faction-overlay
+tags:
+  - faction
+  - {{ faction_id }}
+  - {{ campaign_id }}
+campaign: {{ campaign_id }}
+faction: {{ faction_name }}
+faction_id: {{ faction_id }}
+standing: {{ standing }}
+recent_change: "{{ recent_change }}"
+---
+
+# {{ faction_name }}
+
+> [!abstract] Campaign Standing
+> **Current:** {{ standing }}
+{% if recent_change %}> **Recent:** {{ recent_change }}{% endif %}
+
+See [[canon/{{ faction_name }}|{{ faction_name }} (Canon)]] for faction lore.
+
+---
+
+## Standing History
+
+{% for entry in history %}
+### Session {{ entry.session }}
+
+{{ entry.from }} → {{ entry.to }}
+
+> {{ entry.cause }}
+
+{% endfor %}
+
+---
+
+## Related NPCs
+
+```dataview
+LIST
+FROM this.file.folder + "/NPCs"
+WHERE faction = "{{ faction_id }}" OR faction = "{{ faction_name }}"
+```
+
+---
+
+## Related Events
+
+```dataview
+LIST
+FROM this.file.folder
+WHERE contains(file.content, "{{ faction_name }}")
+SORT session DESC
+LIMIT 5
+```
+""",
 }
 
 
