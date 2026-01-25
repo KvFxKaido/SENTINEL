@@ -912,6 +912,11 @@ class SessionState(BaseModel):
     # Selected during planning phase, locked during execution
     loadout: list[str] = Field(default_factory=list)
 
+    # Conversation history for mid-session persistence
+    # Each dict: {"role": str, "content": str, "tool_calls": list[dict] | None, "tool_call_id": str | None}
+    # Limited to last 50 messages to prevent JSON bloat (~25KB max)
+    conversation_log: list[dict] = Field(default_factory=list)
+
 
 class SessionReflection(BaseModel):
     """Player reflections at session end."""
@@ -1274,7 +1279,7 @@ class Campaign(BaseModel):
     Note: _persisted tracks whether this campaign has been explicitly saved.
     Campaigns exist in-memory by default and only write to disk on /save.
     """
-    schema_version: str = "1.6.0"  # Added Session Bridging
+    schema_version: str = "1.7.0"  # Added conversation_log for mid-session persistence
     saved_at: datetime = Field(default_factory=datetime.now)
 
     # Internal state - not serialized to JSON

@@ -146,6 +146,9 @@ class TestEventProcessing:
         # Get campaign ID
         campaign_id = manager.current.meta.id
 
+        # Persist campaign so it can be reloaded
+        manager.persist_campaign()
+
         # Queue a faction event
         event = PendingEvent(
             event_type="faction_event",
@@ -179,6 +182,9 @@ class TestEventProcessing:
         manager.create_campaign("Test")
         campaign_id = manager.current.meta.id
 
+        # Persist campaign so it can be reloaded
+        manager.persist_campaign()
+
         # Queue an event
         event = PendingEvent(
             event_type="faction_event",
@@ -201,12 +207,14 @@ class TestEventProcessing:
         event_queue = MemoryEventQueueStore()
         manager = CampaignManager(store, event_queue)
 
-        # Create two campaigns
+        # Create two campaigns and persist them
         manager.create_campaign("Campaign 1")
         camp1_id = manager.current.meta.id
+        manager.persist_campaign()
 
         manager.create_campaign("Campaign 2")
         camp2_id = manager.current.meta.id
+        manager.persist_campaign()
 
         # Queue events for both
         event_queue.append_event(PendingEvent(
@@ -239,6 +247,7 @@ class TestEventProcessing:
         store = MemoryCampaignStore()
         manager = CampaignManager(store, event_queue=None)
         manager.create_campaign("Test")
+        manager.persist_campaign()  # Persist so it can be reloaded
 
         # Should not crash
         campaign_id = manager.current.meta.id

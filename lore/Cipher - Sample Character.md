@@ -12,9 +12,27 @@
 |-------|-------|
 | LEGAL NAME | "Cipher" (true identity unknown) |
 | CALLSIGN | CIPHER |
-| PRONOUNS | they/them |
+| PRONOUNS | he/him |
 | AGE | late 20s–early 30s (uncertain) |
-| APPEARANCE | Quiet posture, utilitarian clothing, subtle surgical traces near temples, keeps tech minimal and visible |
+
+### Physical Description
+
+| Trait | Entry |
+|-------|-------|
+| BUILD | Masculine, lean — efficient, no wasted movement |
+| SKIN TONE | Brown |
+| HAIR | Black, short dreadlocks |
+| EYES | Dark brown, augmented (subtle blue data overlay) |
+| EXPRESSION | Neutral, watchful — always scanning exits |
+
+### Distinguishing Features
+
+| Category | Details |
+|----------|---------|
+| FACIAL FEATURES | Sharp features, high cheekbones |
+| MARKS | Small temple implant (barely visible) |
+| AUGMENTATIONS | Subtle cybernetic eye overlay, data visor (usually worn) |
+| OTHER | Utilitarian clothing, quiet posture, keeps tech minimal and visible |
 
 ---
 

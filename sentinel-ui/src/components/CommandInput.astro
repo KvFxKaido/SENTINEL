@@ -3,6 +3,8 @@
 ---
 
 <div class="tui-command">
+  <div class="suggestions" id="suggestions"></div>
+
   <form id="command-form" class="command-form">
     <span class="prompt-char">></span>
     <input
@@ -121,6 +123,40 @@
     opacity: 0.5;
   }
 
+  /* Suggestions */
+  .suggestions {
+    display: none;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    padding: 0 var(--space-sm);
+    margin-bottom: var(--space-xs);
+  }
+
+  .suggestions.visible {
+    display: flex;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+  }
+
+  .suggestions .suggestion {
+    color: var(--accent-cyan);
+    cursor: pointer;
+  }
+
+  .suggestions .suggestion:hover {
+    text-decoration: underline;
+  }
+
+  .suggestions .suggestion.selected {
+    color: var(--accent-steel);
+    font-weight: bold;
+  }
+
+  .suggestions .hint {
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
   /* Loading state */
   .command-form.loading input,
   .command-form.loading button {
@@ -140,6 +176,130 @@
   const form = document.getElementById('command-form') as HTMLFormElement;
   const input = document.getElementById('command-input') as HTMLInputElement;
   const narrativeLog = document.getElementById('narrative-log');
+
+  // -----------------------------------------------------------------------------
+  // Tab Completion
+  // -----------------------------------------------------------------------------
+
+  // Available commands for tab completion (sorted by frequency of use)
+  const COMMANDS = [
+    // Common
+    '/start', '/load', '/save', '/status', '/help',
+    // Mission
+    '/mission', '/jobs', '/travel', '/region', '/shop', '/favor', '/loadout',
+    // Campaign
+    '/new', '/list', '/delete',
+    // Character
+    '/char', '/roll', '/arc', '/gear',
+    // Social
+    '/npc', '/factions', '/consult',
+    // Info
+    '/wiki', '/timeline', '/threads', '/compare',
+    // Session
+    '/debrief', '/endgame', '/retire',
+    // System
+    '/backend', '/model', '/context', '/ping', '/conversation', '/clear',
+  ];
+
+  let tabState = {
+    matches: [] as string[],
+    index: 0,
+    prefix: '',
+  };
+
+  const suggestionsEl = document.getElementById('suggestions');
+
+  // Update suggestions display
+  function updateSuggestions(matches: string[], selectedIndex: number = -1) {
+    if (!suggestionsEl) return;
+
+    if (matches.length === 0) {
+      suggestionsEl.classList.remove('visible');
+      suggestionsEl.innerHTML = '';
+      return;
+    }
+
+    // Show up to 8 suggestions
+    const displayed = matches.slice(0, 8);
+    const html = displayed.map((cmd, i) => {
+      const isSelected = i === selectedIndex;
+      return `<span class="suggestion${isSelected ? ' selected' : ''}" data-cmd="${cmd}">${cmd}</span>`;
+    }).join('');
+
+    const hint = matches.length > 8 ? `<span class="hint">+${matches.length - 8} more (Tab to cycle)</span>` :
+                 matches.length > 1 ? `<span class="hint">(Tab to cycle)</span>` : '';
+
+    suggestionsEl.innerHTML = html + hint;
+    suggestionsEl.classList.add('visible');
+
+    // Click to select suggestion
+    suggestionsEl.querySelectorAll('.suggestion').forEach(el => {
+      el.addEventListener('click', () => {
+        input.value = (el as HTMLElement).dataset.cmd || '';
+        input.focus();
+        updateSuggestions([]);
+      });
+    });
+  }
+
+  // Handle input changes for live suggestions
+  input?.addEventListener('input', () => {
+    const value = input.value;
+
+    if (!value.startsWith('/') || value.includes(' ')) {
+      updateSuggestions([]);
+      return;
+    }
+
+    const cmdPart = value.toLowerCase();
+    const matches = COMMANDS.filter(cmd => cmd.startsWith(cmdPart) && cmd !== cmdPart);
+    updateSuggestions(matches);
+  });
+
+  // Handle tab completion
+  input?.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+
+      const value = input.value;
+      if (!value.startsWith('/')) return;
+
+      const cmdPart = value.split(' ')[0].toLowerCase();
+
+      // If we're continuing a tab cycle
+      if (tabState.matches.length > 0 && cmdPart === tabState.matches[tabState.index]) {
+        // Cycle to next match
+        tabState.index = (tabState.index + 1) % tabState.matches.length;
+        input.value = tabState.matches[tabState.index];
+        updateSuggestions(tabState.matches, tabState.index);
+        return;
+      }
+
+      // New tab completion
+      tabState.prefix = cmdPart;
+      tabState.matches = COMMANDS.filter(cmd => cmd.startsWith(cmdPart) && cmd !== cmdPart);
+      tabState.index = 0;
+
+      if (tabState.matches.length > 0) {
+        input.value = tabState.matches[0];
+        updateSuggestions(tabState.matches, 0);
+      }
+    } else if (e.key === 'Escape') {
+      // Clear suggestions on Escape
+      updateSuggestions([]);
+      tabState.matches = [];
+    } else {
+      // Reset tab state on any other key
+      tabState.matches = [];
+      tabState.index = 0;
+    }
+  });
+
+  // Clear suggestions on blur
+  input?.addEventListener('blur', () => {
+    // Small delay to allow click on suggestion
+    setTimeout(() => updateSuggestions([]), 150);
+  });
 
   // Handle form submission
   form?.addEventListener('submit', async (e) => {
