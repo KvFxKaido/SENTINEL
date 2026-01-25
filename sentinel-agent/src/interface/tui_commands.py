@@ -79,9 +79,9 @@ def tui_load(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
 
 
 def tui_save(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
-    """Save current campaign."""
+    """Save current campaign to disk."""
     if app.manager and app.manager.current:
-        app.manager.save()
+        app.manager.persist_campaign()
         log.write(Text.from_markup(f"[{Theme.FRIENDLY}]Campaign saved![/{Theme.FRIENDLY}]"))
     else:
         log.write(Text.from_markup(f"[{Theme.WARNING}]No campaign to save[/{Theme.WARNING}]"))
@@ -358,7 +358,7 @@ def tui_help(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
         f"[bold {Theme.TEXT}]Campaign:[/bold {Theme.TEXT}]\n"
         f"  [{Theme.ACCENT}]/new[/{Theme.ACCENT}] <name> - Create campaign\n"
         f"  [{Theme.ACCENT}]/load[/{Theme.ACCENT}] [n] - Load campaign\n"
-        f"  [{Theme.ACCENT}]/save[/{Theme.ACCENT}] - Save campaign\n"
+        f"  [{Theme.ACCENT}]/save[/{Theme.ACCENT}] - Save campaign to disk (required to persist)\n"
         f"  [{Theme.ACCENT}]/list[/{Theme.ACCENT}] - List campaigns\n"
         f"  [{Theme.ACCENT}]/delete[/{Theme.ACCENT}] <name> - Delete campaign\n"
         f"\n[bold {Theme.TEXT}]Character:[/bold {Theme.TEXT}]\n"

@@ -328,7 +328,7 @@ def show_help():
 | `/timeline` | Search campaign memory (memvid) |
 | `/factions` | View faction standings and relationships |
 | `/load` | Load an existing campaign |
-| `/save` | Save current campaign |
+| `/save` | Save campaign to disk (required to persist) |
 | `/list` | List all campaigns |
 | `/status` | Show current status |
 | `/backend` | Show/change LLM backend |

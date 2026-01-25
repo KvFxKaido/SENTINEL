@@ -117,8 +117,8 @@ def cmd_list(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
 
 
 def cmd_save(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
-    """Save current campaign."""
-    manager.save_campaign()
+    """Save current campaign to disk."""
+    manager.persist_campaign()
     console.print(f"[{THEME['accent']}]Saved[/{THEME['accent']}]")
 
 

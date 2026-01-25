@@ -407,12 +407,12 @@ class HeadlessRunner:
             return {"ok": False, "error": str(e)}
     
     def _cmd_save(self) -> dict:
-        """Save current campaign."""
+        """Save current campaign to disk."""
         if not self.manager.current:
             return {"ok": False, "error": "No campaign loaded"}
-        
+
         try:
-            self.manager.save_campaign()
+            self.manager.persist_campaign()
             return {"ok": True}
         except Exception as e:
             return {"ok": False, "error": str(e)}

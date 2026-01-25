@@ -435,7 +435,13 @@ class CampaignManager:
     # -------------------------------------------------------------------------
 
     def create_campaign(self, name: str) -> Campaign:
-        """Create a new campaign and set it as current."""
+        """
+        Create a new campaign and set it as current.
+
+        Note: Campaign is NOT persisted to disk by default.
+        Use save_campaign() to persist after creation.
+        This prevents test campaigns from cluttering the disk.
+        """
         meta = CampaignMeta(name=name)
         campaign = Campaign(meta=meta)
 
@@ -448,11 +454,10 @@ class CampaignManager:
 
         self.current = campaign
         self._cache[meta.id] = campaign
-        self.save_campaign()
 
-        # Initialize adapters for new campaign
-        self._init_memvid_for_campaign(meta.id)
-        self._init_wiki_for_campaign(meta.id)
+        # Note: We do NOT auto-save or init adapters here.
+        # Campaign exists in-memory only until explicit /save.
+        # This prevents test data accumulation.
 
         return campaign
 
@@ -479,6 +484,9 @@ class CampaignManager:
         # Load from store
         campaign = self.store.load(campaign_id)
         if campaign:
+            # Loaded campaigns are by definition persisted
+            campaign.persisted_ = True
+
             # Close any existing adapters
             self._close_memvid()
             self._close_wiki()
@@ -767,9 +775,42 @@ class CampaignManager:
         #     ...
 
     def save_campaign(self) -> bool:
-        """Save current campaign to store."""
+        """
+        Save current campaign to store.
+
+        Only writes to disk if the campaign has been explicitly persisted
+        via persist_campaign(). This prevents test data accumulation.
+        """
         if not self.current:
             return False
+
+        # Only write to disk if campaign has been persisted
+        if not self.current.persisted_:
+            return True  # No-op for ephemeral campaigns
+
+        self.store.save(self.current)
+        return True
+
+    def persist_campaign(self) -> bool:
+        """
+        Explicitly persist campaign to disk.
+
+        This is the user-facing action (/save command) that:
+        - Marks campaign as persisted
+        - Initializes memvid and wiki adapters
+        - Writes to disk
+
+        Campaigns remain ephemeral (in-memory only) until this is called.
+        """
+        if not self.current:
+            return False
+
+        # First persistence: mark as persisted and init adapters
+        if not self.current.persisted_:
+            self.current.persisted_ = True
+            # Initialize adapters now that campaign is persisted
+            self._init_memvid_for_campaign(self.current.meta.id)
+            self._init_wiki_for_campaign(self.current.meta.id)
 
         self.store.save(self.current)
         return True
