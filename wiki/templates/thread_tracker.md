@@ -26,7 +26,7 @@ TABLE WITHOUT ID
   consequence AS "Consequence",
   severity AS "Severity",
   created_session AS "Since"
-FROM this.file.folder
+FROM this.file.folder + "/threads"
 WHERE type = "thread" AND status != "resolved"
 SORT severity DESC
 ```
@@ -42,7 +42,7 @@ SORT severity DESC
 
 ```dataview
 LIST WITHOUT ID origin + " — " + consequence
-FROM this.file.folder
+FROM this.file.folder + "/threads"
 WHERE type = "thread" AND severity = "major" AND status != "resolved"
 ```
 
@@ -53,7 +53,7 @@ WHERE type = "thread" AND severity = "major" AND status != "resolved"
 
 ```dataview
 LIST WITHOUT ID origin + " — " + consequence
-FROM this.file.folder
+FROM this.file.folder + "/threads"
 WHERE type = "thread" AND severity = "moderate" AND status != "resolved"
 ```
 
@@ -64,7 +64,7 @@ WHERE type = "thread" AND severity = "moderate" AND status != "resolved"
 
 ```dataview
 LIST WITHOUT ID origin + " — " + consequence
-FROM this.file.folder
+FROM this.file.folder + "/threads"
 WHERE type = "thread" AND severity = "minor" AND status != "resolved"
 ```
 
@@ -79,7 +79,7 @@ TABLE WITHOUT ID
   origin AS "Origin",
   severity AS "Severity",
   created_session AS "Session"
-FROM this.file.folder
+FROM this.file.folder + "/threads"
 WHERE type = "thread"
 SORT created_session DESC
 ```
@@ -95,7 +95,7 @@ TABLE WITHOUT ID
   origin AS "Origin",
   consequence AS "What Happened",
   resolved_session AS "Resolved"
-FROM this.file.folder
+FROM this.file.folder + "/threads"
 WHERE type = "thread" AND status = "resolved"
 SORT resolved_session DESC
 ```

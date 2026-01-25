@@ -20,7 +20,7 @@ TABLE WITHOUT ID
   file.link AS "Faction",
   standing AS "Standing",
   recent_change AS "Recent Change"
-FROM this.file.folder
+FROM this.file.folder + "/factions"
 WHERE type = "faction-overlay"
 SORT standing DESC
 ```
@@ -29,13 +29,15 @@ SORT standing DESC
 
 ## Standing History
 
-Sessions where faction standings changed.
+Recent faction standing changes.
 
 ```dataview
-LIST WITHOUT ID choice + " — " + what_shifted
-FROM this.file.folder
-WHERE type = "hinge" AND contains(tags, "faction")
-SORT session DESC
+TABLE WITHOUT ID
+  file.link AS "Faction",
+  recent_change AS "Change"
+FROM this.file.folder + "/factions"
+WHERE type = "faction-overlay" AND recent_change
+SORT file.mtime DESC
 LIMIT 10
 ```
 
@@ -49,7 +51,7 @@ LIMIT 10
 
 ```dataview
 LIST
-FROM this.file.folder
+FROM this.file.folder + "/factions"
 WHERE type = "faction-overlay" AND standing = "Allied"
 ```
 
@@ -57,7 +59,7 @@ WHERE type = "faction-overlay" AND standing = "Allied"
 
 ```dataview
 LIST
-FROM this.file.folder
+FROM this.file.folder + "/factions"
 WHERE type = "faction-overlay" AND standing = "Friendly"
 ```
 
@@ -65,7 +67,7 @@ WHERE type = "faction-overlay" AND standing = "Friendly"
 
 ```dataview
 LIST
-FROM this.file.folder
+FROM this.file.folder + "/factions"
 WHERE type = "faction-overlay" AND standing = "Neutral"
 ```
 
@@ -75,7 +77,7 @@ WHERE type = "faction-overlay" AND standing = "Neutral"
 
 ```dataview
 LIST
-FROM this.file.folder
+FROM this.file.folder + "/factions"
 WHERE type = "faction-overlay" AND standing = "Unfriendly"
 ```
 
@@ -85,7 +87,7 @@ WHERE type = "faction-overlay" AND standing = "Unfriendly"
 
 ```dataview
 LIST
-FROM this.file.folder
+FROM this.file.folder + "/factions"
 WHERE type = "faction-overlay" AND standing = "Hostile"
 ```
 

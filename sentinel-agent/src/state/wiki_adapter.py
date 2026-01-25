@@ -101,6 +101,10 @@ class WikiAdapter:
             (self.overlay_dir / "NPCs").mkdir(exist_ok=True)
             (self.overlay_dir / "sessions").mkdir(exist_ok=True)
             (self.overlay_dir / "Characters").mkdir(exist_ok=True)
+            # Directories for individual note types (Dataview queries)
+            (self.overlay_dir / "threads").mkdir(exist_ok=True)
+            (self.overlay_dir / "hinges").mkdir(exist_ok=True)
+            (self.overlay_dir / "factions").mkdir(exist_ok=True)
             # Create shared assets directory for portraits
             (self.wiki_dir / "assets" / "portraits" / "npcs").mkdir(parents=True, exist_ok=True)
             logger.debug(f"Wiki overlay directory: {self.overlay_dir}")
@@ -154,6 +158,16 @@ class WikiAdapter:
                 logger.info(f"Created dashboard: {dest_name}")
             except Exception as e:
                 logger.warning(f"Failed to create {dest_name}: {e}")
+
+    def _slugify(self, text: str) -> str:
+        """Convert text to a safe filename slug."""
+        import re
+        # Lowercase, replace spaces and special chars with underscores
+        slug = text.strip().lower()
+        slug = re.sub(r"[^\w\s-]", "", slug)  # Remove special chars except - and _
+        slug = re.sub(r"[\s-]+", "_", slug)   # Replace spaces/dashes with _
+        slug = re.sub(r"_+", "_", slug)       # Collapse multiple underscores
+        return slug.strip("_")
 
     def _copy_portrait_to_wiki(self, npc_name: str) -> bool:
         """
@@ -535,23 +549,45 @@ class WikiAdapter:
         """
         Log a hinge moment to wiki.
 
-        Creates timeline entry and optionally extends related pages.
-        Also appends to live session note.
+        Creates individual hinge note, timeline entry, and session callout.
         """
         if not self.enabled:
             return False
 
-        # Log to timeline
-        effects_text = ""
-        if immediate_effects:
-            effects_text = f" Effects: {', '.join(immediate_effects[:3])}"
+        # Create individual hinge note
+        hinge_slug = self._slugify(hinge.choice)[:50]  # Limit filename length
+        hinge_dir = self.overlay_dir / "hinges"
+        hinge_dir.mkdir(exist_ok=True)
+        hinge_file = hinge_dir / f"{hinge_slug}.md"
 
-        event = f"**HINGE:** {hinge.choice}{effects_text}"
+        # Determine faction tag if what_shifted mentions a faction
+        faction_tag = None
+        if hinge.what_shifted:
+            for faction in ["nexus", "ember", "lattice", "convergence", "covenant",
+                           "wanderers", "cultivators", "steel", "witnesses", "architects", "ghost"]:
+                if faction.lower() in hinge.what_shifted.lower():
+                    faction_tag = faction
+                    break
+
+        if self._templates:
+            content = self._templates.render("notes/hinge.md.j2", {
+                "campaign_id": self.campaign_id,
+                "session": session,
+                "choice": hinge.choice,
+                "situation": hinge.situation or "A moment of irreversible choice.",
+                "what_shifted": hinge.what_shifted or hinge.choice,
+                "effects": immediate_effects,
+                "faction_tag": faction_tag,
+            })
+            self._atomic_write(hinge_file, content)
+
+        # Log to timeline with link to note
+        event = f"[[hinges/{hinge_slug}|HINGE: {hinge.choice}]]"
         self._log_event(
             session=session,
             event=event,
             event_type="hinge",
-            related_pages=None,  # Could extract from what_shifted
+            related_pages=None,
         )
 
         # Append to live session note using template
@@ -569,6 +605,7 @@ class WikiAdapter:
                 callout += f"> **Effects:** {', '.join(immediate_effects[:3])}\n"
         self.append_to_session_note(session, callout, section="Key Choices", event_type="hinge")
 
+        logger.debug(f"Created hinge note: {hinge_file}")
         return True
 
     def save_faction_shift(
@@ -582,40 +619,114 @@ class WikiAdapter:
         """
         Log a faction standing change to wiki.
 
-        Creates timeline entry, extends faction page, and appends to live session note.
+        Creates/updates faction overlay note, timeline entry, and session callout.
         """
         if not self.enabled:
             return False
 
         faction_name = faction.value.replace("_", " ").title()
+        faction_slug = self._slugify(faction.value)
 
-        # Log to timeline
-        event = f"{faction_name}: {from_standing} → {to_standing}. {cause}"
+        # Create or update faction overlay note
+        faction_dir = self.overlay_dir / "factions"
+        faction_dir.mkdir(exist_ok=True)
+        faction_file = faction_dir / f"{faction_slug}.md"
+
+        recent_change = f"Session {session}: {from_standing} → {to_standing}"
+
+        if not faction_file.exists():
+            # Create new faction overlay file
+            initial_content = f"""---
+type: faction-overlay
+tags:
+  - faction
+  - {faction_slug}
+  - {self.campaign_id}
+campaign: {self.campaign_id}
+faction: {faction_name}
+faction_id: {faction_slug}
+standing: {to_standing}
+recent_change: "{recent_change}"
+---
+
+# {faction_name}
+
+> [!abstract] Campaign Standing
+> **Current:** {to_standing}
+> **Recent:** {recent_change}
+
+See [[canon/{faction_name}|{faction_name} (Canon)]] for faction lore.
+
+---
+
+## Standing History
+
+### Session {session}
+
+{from_standing} → {to_standing}
+
+> {cause}
+
+---
+
+## Related NPCs
+
+```dataview
+LIST
+FROM this.file.folder + "/../NPCs"
+WHERE faction = "{faction_slug}" OR faction = "{faction_name}"
+```
+"""
+            self._atomic_write(faction_file, initial_content)
+        else:
+            # Append to existing faction file
+            history_entry = f"""
+### Session {session}
+
+{from_standing} → {to_standing}
+
+> {cause}
+"""
+            self._extend_page(
+                page=f"factions/{faction_slug}",
+                content=history_entry,
+                section="## Standing History",
+            )
+            # Update frontmatter standing (simple regex replacement)
+            try:
+                content = faction_file.read_text(encoding="utf-8")
+                import re
+                content = re.sub(
+                    r'standing: \w+',
+                    f'standing: {to_standing}',
+                    content
+                )
+                content = re.sub(
+                    r'recent_change: "[^"]*"',
+                    f'recent_change: "{recent_change}"',
+                    content
+                )
+                content = re.sub(
+                    r'\*\*Current:\*\* \w+',
+                    f'**Current:** {to_standing}',
+                    content
+                )
+                content = re.sub(
+                    r'\*\*Recent:\*\* [^\n]+',
+                    f'**Recent:** {recent_change}',
+                    content
+                )
+                faction_file.write_text(content, encoding="utf-8")
+            except Exception as e:
+                logger.warning(f"Failed to update faction frontmatter: {e}")
+
+        # Log to timeline with link
+        event = f"[[factions/{faction_slug}|{faction_name}]]: {from_standing} → {to_standing}"
         self._log_event(
             session=session,
             event=event,
             event_type="faction",
             related_pages=[faction_name],
-        )
-
-        # Extend faction page using template
-        if self._templates:
-            content = self._templates.render("faction_extension.md.j2", {
-                "session": session,
-                "from_standing": from_standing,
-                "to_standing": to_standing,
-                "cause": cause,
-            })
-        else:
-            content = (
-                f"### Session {session}\n\n"
-                f"- Standing changed: {from_standing} → {to_standing}\n"
-                f"- Cause: {cause}\n"
-            )
-        self._extend_page(
-            page=faction_name,
-            content=content,
-            section="## Campaign History",
         )
 
         # Append to live session note using template
@@ -631,6 +742,7 @@ class WikiAdapter:
             callout += f"> {cause}\n"
         self.append_to_session_note(session, callout, section="Faction Changes", event_type="faction")
 
+        logger.debug(f"Updated faction overlay: {faction_file}")
         return True
 
     def save_npc_interaction(
@@ -1015,11 +1127,41 @@ class WikiAdapter:
         self,
         thread: DormantThread,
     ) -> bool:
-        """Log a new dormant thread to wiki timeline and live session note."""
+        """Log a new dormant thread to wiki as individual note and timeline entry."""
         if not self.enabled:
             return False
 
-        event = f"Thread queued: {thread.origin} (severity: {thread.severity.value})"
+        # Create individual thread note
+        thread_slug = self._slugify(thread.origin)[:50]
+        thread_dir = self.overlay_dir / "threads"
+        thread_dir.mkdir(exist_ok=True)
+        thread_file = thread_dir / f"{thread_slug}.md"
+
+        # Map severity to callout type
+        severity_callouts = {
+            "major": "danger",
+            "moderate": "warning",
+            "minor": "info",
+        }
+        severity_callout = severity_callouts.get(thread.severity.value, "warning")
+
+        if self._templates:
+            content = self._templates.render("notes/thread.md.j2", {
+                "campaign_id": self.campaign_id,
+                "origin": thread.origin,
+                "trigger_condition": thread.trigger_condition,
+                "consequence": thread.consequence,
+                "severity": thread.severity.value,
+                "severity_callout": severity_callout,
+                "status": "active",
+                "created_session": thread.created_session,
+                "resolved_session": None,
+                "resolution": None,
+            })
+            self._atomic_write(thread_file, content)
+
+        # Log to timeline with link to note
+        event = f"[[threads/{thread_slug}|Thread: {thread.origin}]] ({thread.severity.value.upper()})"
         self._log_event(
             session=thread.created_session,
             event=event,
@@ -1031,18 +1173,19 @@ class WikiAdapter:
             callout = self._templates.render("callouts/thread.md.j2", {
                 "origin": thread.origin,
                 "severity": thread.severity.value,
-                "trigger": thread.trigger,
+                "trigger": thread.trigger_condition,
             })
         else:
             severity = thread.severity.value.upper()
             callout = f"> [!thread] {thread.origin}\n"
             callout += f"> **Severity:** {severity}\n"
-            if thread.trigger:
-                callout += f"> **Trigger:** {thread.trigger}\n"
+            if thread.trigger_condition:
+                callout += f"> **Trigger:** {thread.trigger_condition}\n"
         self.append_to_session_note(
             thread.created_session, callout, section="Threads Queued", event_type="thread"
         )
 
+        logger.debug(f"Created thread note: {thread_file}")
         return True
 
     def save_thread_triggered(
@@ -1051,11 +1194,40 @@ class WikiAdapter:
         session: int,
         outcome: str,
     ) -> bool:
-        """Log when a dormant thread triggers and append to live session note."""
+        """Log when a dormant thread triggers, update note, and append to session."""
         if not self.enabled:
             return False
 
-        event = f"Thread triggered: {thread.origin}. Outcome: {outcome}"
+        # Update the thread note with resolution
+        thread_slug = self._slugify(thread.origin)[:50]
+        thread_file = self.overlay_dir / "threads" / f"{thread_slug}.md"
+
+        if thread_file.exists() and self._templates:
+            # Re-render with resolution info
+            severity_callouts = {
+                "major": "danger",
+                "moderate": "warning",
+                "minor": "info",
+            }
+            severity_callout = severity_callouts.get(thread.severity.value, "warning")
+
+            content = self._templates.render("notes/thread.md.j2", {
+                "campaign_id": self.campaign_id,
+                "origin": thread.origin,
+                "trigger_condition": thread.trigger_condition,
+                "consequence": thread.consequence,
+                "severity": thread.severity.value,
+                "severity_callout": severity_callout,
+                "status": "resolved",
+                "created_session": thread.created_session,
+                "resolved_session": session,
+                "resolution": outcome,
+            })
+            self._atomic_write(thread_file, content)
+            logger.debug(f"Updated thread note with resolution: {thread_file}")
+
+        # Log to timeline with link
+        event = f"[[threads/{thread_slug}|Thread triggered: {thread.origin}]] — {outcome}"
         self._log_event(
             session=session,
             event=event,
