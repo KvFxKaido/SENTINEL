@@ -119,6 +119,228 @@ portrait: "assets/portraits/npcs/{{ name | lower | replace(' ', '_') | replace(\
 """,
 
     # -------------------------------------------------------------------------
+    # Player Character Page Template (SUBJECT FILE format)
+    # -------------------------------------------------------------------------
+    "character.md.j2": """\
+---
+type: character
+tags:
+  - character
+  - {{ background | lower }}
+  - {{ campaign_id }}
+campaign: {{ campaign_id }}
+background: {{ background }}
+{% if aligned_faction %}faction: {{ aligned_faction }}{% endif %}
+portrait: "[[assets/portraits/campaigns/{{ campaign_id }}/{{ name_slug }}.png]]"
+---
+
+# SUBJECT FILE — SENTINEL ROLEPLAY RECORD
+
+> **Access Level:** PROVISIONAL
+> **Status:** ACTIVE CASE
+> **Sessions:** {{ session_count }}
+
+![[assets/portraits/campaigns/{{ campaign_id }}/{{ name_slug }}.png|portrait]]
+
+---
+
+## IDENTIFICATION
+
+| Field | Entry |
+|-------|-------|
+| LEGAL NAME | {{ name }} |
+{% if callsign %}| CALLSIGN | {{ callsign }} |{% endif %}
+{% if pronouns %}| PRONOUNS | {{ pronouns }} |{% endif %}
+{% if appearance_data and appearance_data.age %}| AGE | {{ appearance_data.age }} |{% elif age %}| AGE | {{ age }} |{% endif %}
+{% if appearance_data %}| APPEARANCE | {{ appearance_data.build }} build, {{ appearance_data.skin_tone }} skin, {{ appearance_data.hair_color }} {{ appearance_data.hair_length }} hair{% if appearance_data.hair_style %} ({{ appearance_data.hair_style }}){% endif %}, {{ appearance_data.eye_color }} eyes{% if appearance_data.default_expression %}, {{ appearance_data.default_expression }} expression{% endif %} |{% elif appearance %}| APPEARANCE | {{ appearance }} |{% endif %}
+
+{% if appearance_data %}
+{% if appearance_data.facial_features or appearance_data.distinguishing_marks or appearance_data.augmentations or appearance_data.other_features %}
+### Distinguishing Features
+{% if appearance_data.facial_features %}- **Facial:** {{ appearance_data.facial_features | join(', ') }}{% endif %}
+{% if appearance_data.distinguishing_marks %}- **Marks:** {{ appearance_data.distinguishing_marks | join(', ') }}{% endif %}
+{% if appearance_data.augmentations %}- **Augmentations:** {{ appearance_data.augmentations }}{% endif %}
+{% if appearance_data.other_features %}- **Other:** {{ appearance_data.other_features | join('; ') }}{% endif %}
+{% endif %}
+{% endif %}
+
+---
+
+## BACKGROUND CLASSIFICATION
+
+{% for bg in backgrounds %}
+- [{% if bg == background %}x{% else %} {% endif %}] {{ bg }}{% if bg == background %} — *{{ background_desc }}*{% endif %}
+{% endfor %}
+
+{% if survival_note %}
+**Why this person is still alive:**
+```
+{{ survival_note }}
+```
+{% endif %}
+
+---
+
+{% if establishing_incident %}
+## ESTABLISHING INCIDENT
+
+```
+Incident: {{ establishing_incident.description }}
+
+Location: {{ establishing_incident.location | default('Unknown') }}
+
+Costs: {{ establishing_incident.costs | default('Unknown') }}
+```
+
+---
+
+{% endif %}
+## SOCIAL ENERGY — {{ energy_track | upper | default('PISTACHIOS') }}
+
+> Current: {{ social_energy }}% {% if social_energy >= 70 %}(Centered){% elif social_energy >= 40 %}(Managing){% elif social_energy >= 20 %}(Strained){% else %}(Critical){% endif %}
+
+{% if restorers %}
+**Restorers:**
+{% for r in restorers %}
+- {{ r }}
+{% endfor %}
+{% endif %}
+
+{% if drains %}
+**Drains:**
+{% for d in drains %}
+- {{ d }}
+{% endfor %}
+{% endif %}
+
+---
+
+## REPUTATION TRACKS
+
+| Faction | Standing | Notes |
+|---------|----------|-------|
+{% for f in factions %}
+| {{ f.name }} | {{ f.standing }} | {{ f.notes | default('—') }} |
+{% endfor %}
+
+---
+
+## HINGE MOMENTS
+
+> Permanent events that define your story. No bonuses. Only consequences.
+
+| Moment | What Shifted |
+|--------|--------------|
+{% if hinges %}
+{% for h in hinges %}
+| **Session {{ h.session }}:** {{ h.title }} | {{ h.consequence | default(h.choice) }} |
+{% endfor %}
+{% else %}
+| *None yet* | |
+{% endif %}
+
+---
+
+## ENHANCEMENTS
+
+{% if enhancements %}
+**Accepted:**
+| Enhancement | Source | Benefit | Cost |
+|-------------|--------|---------|------|
+{% for e in enhancements %}
+| {{ e.name }} | {{ e.source_faction }} | {{ e.description }} | {{ e.leverage_cost | default('—') }} |
+{% endfor %}
+{% else %}
+**Accepted:** None
+{% endif %}
+
+{% if refused_enhancements %}
+**Refused:**
+| Enhancement | Source | Benefit | Reason Refused |
+|-------------|--------|---------|----------------|
+{% for e in refused_enhancements %}
+| {{ e.name }} | {{ e.source_faction }} | {{ e.benefit }} | {{ e.reason }} |
+{% endfor %}
+{% else %}
+**Refused:** None
+{% endif %}
+
+> *Refusal is a meaningful choice. What you don't accept defines you as much as what you do.*
+
+---
+
+## EQUIPMENT
+
+**Credits:** {{ credits }}c
+
+{% if gear %}
+{% for item in gear %}
+- {{ item.name }}{% if item.description %} *({{ item.description }})*{% endif %}
+{% endfor %}
+{% else %}
+*No notable equipment.*
+{% endif %}
+
+{% if vehicles %}
+**Vehicles:**
+{% for v in vehicles %}
+- {{ v.name }} ({{ v.type }})
+{% endfor %}
+{% endif %}
+
+---
+
+{% if arcs %}
+## CHARACTER ARCS
+
+{% for arc in arcs %}
+### {{ arc.title }} ({{ arc.arc_type }})
+*{{ arc.description }}*
+- **Status:** {{ arc.status }}
+- **Detected:** Session {{ arc.detected_session }}
+- **Strength:** {{ (arc.strength * 100) | int }}%
+{% endfor %}
+
+---
+
+{% endif %}
+{% if reflections %}
+## AFTER ACTION — PERSONAL REFLECTION
+
+> This is not scoring. This is perspective.
+
+{% if reflections.cost %}
+**What did this cost you?**
+```
+{{ reflections.cost }}
+```
+{% endif %}
+
+{% if reflections.learned %}
+**What did you learn?**
+```
+{{ reflections.learned }}
+```
+{% endif %}
+
+{% if reflections.would_refuse %}
+**What would you refuse to do again?**
+```
+{{ reflections.would_refuse }}
+```
+{% endif %}
+
+---
+
+{% endif %}
+> **Filing reminder:** This record reflects the subject's account. Cross-reference with local witnesses and system logs when possible.
+
+---
+
+*Campaign data: `sentinel-agent/campaigns/{{ campaign_id }}.json`*
+""",
+
+    # -------------------------------------------------------------------------
     # Session Summary (Full Debrief)
     # -------------------------------------------------------------------------
     "session.md.j2": """\

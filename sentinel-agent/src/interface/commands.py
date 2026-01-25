@@ -7,6 +7,7 @@ Each command function takes (manager, agent, args) and returns:
 - backend_name string for /backend command
 """
 
+import os
 import sys
 from rich.table import Table
 from rich.panel import Panel
@@ -14,7 +15,14 @@ from rich.prompt import Prompt
 
 
 def _is_interactive() -> bool:
-    """Check if we're running in an interactive terminal (not headless)."""
+    """Check if we're running in an interactive terminal (not headless).
+
+    Returns False if:
+    - SENTINEL_HEADLESS env var is set (bridge/headless mode)
+    - stdin or stdout are not TTYs
+    """
+    if os.environ.get("SENTINEL_HEADLESS"):
+        return False
     return sys.stdin.isatty() and sys.stdout.isatty()
 
 from ..state import CampaignManager, Character, Background
@@ -717,42 +725,127 @@ def _format_campaign_hit(hit: dict) -> str:
 # -----------------------------------------------------------------------------
 
 def cmd_char(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
-    """Create a character.
+    """Create or manage character.
 
     Usage:
-        /char           - Interactive character creation wizard
-    from ..state.schema import Character, Background, SocialEnergy
+        /char               - Streamlined character creation (3 prompts)
+        /char quick         - Create default character (Cipher, Survivor)
+        /char edit          - List editable fields
+        /char edit <field>  - Edit a character field
+        /char export        - Export character sheet to markdown
+        /char wiki          - Update character's wiki page
     """
-    from ..state.schema import SocialEnergy, EstablishingIncident
+    from ..state.schema import SocialEnergy
 
     if not manager.current:
         console.print("[yellow]Load or create a campaign first[/yellow]")
+        return
+
+    # Wiki mode: update character wiki page
+    if args and args[0].lower() == "wiki":
+        if not manager.current.characters:
+            console.print(f"[{THEME['warning']}]Create a character first[/{THEME['warning']}]")
+            return
+        if manager.update_character_wiki():
+            char = manager.current.characters[0]
+            console.print(f"[{THEME['accent']}]{g('success')}[/{THEME['accent']}] Updated wiki page for {char.name}")
+            if manager.wiki:
+                wiki_path = manager.wiki.overlay_dir / "Characters" / f"{char.name}.md"
+                console.print(f"[{THEME['dim']}]{wiki_path}[/{THEME['dim']}]")
+        else:
+            console.print(f"[{THEME['warning']}]Wiki not enabled or update failed[/{THEME['warning']}]")
+        return
+
+    # Export mode: generate markdown character sheet
+    if args and args[0].lower() == "export":
+        success, message = _char_export(manager)
+        if success:
+            console.print(f"[{THEME['accent']}]{g('success')}[/{THEME['accent']}] Exported character sheet")
+            console.print(f"[{THEME['dim']}]{message}[/{THEME['dim']}]")
+        else:
+            console.print(f"[{THEME['warning']}]{message}[/{THEME['warning']}]")
+        return
+
+    # Edit mode: modify existing character fields
+    if args and args[0].lower() == "edit":
+        if not manager.current.characters:
+            console.print(f"[{THEME['warning']}]Create a character first[/{THEME['warning']}]")
+            return
+
+        # No field specified: show available fields
+        if len(args) == 1:
+            console.print(f"\n[bold {THEME['primary']}]Editable Fields[/bold {THEME['primary']}]")
+            char = manager.current.characters[0]
+            for field, desc in EDITABLE_CHAR_FIELDS.items():
+                # Show current value
+                if field == "survival":
+                    current = char.survival_note
+                elif field == "energy_name":
+                    current = char.social_energy.name
+                elif field == "restorers":
+                    current = ", ".join(char.social_energy.restorers) if char.social_energy.restorers else ""
+                elif field == "drains":
+                    current = ", ".join(char.social_energy.drains) if char.social_energy.drains else ""
+                else:
+                    current = getattr(char, field, "")
+
+                current_display = f" [{THEME['dim']}]= {current}[/{THEME['dim']}]" if current else ""
+                console.print(f"  [{THEME['accent']}]{field}[/{THEME['accent']}]{current_display}")
+                console.print(f"    [{THEME['dim']}]{desc}[/{THEME['dim']}]")
+            console.print(f"\n[{THEME['dim']}]Usage: /char edit <field> [value][/{THEME['dim']}]")
+            return
+
+        # Field specified: edit it
+        field = args[1].lower()
+        value = " ".join(args[2:]) if len(args) > 2 else None
+
+        error = _char_edit(manager, field, value)
+        if error:
+            console.print(f"[{THEME['warning']}]{error}[/{THEME['warning']}]")
+        else:
+            char = manager.current.characters[0]
+            console.print(f"[{THEME['accent']}]{g('success')}[/{THEME['accent']}] Updated {field} for {char.name}")
         return
 
     # Quick mode: create default character without prompts
     if args and args[0].lower() == "quick":
         character = Character(
             name="Cipher",
+            pronouns="they/them",
             background=Background.SURVIVOR,
             social_energy=SocialEnergy(current=75),
         )
         manager.add_character(character)
         console.print(f"\n[{THEME['accent']}]Created:[/{THEME['accent']}] [{THEME['secondary']}]{character.name}[/{THEME['secondary']}]")
+        console.print(f"  [{THEME['dim']}]Pronouns:[/{THEME['dim']}] {character.pronouns}")
         console.print(f"  [{THEME['dim']}]Background:[/{THEME['dim']}] {character.background.value}")
         console.print(f"  [{THEME['dim']}]Expertise:[/{THEME['dim']}] {', '.join(character.expertise)}")
         console.print(f"  [{THEME['dim']}]Pistachios:[/{THEME['dim']}] [{THEME['accent']}]{character.social_energy.current}%[/{THEME['accent']}]")
         console.print(f"\n[{THEME['dim']}]Type /start to begin your story[/{THEME['dim']}]")
+        console.print(f"[{THEME['dim']}]Use /char edit to customize later[/{THEME['dim']}]")
         return
 
-    # Identity
+    # -------------------------------------------------------------------------
+    # Streamlined Character Creation (3 prompts)
+    # -------------------------------------------------------------------------
+
+    # Check if we're in interactive mode (not headless/bridge)
+    if not _is_interactive():
+        console.print(f"[{THEME['warning']}]Interactive character creation not available in this mode.[/{THEME['warning']}]")
+        console.print(f"[{THEME['dim']}]Use /char quick to create a default character,[/{THEME['dim']}]")
+        console.print(f"[{THEME['dim']}]then /char edit to customize.[/{THEME['dim']}]")
+        return
+
     console.print(f"\n[bold {THEME['primary']}]◈ SUBJECT FILE ◈[/bold {THEME['primary']}]")
 
-    name = Prompt.ask("Legal name")
-    callsign = Prompt.ask("Callsign (optional)", default="")
-    pronouns = Prompt.ask("Pronouns (optional)", default="")
-    age = Prompt.ask("Age (optional, e.g. 'early 30s', 'weathered')", default="")
+    # Prompt 1: Name (required)
+    name = Prompt.ask("Name")
 
-    # Background with descriptions
+    # Prompt 2: Pronouns (default they/them)
+    console.print(f"[{THEME['dim']}]Used for narration (\"She surveys the wreckage...\")[/{THEME['dim']}]")
+    pronouns = Prompt.ask("Pronouns", default="they/them")
+
+    # Prompt 3: Background
     console.print(f"\n[bold]Background:[/bold]")
     bg_descriptions = {
         "Caretaker": "Healer, protector — the one who keeps others alive",
@@ -769,78 +862,232 @@ def cmd_char(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
         console.print(f"  [{THEME['accent']}]{i}.[/{THEME['accent']}] {bg.value} [{THEME['dim']}]— {desc}[/{THEME['dim']}]")
 
     bg_choice = Prompt.ask("Choose background (1-7)")
-    background = backgrounds[int(bg_choice) - 1]
+    try:
+        background = backgrounds[int(bg_choice) - 1]
+    except (ValueError, IndexError):
+        console.print(f"[{THEME['warning']}]Invalid choice. Defaulting to Survivor.[/{THEME['warning']}]")
+        background = Background.SURVIVOR
 
-    # Appearance
-    console.print(f"\n[{THEME['dim']}]Visible details: scars, posture, clothing, devices (optional)[/{THEME['dim']}]")
-    appearance = Prompt.ask("Appearance", default="")
-
-    # Survival note
-    console.print(f"\n[{THEME['dim']}]Why is this person still alive? (optional)[/{THEME['dim']}]")
-    survival_note = Prompt.ask("Survival", default="")
-
-    # Social energy customization
-    console.print(f"\n[bold]Social Energy[/bold]")
-    energy_name = Prompt.ask(
-        "Name your energy track",
-        default="Pistachios"
-    )
-
-    console.print(f"[{THEME['dim']}]What restores your energy? (comma-separated, or skip)[/{THEME['dim']}]")
-    restorers_input = Prompt.ask("Restorers", default="")
-    restorers = [r.strip() for r in restorers_input.split(",") if r.strip()]
-
-    console.print(f"[{THEME['dim']}]What drains your energy? (comma-separated, or skip)[/{THEME['dim']}]")
-    drains_input = Prompt.ask("Drains", default="")
-    drains = [d.strip() for d in drains_input.split(",") if d.strip()]
-
-    # Establishing incident
-    console.print(f"\n[bold]Establishing Incident[/bold]")
-    console.print(f"[{THEME['dim']}]What pulled you into this life? (1-2 sentences, or skip)[/{THEME['dim']}]")
-    incident_summary = Prompt.ask("Incident", default="")
-
-    establishing = None
-    if incident_summary:
-        establishing = EstablishingIncident(summary=incident_summary)
-
-    # Build character
+    # Build character with smart defaults
     character = Character(
         name=name,
-        callsign=callsign,
         pronouns=pronouns,
-        age=age,
-        appearance=appearance,
-        survival_note=survival_note,
         background=background,
-        social_energy=SocialEnergy(
-            name=energy_name,
-            restorers=restorers,
-            drains=drains,
-        ),
-        establishing_incident=establishing,
+        # All other fields use model defaults:
+        # - callsign: "" (displays as name)
+        # - age: "" (none)
+        # - appearance: "" (auto-generated on /start)
+        # - survival_note: "" (emerges from play)
+        # - social_energy.name: "Pistachios"
+        # - social_energy.restorers/drains: [] (discovered through play)
+        # - establishing_incident: None (emerges from play)
     )
 
     manager.add_character(character)
 
-    # Display
-    display_name = f"{name} ({callsign})" if callsign else name
-    console.print(f"\n[{THEME['accent']}]Created:[/{THEME['accent']}] [{THEME['secondary']}]{display_name}[/{THEME['secondary']}]")
-    if pronouns:
-        console.print(f"  [{THEME['dim']}]Pronouns:[/{THEME['dim']}] {pronouns}")
+    # Display created character
+    console.print(f"\n[{THEME['accent']}]Created:[/{THEME['accent']}] [{THEME['secondary']}]{name}[/{THEME['secondary']}]")
+    console.print(f"  [{THEME['dim']}]Pronouns:[/{THEME['dim']}] {pronouns}")
     console.print(f"  [{THEME['dim']}]Background:[/{THEME['dim']}] {background.value}")
     console.print(f"  [{THEME['dim']}]Expertise:[/{THEME['dim']}] {', '.join(character.expertise)}")
-    if appearance:
-        console.print(f"  [{THEME['dim']}]Appearance:[/{THEME['dim']}] {appearance[:60]}{'...' if len(appearance) > 60 else ''}")
-    if survival_note:
-        console.print(f"  [{THEME['dim']}]Still alive because:[/{THEME['dim']}] {survival_note[:60]}{'...' if len(survival_note) > 60 else ''}")
-    console.print(f"  [{THEME['dim']}]{energy_name}:[/{THEME['dim']}] [{THEME['accent']}]{character.social_energy.current}%[/{THEME['accent']}]")
-    if restorers:
-        console.print(f"  [{THEME['dim']}]Restores:[/{THEME['dim']}] {', '.join(restorers)}")
-    if drains:
-        console.print(f"  [{THEME['dim']}]Drains:[/{THEME['dim']}] {', '.join(drains)}")
-    if establishing:
-        console.print(f"  [{THEME['dim']}]Origin:[/{THEME['dim']}] \"{incident_summary[:60]}{'...' if len(incident_summary) > 60 else ''}\"")
+    console.print(f"  [{THEME['dim']}]Pistachios:[/{THEME['dim']}] [{THEME['accent']}]{character.social_energy.current}%[/{THEME['accent']}]")
+
     console.print(f"\n[{THEME['dim']}]Type /start to begin your story[/{THEME['dim']}]")
+    console.print(f"[{THEME['dim']}]Use /char edit to customize (callsign, age, restorers, drains...)[/{THEME['dim']}]")
+
+
+# =============================================================================
+# Character Edit Helper
+# =============================================================================
+
+EDITABLE_CHAR_FIELDS = {
+    "name": "Legal name",
+    "callsign": "Optional alias/nickname",
+    "pronouns": "Pronouns for narration (e.g., she/her, they/them)",
+    "age": "Narrative age (e.g., 'early 30s', 'weathered')",
+    "survival": "Why this person is still alive",
+    "energy_name": "Name for social energy track (default: Pistachios)",
+    "restorers": "What restores energy (comma-separated)",
+    "drains": "What drains energy (comma-separated)",
+}
+
+def _char_edit(manager: CampaignManager, field: str, value: str | None) -> str | None:
+    """
+    Edit a character field. Returns error message or None on success.
+    """
+    if not manager.current or not manager.current.characters:
+        return "No character to edit"
+
+    char = manager.current.characters[0]
+    field = field.lower()
+
+    if field not in EDITABLE_CHAR_FIELDS:
+        return f"Unknown field: {field}. Editable: {', '.join(EDITABLE_CHAR_FIELDS.keys())}"
+
+    # Get value interactively if not provided
+    if value is None:
+        if not _is_interactive():
+            return "Value required in non-interactive mode"
+        value = Prompt.ask(f"New {field}", default=getattr(char, field, "") or "")
+
+    # Apply the edit
+    if field == "name":
+        char.name = value
+    elif field == "callsign":
+        char.callsign = value
+    elif field == "pronouns":
+        char.pronouns = value
+    elif field == "age":
+        char.age = value
+    elif field == "survival":
+        char.survival_note = value
+    elif field == "energy_name":
+        char.social_energy.name = value
+    elif field == "restorers":
+        char.social_energy.restorers = [r.strip() for r in value.split(",") if r.strip()]
+    elif field == "drains":
+        char.social_energy.drains = [d.strip() for d in value.split(",") if d.strip()]
+
+    manager.save()
+    return None
+
+
+def _char_export(manager: CampaignManager) -> tuple[bool, str]:
+    """
+    Export character to markdown. Returns (success, message).
+    """
+    from pathlib import Path
+    from ..state.templates import TemplateEngine, DEFAULT_TEMPLATES
+    from ..state.schema import Background
+
+    if not manager.current or not manager.current.characters:
+        return False, "No character to export"
+
+    char = manager.current.characters[0]
+    campaign = manager.current
+
+    # Build context for template
+    background_descriptions = {
+        Background.CARETAKER: "Healer, protector — the one who keeps others alive",
+        Background.SURVIVOR: "Endured the worst, still standing",
+        Background.OPERATIVE: "Trained for missions, intel, shadows",
+        Background.TECHNICIAN: "Keeps the machines running",
+        Background.PILGRIM: "Seeker, wanderer, searching for meaning",
+        Background.WITNESS: "Observer, recorder, keeper of truth",
+        Background.GHOST: "Erased, forgotten, never officially existed",
+    }
+
+    # Load appearance data if exists
+    appearance_data = None
+    char_yaml_path = Path(f"assets/characters/campaigns/{campaign.meta.id}/{char.name.lower().replace(' ', '_')}.yaml")
+    if char_yaml_path.exists():
+        try:
+            import yaml
+            appearance_data = yaml.safe_load(char_yaml_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    # Build faction standings
+    factions = []
+    for faction, standing in campaign.faction_standings.items():
+        factions.append({
+            "name": faction.replace("_", " ").title(),
+            "standing": standing.level.value,
+            "notes": "",
+        })
+
+    # Build hinges
+    hinges = []
+    for h in char.hinge_history:
+        hinges.append({
+            "session": h.session,
+            "title": h.choice,
+            "consequence": h.what_shifted or h.choice,
+            "choice": h.choice,
+        })
+
+    # Build enhancements
+    enhancements = []
+    for e in char.enhancements:
+        enhancements.append({
+            "name": e.name,
+            "source_faction": e.source_faction.value if hasattr(e.source_faction, 'value') else str(e.source_faction),
+            "description": e.description,
+            "leverage_cost": e.leverage_description or "—",
+        })
+
+    # Build refused enhancements
+    refused = []
+    for r in char.refused_enhancements:
+        refused.append({
+            "name": r.name,
+            "source_faction": r.source_faction.value if hasattr(r.source_faction, 'value') else str(r.source_faction),
+            "benefit": r.benefit,
+            "reason": r.reason,
+        })
+
+    # Build arcs
+    arcs = []
+    for a in char.arcs:
+        arcs.append({
+            "title": a.arc_type.value.replace("_", " ").title(),
+            "arc_type": a.arc_type.value,
+            "description": a.description or "",
+            "status": a.status,
+            "detected_session": a.detected_session,
+            "strength": a.strength,
+        })
+
+    # Template context
+    context = {
+        "name": char.name,
+        "name_slug": char.name.lower().replace(" ", "_").replace("'", ""),
+        "callsign": char.callsign,
+        "pronouns": char.pronouns,
+        "age": char.age,
+        "appearance": char.appearance,
+        "appearance_data": appearance_data,
+        "background": char.background.value,
+        "background_desc": background_descriptions.get(char.background, ""),
+        "backgrounds": [b.value for b in Background],
+        "survival_note": char.survival_note,
+        "campaign_id": campaign.meta.id,
+        "session_count": campaign.session_count,
+        "aligned_faction": char.aligned_faction.value if char.aligned_faction else None,
+        "social_energy": char.social_energy.current,
+        "energy_track": char.social_energy.name,
+        "restorers": char.social_energy.restorers,
+        "drains": char.social_energy.drains,
+        "establishing_incident": {
+            "description": char.establishing_incident.summary,
+            "location": getattr(char.establishing_incident, 'location', 'Unknown'),
+            "costs": getattr(char.establishing_incident, 'costs', 'Unknown'),
+        } if char.establishing_incident else None,
+        "factions": factions,
+        "hinges": hinges,
+        "enhancements": enhancements,
+        "refused_enhancements": refused,
+        "credits": char.credits,
+        "gear": [{"name": g.name, "description": g.description} for g in char.gear],
+        "vehicles": [{"name": v.name, "type": v.type} for v in char.vehicles],
+        "arcs": arcs,
+        "reflections": None,  # Could be filled from debrief data
+    }
+
+    # Render template
+    engine = TemplateEngine()
+    content = engine.render("character.md.j2", context)
+
+    # Ensure exports directory exists
+    exports_dir = Path(manager.campaigns_dir) / "exports"
+    exports_dir.mkdir(exist_ok=True)
+
+    # Write file
+    filename = f"{char.name.lower().replace(' ', '_')}_sheet.md"
+    export_path = exports_dir / filename
+    export_path.write_text(content, encoding="utf-8")
+
+    return True, str(export_path)
 
 
 def cmd_npc(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
@@ -1584,7 +1831,7 @@ def cmd_start(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
     - No saves: Guides to /new
     - One save: Auto-loads and begins
     - Multiple saves: Shows list with quick-select numbers
-    - Campaign loaded: Begins the story
+    - Campaign loaded: Begins the story (shows hint about /load to switch)
 
     Usage:
         /start          - Smart start (auto-load or show options)
@@ -1592,6 +1839,40 @@ def cmd_start(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
         /start <name>   - Load campaign by name and start
     """
     campaigns = manager.list_campaigns()
+
+    # Helper to show campaign list (used in multiple places)
+    def _show_campaign_list(title: str = "Available Campaigns"):
+        table = Table(title=title)
+        table.add_column("#", style="dim")
+        table.add_column("Name")
+        table.add_column("Character")
+        table.add_column("Sessions")
+        table.add_column("Last Played")
+
+        for i, c in enumerate(campaigns, 1):
+            char_name = c.get("character", "—")
+            table.add_row(
+                str(i),
+                c["name"],
+                char_name,
+                str(c["session_count"]),
+                c["display_time"],
+            )
+        console.print(table)
+
+    # If args provided, always try to load that campaign first
+    if args and not manager.current:
+        campaign = manager.load_campaign(args[0])
+        if campaign:
+            console.print(f"[green]Loaded:[/green] {campaign.meta.name}")
+            status_bar.reset_tracking()
+            # Fall through to start logic below
+        else:
+            console.print("[red]Campaign not found[/red]")
+            if campaigns:
+                _show_campaign_list()
+                console.print(f"[{THEME['dim']}]Use /start <number> to begin a campaign[/{THEME['dim']}]")
+            return None
 
     # Smart loading: handle case where no campaign is loaded
     if not manager.current:
@@ -1612,55 +1893,35 @@ def cmd_start(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
         if len(campaigns) == 1:
             campaign = manager.load_campaign("1")
             if campaign:
-                console.print(f"[{THEME['dim']}]Auto-loaded: {campaign.meta.name}[/{THEME['dim']}]")
+                console.print(f"[{THEME['dim']}]Auto-loaded: {campaign.meta.name} (only campaign)[/{THEME['dim']}]")
                 status_bar.reset_tracking()
             # Fall through to start logic below
 
         # Multiple saves - need selection
         elif len(campaigns) > 1:
-            # If args provided, use as campaign selector
-            if args:
-                campaign = manager.load_campaign(args[0])
+            # Show list with quick-select hint
+            _show_campaign_list("Your Campaigns")
+
+            if _is_interactive():
+                selection = Prompt.ask("Start campaign #")
+                campaign = manager.load_campaign(selection)
                 if campaign:
                     console.print(f"[green]Loaded:[/green] {campaign.meta.name}")
                     status_bar.reset_tracking()
-                    # Fall through to start logic below
                 else:
                     console.print("[red]Campaign not found[/red]")
                     return None
             else:
-                # Show list with quick-select hint
-                table = Table(title="Your Campaigns")
-                table.add_column("#", style="dim")
-                table.add_column("Name")
-                table.add_column("Character")
-                table.add_column("Sessions")
-                table.add_column("Last Played")
+                console.print(f"[{THEME['dim']}]Use /start <number> to begin a campaign[/{THEME['dim']}]")
+                return None
 
-                for i, c in enumerate(campaigns, 1):
-                    char_name = c.get("character", "—")
-                    table.add_row(
-                        str(i),
-                        c["name"],
-                        char_name,
-                        str(c["session_count"]),
-                        c["display_time"],
-                    )
-
-                console.print(table)
-
-                if _is_interactive():
-                    selection = Prompt.ask("Start campaign #")
-                    campaign = manager.load_campaign(selection)
-                    if campaign:
-                        console.print(f"[green]Loaded:[/green] {campaign.meta.name}")
-                        status_bar.reset_tracking()
-                    else:
-                        console.print("[red]Campaign not found[/red]")
-                        return None
-                else:
-                    console.print(f"[{THEME['dim']}]Use /start <number> to begin a campaign[/{THEME['dim']}]")
-                    return None
+    # Campaign already loaded - show context for testing/debugging
+    elif manager.current and not args:
+        current_name = manager.current.meta.name
+        console.print(f"[{THEME['dim']}]Continuing with: {current_name}[/{THEME['dim']}]")
+        if len(campaigns) > 1:
+            other_campaigns = [c["name"] for c in campaigns if c["id"] != manager.current.meta.id]
+            console.print(f"[{THEME['dim']}]Other campaigns: {', '.join(other_campaigns)} (use /load to switch)[/{THEME['dim']}]")
 
     # Now we should have a campaign loaded - check for character
     if not manager.current:
@@ -3811,6 +4072,72 @@ def cmd_clear(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
     console.print(f"[{THEME['dim']}]Consider running /compress to update digest with recent events.[/{THEME['dim']}]")
 
 
+def cmd_conversation(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
+    """
+    Manage persisted conversation history.
+
+    The conversation log is saved mid-session and restored when you reload.
+    Use this command to inspect or clear it if it becomes contaminated
+    (e.g., from loading the wrong campaign).
+
+    Usage:
+        /conversation           Show conversation status
+        /conversation clear     Clear persisted conversation (keeps campaign state)
+
+    Note: Conversation is automatically cleared on /debrief when the session ends.
+    """
+    if not manager.current:
+        console.print(f"[{THEME['warning']}]No campaign loaded[/{THEME['warning']}]")
+        return
+
+    subcommand = args[0].lower() if args else "status"
+
+    if subcommand == "clear":
+        # Clear the conversation log
+        if manager.current.session:
+            msg_count = len(manager.current.session.conversation_log)
+            manager.current.session.conversation_log = []
+            manager.save_campaign()
+            console.print(f"[{THEME['accent']}]{g('success')}[/{THEME['accent']}] Cleared {msg_count} messages from conversation log")
+            console.print(f"[{THEME['dim']}]Campaign state preserved. Next /start will begin fresh.[/{THEME['dim']}]")
+        else:
+            console.print(f"[{THEME['dim']}]No active session - nothing to clear[/{THEME['dim']}]")
+
+    elif subcommand in ("status", ""):
+        # Show conversation status
+        session = manager.current.session
+        if session:
+            msg_count = len(session.conversation_log)
+            phase = session.phase.value if session.phase else "unknown"
+
+            console.print(f"\n[bold {THEME['primary']}]CONVERSATION STATUS[/bold {THEME['primary']}]")
+            console.print(f"  Session phase: [{THEME['accent']}]{phase}[/{THEME['accent']}]")
+            console.print(f"  Messages saved: [{THEME['accent']}]{msg_count}[/{THEME['accent']}]")
+
+            if msg_count > 0:
+                # Show message breakdown
+                roles = {}
+                for msg in session.conversation_log:
+                    role = msg.get("role", "unknown")
+                    roles[role] = roles.get(role, 0) + 1
+
+                role_str = ", ".join(f"{r}: {c}" for r, c in sorted(roles.items()))
+                console.print(f"  Breakdown: [{THEME['dim']}]{role_str}[/{THEME['dim']}]")
+
+                # Estimate size
+                import json
+                size_kb = len(json.dumps(session.conversation_log)) / 1024
+                console.print(f"  Size: [{THEME['dim']}]{size_kb:.1f} KB[/{THEME['dim']}]")
+
+            console.print(f"\n[{THEME['dim']}]Use /conversation clear to reset if contaminated.[/{THEME['dim']}]")
+        else:
+            console.print(f"[{THEME['dim']}]No active session - conversation log is empty[/{THEME['dim']}]")
+
+    else:
+        console.print(f"[{THEME['warning']}]Unknown subcommand: {subcommand}[/{THEME['warning']}]")
+        console.print(f"[{THEME['dim']}]Usage: /conversation [status|clear][/{THEME['dim']}]")
+
+
 # -----------------------------------------------------------------------------
 # Loadout Commands
 # -----------------------------------------------------------------------------
@@ -4629,6 +4956,8 @@ def register_all_commands():
                      handler=cmd_compress, available_when=has_campaign)
     register_command("/clear", "Clear conversation history", CommandCategory.SYSTEM,
                      handler=cmd_clear)
+    register_command("/conversation", "Manage persisted conversation log", CommandCategory.SYSTEM,
+                     handler=cmd_conversation, available_when=has_campaign)
     register_command("/help", "Show help", CommandCategory.SYSTEM,
                      handler=lambda m, a, args: show_help())
     register_command("/quit", "Exit SENTINEL", CommandCategory.SYSTEM,

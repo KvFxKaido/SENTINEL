@@ -65,6 +65,20 @@ def tui_load(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
         campaign = app.manager.load_campaign(args[0])
         if campaign:
             log.write(Text.from_markup(f"[{Theme.FRIENDLY}]Loaded: {campaign.meta.name}[/{Theme.FRIENDLY}]"))
+
+            # Restore conversation from session state (mid-mission persistence)
+            if campaign.session and campaign.session.conversation_log:
+                from ..llm.base import dict_to_message
+                app.conversation = [
+                    dict_to_message(d)
+                    for d in campaign.session.conversation_log
+                ]
+                log.write(Text.from_markup(
+                    f"[{Theme.DIM}]Restored {len(app.conversation)} messages from saved session[/{Theme.DIM}]"
+                ))
+            else:
+                app.conversation = []
+
             app.refresh_all_panels()
         else:
             log.write(Text.from_markup(f"[{Theme.DANGER}]Campaign not found[/{Theme.DANGER}]"))
@@ -81,6 +95,9 @@ def tui_load(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
 def tui_save(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
     """Save current campaign to disk."""
     if app.manager and app.manager.current:
+        # Sync conversation to session state before saving (mid-mission persistence)
+        _sync_conversation_to_session(app)
+
         result = app.manager.persist_campaign()
         log.write(Text.from_markup(f"[{Theme.FRIENDLY}]Campaign saved![/{Theme.FRIENDLY}]"))
 
@@ -97,6 +114,25 @@ def tui_save(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
             log.write(Text.from_markup(f"[{Theme.DIM}]Synced {synced_count} portrait(s) to web UI and wiki[/{Theme.DIM}]"))
     else:
         log.write(Text.from_markup(f"[{Theme.WARNING}]No campaign to save[/{Theme.WARNING}]"))
+
+
+def _sync_conversation_to_session(app: "SENTINELApp", max_messages: int = 50) -> None:
+    """
+    Sync in-memory conversation to session state for mid-mission persistence.
+
+    Limits to recent messages to prevent JSON bloat (~25KB max).
+    Only syncs if there's an active session (mid-mission).
+    """
+    if not app.manager.current or not app.manager.current.session:
+        return
+
+    from ..llm.base import message_to_dict
+
+    # Keep only the most recent messages
+    messages_to_save = app.conversation[-max_messages:]
+    app.manager.current.session.conversation_log = [
+        message_to_dict(msg) for msg in messages_to_save
+    ]
 
 
 def tui_list(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
@@ -130,10 +166,139 @@ def tui_delete(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
 # -----------------------------------------------------------------------------
 
 def tui_char(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
-    """Character creation (not yet supported in TUI)."""
-    log.write(Text.from_markup(f"[{Theme.WARNING}]Character creation requires the regular CLI.[/{Theme.WARNING}]"))
-    log.write(Text.from_markup(f"[{Theme.DIM}]Run: python -m src.interface.cli[/{Theme.DIM}]"))
-    log.write(Text.from_markup(f"[{Theme.DIM}]Then use /char there, and /load here after.[/{Theme.DIM}]"))
+    """Character creation and management.
+
+    Supports:
+        /char quick   - Create default character (Cipher, Survivor)
+        /char export  - Export character sheet to markdown
+        /char edit    - Edit character (requires CLI)
+        /char wiki    - Update character's wiki page
+        /char         - Interactive creation (requires CLI)
+    """
+    from ..state.schema import Character, Background, SocialEnergy
+    from .commands import _char_export, EDITABLE_CHAR_FIELDS
+
+    if not app.manager.current:
+        log.write(Text.from_markup(f"[{Theme.WARNING}]Load or create a campaign first[/{Theme.WARNING}]"))
+        return
+
+    # /char wiki - update wiki page
+    if args and args[0].lower() == "wiki":
+        if not app.manager.current.characters:
+            log.write(Text.from_markup(f"[{Theme.WARNING}]Create a character first[/{Theme.WARNING}]"))
+            return
+        if app.manager.update_character_wiki():
+            char = app.manager.current.characters[0]
+            log.write(Text.from_markup(f"[{Theme.ACCENT}]{g('success')}[/{Theme.ACCENT}] Updated wiki page for {char.name}"))
+            if app.manager.wiki:
+                wiki_path = app.manager.wiki.overlay_dir / "Characters" / f"{char.name}.md"
+                log.write(Text.from_markup(f"[{Theme.DIM}]{wiki_path}[/{Theme.DIM}]"))
+        else:
+            log.write(Text.from_markup(f"[{Theme.WARNING}]Wiki not enabled or update failed[/{Theme.WARNING}]"))
+        return
+
+    # /char export - export character sheet
+    if args and args[0].lower() == "export":
+        success, message = _char_export(app.manager)
+        if success:
+            log.write(Text.from_markup(f"[{Theme.ACCENT}]{g('success')}[/{Theme.ACCENT}] Exported character sheet"))
+            log.write(Text.from_markup(f"[{Theme.DIM}]{message}[/{Theme.DIM}]"))
+        else:
+            log.write(Text.from_markup(f"[{Theme.WARNING}]{message}[/{Theme.WARNING}]"))
+        return
+
+    # /char edit - show fields or direct to CLI for interactive edit
+    if args and args[0].lower() == "edit":
+        if not app.manager.current.characters:
+            log.write(Text.from_markup(f"[{Theme.WARNING}]Create a character first[/{Theme.WARNING}]"))
+            return
+
+        char = app.manager.current.characters[0]
+
+        # If no field specified, show available fields
+        if len(args) == 1:
+            log.write(Text.from_markup(f"\n[bold {Theme.ACCENT}]Editable Fields[/bold {Theme.ACCENT}]"))
+            for field, desc in EDITABLE_CHAR_FIELDS.items():
+                # Show current value
+                if field == "survival":
+                    current = char.survival_note
+                elif field == "energy_name":
+                    current = char.social_energy.name
+                elif field == "restorers":
+                    current = ", ".join(char.social_energy.restorers) if char.social_energy.restorers else ""
+                elif field == "drains":
+                    current = ", ".join(char.social_energy.drains) if char.social_energy.drains else ""
+                else:
+                    current = getattr(char, field, "")
+
+                current_display = f" = {current}" if current else ""
+                log.write(Text.from_markup(f"  [{Theme.ACCENT}]{field}[/{Theme.ACCENT}][{Theme.DIM}]{current_display}[/{Theme.DIM}]"))
+            log.write(Text.from_markup(f"\n[{Theme.DIM}]Usage: /char edit <field> <value>[/{Theme.DIM}]"))
+            log.write(Text.from_markup(f"[{Theme.DIM}]Example: /char edit pronouns she/her[/{Theme.DIM}]"))
+            return
+
+        # Field + value specified: apply edit directly
+        field = args[1].lower()
+        if len(args) > 2:
+            value = " ".join(args[2:])
+
+            if field not in EDITABLE_CHAR_FIELDS:
+                log.write(Text.from_markup(f"[{Theme.WARNING}]Unknown field: {field}[/{Theme.WARNING}]"))
+                return
+
+            # Apply the edit
+            if field == "name":
+                char.name = value
+            elif field == "callsign":
+                char.callsign = value
+            elif field == "pronouns":
+                char.pronouns = value
+            elif field == "age":
+                char.age = value
+            elif field == "survival":
+                char.survival_note = value
+            elif field == "energy_name":
+                char.social_energy.name = value
+            elif field == "restorers":
+                char.social_energy.restorers = [r.strip() for r in value.split(",") if r.strip()]
+            elif field == "drains":
+                char.social_energy.drains = [d.strip() for d in value.split(",") if d.strip()]
+
+            app.manager.save()
+            log.write(Text.from_markup(f"[{Theme.ACCENT}]{g('success')}[/{Theme.ACCENT}] Updated {field} for {char.name}"))
+            app.refresh_all_panels()
+        else:
+            # No value - need interactive prompt
+            log.write(Text.from_markup(f"[{Theme.WARNING}]Provide a value: /char edit {field} <value>[/{Theme.WARNING}]"))
+        return
+
+    # /char quick - create default character
+    if args and args[0].lower() == "quick":
+        character = Character(
+            name="Cipher",
+            pronouns="they/them",
+            background=Background.SURVIVOR,
+            social_energy=SocialEnergy(current=75),
+        )
+        app.manager.add_character(character)
+        log.write(Text.from_markup(f"\n[{Theme.ACCENT}]Created:[/{Theme.ACCENT}] [{Theme.FRIENDLY}]{character.name}[/{Theme.FRIENDLY}]"))
+        log.write(Text.from_markup(f"  [{Theme.DIM}]Pronouns:[/{Theme.DIM}] {character.pronouns}"))
+        log.write(Text.from_markup(f"  [{Theme.DIM}]Background:[/{Theme.DIM}] {character.background.value}"))
+        log.write(Text.from_markup(f"  [{Theme.DIM}]Expertise:[/{Theme.DIM}] {', '.join(character.expertise)}"))
+        log.write(Text.from_markup(f"  [{Theme.DIM}]Pistachios:[/{Theme.DIM}] [{Theme.ACCENT}]{character.social_energy.current}%[/{Theme.ACCENT}]"))
+        log.write(Text.from_markup(f"\n[{Theme.DIM}]Type /start to begin your story[/{Theme.DIM}]"))
+        log.write(Text.from_markup(f"[{Theme.DIM}]Use /char edit to customize[/{Theme.DIM}]"))
+        app.refresh_all_panels()
+        return
+
+    # No args or unrecognized - show help and direct to CLI
+    log.write(Text.from_markup(f"\n[bold {Theme.ACCENT}]/char Usage[/bold {Theme.ACCENT}]"))
+    log.write(Text.from_markup(f"  [{Theme.ACCENT}]/char quick[/{Theme.ACCENT}]  - Create default character"))
+    log.write(Text.from_markup(f"  [{Theme.ACCENT}]/char export[/{Theme.ACCENT}] - Export character sheet"))
+    log.write(Text.from_markup(f"  [{Theme.ACCENT}]/char edit[/{Theme.ACCENT}]   - Edit character fields"))
+    log.write(Text.from_markup(f"  [{Theme.ACCENT}]/char wiki[/{Theme.ACCENT}]   - Update wiki page"))
+    log.write(Text.from_markup(f"\n[{Theme.DIM}]For interactive character creation wizard:[/{Theme.DIM}]"))
+    log.write(Text.from_markup(f"[{Theme.DIM}]Run: sentinel-cli, then /char[/{Theme.DIM}]"))
 
 
 def tui_roll(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
@@ -251,7 +416,7 @@ def tui_start(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
     - No saves: Guides to /new
     - One save: Auto-loads and begins
     - Multiple saves: Shows list with quick-select numbers
-    - Campaign loaded: Begins the story
+    - Campaign loaded: Begins the story (shows hint about /load to switch)
 
     Usage:
         /start          - Smart start (auto-load or show options)
@@ -259,6 +424,44 @@ def tui_start(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
         /start <name>   - Load campaign by name and start
     """
     campaigns = app.manager.list_campaigns()
+
+    # Helper to show campaign list
+    def _show_campaign_list(title: str = "Available Campaigns"):
+        log.write(Text.from_markup(f"[bold {Theme.TEXT}]{title}:[/bold {Theme.TEXT}]"))
+        for i, c in enumerate(campaigns, 1):
+            char_name = c.get("character", "—")
+            log.write(Text.from_markup(
+                f"  [{Theme.ACCENT}]{i}[/{Theme.ACCENT}] {c['name']} "
+                f"[{Theme.DIM}]({char_name}, {c['session_count']} sessions)[/{Theme.DIM}]"
+            ))
+
+    # If args provided, always try to load that campaign first
+    if args and (not app.manager or not app.manager.current):
+        campaign = app.manager.load_campaign(args[0])
+        if campaign:
+            log.write(Text.from_markup(f"[{Theme.FRIENDLY}]Loaded: {campaign.meta.name}[/{Theme.FRIENDLY}]"))
+
+            # Restore conversation from session state (mid-mission persistence)
+            if campaign.session and campaign.session.conversation_log:
+                from ..llm.base import dict_to_message
+                app.conversation = [
+                    dict_to_message(d)
+                    for d in campaign.session.conversation_log
+                ]
+                log.write(Text.from_markup(
+                    f"[{Theme.DIM}]Restored {len(app.conversation)} messages from saved session[/{Theme.DIM}]"
+                ))
+            else:
+                app.conversation = []
+
+            app.refresh_all_panels()
+            # Fall through to start logic below
+        else:
+            log.write(Text.from_markup(f"[{Theme.DANGER}]Campaign not found[/{Theme.DANGER}]"))
+            if campaigns:
+                _show_campaign_list()
+                log.write(Text.from_markup(f"[{Theme.DIM}]Type /start <number> to begin[/{Theme.DIM}]"))
+            return
 
     # Smart loading: handle case where no campaign is loaded
     if not app.manager or not app.manager.current:
@@ -272,33 +475,40 @@ def tui_start(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
         if len(campaigns) == 1:
             campaign = app.manager.load_campaign("1")
             if campaign:
-                log.write(Text.from_markup(f"[{Theme.DIM}]Auto-loaded: {campaign.meta.name}[/{Theme.DIM}]"))
+                log.write(Text.from_markup(f"[{Theme.DIM}]Auto-loaded: {campaign.meta.name} (only campaign)[/{Theme.DIM}]"))
+
+                # Restore conversation from session state
+                if campaign.session and campaign.session.conversation_log:
+                    from ..llm.base import dict_to_message
+                    app.conversation = [
+                        dict_to_message(d)
+                        for d in campaign.session.conversation_log
+                    ]
+                    log.write(Text.from_markup(
+                        f"[{Theme.DIM}]Restored {len(app.conversation)} messages from saved session[/{Theme.DIM}]"
+                    ))
+                else:
+                    app.conversation = []
+
                 app.refresh_all_panels()
             # Fall through to start logic below
 
         # Multiple saves - need selection
         elif len(campaigns) > 1:
-            # If args provided, use as campaign selector
-            if args:
-                campaign = app.manager.load_campaign(args[0])
-                if campaign:
-                    log.write(Text.from_markup(f"[{Theme.FRIENDLY}]Loaded: {campaign.meta.name}[/{Theme.FRIENDLY}]"))
-                    app.refresh_all_panels()
-                    # Fall through to start logic below
-                else:
-                    log.write(Text.from_markup(f"[{Theme.DANGER}]Campaign not found[/{Theme.DANGER}]"))
-                    return
-            else:
-                # Show list with quick-select hint
-                log.write(Text.from_markup(f"[bold {Theme.TEXT}]Your Campaigns:[/bold {Theme.TEXT}]"))
-                for i, c in enumerate(campaigns, 1):
-                    char_name = c.get("character", "—")
-                    log.write(Text.from_markup(
-                        f"  [{Theme.ACCENT}]{i}[/{Theme.ACCENT}] {c['name']} "
-                        f"[{Theme.DIM}]({char_name}, {c['session_count']} sessions)[/{Theme.DIM}]"
-                    ))
-                log.write(Text.from_markup(f"[{Theme.DIM}]Type /start <number> to begin[/{Theme.DIM}]"))
-                return
+            # Show list with quick-select hint
+            _show_campaign_list("Your Campaigns")
+            log.write(Text.from_markup(f"[{Theme.DIM}]Type /start <number> to begin[/{Theme.DIM}]"))
+            return
+
+    # Campaign already loaded - show context for testing/debugging
+    elif app.manager and app.manager.current and not args:
+        current_name = app.manager.current.meta.name
+        log.write(Text.from_markup(f"[{Theme.DIM}]Continuing with: {current_name}[/{Theme.DIM}]"))
+        if len(campaigns) > 1:
+            other_campaigns = [c["name"] for c in campaigns if c["id"] != app.manager.current.meta.id]
+            log.write(Text.from_markup(
+                f"[{Theme.DIM}]Other campaigns: {', '.join(other_campaigns)} (use /load to switch)[/{Theme.DIM}]"
+            ))
 
     # Now we should have a campaign loaded - check for character
     if not app.manager or not app.manager.current:
@@ -464,7 +674,9 @@ def tui_help(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
         f"  [{Theme.ACCENT}]/list[/{Theme.ACCENT}] - List campaigns\n"
         f"  [{Theme.ACCENT}]/delete[/{Theme.ACCENT}] <name> - Delete campaign\n"
         f"\n[bold {Theme.TEXT}]Character:[/bold {Theme.TEXT}]\n"
-        f"  [{Theme.ACCENT}]/char[/{Theme.ACCENT}] - Create character (use regular CLI)\n"
+        f"  [{Theme.ACCENT}]/char quick[/{Theme.ACCENT}] - Create default character\n"
+        f"  [{Theme.ACCENT}]/char edit[/{Theme.ACCENT}] - Edit character fields\n"
+        f"  [{Theme.ACCENT}]/char export[/{Theme.ACCENT}] - Export character sheet\n"
         f"  [{Theme.ACCENT}]/roll[/{Theme.ACCENT}] [mod] - Roll d20\n"
         f"  [{Theme.ACCENT}]/gear[/{Theme.ACCENT}] - View inventory\n"
         f"  [{Theme.ACCENT}]/shop[/{Theme.ACCENT}] - Buy equipment (downtime only)\n"

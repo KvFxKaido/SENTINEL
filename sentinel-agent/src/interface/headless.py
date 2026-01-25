@@ -9,11 +9,15 @@ This enables embedding SENTINEL in other processes (Deno bridge, testing, etc.)
 """
 
 import json
+import os
 import sys
 import io
 from contextlib import contextmanager
 from pathlib import Path
 from typing import TextIO, Generator
+
+# Signal that we're in headless mode (disables interactive prompts)
+os.environ["SENTINEL_HEADLESS"] = "1"
 
 from ..state import CampaignManager, get_event_bus, EventType, GameEvent
 from ..agent import SentinelAgent
@@ -325,12 +329,32 @@ class HeadlessRunner:
         if not cmd_obj:
             return {"ok": False, "error": f"Unknown command: {command}"}
 
+        # Track state before command (for detecting changes)
+        campaign_before = self.manager.current.meta.id if self.manager.current else None
+        session_before = self.manager.current.session is not None if self.manager.current else False
+
         try:
             # Capture any Rich console output (tables, formatted text)
             # so it doesn't pollute the JSON stream
             with capture_console_output() as buffer:
                 # cmd_obj is a Command dataclass with a .handler attribute
                 result = cmd_obj.handler(self.manager, self.agent, args)
+
+            # Sync conversation if campaign or session state changed
+            # CLI handlers don't have access to self.conversation, so we sync here
+            # Triggers on: /load, /start, /new (campaign change), /debrief (session ends),
+            #              /conversation clear (explicit clear)
+            campaign_after = self.manager.current.meta.id if self.manager.current else None
+            session_after = self.manager.current.session is not None if self.manager.current else False
+
+            should_sync = (
+                campaign_after != campaign_before or  # Campaign changed
+                (session_before and not session_after) or  # Session ended (e.g., /debrief)
+                command in ("/conversation",)  # Explicit conversation management
+            )
+
+            if should_sync:
+                self._sync_conversation_from_campaign()
 
             # Get captured console output (strip ANSI codes for clean text)
             console_output = buffer.getvalue().strip()
@@ -391,10 +415,20 @@ class HeadlessRunner:
         """Load a campaign by ID."""
         if not campaign_id:
             return {"ok": False, "error": "No campaign_id provided"}
-        
+
         try:
             self.manager.load_campaign(campaign_id)
-            self.conversation = []  # Reset conversation on load
+
+            # Restore conversation from session state (mid-mission persistence)
+            if self.manager.current and self.manager.current.session:
+                from ..llm.base import dict_to_message
+                self.conversation = [
+                    dict_to_message(d)
+                    for d in self.manager.current.session.conversation_log
+                ]
+            else:
+                self.conversation = []
+
             return {
                 "ok": True,
                 "campaign": {
@@ -402,6 +436,7 @@ class HeadlessRunner:
                     "name": self.manager.current.meta.name,
                     "session": self.manager.current.meta.session_count,
                 },
+                "conversation_restored": len(self.conversation),
             }
         except Exception as e:
             return {"ok": False, "error": str(e)}
@@ -412,6 +447,9 @@ class HeadlessRunner:
             return {"ok": False, "error": "No campaign loaded"}
 
         try:
+            # Sync conversation to session state before saving
+            self._sync_conversation_to_session()
+
             result = self.manager.persist_campaign()
             response = {"ok": result.get("success", False)}
 
@@ -436,6 +474,45 @@ class HeadlessRunner:
             return response
         except Exception as e:
             return {"ok": False, "error": str(e)}
+
+    def _sync_conversation_from_campaign(self) -> None:
+        """
+        Sync conversation from the currently loaded campaign's session state.
+
+        Called after commands that might change the loaded campaign (e.g., /load, /start, /new)
+        to ensure self.conversation matches the campaign's saved conversation_log.
+
+        This is needed because CLI command handlers don't have access to self.conversation -
+        they only operate on the manager. Without this sync, switching campaigns would leave
+        stale conversation data from the previous campaign.
+        """
+        if self.manager.current and self.manager.current.session:
+            from ..llm.base import dict_to_message
+            self.conversation = [
+                dict_to_message(d)
+                for d in self.manager.current.session.conversation_log
+            ]
+        else:
+            # No session or no campaign - start fresh
+            self.conversation = []
+
+    def _sync_conversation_to_session(self, max_messages: int = 50) -> None:
+        """
+        Sync in-memory conversation to session state for mid-mission persistence.
+
+        Limits to recent messages to prevent JSON bloat (~25KB max).
+        Only syncs if there's an active session (mid-mission).
+        """
+        if not self.manager.current or not self.manager.current.session:
+            return
+
+        from ..llm.base import message_to_dict
+
+        # Keep only the most recent messages
+        messages_to_save = self.conversation[-max_messages:]
+        self.manager.current.session.conversation_log = [
+            message_to_dict(msg) for msg in messages_to_save
+        ]
     
     def run(self):
         """

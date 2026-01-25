@@ -139,7 +139,8 @@ class TestManagerDispositionOperations:
         """Disposition changes persist through save/load."""
         manager.add_npc(npc_with_modifiers, active=True)
         manager.update_npc_disposition(npc_with_modifiers.id, "loyal")
-        manager.save_campaign()
+        # Use persist_campaign() to actually save (save_campaign is no-op for ephemeral)
+        manager.persist_campaign()
 
         # Reload
         campaign_id = campaign.meta.id

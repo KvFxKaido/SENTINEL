@@ -34,6 +34,46 @@ class ToolResult:
     content: str  # JSON string
 
 
+# -----------------------------------------------------------------------------
+# Serialization helpers for conversation persistence
+# -----------------------------------------------------------------------------
+
+def message_to_dict(msg: Message) -> dict:
+    """
+    Serialize Message to JSON-safe dict for session persistence.
+
+    Used to store conversation history in SessionState.conversation_log.
+    """
+    result = {"role": msg.role, "content": msg.content}
+    if msg.tool_calls:
+        result["tool_calls"] = [
+            {"id": tc.id, "name": tc.name, "arguments": tc.arguments}
+            for tc in msg.tool_calls
+        ]
+    if msg.tool_call_id:
+        result["tool_call_id"] = msg.tool_call_id
+    return result
+
+
+def dict_to_message(d: dict) -> Message:
+    """
+    Deserialize dict to Message for session restore.
+
+    Used to restore conversation history from SessionState.conversation_log.
+    """
+    tool_calls = [
+        ToolCall(id=tc["id"], name=tc["name"], arguments=tc["arguments"])
+        for tc in d.get("tool_calls", [])
+    ] if d.get("tool_calls") else []
+
+    return Message(
+        role=d["role"],
+        content=d["content"],
+        tool_calls=tool_calls,
+        tool_call_id=d.get("tool_call_id"),
+    )
+
+
 @dataclass
 class LLMResponse:
     """Response from the LLM."""

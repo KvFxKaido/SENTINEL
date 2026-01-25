@@ -256,6 +256,32 @@ class CampaignManager:
             narrative_summary=narrative_summary,
         )
 
+    def track_session_npc(self, npc_id: str) -> bool:
+        """
+        Mark an NPC as active in the current session.
+
+        Adds the NPC to session.active_npc_ids if not already present.
+        Used to track which NPCs the player has interacted with during this mission.
+
+        Args:
+            npc_id: NPC identifier
+
+        Returns:
+            True if NPC was added, False if already tracked or no session
+        """
+        if not self.current or not self.current.session:
+            return False
+
+        # Only track if NPC exists
+        if not self.get_npc(npc_id):
+            return False
+
+        if npc_id not in self.current.session.active_npc_ids:
+            self.current.session.active_npc_ids.append(npc_id)
+            return True
+
+        return False
+
     def record_npc_interaction(
         self,
         npc_id: str,
@@ -289,6 +315,9 @@ class CampaignManager:
         npc = self.get_npc(npc_id)
         if not npc:
             return None
+
+        # Track NPC as active in current session
+        self.track_session_npc(npc_id)
 
         session = self.current.meta.session_count
 
@@ -556,6 +585,13 @@ class CampaignManager:
                 # Create initial snapshot from current state
                 campaign.last_session_snapshot = self._create_snapshot(campaign)
             campaign.schema_version = "1.6.0"
+            migrated = True
+
+        # v1.6.0 -> v1.7.0: conversation_log field (no data migration needed)
+        # The conversation_log field defaults to empty list, so existing campaigns
+        # will simply have no saved conversation to restore.
+        if _version_tuple(campaign.schema_version) < _version_tuple("1.7.0"):
+            campaign.schema_version = "1.7.0"
             migrated = True
 
         return migrated
@@ -894,6 +930,21 @@ class CampaignManager:
         self.current.meta.session_count += 1
         self.current.session = session_state
         self.save_campaign()
+
+        # Update character wiki page at session start
+        self.update_character_wiki()
+
+    def update_character_wiki(self) -> bool:
+        """Update the player character's wiki page."""
+        if not self.current or not self.wiki:
+            return False
+
+        if not self.current.characters:
+            return False
+
+        # Update the first (player) character
+        character = self.current.characters[0]
+        return self.wiki.save_character_page(character, self.current)
 
     def end_session(
         self,

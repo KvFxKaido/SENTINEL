@@ -14,7 +14,25 @@
 | CALLSIGN | |
 | PRONOUNS | |
 | AGE | |
-| APPEARANCE | *visible scars, posture, clothing, devices* |
+
+### Physical Description
+
+| Trait | Entry |
+|-------|-------|
+| BUILD | *masculine/feminine/androgynous* + *lean, stocky, wiry, athletic, heavyset* |
+| SKIN TONE | *pale, light, medium, tan, brown, dark* |
+| HAIR | *color, length, style* |
+| EYES | *color, notable features* |
+| EXPRESSION | *default demeanor others notice* |
+
+### Distinguishing Features
+
+| Category | Details |
+|----------|---------|
+| FACIAL FEATURES | *bone structure, scars, weathering* |
+| MARKS | *scars, tattoos, calluses, burns* |
+| AUGMENTATIONS | *visible tech, implants, prosthetics* |
+| OTHER | *posture, clothing style, devices carried* |
 
 ---
 

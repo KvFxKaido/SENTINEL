@@ -9,20 +9,22 @@ def manager(tmp_path):
     return CampaignManager(store=tmp_path)
 
 def test_migration_creates_snapshot(manager):
-    """Test that migrating to 1.6.0 creates an initial snapshot."""
+    """Test that migrating from old versions creates an initial snapshot and reaches current version."""
     # Create a campaign manually with old version
     campaign = manager.create_campaign("Test Campaign")
     campaign.schema_version = "1.5.0"
     campaign.last_session_snapshot = None
-    manager.save_campaign()
+    # Use persist_campaign() to actually save to disk (save_campaign is no-op for ephemeral)
+    manager.persist_campaign()
 
     # Clear cache to force reload from disk
     del manager._cache[campaign.meta.id]
 
     # Reload to trigger migration
     loaded = manager.load_campaign(campaign.meta.id)
-    
-    assert loaded.schema_version == "1.6.0"
+
+    # Should migrate to current version (1.7.0)
+    assert loaded.schema_version == "1.7.0"
     assert loaded.last_session_snapshot is not None
     assert loaded.last_session_snapshot.session == 0
     assert len(loaded.last_session_snapshot.factions) == len(FactionName)

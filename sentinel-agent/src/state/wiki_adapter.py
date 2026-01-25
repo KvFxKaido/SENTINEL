@@ -715,6 +715,214 @@ class WikiAdapter:
             logger.error(f"Failed to update NPC page: {e}")
             return False
 
+    def save_character_page(
+        self,
+        character: "Character",
+        campaign: "Campaign",
+    ) -> bool:
+        """
+        Create or update a player character wiki page.
+
+        Creates Characters/{name}.md using the SUBJECT FILE format.
+        Pulls appearance data from campaign-specific YAML if available.
+        """
+        if not self.enabled or not self._templates:
+            return False
+
+        from .schema import Background
+
+        # Sanitize name for filename
+        safe_name = character.name.replace("/", "-").replace("\\", "-")
+        name_slug = character.name.strip().lower().replace(" ", "_").replace("'", "")
+        char_file = self.overlay_dir / "Characters" / f"{safe_name}.md"
+
+        # Ensure Characters directory exists
+        char_file.parent.mkdir(parents=True, exist_ok=True)
+
+        try:
+            # Try to load appearance data from YAML
+            appearance_data = self._load_character_appearance(campaign.meta.id, name_slug)
+
+            # Get faction standings
+            factions = []
+            faction_attrs = [
+                ('nexus', 'Nexus'),
+                ('ember_colonies', 'Ember Colonies'),
+                ('lattice', 'Lattice'),
+                ('convergence', 'Convergence'),
+                ('covenant', 'Covenant'),
+                ('wanderers', 'Wanderers'),
+                ('cultivators', 'Cultivators'),
+                ('steel_syndicate', 'Steel Syndicate'),
+                ('witnesses', 'Witnesses'),
+                ('architects', 'Architects'),
+                ('ghost_networks', 'Ghost Networks'),
+            ]
+            for attr, name in faction_attrs:
+                faction_standing = getattr(campaign.factions, attr, None)
+                if faction_standing:
+                    factions.append({
+                        "name": name,
+                        "standing": faction_standing.standing.value.title(),
+                        "notes": "",  # Could populate from history
+                    })
+
+            # Build hinges list
+            hinges = []
+            for h in character.hinge_history:
+                hinges.append({
+                    "session": h.session,
+                    "title": h.choice,
+                    "choice": h.choice,
+                    "consequence": h.what_shifted or h.choice,
+                })
+
+            # Build context for template
+            context = {
+                "name": character.name,
+                "name_slug": name_slug,
+                "callsign": character.callsign,
+                "pronouns": character.pronouns,
+                "age": character.age,
+                "appearance": character.appearance,
+                "appearance_data": appearance_data,
+                "background": character.background.value.title(),
+                "background_desc": self._get_background_description(character.background),
+                "backgrounds": [b.value.title() for b in Background],
+                "survival_note": character.survival_note,
+                "establishing_incident": {
+                    "description": character.establishing_incident.summary,
+                    "location": character.establishing_incident.location or None,
+                    "costs": character.establishing_incident.costs or None,
+                } if character.establishing_incident else None,
+                "social_energy": character.social_energy.current,
+                "energy_track": character.social_energy.name or "Pistachios",
+                "restorers": character.social_energy.restorers if hasattr(character.social_energy, 'restorers') else [],
+                "drains": character.social_energy.drains if hasattr(character.social_energy, 'drains') else [],
+                "credits": character.credits,
+                "gear": [{"name": g.name, "description": g.description} for g in character.gear],
+                "vehicles": [{"name": v.name, "type": v.type} for v in character.vehicles] if character.vehicles else [],
+                "factions": factions,
+                "hinges": hinges,
+                "enhancements": [
+                    {
+                        "name": e.name,
+                        "source_faction": e.source_faction.value.replace("_", " ").title(),
+                        "description": e.description,
+                        "leverage_cost": e.leverage_cost,
+                    }
+                    for e in character.enhancements
+                ],
+                "refused_enhancements": [
+                    {
+                        "name": e.name,
+                        "source_faction": e.source.value.replace("_", " ").title(),
+                        "benefit": e.benefit,
+                        "reason": e.reason_refused,
+                    }
+                    for e in character.refused_enhancements
+                ],
+                "arcs": [
+                    {
+                        "title": a.title,
+                        "arc_type": a.arc_type.value.title(),
+                        "description": a.description,
+                        "status": a.status.value.title(),
+                        "detected_session": a.detected_session,
+                        "strength": a.strength,
+                    }
+                    for a in character.arcs
+                ],
+                "aligned_faction": character.aligned_faction.value.replace("_", " ").title() if character.aligned_faction else None,
+                "campaign_id": campaign.meta.id,
+                "session_count": campaign.meta.session_count,
+                "reflections": None,  # Could populate from last session
+            }
+
+            # Render template
+            content = self._templates.render("character.md.j2", context)
+
+            if not self._atomic_write(char_file, content):
+                return False
+
+            # Copy portrait to wiki if it exists
+            self._copy_character_portrait_to_wiki(campaign.meta.id, name_slug)
+
+            logger.debug(f"Updated character page: {character.name}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to update character page: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+    def _load_character_appearance(self, campaign_id: str, name_slug: str) -> dict | None:
+        """Load character appearance from YAML file if it exists."""
+        import yaml
+
+        # Look in assets/characters/campaigns/{campaign_id}/{name}.yaml
+        project_root = self.wiki_dir.parent
+        yaml_path = project_root / "assets" / "characters" / "campaigns" / campaign_id / f"{name_slug}.yaml"
+
+        if not yaml_path.exists():
+            logger.debug(f"No appearance YAML found at {yaml_path}")
+            return None
+
+        try:
+            with open(yaml_path, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f)
+            logger.debug(f"Loaded appearance data for {name_slug}")
+            return data
+        except Exception as e:
+            logger.error(f"Failed to load appearance YAML: {e}")
+            return None
+
+    def _copy_character_portrait_to_wiki(self, campaign_id: str, name_slug: str) -> bool:
+        """Copy character portrait from campaign assets to wiki."""
+        import shutil
+
+        # Source: assets/portraits/campaigns/{campaign_id}/{name_slug}.png
+        project_root = self.wiki_dir.parent
+        source = project_root / "assets" / "portraits" / "campaigns" / campaign_id / f"{name_slug}.png"
+
+        # Also check sentinel-ui location
+        if not source.exists():
+            source = project_root / "sentinel-ui" / "public" / "assets" / "portraits" / "campaigns" / campaign_id / f"{name_slug}.png"
+
+        if not source.exists():
+            logger.debug(f"No character portrait found for {name_slug} in campaign {campaign_id}")
+            return False
+
+        # Destination: wiki/assets/portraits/campaigns/{campaign_id}/{name_slug}.png
+        dest = self.wiki_dir / "assets" / "portraits" / "campaigns" / campaign_id / f"{name_slug}.png"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+
+        if dest.exists() and dest.stat().st_size == source.stat().st_size:
+            return True  # Already copied
+
+        try:
+            shutil.copy2(source, dest)
+            logger.debug(f"Copied character portrait to wiki: {name_slug}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to copy character portrait: {e}")
+            return False
+
+    def _get_background_description(self, background: "Background") -> str:
+        """Get the description for a background."""
+        from .schema import Background
+        descriptions = {
+            Background.CARETAKER: "Healer, protector — the one who keeps others alive",
+            Background.SURVIVOR: "Endured the worst, still standing",
+            Background.OPERATIVE: "Trained for missions, intel, shadows",
+            Background.TECHNICIAN: "Keeps the machines running",
+            Background.PILGRIM: "Seeker, wanderer, searching for meaning",
+            Background.WITNESS: "Observer, recorder, keeper of truth",
+            Background.GHOST: "Erased, forgotten, never officially existed",
+        }
+        return descriptions.get(background, "")
+
     def save_dormant_thread(
         self,
         thread: DormantThread,
