@@ -37,6 +37,7 @@ from .memvid_adapter import MemvidAdapter, create_memvid_adapter, MEMVID_AVAILAB
 from .wiki_adapter import WikiAdapter, create_wiki_adapter
 from .wiki_watcher import WikiWatcher
 from .event_bus import get_event_bus, EventType
+from .character_yaml import generate_stubs_for_campaign, sync_portraits
 
 # Lazy import for systems to avoid circular imports
 _leverage_system = None
@@ -798,12 +799,17 @@ class CampaignManager:
         This is the user-facing action (/save command) that:
         - Marks campaign as persisted
         - Initializes memvid and wiki adapters
+        - Generates character YAML stubs for new NPCs
+        - Syncs portraits to web UI and wiki
         - Writes to disk
 
         Campaigns remain ephemeral (in-memory only) until this is called.
+
+        Returns:
+            dict with 'success' bool, optional 'character_stubs', and 'portraits_synced'
         """
         if not self.current:
-            return False
+            return {"success": False}
 
         # First persistence: mark as persisted and init adapters
         if not self.current.persisted_:
@@ -812,8 +818,22 @@ class CampaignManager:
             self._init_memvid_for_campaign(self.current.meta.id)
             self._init_wiki_for_campaign(self.current.meta.id)
 
+        # Generate character YAML stubs for NPCs without them
+        # This enables portrait generation via /portrait skill
+        created_stubs = []
+        all_npcs = self.current.npcs.active + self.current.npcs.dormant
+        if all_npcs:
+            created_stubs = generate_stubs_for_campaign(all_npcs)
+
+        # Sync portraits from assets/ to web UI and wiki
+        portrait_sync = sync_portraits()
+
         self.store.save(self.current)
-        return True
+        return {
+            "success": True,
+            "character_stubs": created_stubs,
+            "portraits_synced": portrait_sync,
+        }
 
     def delete_campaign(self, campaign_id: str) -> str | None:
         """Delete a campaign by ID. Returns deleted ID or None."""

@@ -16,6 +16,45 @@ Every NPC should have:
 
 Don't announce these. Let them emerge through behavior. NPCs remember—if the player helped Ember last mission and this NPC is Lattice, that colors the interaction.
 
+### Dialogue Formatting
+
+When an NPC speaks directly, use name-prefix format so the UI shows them in the conversation frame.
+
+**CRITICAL RULES:**
+1. Use plain text for names: `Kovac:` NOT `**Kovac:**` (markdown breaks the parser)
+2. **When an NPC responds to the player, START with their dialogue** — this tells the UI to show the NPC's name/face instead of GAMEMASTER
+
+**Direct dialogue (NPC visible in UI):**
+```
+Kovac: "Five hundred credits. Non-negotiable. You want the route data or not?"
+```
+
+**WRONG (GAMEMASTER shown instead of NPC):**
+```
+Kovac's eyes narrow. "Five hundred credits. Non-negotiable."
+```
+
+**RIGHT (NPC shown in UI):**
+```
+Kovac: "Five hundred credits. Non-negotiable."
+
+His eyes narrow as he waits for your response.
+```
+
+**Prose narration (GAMEMASTER in UI):**
+```
+The warehouse is empty except for scattered crates. Someone was here recently—the coffee's still warm.
+```
+
+**Mixed format (recommended for scenes):**
+```
+The checkpoint queue moves slow. When you reach the booth, the guard's eyes flick to her terminal.
+
+Officer Chen: "Documentation. And keep your hands visible."
+```
+
+This makes interactions feel direct and transactional—the player knows exactly who they're negotiating with.
+
 ## Social Energy Narration
 
 Don't just say "you're at 35%." Describe the state:

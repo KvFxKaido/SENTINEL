@@ -100,10 +100,57 @@ class WikiAdapter:
             # Also create subdirectories
             (self.overlay_dir / "NPCs").mkdir(exist_ok=True)
             (self.overlay_dir / "sessions").mkdir(exist_ok=True)
+            # Create shared assets directory for portraits
+            (self.wiki_dir / "assets" / "portraits" / "npcs").mkdir(parents=True, exist_ok=True)
             logger.debug(f"Wiki overlay directory: {self.overlay_dir}")
         except Exception as e:
             logger.error(f"Failed to create overlay directory: {e}")
             self.enabled = False
+
+    def _copy_portrait_to_wiki(self, npc_name: str) -> bool:
+        """
+        Copy NPC portrait from assets to wiki if it exists.
+
+        Looks for portrait in assets/portraits/npcs/{slug}.png and copies
+        to wiki/assets/portraits/npcs/ for Obsidian embedding.
+
+        Args:
+            npc_name: NPC name to find portrait for
+
+        Returns:
+            True if portrait was copied (or already exists), False otherwise
+        """
+        import shutil
+
+        # Slugify name to match portrait filename convention
+        slug = npc_name.strip().lower().replace(" ", "_").replace("'", "").replace("-", "_")
+
+        # Source: assets/portraits/npcs/{slug}.png (relative to project root)
+        # wiki_dir is typically SENTINEL/wiki, so go up one level to project root
+        project_root = self.wiki_dir.parent
+        source_portrait = project_root / "assets" / "portraits" / "npcs" / f"{slug}.png"
+
+        # Destination: wiki/assets/portraits/npcs/{slug}.png
+        dest_portrait = self.wiki_dir / "assets" / "portraits" / "npcs" / f"{slug}.png"
+
+        # Skip if source doesn't exist
+        if not source_portrait.exists():
+            logger.debug(f"No portrait found for {npc_name} at {source_portrait}")
+            return False
+
+        # Skip if destination already exists and is same size (avoid redundant copies)
+        if dest_portrait.exists():
+            if dest_portrait.stat().st_size == source_portrait.stat().st_size:
+                logger.debug(f"Portrait already in wiki: {slug}.png")
+                return True
+
+        try:
+            shutil.copy2(source_portrait, dest_portrait)
+            logger.debug(f"Copied portrait to wiki: {slug}.png")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to copy portrait for {npc_name}: {e}")
+            return False
 
     def _do_atomic_write(self, filepath: Path, content: str) -> bool:
         """
@@ -657,6 +704,10 @@ class WikiAdapter:
 
             if not self._atomic_write(npc_file, new_content):
                 return False
+
+            # Try to copy portrait to wiki (best effort - doesn't fail if missing)
+            self._copy_portrait_to_wiki(npc.name)
+
             logger.debug(f"Updated NPC page: {npc.name}")
             return True
 

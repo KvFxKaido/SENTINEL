@@ -115,7 +115,7 @@ class JsonCampaignStore:
         """
         List all campaigns sorted by modification time.
 
-        Returns list of dicts with: id, name, session_count, phase, updated_at
+        Returns list of dicts with: id, name, session_count, phase, updated_at, character
         """
         campaigns = []
 
@@ -134,12 +134,17 @@ class JsonCampaignStore:
                     meta.get("updated_at", "2000-01-01")
                 )
 
+                # Extract character name if available
+                characters = data.get("characters", [])
+                character_name = characters[0].get("name") if characters else None
+
                 campaigns.append({
                     "id": meta.get("id", f.stem),
                     "name": meta.get("name", "Unnamed"),
                     "session_count": meta.get("session_count", 0),
                     "phase": meta.get("phase", 1),
                     "updated_at": updated,
+                    "character": character_name,
                 })
             except (json.JSONDecodeError, KeyError):
                 continue
@@ -192,12 +197,16 @@ class MemoryCampaignStore:
         campaigns = []
 
         for campaign in self.campaigns.values():
+            # Extract character name if available
+            character_name = campaign.characters[0].name if campaign.characters else None
+
             campaigns.append({
                 "id": campaign.meta.id,
                 "name": campaign.meta.name,
                 "session_count": campaign.meta.session_count,
                 "phase": campaign.meta.phase,
                 "updated_at": campaign.meta.updated_at,
+                "character": character_name,
             })
 
         # Sort by updated_at descending

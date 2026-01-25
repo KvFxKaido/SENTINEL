@@ -118,8 +118,20 @@ def cmd_list(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
 
 def cmd_save(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
     """Save current campaign to disk."""
-    manager.persist_campaign()
+    result = manager.persist_campaign()
     console.print(f"[{THEME['accent']}]Saved[/{THEME['accent']}]")
+
+    # Report any newly created character YAML stubs
+    if result.get("character_stubs"):
+        console.print(f"[dim]Created character stubs for portrait generation:[/dim]")
+        for path in result["character_stubs"]:
+            console.print(f"  [cyan]{path.name}[/cyan]")
+
+    # Report synced portraits
+    sync = result.get("portraits_synced", {})
+    synced_count = len(sync.get("copied_to_webui", [])) + len(sync.get("copied_to_wiki", []))
+    if synced_count > 0:
+        console.print(f"[dim]Synced {synced_count} portrait(s) to web UI and wiki[/dim]")
 
 
 def cmd_delete(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
@@ -980,6 +992,80 @@ def cmd_npc(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
     return None
 
 
+def cmd_describe(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
+    """Ask the GM to describe a character's appearance for portrait generation.
+
+    Usage:
+        /describe <name>   - GM describes the character and saves appearance to YAML
+        /describe me       - Describe your own character
+
+    Works with or without a saved campaign - just needs an LLM backend.
+    """
+    if not args:
+        console.print(f"[{THEME['warning']}]Usage: /describe <character name>[/{THEME['warning']}]")
+        console.print(f"[{THEME['dim']}]Asks the GM to describe a character's appearance for portrait generation.[/{THEME['dim']}]")
+        console.print(f"[{THEME['dim']}]Use '/describe me' for your own character.[/{THEME['dim']}]")
+        return None
+
+    if not agent.is_available:
+        console.print(f"[{THEME['warning']}]No LLM backend available[/{THEME['warning']}]")
+        return None
+
+    name_input = " ".join(args)
+
+    # Handle "me" or "myself" to describe player character
+    is_player = name_input.lower() in ("me", "myself", "my character")
+    if is_player:
+        if manager.current and manager.current.characters:
+            char = manager.current.characters[0]
+            character_name = char.name
+            context = f"This is the player character, a {char.background.value}."
+            if char.appearance:
+                context += f" Player's notes: {char.appearance}"
+        else:
+            console.print(f"[{THEME['warning']}]No character loaded. Use /describe <name> instead.[/{THEME['warning']}]")
+            return None
+    else:
+        character_name = name_input
+        context = ""
+        # Try to get faction context from campaign NPCs
+        if manager.current:
+            for npc in manager.current.npcs.active + manager.current.npcs.dormant:
+                if npc.name.lower() == character_name.lower():
+                    if npc.faction:
+                        context = f"This NPC belongs to the {npc.faction.value} faction."
+                    break
+
+    # Check if we already have a description
+    from ..state.character_yaml import yaml_exists, get_characters_dir
+    if yaml_exists(character_name):
+        yaml_dir = get_characters_dir()
+        slug = character_name.strip().lower().replace(" ", "_").replace("'", "").replace("-", "_")
+        console.print(f"[{THEME['accent']}]Character file exists: {slug}.yaml[/{THEME['accent']}]")
+        console.print(f"[{THEME['dim']}]Location: {yaml_dir / f'{slug}.yaml'}[/{THEME['dim']}]")
+        console.print(f"[{THEME['dim']}]Use /portrait {character_name} to generate a portrait[/{THEME['dim']}]")
+        return None
+
+    console.print(f"[{THEME['dim']}]Asking GM to describe {character_name}...[/{THEME['dim']}]")
+
+    # Construct a prompt that encourages the GM to use the describe_npc_appearance tool
+    describe_prompt = f"""Describe the physical appearance of {character_name} in detail.
+{context}
+
+Consider faction aesthetics if applicable. Use the describe_npc_appearance tool to record their appearance with these details:
+- Physical build and age
+- Skin tone and facial features
+- Hair (color, length, style)
+- Eyes (color, any augmentations)
+- Notable features (scars, tattoos, augmentations)
+- Typical expression and demeanor
+- Distinctive clothing or accessories
+
+After recording, give a brief narrative description of how they appear."""
+
+    return ("gm_prompt", describe_prompt)
+
+
 def _generate_npc_greeting(npc, disposition: str) -> str:
     """Generate a contextual greeting based on NPC disposition and agenda."""
     # Disposition-based greeting templates
@@ -1491,9 +1577,94 @@ def cmd_roll(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
 
 
 def cmd_start(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
-    """Start the campaign with an establishing scene."""
+    """
+    Start the campaign with an establishing scene.
+
+    Smart behavior based on game state:
+    - No saves: Guides to /new
+    - One save: Auto-loads and begins
+    - Multiple saves: Shows list with quick-select numbers
+    - Campaign loaded: Begins the story
+
+    Usage:
+        /start          - Smart start (auto-load or show options)
+        /start <n>      - Load campaign #n and start
+        /start <name>   - Load campaign by name and start
+    """
+    campaigns = manager.list_campaigns()
+
+    # Smart loading: handle case where no campaign is loaded
     if not manager.current:
-        console.print("[yellow]Create a campaign first (/new)[/yellow]")
+        # No saves exist - guide to character creation
+        if not campaigns:
+            console.print(f"[{THEME['accent']}]Welcome to SENTINEL[/{THEME['accent']}]")
+            console.print("[dim]No campaigns found. Let's create one![/dim]")
+            if _is_interactive():
+                name = Prompt.ask("Campaign name")
+                manager.create_campaign(name)
+                console.print(f"[green]Created:[/green] {manager.current.meta.name}")
+                console.print("[dim]Now create your character with /char, then /start again[/dim]")
+            else:
+                console.print("[dim]Use /new <name> to create a campaign[/dim]")
+            return None
+
+        # Exactly one save - auto-load it
+        if len(campaigns) == 1:
+            campaign = manager.load_campaign("1")
+            if campaign:
+                console.print(f"[{THEME['dim']}]Auto-loaded: {campaign.meta.name}[/{THEME['dim']}]")
+                status_bar.reset_tracking()
+            # Fall through to start logic below
+
+        # Multiple saves - need selection
+        elif len(campaigns) > 1:
+            # If args provided, use as campaign selector
+            if args:
+                campaign = manager.load_campaign(args[0])
+                if campaign:
+                    console.print(f"[green]Loaded:[/green] {campaign.meta.name}")
+                    status_bar.reset_tracking()
+                    # Fall through to start logic below
+                else:
+                    console.print("[red]Campaign not found[/red]")
+                    return None
+            else:
+                # Show list with quick-select hint
+                table = Table(title="Your Campaigns")
+                table.add_column("#", style="dim")
+                table.add_column("Name")
+                table.add_column("Character")
+                table.add_column("Sessions")
+                table.add_column("Last Played")
+
+                for i, c in enumerate(campaigns, 1):
+                    char_name = c.get("character", "—")
+                    table.add_row(
+                        str(i),
+                        c["name"],
+                        char_name,
+                        str(c["session_count"]),
+                        c["display_time"],
+                    )
+
+                console.print(table)
+
+                if _is_interactive():
+                    selection = Prompt.ask("Start campaign #")
+                    campaign = manager.load_campaign(selection)
+                    if campaign:
+                        console.print(f"[green]Loaded:[/green] {campaign.meta.name}")
+                        status_bar.reset_tracking()
+                    else:
+                        console.print("[red]Campaign not found[/red]")
+                        return None
+                else:
+                    console.print(f"[{THEME['dim']}]Use /start <number> to begin a campaign[/{THEME['dim']}]")
+                    return None
+
+    # Now we should have a campaign loaded - check for character
+    if not manager.current:
+        console.print("[red]Failed to load campaign[/red]")
         return None
 
     if not manager.current.characters:
@@ -1506,12 +1677,32 @@ def cmd_start(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
 
     char = manager.current.characters[0]
 
+    # Check if character needs appearance description
+    from ..state.character_yaml import yaml_exists
+    needs_appearance = not yaml_exists(char.name)
+
+    # Build character context
+    char_context = f"I'm playing {char.name}, a {char.background.value}."
+    if char.appearance:
+        char_context += f" Appearance notes: {char.appearance}"
+
+    # Base prompt
     prompt = (
-        f"Begin the campaign. I'm playing {char.name}, a {char.background.value}. "
+        f"Begin the campaign. {char_context} "
         f"Set an establishing scene that introduces the world and leads naturally "
         f"toward a situation where my skills might be needed. Start in motion — "
         f"don't over-explain, just drop me into the fiction."
     )
+
+    # Add appearance description request if needed
+    if needs_appearance:
+        prompt += (
+            f"\n\nAs you introduce {char.name}, use the describe_npc_appearance tool to record "
+            f"their physical appearance based on their background as a {char.background.value}. "
+            f"Include details like build, skin tone, hair, eyes, any augmentations or distinguishing "
+            f"features, and typical expression. This will be used to generate their portrait."
+        )
+        console.print(f"[{THEME['dim']}]GM will describe {char.name}'s appearance for portrait generation...[/{THEME['dim']}]")
 
     return ("gm_prompt", prompt)
 
@@ -4384,6 +4575,8 @@ def register_all_commands():
                      handler=cmd_consult, available_when=has_character)
     register_command("/npc", "View NPC info", CommandCategory.SOCIAL,
                      handler=cmd_npc, available_when=has_campaign)
+    register_command("/describe", "Describe NPC for portrait", CommandCategory.SOCIAL,
+                     handler=cmd_describe, available_when=has_campaign)
     register_command("/factions", "View faction standings", CommandCategory.SOCIAL,
                      handler=cmd_factions, available_when=has_campaign)
 

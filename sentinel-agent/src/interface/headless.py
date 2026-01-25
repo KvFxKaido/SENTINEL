@@ -412,8 +412,28 @@ class HeadlessRunner:
             return {"ok": False, "error": "No campaign loaded"}
 
         try:
-            self.manager.persist_campaign()
-            return {"ok": True}
+            result = self.manager.persist_campaign()
+            response = {"ok": result.get("success", False)}
+
+            # Build output message
+            output_lines = ["Campaign saved!"]
+
+            # Include character stubs in response (as filenames)
+            if result.get("character_stubs"):
+                stubs = [p.name for p in result["character_stubs"]]
+                response["character_stubs"] = stubs
+                output_lines.append("Created character stubs for portrait generation:")
+                for stub in stubs:
+                    output_lines.append(f"  • {stub}")
+
+            # Report synced portraits
+            sync = result.get("portraits_synced", {})
+            synced_count = len(sync.get("copied_to_webui", [])) + len(sync.get("copied_to_wiki", []))
+            if synced_count > 0:
+                output_lines.append(f"Synced {synced_count} portrait(s) to web UI and wiki")
+
+            response["output"] = "\n".join(output_lines)
+            return response
         except Exception as e:
             return {"ok": False, "error": str(e)}
     
