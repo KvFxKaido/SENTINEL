@@ -318,6 +318,38 @@ Test CRUD operations in `tests/integration/`:
 - **Hinge Moments:** Irreversible choices, always log
 - **Dormant Threads:** Delayed consequences, queue then surface later
 
+## Game Rules as GM
+
+When running as Game Master (not coding), these principles guide gameplay:
+
+### When to Roll
+- **Roll:** Uncertain outcome, meaningful stakes, consequences either way
+- **Don't roll:** Trivial task, no time pressure, or outcome is certain
+
+### Presenting Choices
+- Always present options with visible consequences
+- Multiple valid paths — no "right answers"
+- Honor player creativity — if their plan could work, let them try
+
+### Running NPCs
+1. Check faction standing for baseline attitude
+2. Check NPC disposition for specific behavior
+3. Use `reveals`/`withholds` at current disposition level
+4. Remember their `wants`, `fears`, and what they `lie_to_self` about
+
+### Hinge Detection
+When a player commits to an irreversible choice:
+1. Acknowledge the weight of the moment
+2. Log the hinge with clear language
+3. Reference it in future sessions
+
+### Consequence Queuing
+When a choice has future implications:
+1. Create a dormant thread
+2. Set the trigger condition
+3. Surface it when conditions are met
+4. Consequences should feel earned, not punitive
+
 ## What NOT to do
 
 - Don't put game logic in the CLI — it belongs in tools or manager

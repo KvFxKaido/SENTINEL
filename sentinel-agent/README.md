@@ -208,7 +208,7 @@ your-vault/
 └── templates/                # Optional custom templates
 ```
 
-See [OBSIDIAN_INTEGRATION.md](../architecture/OBSIDIAN_INTEGRATION.md) for full documentation.
+Wiki features include live session updates, NPC page auto-creation, bi-directional sync, and Dataview-ready frontmatter. See `src/state/wiki_adapter.py` for implementation.
 
 ## CLI Commands
 
