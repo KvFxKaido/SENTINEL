@@ -1,0 +1,807 @@
+---
+/**
+ * ThemeEditor - A floating dev panel for live CSS variable editing
+ *
+ * Features:
+ * - Color pickers for all color variables
+ * - Font picker with live preview (loads Google Fonts on demand)
+ * - Real-time preview (changes apply instantly)
+ * - localStorage persistence (survives refresh)
+ * - Copy-to-clipboard export
+ * - Collapsible categories
+ * - Draggable position
+ * - Keyboard shortcut (Ctrl+Shift+T) to toggle
+ *
+ * Usage: Add to GameLayout.astro (dev mode only)
+ */
+
+// Font options - mix of system fonts and Google Fonts
+const fontOptions = {
+  mono: [
+    { label: 'JetBrains Mono', value: "'JetBrains Mono'", google: 'JetBrains+Mono:wght@400;500;600' },
+    { label: 'Fira Code', value: "'Fira Code'", google: 'Fira+Code:wght@400;500;600' },
+    { label: 'Source Code Pro', value: "'Source Code Pro'", google: 'Source+Code+Pro:wght@400;500;600' },
+    { label: 'IBM Plex Mono', value: "'IBM Plex Mono'", google: 'IBM+Plex+Mono:wght@400;500;600' },
+    { label: 'Roboto Mono', value: "'Roboto Mono'", google: 'Roboto+Mono:wght@400;500;600' },
+    { label: 'Space Mono', value: "'Space Mono'", google: 'Space+Mono:wght@400;700' },
+    { label: 'Victor Mono', value: "'Victor Mono'", google: 'Victor+Mono:wght@400;500;600' },
+    { label: 'Inconsolata', value: "'Inconsolata'", google: 'Inconsolata:wght@400;500;600' },
+    { label: 'Ubuntu Mono', value: "'Ubuntu Mono'", google: 'Ubuntu+Mono:wght@400;700' },
+    { label: 'Cascadia Code', value: "'Cascadia Code'", google: null }, // System font (Windows Terminal)
+    { label: 'SF Mono', value: "'SF Mono'", google: null }, // System font (macOS)
+    { label: 'Consolas', value: "'Consolas'", google: null }, // System font (Windows)
+    { label: 'Monaco', value: "'Monaco'", google: null }, // System font (macOS)
+  ],
+  sans: [
+    { label: 'Inter', value: "'Inter'", google: 'Inter:wght@400;500;600;700' },
+    { label: 'System Default', value: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", google: null },
+    { label: 'Geist', value: "'Geist'", google: null }, // Vercel's font (needs manual install)
+    { label: 'IBM Plex Sans', value: "'IBM Plex Sans'", google: 'IBM+Plex+Sans:wght@400;500;600;700' },
+    { label: 'Roboto', value: "'Roboto'", google: 'Roboto:wght@400;500;700' },
+    { label: 'Open Sans', value: "'Open Sans'", google: 'Open+Sans:wght@400;500;600;700' },
+    { label: 'Nunito', value: "'Nunito'", google: 'Nunito:wght@400;500;600;700' },
+    { label: 'Source Sans 3', value: "'Source Sans 3'", google: 'Source+Sans+3:wght@400;500;600;700' },
+    { label: 'Work Sans', value: "'Work Sans'", google: 'Work+Sans:wght@400;500;600;700' },
+    { label: 'DM Sans', value: "'DM Sans'", google: 'DM+Sans:wght@400;500;600;700' },
+    { label: 'Outfit', value: "'Outfit'", google: 'Outfit:wght@400;500;600;700' },
+    { label: 'Manrope', value: "'Manrope'", google: 'Manrope:wght@400;500;600;700' },
+  ],
+};
+
+// Define the theme structure - this maps to your CSS variables
+const themeConfig = {
+  'Background': {
+    '--bg-primary': { type: 'color', default: '#000000', label: 'Primary' },
+    '--bg-secondary': { type: 'color', default: '#0a0a0a', label: 'Secondary' },
+    '--bg-tertiary': { type: 'color', default: '#121212', label: 'Tertiary' },
+    '--bg-hover': { type: 'color', default: '#1a1a1a', label: 'Hover' },
+  },
+  'Text': {
+    '--text-primary': { type: 'color', default: '#e6edf3', label: 'Primary' },
+    '--text-secondary': { type: 'color', default: '#8b949e', label: 'Secondary' },
+    '--text-muted': { type: 'color', default: '#6e7681', label: 'Muted' },
+  },
+  'Accent': {
+    '--accent-blue': { type: 'color', default: '#58a6ff', label: 'Blue' },
+    '--accent-steel': { type: 'color', default: '#79c0ff', label: 'Steel' },
+    '--accent-cyan': { type: 'color', default: '#56d4dd', label: 'Cyan' },
+  },
+  'Status': {
+    '--status-success': { type: 'color', default: '#3fb950', label: 'Success' },
+    '--status-warning': { type: 'color', default: '#d29922', label: 'Warning' },
+    '--status-danger': { type: 'color', default: '#f85149', label: 'Danger' },
+    '--status-info': { type: 'color', default: '#58a6ff', label: 'Info' },
+    '--status-unfriendly': { type: 'color', default: '#f0883e', label: 'Unfriendly' },
+  },
+  'Factions': {
+    '--faction-nexus': { type: 'color', default: '#58a6ff', label: 'Nexus' },
+    '--faction-ember': { type: 'color', default: '#f0883e', label: 'Ember' },
+    '--faction-lattice': { type: 'color', default: '#a371f7', label: 'Lattice' },
+    '--faction-convergence': { type: 'color', default: '#56d4dd', label: 'Convergence' },
+    '--faction-covenant': { type: 'color', default: '#d2a8ff', label: 'Covenant' },
+    '--faction-wanderers': { type: 'color', default: '#7ee787', label: 'Wanderers' },
+    '--faction-cultivators': { type: 'color', default: '#3fb950', label: 'Cultivators' },
+    '--faction-syndicate': { type: 'color', default: '#8b949e', label: 'Syndicate' },
+    '--faction-witnesses': { type: 'color', default: '#f8e3a1', label: 'Witnesses' },
+    '--faction-architects': { type: 'color', default: '#79c0ff', label: 'Architects' },
+    '--faction-ghost': { type: 'color', default: '#6e7681', label: 'Ghost' },
+  },
+  'Borders': {
+    '--border-color': { type: 'color', default: '#1e1e1e', label: 'Color' },
+    '--border-radius': { type: 'text', default: '6px', label: 'Radius' },
+  },
+};
+---
+
+<div id="theme-editor" class="theme-editor" data-config={JSON.stringify(themeConfig)}>
+  <div class="theme-editor-header">
+    <span class="theme-editor-title">🎨 Theme</span>
+    <div class="theme-editor-actions">
+      <button type="button" class="theme-btn" id="theme-copy" title="Copy CSS">📋</button>
+      <button type="button" class="theme-btn" id="theme-reset" title="Reset to defaults">↺</button>
+      <button type="button" class="theme-btn" id="theme-minimize" title="Minimize">−</button>
+    </div>
+  </div>
+
+  <div class="theme-editor-body">
+    {/* Typography section with font pickers */}
+    <details class="theme-category" open>
+      <summary class="theme-category-title">Typography</summary>
+      <div class="theme-category-content">
+        <div class="theme-row">
+          <label class="theme-label" title="--font-mono">Monospace</label>
+          <select class="theme-font-select" data-var="--font-mono" data-font-type="mono">
+            {fontOptions.mono.map(font => (
+              <option value={font.value} data-google={font.google || ''}>
+                {font.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div class="theme-row">
+          <label class="theme-label" title="--font-sans">Sans-serif</label>
+          <select class="theme-font-select" data-var="--font-sans" data-font-type="sans">
+            {fontOptions.sans.map(font => (
+              <option value={font.value} data-google={font.google || ''}>
+                {font.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div class="theme-font-preview">
+          <div class="font-preview-mono" id="preview-mono">
+            <span class="preview-label">Mono:</span>
+            <span class="preview-text">AaBbCc 123 →</span>
+          </div>
+          <div class="font-preview-sans" id="preview-sans">
+            <span class="preview-label">Sans:</span>
+            <span class="preview-text">The quick brown fox</span>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    {/* Color categories */}
+    {Object.entries(themeConfig).map(([category, variables]) => (
+      <details class="theme-category" open={category === 'Accent' || category === 'Factions'}>
+        <summary class="theme-category-title">{category}</summary>
+        <div class="theme-category-content">
+          {Object.entries(variables).map(([varName, config]) => (
+            <div class="theme-row" data-var={varName}>
+              <label class="theme-label" title={varName}>{config.label}</label>
+              {config.type === 'color' ? (
+                <div class="theme-color-input">
+                  <input
+                    type="color"
+                    class="theme-color-picker"
+                    data-var={varName}
+                    value={config.default}
+                  />
+                  <input
+                    type="text"
+                    class="theme-color-text"
+                    data-var={varName}
+                    value={config.default}
+                    maxlength="7"
+                  />
+                </div>
+              ) : (
+                <input
+                  type="text"
+                  class="theme-text-input"
+                  data-var={varName}
+                  value={config.default}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      </details>
+    ))}
+  </div>
+
+  <div class="theme-editor-footer">
+    <span class="theme-hint">Ctrl+Shift+T to toggle</span>
+  </div>
+</div>
+
+<style>
+  .theme-editor {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 280px;
+    max-height: 70vh;
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 12px;
+    color: #e6edf3;
+    z-index: 99999;
+    display: flex;
+    flex-direction: column;
+    user-select: none;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+  }
+
+  .theme-editor.minimized {
+    max-height: none;
+  }
+
+  .theme-editor.minimized .theme-editor-body,
+  .theme-editor.minimized .theme-editor-footer {
+    display: none;
+  }
+
+  .theme-editor.hidden {
+    transform: translateX(calc(100% + 40px));
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .theme-editor-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: #161b22;
+    border-bottom: 1px solid #30363d;
+    border-radius: 8px 8px 0 0;
+    cursor: move;
+  }
+
+  .theme-editor-title {
+    font-weight: 600;
+    font-size: 13px;
+  }
+
+  .theme-editor-actions {
+    display: flex;
+    gap: 4px;
+  }
+
+  .theme-btn {
+    background: transparent;
+    border: none;
+    padding: 4px 6px;
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 14px;
+    line-height: 1;
+    transition: background 0.15s;
+  }
+
+  .theme-btn:hover {
+    background: #30363d;
+  }
+
+  .theme-editor-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+  }
+
+  .theme-category {
+    margin-bottom: 4px;
+  }
+
+  .theme-category-title {
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #8b949e;
+    padding: 6px 8px;
+    cursor: pointer;
+    border-radius: 4px;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .theme-category-title::-webkit-details-marker {
+    display: none;
+  }
+
+  .theme-category-title::before {
+    content: '▶';
+    font-size: 8px;
+    transition: transform 0.15s;
+  }
+
+  .theme-category[open] .theme-category-title::before {
+    transform: rotate(90deg);
+  }
+
+  .theme-category-title:hover {
+    background: #21262d;
+  }
+
+  .theme-category-content {
+    padding: 4px 0 8px 0;
+  }
+
+  .theme-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 8px;
+    gap: 8px;
+  }
+
+  .theme-row:hover {
+    background: #161b22;
+    border-radius: 4px;
+  }
+
+  .theme-label {
+    font-size: 11px;
+    color: #c9d1d9;
+    flex-shrink: 0;
+  }
+
+  .theme-color-input {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .theme-color-picker {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 1px solid #30363d;
+    border-radius: 4px;
+    cursor: pointer;
+    background: transparent;
+  }
+
+  .theme-color-picker::-webkit-color-swatch-wrapper {
+    padding: 2px;
+  }
+
+  .theme-color-picker::-webkit-color-swatch {
+    border: none;
+    border-radius: 2px;
+  }
+
+  .theme-color-text {
+    width: 70px;
+    padding: 4px 6px;
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 4px;
+    color: #e6edf3;
+    text-transform: uppercase;
+  }
+
+  .theme-color-text:focus {
+    outline: none;
+    border-color: #58a6ff;
+  }
+
+  .theme-text-input {
+    width: 80px;
+    padding: 4px 6px;
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 4px;
+    color: #e6edf3;
+  }
+
+  .theme-text-input:focus {
+    outline: none;
+    border-color: #58a6ff;
+  }
+
+  /* Font picker styles */
+  .theme-font-select {
+    width: 130px;
+    padding: 4px 6px;
+    font-size: 11px;
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 4px;
+    color: #e6edf3;
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238b949e' d='M3 4.5L6 8l3-3.5H3z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 6px center;
+    padding-right: 24px;
+  }
+
+  .theme-font-select:focus {
+    outline: none;
+    border-color: #58a6ff;
+  }
+
+  .theme-font-select:hover {
+    border-color: #484f58;
+  }
+
+  .theme-font-preview {
+    margin: 8px;
+    padding: 8px;
+    background: #161b22;
+    border-radius: 4px;
+    border: 1px solid #21262d;
+  }
+
+  .font-preview-mono,
+  .font-preview-sans {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+  }
+
+  .font-preview-mono {
+    font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  }
+
+  .font-preview-sans {
+    font-family: var(--font-sans, 'Inter', sans-serif);
+  }
+
+  .preview-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    color: #6e7681;
+    width: 36px;
+    flex-shrink: 0;
+  }
+
+  .preview-text {
+    font-size: 13px;
+    color: #c9d1d9;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .theme-editor-footer {
+    padding: 6px 12px;
+    border-top: 1px solid #30363d;
+    text-align: center;
+  }
+
+  .theme-hint {
+    font-size: 10px;
+    color: #6e7681;
+  }
+
+  /* Toast notification */
+  .theme-toast {
+    position: fixed;
+    bottom: 100px;
+    right: 20px;
+    background: #238636;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    z-index: 100000;
+    animation: toastIn 0.3s ease, toastOut 0.3s ease 1.7s forwards;
+  }
+
+  @keyframes toastIn {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+
+  @keyframes toastOut {
+    from { transform: translateY(0); opacity: 1; }
+    to { transform: translateY(-20px); opacity: 0; }
+  }
+</style>
+
+<script>
+  // Theme Editor Logic
+  (function() {
+    const STORAGE_KEY = 'sentinel-theme-overrides';
+    const editor = document.getElementById('theme-editor') as HTMLElement;
+    const config = JSON.parse(editor.dataset.config || '{}');
+
+    // Load saved overrides
+    function loadOverrides(): Record<string, string> {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+      } catch {
+        return {};
+      }
+    }
+
+    // Save overrides
+    function saveOverrides(overrides: Record<string, string>) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(overrides));
+    }
+
+    // Apply a single CSS variable
+    function applyVariable(name: string, value: string) {
+      document.documentElement.style.setProperty(name, value);
+    }
+
+    // Apply all overrides
+    function applyAllOverrides(overrides: Record<string, string>) {
+      Object.entries(overrides).forEach(([name, value]) => {
+        applyVariable(name, value);
+      });
+    }
+
+    // Update input values from overrides
+    function updateInputs(overrides: Record<string, string>) {
+      Object.entries(overrides).forEach(([varName, value]) => {
+        const colorPicker = editor.querySelector(`input[type="color"][data-var="${varName}"]`) as HTMLInputElement;
+        const colorText = editor.querySelector(`input.theme-color-text[data-var="${varName}"]`) as HTMLInputElement;
+        const textInput = editor.querySelector(`input.theme-text-input[data-var="${varName}"]`) as HTMLInputElement;
+        const fontSelect = editor.querySelector(`select.theme-font-select[data-var="${varName}"]`) as HTMLSelectElement;
+
+        if (colorPicker) colorPicker.value = value;
+        if (colorText) colorText.value = value;
+        if (textInput) textInput.value = value;
+        if (fontSelect) {
+          // Find matching option by checking if value contains the font name
+          const options = fontSelect.options;
+          for (let i = 0; i < options.length; i++) {
+            if (value.includes(options[i].value.replace(/'/g, ''))) {
+              fontSelect.selectedIndex = i;
+              break;
+            }
+          }
+        }
+      });
+    }
+
+    // Get default value for a variable
+    function getDefault(varName: string): string {
+      for (const category of Object.values(config)) {
+        if ((category as any)[varName]) {
+          return (category as any)[varName].default;
+        }
+      }
+      return '';
+    }
+
+    // Track loaded Google Fonts to avoid duplicates
+    const loadedFonts = new Set<string>();
+
+    // Load a Google Font on demand
+    function loadGoogleFont(fontSpec: string) {
+      if (!fontSpec || loadedFonts.has(fontSpec)) return;
+
+      loadedFonts.add(fontSpec);
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = `https://fonts.googleapis.com/css2?family=${fontSpec}&display=swap`;
+      document.head.appendChild(link);
+      console.log(`🔤 Loaded font: ${fontSpec}`);
+    }
+
+    // Initialize
+    const overrides = loadOverrides();
+    applyAllOverrides(overrides);
+    updateInputs(overrides);
+
+    // Update font selects from saved overrides
+    editor.querySelectorAll('.theme-font-select').forEach(select => {
+      const htmlSelect = select as HTMLSelectElement;
+      const varName = htmlSelect.dataset.var!;
+      if (overrides[varName]) {
+        // Find and select the matching option
+        const options = htmlSelect.options;
+        for (let i = 0; i < options.length; i++) {
+          if (options[i].value === overrides[varName]) {
+            htmlSelect.selectedIndex = i;
+            // Load the Google Font if needed
+            const googleFont = options[i].dataset.google;
+            if (googleFont) loadGoogleFont(googleFont);
+            break;
+          }
+        }
+      }
+    });
+
+    // Handle color picker changes
+    editor.querySelectorAll('.theme-color-picker').forEach(picker => {
+      picker.addEventListener('input', (e) => {
+        const input = e.target as HTMLInputElement;
+        const varName = input.dataset.var!;
+        const value = input.value;
+
+        // Update text input
+        const textInput = editor.querySelector(`input.theme-color-text[data-var="${varName}"]`) as HTMLInputElement;
+        if (textInput) textInput.value = value;
+
+        // Apply and save
+        applyVariable(varName, value);
+        const current = loadOverrides();
+        current[varName] = value;
+        saveOverrides(current);
+      });
+    });
+
+    // Handle color text input changes
+    editor.querySelectorAll('.theme-color-text').forEach(input => {
+      input.addEventListener('input', (e) => {
+        const textInput = e.target as HTMLInputElement;
+        const varName = textInput.dataset.var!;
+        let value = textInput.value;
+
+        // Ensure it starts with #
+        if (!value.startsWith('#')) value = '#' + value;
+
+        // Validate hex color
+        if (/^#[0-9A-Fa-f]{6}$/.test(value)) {
+          // Update color picker
+          const picker = editor.querySelector(`input[type="color"][data-var="${varName}"]`) as HTMLInputElement;
+          if (picker) picker.value = value;
+
+          // Apply and save
+          applyVariable(varName, value);
+          const current = loadOverrides();
+          current[varName] = value;
+          saveOverrides(current);
+        }
+      });
+    });
+
+    // Handle text input changes
+    editor.querySelectorAll('.theme-text-input').forEach(input => {
+      input.addEventListener('input', (e) => {
+        const textInput = e.target as HTMLInputElement;
+        const varName = textInput.dataset.var!;
+        const value = textInput.value;
+
+        applyVariable(varName, value);
+        const current = loadOverrides();
+        current[varName] = value;
+        saveOverrides(current);
+      });
+    });
+
+    // Handle font select changes
+    editor.querySelectorAll('.theme-font-select').forEach(select => {
+      select.addEventListener('change', (e) => {
+        const htmlSelect = e.target as HTMLSelectElement;
+        const varName = htmlSelect.dataset.var!;
+        const selectedOption = htmlSelect.options[htmlSelect.selectedIndex];
+        const value = selectedOption.value;
+        const googleFont = selectedOption.dataset.google;
+
+        // Load Google Font if needed
+        if (googleFont) {
+          loadGoogleFont(googleFont);
+        }
+
+        // Build the full font stack with fallbacks
+        const fontType = htmlSelect.dataset.fontType;
+        let fullValue: string;
+        if (fontType === 'mono') {
+          fullValue = `${value}, 'Fira Code', 'Consolas', monospace`;
+        } else {
+          fullValue = `${value}, -apple-system, BlinkMacSystemFont, sans-serif`;
+        }
+
+        // Apply and save
+        applyVariable(varName, fullValue);
+        const current = loadOverrides();
+        current[varName] = fullValue;
+        saveOverrides(current);
+
+        showToast(`Font: ${selectedOption.label}`);
+      });
+    });
+
+    // Copy CSS button
+    document.getElementById('theme-copy')?.addEventListener('click', () => {
+      const current = loadOverrides();
+      const entries = Object.entries(current);
+
+      if (entries.length === 0) {
+        showToast('No changes to copy!');
+        return;
+      }
+
+      const css = `:root {\n${entries.map(([k, v]) => `  ${k}: ${v};`).join('\n')}\n}`;
+      navigator.clipboard.writeText(css).then(() => {
+        showToast('CSS copied to clipboard! 📋');
+      });
+    });
+
+    // Reset button
+    document.getElementById('theme-reset')?.addEventListener('click', () => {
+      const current = loadOverrides();
+
+      // Reset each variable to its default
+      Object.keys(current).forEach(varName => {
+        const defaultVal = getDefault(varName);
+        if (defaultVal) {
+          applyVariable(varName, defaultVal);
+        } else {
+          document.documentElement.style.removeProperty(varName);
+        }
+      });
+
+      // Clear storage
+      localStorage.removeItem(STORAGE_KEY);
+
+      // Reset inputs to defaults
+      editor.querySelectorAll('input[data-var]').forEach(input => {
+        const htmlInput = input as HTMLInputElement;
+        const varName = htmlInput.dataset.var!;
+        const defaultVal = getDefault(varName);
+        if (defaultVal) {
+          htmlInput.value = defaultVal;
+        }
+      });
+
+      // Reset font selects to first option (default)
+      editor.querySelectorAll('select.theme-font-select').forEach(select => {
+        const htmlSelect = select as HTMLSelectElement;
+        htmlSelect.selectedIndex = 0;
+      });
+
+      showToast('Reset to defaults! ↺');
+    });
+
+    // Minimize button
+    document.getElementById('theme-minimize')?.addEventListener('click', () => {
+      editor.classList.toggle('minimized');
+      const btn = document.getElementById('theme-minimize');
+      if (btn) btn.textContent = editor.classList.contains('minimized') ? '+' : '−';
+    });
+
+    // Keyboard shortcut (Ctrl+Shift+T)
+    document.addEventListener('keydown', (e) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'T') {
+        e.preventDefault();
+        editor.classList.toggle('hidden');
+      }
+    });
+
+    // Dragging
+    let isDragging = false;
+    let dragOffset = { x: 0, y: 0 };
+
+    const header = editor.querySelector('.theme-editor-header') as HTMLElement;
+
+    header.addEventListener('mousedown', (e) => {
+      if ((e.target as HTMLElement).closest('.theme-btn')) return;
+      isDragging = true;
+      const rect = editor.getBoundingClientRect();
+      dragOffset = {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      };
+      editor.style.transition = 'none';
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+
+      const x = e.clientX - dragOffset.x;
+      const y = e.clientY - dragOffset.y;
+
+      // Keep within viewport
+      const maxX = window.innerWidth - editor.offsetWidth;
+      const maxY = window.innerHeight - editor.offsetHeight;
+
+      editor.style.left = `${Math.max(0, Math.min(x, maxX))}px`;
+      editor.style.top = `${Math.max(0, Math.min(y, maxY))}px`;
+      editor.style.right = 'auto';
+      editor.style.bottom = 'auto';
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        editor.style.transition = '';
+      }
+    });
+
+    // Toast notification
+    function showToast(message: string) {
+      const existing = document.querySelector('.theme-toast');
+      if (existing) existing.remove();
+
+      const toast = document.createElement('div');
+      toast.className = 'theme-toast';
+      toast.textContent = message;
+      document.body.appendChild(toast);
+
+      setTimeout(() => toast.remove(), 2000);
+    }
+
+    // Log for dev
+    console.log('🎨 Theme Editor loaded. Press Ctrl+Shift+T to toggle.');
+  })();
+</script>

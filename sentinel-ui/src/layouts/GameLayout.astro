@@ -1,12 +1,17 @@
 ---
 // Import CodecFrame to load its global styles (used by CommandInput's createCodecHtml)
 import CodecFrame from '../components/CodecFrame.astro';
+import ThemeEditor from '../components/dev/ThemeEditor.astro';
+import WikiViewer from '../components/WikiViewer.astro';
 
 interface Props {
   title?: string;
 }
 
 const { title = 'SENTINEL' } = Astro.props;
+
+// Show theme editor in dev mode (can also be toggled with Ctrl+Shift+T)
+const isDev = import.meta.env.DEV;
 ---
 
 <!doctype html>
@@ -25,6 +30,12 @@ const { title = 'SENTINEL' } = Astro.props;
     <div class="game-container">
       <slot />
     </div>
+
+    {/* Wiki Viewer - contextual wiki page popup */}
+    <WikiViewer />
+
+    {/* Theme Editor - visible in dev mode, toggle with Ctrl+Shift+T */}
+    {isDev && <ThemeEditor />}
   </body>
 </html>
 
