@@ -1,0 +1,620 @@
+---
+/**
+ * WikiViewer - Contextual wiki page popup/drawer
+ *
+ * Features:
+ * - Slides in from the right when viewing a wiki page
+ * - Renders Obsidian-flavored markdown
+ * - Shows frontmatter metadata as badges
+ * - Internal wikilinks navigate within the viewer
+ * - Close with X, Escape, or clicking backdrop
+ *
+ * Usage:
+ * - Include once in layout
+ * - Open via window.wikiViewer.open('Page Name')
+ * - Close via window.wikiViewer.close() or Escape key
+ */
+---
+
+<div id="wiki-viewer" class="wiki-viewer" aria-hidden="true">
+  <div class="wiki-backdrop"></div>
+  <div class="wiki-panel">
+    <header class="wiki-header">
+      <div class="wiki-header-content">
+        <span class="wiki-source-badge" id="wiki-source"></span>
+        <h2 class="wiki-title" id="wiki-title">Loading...</h2>
+      </div>
+      <button class="wiki-close" title="Close (Escape)">&times;</button>
+    </header>
+
+    <div class="wiki-meta" id="wiki-meta"></div>
+
+    <div class="wiki-content" id="wiki-content">
+      <div class="wiki-loading">
+        <span class="loading-spinner"></span>
+        <span>Loading page...</span>
+      </div>
+    </div>
+
+    <footer class="wiki-footer">
+      <button class="wiki-btn" id="wiki-back" disabled>← Back</button>
+      <span class="wiki-breadcrumb" id="wiki-breadcrumb"></span>
+    </footer>
+  </div>
+</div>
+
+<style is:global>
+  /* WikiViewer Styles */
+  .wiki-viewer {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: flex;
+    justify-content: flex-end;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  .wiki-viewer.open {
+    pointer-events: auto;
+    opacity: 1;
+  }
+
+  .wiki-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  .wiki-viewer.open .wiki-backdrop {
+    opacity: 1;
+  }
+
+  .wiki-panel {
+    position: relative;
+    width: min(500px, 90vw);
+    height: 100%;
+    background: var(--bg-secondary, #0a0a0a);
+    border-left: 1px solid var(--border-color, #1e1e1e);
+    display: flex;
+    flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.25s ease;
+    box-shadow: -4px 0 20px rgba(0, 0, 0, 0.4);
+  }
+
+  .wiki-viewer.open .wiki-panel {
+    transform: translateX(0);
+  }
+
+  .wiki-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color, #1e1e1e);
+    background: var(--bg-tertiary, #121212);
+  }
+
+  .wiki-header-content {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .wiki-source-badge {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: var(--bg-hover, #1a1a1a);
+    color: var(--text-muted, #6e7681);
+    flex-shrink: 0;
+  }
+
+  .wiki-source-badge.canon {
+    background: rgba(88, 166, 255, 0.15);
+    color: var(--accent-blue, #58a6ff);
+  }
+
+  .wiki-source-badge.campaign {
+    background: rgba(86, 212, 221, 0.15);
+    color: var(--accent-cyan, #56d4dd);
+  }
+
+  .wiki-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary, #e6edf3);
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .wiki-close {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary, #8b949e);
+    font-size: 24px;
+    line-height: 1;
+    padding: 4px 8px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.15s;
+  }
+
+  .wiki-close:hover {
+    background: var(--bg-hover, #1a1a1a);
+    color: var(--text-primary, #e6edf3);
+  }
+
+  .wiki-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border-color, #1e1e1e);
+    background: var(--bg-primary, #000);
+    min-height: 42px;
+  }
+
+  .wiki-meta:empty {
+    display: none;
+  }
+
+  .wiki-meta-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: var(--bg-tertiary, #121212);
+    color: var(--text-secondary, #8b949e);
+    border: 1px solid var(--border-color, #1e1e1e);
+  }
+
+  .wiki-meta-badge.type-npc { border-color: var(--accent-cyan, #56d4dd); }
+  .wiki-meta-badge.type-faction { border-color: var(--accent-blue, #58a6ff); }
+  .wiki-meta-badge.type-character { border-color: var(--status-success, #3fb950); }
+
+  .wiki-meta-badge .badge-label {
+    color: var(--text-muted, #6e7681);
+  }
+
+  .wiki-meta-badge .badge-value {
+    color: var(--text-primary, #e6edf3);
+  }
+
+  .wiki-meta-badge.disposition-hostile { color: var(--status-danger, #f85149); }
+  .wiki-meta-badge.disposition-wary { color: var(--status-warning, #d29922); }
+  .wiki-meta-badge.disposition-neutral { color: var(--text-secondary, #8b949e); }
+  .wiki-meta-badge.disposition-warm { color: var(--status-info, #58a6ff); }
+  .wiki-meta-badge.disposition-loyal { color: var(--status-success, #3fb950); }
+
+  .wiki-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    font-family: var(--font-sans, sans-serif);
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--text-primary, #e6edf3);
+  }
+
+  .wiki-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 40px;
+    color: var(--text-muted, #6e7681);
+  }
+
+  .loading-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border-color, #1e1e1e);
+    border-top-color: var(--accent-cyan, #56d4dd);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .wiki-error {
+    padding: 20px;
+    text-align: center;
+    color: var(--status-danger, #f85149);
+  }
+
+  /* Wiki Content Styles */
+  .wiki-content h1 { font-size: 1.5rem; margin: 0 0 16px 0; color: var(--text-primary); }
+  .wiki-content h2 { font-size: 1.2rem; margin: 24px 0 12px 0; color: var(--text-primary); border-bottom: 1px solid var(--border-color); padding-bottom: 6px; }
+  .wiki-content h3 { font-size: 1rem; margin: 20px 0 10px 0; color: var(--text-secondary); }
+  .wiki-content h4, .wiki-content h5, .wiki-content h6 { font-size: 0.9rem; margin: 16px 0 8px 0; color: var(--text-muted); }
+
+  .wiki-content p { margin: 0 0 12px 0; }
+  .wiki-content hr { border: none; border-top: 1px solid var(--border-color); margin: 20px 0; }
+
+  .wiki-content strong { color: var(--text-primary); }
+  .wiki-content em { font-style: italic; }
+
+  .wiki-content .wikilink {
+    color: var(--accent-cyan, #56d4dd);
+    text-decoration: none;
+    border-bottom: 1px dotted var(--accent-cyan, #56d4dd);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .wiki-content .wikilink:hover {
+    color: var(--text-primary);
+    border-bottom-style: solid;
+  }
+
+  .wiki-content .inline-code {
+    font-family: var(--font-mono, monospace);
+    font-size: 0.85em;
+    background: var(--bg-tertiary, #121212);
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+
+  .wiki-content .code-block {
+    font-family: var(--font-mono, monospace);
+    font-size: 0.85em;
+    background: var(--bg-tertiary, #121212);
+    padding: 12px;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin: 12px 0;
+  }
+
+  .wiki-content .wiki-list {
+    margin: 0 0 12px 0;
+    padding-left: 20px;
+  }
+
+  .wiki-content .list-item {
+    margin: 4px 0;
+  }
+
+  .wiki-content .wiki-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 0.9em;
+  }
+
+  .wiki-content .wiki-table th,
+  .wiki-content .wiki-table td {
+    padding: 8px 10px;
+    border: 1px solid var(--border-color, #1e1e1e);
+    text-align: left;
+  }
+
+  .wiki-content .wiki-table th {
+    background: var(--bg-tertiary, #121212);
+    font-weight: 600;
+  }
+
+  .wiki-content .wiki-portrait {
+    width: 96px;
+    height: 96px;
+    object-fit: cover;
+    border-radius: 4px;
+    border: 1px solid var(--border-color, #1e1e1e);
+    float: right;
+    margin: 0 0 12px 12px;
+  }
+
+  .wiki-content .wiki-image {
+    max-width: 100%;
+    border-radius: 4px;
+    margin: 12px 0;
+  }
+
+  /* Callout Styles */
+  .wiki-content .callout {
+    margin: 16px 0;
+    padding: 12px;
+    border-radius: 6px;
+    border-left: 3px solid var(--border-color, #1e1e1e);
+    background: var(--bg-tertiary, #121212);
+  }
+
+  .wiki-content .callout-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .wiki-content .callout-icon {
+    font-size: 14px;
+  }
+
+  .wiki-content .callout-title {
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+
+  .wiki-content .callout-body {
+    font-size: 0.9rem;
+    color: var(--text-secondary, #8b949e);
+  }
+
+  /* Callout type colors */
+  .wiki-content .callout-info { border-left-color: var(--status-info, #58a6ff); }
+  .wiki-content .callout-note { border-left-color: var(--text-muted, #6e7681); }
+  .wiki-content .callout-tip { border-left-color: var(--status-success, #3fb950); }
+  .wiki-content .callout-warning { border-left-color: var(--status-warning, #d29922); }
+  .wiki-content .callout-danger { border-left-color: var(--status-danger, #f85149); }
+  .wiki-content .callout-quote { border-left-color: var(--accent-steel, #79c0ff); background: transparent; }
+
+  /* SENTINEL-specific callouts */
+  .wiki-content .callout-npc { border-left-color: var(--accent-cyan, #56d4dd); }
+  .wiki-content .callout-hinge { border-left-color: #f0883e; background: rgba(240, 136, 62, 0.1); }
+  .wiki-content .callout-faction { border-left-color: var(--accent-blue, #58a6ff); }
+  .wiki-content .callout-thread { border-left-color: #a371f7; }
+
+  .wiki-footer {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    border-top: 1px solid var(--border-color, #1e1e1e);
+    background: var(--bg-tertiary, #121212);
+  }
+
+  .wiki-btn {
+    font-size: 12px;
+    padding: 6px 12px;
+    background: var(--bg-hover, #1a1a1a);
+    border: 1px solid var(--border-color, #1e1e1e);
+    border-radius: 4px;
+    color: var(--text-secondary, #8b949e);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .wiki-btn:hover:not(:disabled) {
+    background: var(--bg-tertiary, #121212);
+    color: var(--text-primary, #e6edf3);
+  }
+
+  .wiki-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .wiki-breadcrumb {
+    font-size: 11px;
+    color: var(--text-muted, #6e7681);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+</style>
+
+<script>
+  import { getWikiPage, type WikiPage, type WikiFrontmatter } from '../lib/bridge';
+  import { renderMarkdown } from '../lib/markdown';
+
+  // Wiki viewer state
+  interface WikiViewerState {
+    isOpen: boolean;
+    currentPage: string | null;
+    campaignId: string | null;
+    history: string[];
+  }
+
+  const state: WikiViewerState = {
+    isOpen: false,
+    currentPage: null,
+    campaignId: null,
+    history: [],
+  };
+
+  // DOM elements
+  const viewer = document.getElementById('wiki-viewer')!;
+  const backdrop = viewer.querySelector('.wiki-backdrop')!;
+  const closeBtn = viewer.querySelector('.wiki-close')!;
+  const titleEl = document.getElementById('wiki-title')!;
+  const sourceEl = document.getElementById('wiki-source')!;
+  const metaEl = document.getElementById('wiki-meta')!;
+  const contentEl = document.getElementById('wiki-content')!;
+  const backBtn = document.getElementById('wiki-back')! as HTMLButtonElement;
+  const breadcrumbEl = document.getElementById('wiki-breadcrumb')!;
+
+  /**
+   * Open the wiki viewer to a specific page
+   */
+  async function openWiki(pageName: string, campaignId?: string) {
+    // Update state
+    if (state.currentPage && state.currentPage !== pageName) {
+      state.history.push(state.currentPage);
+    }
+    state.currentPage = pageName;
+    state.campaignId = campaignId || null;
+    state.isOpen = true;
+
+    // Show viewer with loading state
+    viewer.classList.add('open');
+    viewer.setAttribute('aria-hidden', 'false');
+    titleEl.textContent = pageName;
+    sourceEl.textContent = 'Loading';
+    sourceEl.className = 'wiki-source-badge';
+    metaEl.innerHTML = '';
+    contentEl.innerHTML = `
+      <div class="wiki-loading">
+        <span class="loading-spinner"></span>
+        <span>Loading page...</span>
+      </div>
+    `;
+
+    updateBackButton();
+
+    // Fetch page
+    try {
+      const page = await getWikiPage(pageName, campaignId || undefined);
+
+      if (!page) {
+        contentEl.innerHTML = `
+          <div class="wiki-error">
+            <p>Page not found: <strong>${pageName}</strong></p>
+            <p>This page may not exist yet, or it's in a different campaign.</p>
+          </div>
+        `;
+        return;
+      }
+
+      renderPage(page);
+    } catch (error) {
+      contentEl.innerHTML = `
+        <div class="wiki-error">
+          <p>Failed to load page</p>
+          <p>${error instanceof Error ? error.message : 'Unknown error'}</p>
+        </div>
+      `;
+    }
+  }
+
+  /**
+   * Render a wiki page
+   */
+  function renderPage(page: WikiPage) {
+    // Update title and source badge
+    titleEl.textContent = page.name;
+    sourceEl.textContent = page.source === 'canon' ? 'Canon' : page.source;
+    sourceEl.className = `wiki-source-badge ${page.source === 'canon' ? 'canon' : 'campaign'}`;
+
+    // Render metadata badges
+    metaEl.innerHTML = renderMetaBadges(page.frontmatter, page.type);
+
+    // Render content
+    const html = renderMarkdown(page.content, {
+      campaignId: state.campaignId || undefined,
+    });
+    contentEl.innerHTML = html;
+
+    // Attach wikilink handlers
+    contentEl.querySelectorAll('.wikilink').forEach((link) => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        const pageName = (link as HTMLElement).dataset.page;
+        if (pageName) {
+          openWiki(pageName, state.campaignId || undefined);
+        }
+      });
+    });
+  }
+
+  /**
+   * Render frontmatter as badges
+   */
+  function renderMetaBadges(fm: WikiFrontmatter, type: string | null): string {
+    const badges: string[] = [];
+
+    if (type) {
+      badges.push(`<span class="wiki-meta-badge type-${type}">
+        <span class="badge-value">${type}</span>
+      </span>`);
+    }
+
+    if (fm.faction) {
+      badges.push(`<span class="wiki-meta-badge">
+        <span class="badge-label">Faction:</span>
+        <span class="badge-value">${fm.faction}</span>
+      </span>`);
+    }
+
+    if (fm.disposition) {
+      badges.push(`<span class="wiki-meta-badge disposition-${fm.disposition.toLowerCase()}">
+        <span class="badge-label">Disposition:</span>
+        <span class="badge-value">${fm.disposition}</span>
+      </span>`);
+    }
+
+    if (fm.standing) {
+      badges.push(`<span class="wiki-meta-badge">
+        <span class="badge-label">Standing:</span>
+        <span class="badge-value">${fm.standing}</span>
+      </span>`);
+    }
+
+    return badges.join('');
+  }
+
+  /**
+   * Close the wiki viewer
+   */
+  function closeWiki() {
+    state.isOpen = false;
+    state.currentPage = null;
+    state.history = [];
+    viewer.classList.remove('open');
+    viewer.setAttribute('aria-hidden', 'true');
+  }
+
+  /**
+   * Go back to previous page
+   */
+  function goBack() {
+    if (state.history.length === 0) return;
+
+    const prevPage = state.history.pop()!;
+    state.currentPage = null; // Prevent adding to history
+    openWiki(prevPage, state.campaignId || undefined);
+  }
+
+  /**
+   * Update back button state
+   */
+  function updateBackButton() {
+    backBtn.disabled = state.history.length === 0;
+    breadcrumbEl.textContent = state.history.length > 0
+      ? `← ${state.history.slice(-3).join(' → ')}`
+      : '';
+  }
+
+  // Event listeners
+  closeBtn.addEventListener('click', closeWiki);
+  backdrop.addEventListener('click', closeWiki);
+  backBtn.addEventListener('click', goBack);
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && state.isOpen) {
+      closeWiki();
+    }
+  });
+
+  // Expose global API
+  declare global {
+    interface Window {
+      wikiViewer: {
+        open: (pageName: string, campaignId?: string) => Promise<void>;
+        close: () => void;
+        isOpen: () => boolean;
+      };
+    }
+  }
+
+  window.wikiViewer = {
+    open: openWiki,
+    close: closeWiki,
+    isOpen: () => state.isOpen,
+  };
+
+  console.log('📖 WikiViewer loaded. Use window.wikiViewer.open("Page Name") to test.');
+</script>

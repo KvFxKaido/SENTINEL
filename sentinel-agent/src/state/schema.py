@@ -172,6 +172,23 @@ class Region(str, Enum):
     FROZEN_EDGE = "frozen_edge"               # Alaska/Yukon - Ember (isolated)
 
 
+class RegionConnectivity(str, Enum):
+    """How well-connected the player is to a region (not geographic knowledge)."""
+    DISCONNECTED = "disconnected"  # No contacts, no intel
+    AWARE = "aware"                # Heard about it, have a thread to pull
+    CONNECTED = "connected"        # Been there or have reliable contacts
+    EMBEDDED = "embedded"          # Deep network, multiple relationships
+
+
+class RequirementType(str, Enum):
+    """Typed requirements for route traversal."""
+    FACTION = "faction"
+    VEHICLE = "vehicle"
+    CONTACT = "contact"
+    STORY = "story"
+    HAZARD = "hazard"
+
+
 class FavorType(str, Enum):
     """Types of favors NPCs can provide."""
     RIDE = "ride"                             # Transport to a location/region
@@ -299,6 +316,99 @@ class Vehicle(BaseModel):
             return "Low Fuel"
         else:
             return "Operational"
+
+
+class RouteRequirement(BaseModel):
+    """A single requirement for traversing a route."""
+    type: RequirementType
+    faction: FactionName | None = None
+    min_standing: str | None = None
+    vehicle_capability: str | None = None
+    contact_faction: FactionName | None = None
+    story_flag: str | None = None
+    description: str | None = None
+
+
+class RouteAlternative(BaseModel):
+    """An alternate way to satisfy route requirements."""
+    type: str
+    description: str
+    cost: dict[str, int] | None = None
+    consequence: str | None = None
+
+
+class RegionState(BaseModel):
+    """Per-campaign state for a region."""
+    connectivity: RegionConnectivity = RegionConnectivity.DISCONNECTED
+    first_aware_session: int | None = None
+    first_visited_session: int | None = None
+    embedded_session: int | None = None
+    npcs_met: list[str] = Field(default_factory=list)
+    threads_resolved: list[str] = Field(default_factory=list)
+    significant_jobs: list[str] = Field(default_factory=list)
+    notes: str | None = None
+    secrets_found: list[str] = Field(default_factory=list)
+
+    def network_density(self) -> int:
+        """Calculate network density for embedded status checks."""
+        return (
+            len(self.npcs_met) +
+            len(self.threads_resolved) * 2 +
+            len(self.significant_jobs)
+        )
+
+
+class MapState(BaseModel):
+    """Campaign map progression state."""
+    regions: dict[Region, RegionState] = Field(default_factory=dict)
+    current_region: Region = Region.RUST_CORRIDOR
+
+    def make_aware(self, region: Region, session: int) -> None:
+        """Mark a region as known to the player."""
+        if region not in self.regions:
+            self.regions[region] = RegionState()
+        state = self.regions[region]
+        if state.connectivity == RegionConnectivity.DISCONNECTED:
+            state.connectivity = RegionConnectivity.AWARE
+            state.first_aware_session = session
+
+    def make_connected(self, region: Region, session: int) -> None:
+        """Mark a region as visited or established via contacts."""
+        self.make_aware(region, session)
+        state = self.regions[region]
+        if state.connectivity in (RegionConnectivity.DISCONNECTED, RegionConnectivity.AWARE):
+            state.connectivity = RegionConnectivity.CONNECTED
+            state.first_visited_session = session
+
+    def check_embedded(
+        self,
+        region: Region,
+        session: int,
+        faction_standing: str | Standing | Disposition,
+    ) -> bool:
+        """Check if region qualifies for embedded status."""
+        if region not in self.regions:
+            return False
+        state = self.regions[region]
+        if state.connectivity != RegionConnectivity.CONNECTED:
+            return False
+
+        standing_value = faction_standing
+        if isinstance(faction_standing, Enum):
+            standing_value = faction_standing.value
+        standing_value = str(standing_value).lower()
+
+        meets_criteria = (
+            len(state.npcs_met) >= 3 or
+            len(state.threads_resolved) >= 1 or
+            len(state.significant_jobs) >= 1 or
+            standing_value in ("warm", "friendly", "loyal", "allied")
+        )
+        if meets_criteria:
+            state.connectivity = RegionConnectivity.EMBEDDED
+            state.embedded_session = session
+            return True
+        return False
 
 
 class FavorToken(BaseModel):
@@ -1419,6 +1529,7 @@ class Campaign(BaseModel):
 
     # Region tracking — geography from lore
     region: Region = Region.RUST_CORRIDOR  # Starting region
+    map_state: MapState = Field(default_factory=MapState)
 
     # Job board — available and active jobs
     jobs: JobBoard = Field(default_factory=JobBoard)

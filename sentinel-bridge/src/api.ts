@@ -20,6 +20,8 @@ import type {
   BridgeStatus,
 } from "./types.ts";
 import { SentinelProcess, type ProcessConfig } from "./process.ts";
+import { Wiki, type WikiPage, type WikiSearchResult } from "./wiki.ts";
+import { join, dirname, fromFileUrl } from "https://deno.land/std@0.208.0/path/mod.ts";
 
 export interface ApiConfig {
   /** Port to listen on (default: 3333) */
@@ -28,6 +30,8 @@ export interface ApiConfig {
   hostname?: string;
   /** Sentinel process configuration */
   sentinel?: ProcessConfig;
+  /** Path to wiki root directory (default: auto-detected) */
+  wikiPath?: string;
 }
 
 const DEFAULT_CONFIG: Required<Omit<ApiConfig, "sentinel">> & {
@@ -44,6 +48,7 @@ const DEFAULT_CONFIG: Required<Omit<ApiConfig, "sentinel">> & {
 export class BridgeApi {
   private config: typeof DEFAULT_CONFIG;
   private process: SentinelProcess;
+  private wiki: Wiki;
   private server: Deno.HttpServer | null = null;
 
   // SSE clients for event streaming
@@ -58,6 +63,11 @@ export class BridgeApi {
     };
 
     this.process = new SentinelProcess(this.config.sentinel);
+
+    // Initialize wiki with auto-detected path if not provided
+    const wikiPath = config.wikiPath || this.detectWikiPath();
+    this.wiki = new Wiki({ wikiPath });
+    console.log(`Wiki path: ${wikiPath}`);
 
     // Forward events to SSE clients
     this.process.onEvent((event) => this.broadcastEvent(event));
@@ -134,27 +144,37 @@ export class BridgeApi {
     try {
       let response: Response;
 
-      switch (`${method} ${url.pathname}`) {
-        case "POST /command":
-          response = await this.handleCommand(request);
-          break;
-        case "GET /state":
-          response = await this.handleState();
-          break;
-        case "GET /events":
-          response = this.handleEvents();
-          break;
-        case "POST /start":
-          response = await this.handleStart();
-          break;
-        case "POST /stop":
-          response = await this.handleStop();
-          break;
-        case "GET /health":
-          response = this.handleHealth();
-          break;
-        default:
-          response = this.json({ error: "Not found" }, 404);
+      // Check for wiki routes first (they have dynamic paths)
+      if (method === "GET" && url.pathname.startsWith("/wiki/page/")) {
+        response = await this.handleWikiPage(url);
+      } else if (method === "GET" && url.pathname === "/wiki/search") {
+        response = await this.handleWikiSearch(url);
+      } else if (method === "GET" && url.pathname.startsWith("/wiki/list/")) {
+        response = await this.handleWikiList(url);
+      } else {
+        // Static routes
+        switch (`${method} ${url.pathname}`) {
+          case "POST /command":
+            response = await this.handleCommand(request);
+            break;
+          case "GET /state":
+            response = await this.handleState();
+            break;
+          case "GET /events":
+            response = this.handleEvents();
+            break;
+          case "POST /start":
+            response = await this.handleStart();
+            break;
+          case "POST /stop":
+            response = await this.handleStop();
+            break;
+          case "GET /health":
+            response = this.handleHealth();
+            break;
+          default:
+            response = this.json({ error: "Not found" }, 404);
+        }
       }
 
       // Add CORS headers to all responses
@@ -292,6 +312,119 @@ export class BridgeApi {
     return new Response(JSON.stringify(data), {
       status,
       headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  /**
+   * Auto-detect wiki path by looking for wiki/ directory relative to bridge
+   */
+  private detectWikiPath(): string {
+    // Try to find wiki relative to this file's location
+    // Bridge is at: SENTINEL/sentinel-bridge/src/api.ts
+    // Wiki is at: SENTINEL/wiki/
+    try {
+      const moduleDir = dirname(fromFileUrl(import.meta.url));
+      const bridgeRoot = dirname(moduleDir);
+      const projectRoot = dirname(bridgeRoot);
+      return join(projectRoot, "wiki");
+    } catch {
+      // Fallback to relative path
+      return join(Deno.cwd(), "..", "wiki");
+    }
+  }
+
+  // ─── Wiki Endpoints ─────────────────────────────────────────────────────────
+
+  /**
+   * GET /wiki/page/:name?campaign=cipher
+   * Retrieve a single wiki page
+   */
+  private async handleWikiPage(url: URL): Promise<Response> {
+    // Extract page name from path: /wiki/page/Wei -> Wei
+    const pathMatch = url.pathname.match(/^\/wiki\/page\/(.+)$/);
+    if (!pathMatch) {
+      return this.json({ error: "Invalid wiki page path" }, 400);
+    }
+
+    const pageName = decodeURIComponent(pathMatch[1]);
+    const campaignId = url.searchParams.get("campaign") || undefined;
+
+    const page = await this.wiki.getPage(pageName, campaignId);
+
+    if (!page) {
+      return this.json({ error: `Page not found: ${pageName}` }, 404);
+    }
+
+    return this.json({
+      ok: true,
+      page: {
+        name: page.name,
+        path: page.path,
+        source: page.source,
+        type: page.type,
+        frontmatter: page.frontmatter,
+        content: page.content,
+      },
+    });
+  }
+
+  /**
+   * GET /wiki/search?q=query&campaign=cipher&limit=10
+   * Search wiki pages
+   */
+  private async handleWikiSearch(url: URL): Promise<Response> {
+    const query = url.searchParams.get("q") || "";
+    const campaignId = url.searchParams.get("campaign") || undefined;
+    const limit = parseInt(url.searchParams.get("limit") || "10");
+
+    if (!query || query.length < 2) {
+      return this.json({ error: "Query must be at least 2 characters" }, 400);
+    }
+
+    const results = await this.wiki.search(query, campaignId, limit);
+
+    return this.json({
+      ok: true,
+      query,
+      count: results.length,
+      results,
+    });
+  }
+
+  /**
+   * GET /wiki/list/:category?campaign=cipher
+   * List pages in a category (npcs, factions, characters)
+   */
+  private async handleWikiList(url: URL): Promise<Response> {
+    // Extract category from path: /wiki/list/npcs -> npcs
+    const pathMatch = url.pathname.match(/^\/wiki\/list\/(.+)$/);
+    if (!pathMatch) {
+      return this.json({ error: "Invalid wiki list path" }, 400);
+    }
+
+    const category = pathMatch[1].toLowerCase();
+    const campaignId = url.searchParams.get("campaign") || undefined;
+
+    const validCategories = ["npcs", "factions", "characters", "threads", "hinges"];
+    if (!validCategories.includes(category)) {
+      return this.json({
+        error: `Invalid category: ${category}. Valid: ${validCategories.join(", ")}`,
+      }, 400);
+    }
+
+    const pages = await this.wiki.listPages(category, campaignId);
+
+    return this.json({
+      ok: true,
+      category,
+      count: pages.length,
+      pages: pages.map((p) => ({
+        name: p.name,
+        path: p.path,
+        source: p.source,
+        type: p.type,
+        frontmatter: p.frontmatter,
+      })),
     });
   }
 }

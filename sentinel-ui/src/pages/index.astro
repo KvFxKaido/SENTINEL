@@ -434,6 +434,10 @@ import CommandInput from '../components/CommandInput.astro';
 
   function updateCampaignUI(state: CampaignState) {
     (window as any).__campaignState = state;
+    // Set campaign ID globally for wiki viewer integration
+    if (state.ok && state.campaign) {
+      (window as any).currentCampaignId = state.campaign.id;
+    }
 
     // Character info
     const charName = document.getElementById('char-name');

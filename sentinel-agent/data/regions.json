@@ -2,102 +2,648 @@
   "regions": {
     "rust_corridor": {
       "name": "The Rust Corridor",
-      "description": "Great Lakes industrial belt — Detroit to Pittsburgh. Rusted factories, salvage economies, flickering power grids.",
+      "description": "Great Lakes industrial belt \u2014 Detroit to Pittsburgh. Rusted factories, salvage economies, flickering power grids.",
       "primary_faction": "lattice",
-      "contested_by": ["steel_syndicate"],
-      "adjacent": ["northern_reaches", "northeast_scar", "appalachian_hollows", "breadbasket"],
-      "terrain": ["urban", "industrial", "road"],
-      "character": "Smoke stacks and empty assembly lines. The Lattice keeps what power remains flowing, while the Syndicate picks through the bones."
+      "contested_by": [
+        "steel_syndicate"
+      ],
+      "terrain": [
+        "urban",
+        "industrial",
+        "road"
+      ],
+      "character": "Smoke stacks and empty assembly lines. The Lattice keeps what power remains flowing, while the Syndicate picks through the bones.",
+      "routes": {
+        "northern_reaches": {
+          "requirements": [],
+          "terrain": [
+            "road"
+          ],
+          "travel_description": "Northern highways, still maintained by Lattice"
+        },
+        "northeast_scar": {
+          "requirements": [
+            {
+              "type": "faction",
+              "faction": "architects",
+              "min_standing": "neutral"
+            }
+          ],
+          "terrain": [
+            "road",
+            "urban"
+          ],
+          "travel_description": "Through Architect checkpoints",
+          "alternatives": [
+            {
+              "type": "contact",
+              "faction": "ghost_networks",
+              "description": "Smuggler route through ruins"
+            },
+            {
+              "type": "risky",
+              "cost": {
+                "social_energy": 2
+              },
+              "consequence": "architects_noticed"
+            }
+          ]
+        },
+        "appalachian_hollows": {
+          "requirements": [
+            {
+              "type": "vehicle",
+              "capability": "offroad"
+            }
+          ],
+          "terrain": [
+            "mountain",
+            "off-road"
+          ],
+          "travel_description": "Winding mountain passes",
+          "alternatives": [
+            {
+              "type": "contact",
+              "faction": "ember_colonies",
+              "description": "Mountain guide"
+            },
+            {
+              "type": "risky",
+              "cost": {
+                "time": 1
+              },
+              "consequence": "lost_in_hollows"
+            }
+          ]
+        },
+        "breadbasket": {
+          "requirements": [],
+          "terrain": [
+            "road",
+            "plains"
+          ],
+          "travel_description": "Open highways"
+        }
+      }
     },
     "appalachian_hollows": {
       "name": "The Appalachian Hollows",
       "description": "Mountain communities that survived by going dark. Hidden valleys, coal towns turned communes.",
       "primary_faction": "ember_colonies",
-      "contested_by": ["cultivators"],
-      "adjacent": ["rust_corridor", "northeast_scar", "sovereign_south"],
-      "terrain": ["mountain", "forest", "off-road"],
-      "character": "Fog-shrouded ridges and settlements that don't appear on any map. The Ember Colonies endure here, alongside Cultivators tending terraced farms."
+      "contested_by": [
+        "cultivators"
+      ],
+      "terrain": [
+        "mountain",
+        "forest",
+        "off-road"
+      ],
+      "character": "Fog-shrouded ridges and settlements that don't appear on any map. The Ember Colonies endure here, alongside Cultivators tending terraced farms.",
+      "routes": {
+        "rust_corridor": {
+          "requirements": [],
+          "terrain": [
+            "road",
+            "urban"
+          ],
+          "travel_description": "Crumbled city streets"
+        },
+        "northeast_scar": {
+          "requirements": [
+            {
+              "type": "faction",
+              "faction": "architects",
+              "min_standing": "neutral"
+            }
+          ],
+          "terrain": [
+            "road",
+            "urban"
+          ],
+          "travel_description": "Through Architect checkpoints",
+          "alternatives": [
+            {
+              "type": "contact",
+              "faction": "ghost_networks",
+              "description": "Smuggler route through ruins"
+            },
+            {
+              "type": "risky",
+              "cost": {
+                "social_energy": 2
+              },
+              "consequence": "architects_noticed"
+            }
+          ]
+        },
+        "sovereign_south": {
+          "requirements": [],
+          "terrain": [
+            "road",
+            "swamp"
+          ],
+          "travel_description": "Humid causeways"
+        }
+      }
     },
     "gulf_passage": {
       "name": "The Gulf Passage",
       "description": "Coastal trade routes from Texas to Florida. Boat traffic, floating markets, hurricane scars.",
       "primary_faction": "wanderers",
-      "contested_by": ["ghost_networks"],
-      "adjacent": ["texas_spine", "sovereign_south", "desert_sprawl"],
-      "terrain": ["water", "coastal", "road"],
-      "character": "Salt air and engine oil. Wanderer caravans meet Ghost Network skiffs at nameless ports where questions aren't asked."
+      "contested_by": [
+        "ghost_networks"
+      ],
+      "terrain": [
+        "water",
+        "coastal",
+        "road"
+      ],
+      "character": "Salt air and engine oil. Wanderer caravans meet Ghost Network skiffs at nameless ports where questions aren't asked.",
+      "routes": {
+        "texas_spine": {
+          "requirements": [
+            {
+              "type": "faction",
+              "faction": "steel_syndicate",
+              "min_standing": "neutral"
+            }
+          ],
+          "terrain": [
+            "road",
+            "plains"
+          ],
+          "travel_description": "Patrolled trade routes",
+          "alternatives": [
+            {
+              "type": "bribe",
+              "cost": {
+                "wealth": 1
+              },
+              "description": "Pay the toll"
+            },
+            {
+              "type": "risky",
+              "cost": {
+                "social_energy": 2
+              },
+              "consequence": "syndicate_shakedown"
+            }
+          ]
+        },
+        "sovereign_south": {
+          "requirements": [],
+          "terrain": [
+            "road",
+            "swamp"
+          ],
+          "travel_description": "Humid causeways"
+        },
+        "desert_sprawl": {
+          "requirements": [],
+          "terrain": [
+            "road",
+            "desert"
+          ],
+          "travel_description": "Heat-warped asphalt"
+        }
+      }
     },
     "breadbasket": {
       "name": "The Breadbasket",
       "description": "Great Plains agricultural expanse. Vast fields, grain silos, scattered communities.",
       "primary_faction": "cultivators",
-      "contested_by": ["wanderers"],
-      "adjacent": ["rust_corridor", "northern_reaches", "texas_spine", "desert_sprawl"],
-      "terrain": ["plains", "road", "off-road"],
-      "character": "Endless horizons and the slow rhythm of planting seasons. Cultivator communes dot the landscape, trading with Wanderer caravans that follow ancient routes."
+      "contested_by": [
+        "wanderers"
+      ],
+      "terrain": [
+        "plains",
+        "road",
+        "off-road"
+      ],
+      "character": "Endless horizons and the slow rhythm of planting seasons. Cultivator communes dot the landscape, trading with Wanderer caravans that follow ancient routes.",
+      "routes": {
+        "rust_corridor": {
+          "requirements": [],
+          "terrain": [
+            "road",
+            "urban"
+          ],
+          "travel_description": "Crumbled city streets"
+        },
+        "northern_reaches": {
+          "requirements": [],
+          "terrain": [
+            "road"
+          ],
+          "travel_description": "Northern highways, still maintained by Lattice"
+        },
+        "texas_spine": {
+          "requirements": [
+            {
+              "type": "faction",
+              "faction": "steel_syndicate",
+              "min_standing": "neutral"
+            }
+          ],
+          "terrain": [
+            "road",
+            "plains"
+          ],
+          "travel_description": "Patrolled trade routes",
+          "alternatives": [
+            {
+              "type": "bribe",
+              "cost": {
+                "wealth": 1
+              },
+              "description": "Pay the toll"
+            },
+            {
+              "type": "risky",
+              "cost": {
+                "social_energy": 2
+              },
+              "consequence": "syndicate_shakedown"
+            }
+          ]
+        },
+        "desert_sprawl": {
+          "requirements": [],
+          "terrain": [
+            "road",
+            "desert"
+          ],
+          "travel_description": "Heat-warped asphalt"
+        }
+      }
     },
     "northern_reaches": {
       "name": "The Northern Reaches",
-      "description": "Former Canada — harsh winters, isolated settlements, resource extraction.",
+      "description": "Former Canada \u2014 harsh winters, isolated settlements, resource extraction.",
       "primary_faction": "covenant",
-      "contested_by": ["ember_colonies"],
-      "adjacent": ["rust_corridor", "breadbasket", "pacific_corridor", "frozen_edge"],
-      "terrain": ["forest", "tundra", "off-road"],
-      "character": "Long nights and communities bound by necessity. The Covenant holds sanctuaries here, while Ember outposts cling to survival."
+      "contested_by": [
+        "ember_colonies"
+      ],
+      "terrain": [
+        "forest",
+        "tundra",
+        "off-road"
+      ],
+      "character": "Long nights and communities bound by necessity. The Covenant holds sanctuaries here, while Ember outposts cling to survival.",
+      "routes": {
+        "rust_corridor": {
+          "requirements": [],
+          "terrain": [
+            "road",
+            "urban"
+          ],
+          "travel_description": "Crumbled city streets"
+        },
+        "breadbasket": {
+          "requirements": [],
+          "terrain": [
+            "road",
+            "plains"
+          ],
+          "travel_description": "Open highways"
+        },
+        "pacific_corridor": {
+          "requirements": [],
+          "terrain": [
+            "road",
+            "urban"
+          ],
+          "travel_description": "Crumbled city streets"
+        },
+        "frozen_edge": {
+          "requirements": [
+            {
+              "type": "vehicle",
+              "capability": "offroad"
+            }
+          ],
+          "terrain": [
+            "tundra",
+            "off-road"
+          ],
+          "travel_description": "Treacherous ice roads",
+          "alternatives": [
+            {
+              "type": "contact",
+              "faction": "ember_colonies",
+              "description": "Local guide"
+            },
+            {
+              "type": "risky",
+              "cost": {
+                "health": 2
+              },
+              "consequence": "frostbite"
+            }
+          ]
+        }
+      }
     },
     "pacific_corridor": {
       "name": "The Pacific Corridor",
       "description": "West Coast megalopolis remnants. Tech enclaves, port cities, earthquake ruins.",
       "primary_faction": "convergence",
-      "contested_by": ["architects"],
-      "adjacent": ["northern_reaches", "desert_sprawl"],
-      "terrain": ["urban", "coastal", "road"],
-      "character": "Cracked freeways and server farms that still hum. The Convergence experiments here, while Architects sift through pre-Collapse records."
+      "contested_by": [
+        "architects"
+      ],
+      "terrain": [
+        "urban",
+        "coastal",
+        "road"
+      ],
+      "character": "Cracked freeways and server farms that still hum. The Convergence experiments here, while Architects sift through pre-Collapse records.",
+      "routes": {
+        "northern_reaches": {
+          "requirements": [],
+          "terrain": [
+            "road"
+          ],
+          "travel_description": "Northern highways, still maintained by Lattice"
+        },
+        "desert_sprawl": {
+          "requirements": [],
+          "terrain": [
+            "road",
+            "desert"
+          ],
+          "travel_description": "Heat-warped asphalt"
+        }
+      }
     },
     "desert_sprawl": {
       "name": "The Desert Sprawl",
       "description": "Southwest badlands. Abandoned suburbs, solar farms, cartel territories.",
       "primary_faction": "ghost_networks",
-      "contested_by": ["steel_syndicate"],
-      "adjacent": ["pacific_corridor", "breadbasket", "texas_spine", "gulf_passage"],
-      "terrain": ["desert", "off-road", "road"],
-      "character": "Sun-bleached highways and hidden canyons. Ghost Networks run escape routes through territory the Syndicate claims but can't fully control."
+      "contested_by": [
+        "steel_syndicate"
+      ],
+      "terrain": [
+        "desert",
+        "off-road",
+        "road"
+      ],
+      "character": "Sun-bleached highways and hidden canyons. Ghost Networks run escape routes through territory the Syndicate claims but can't fully control.",
+      "routes": {
+        "pacific_corridor": {
+          "requirements": [],
+          "terrain": [
+            "road",
+            "urban"
+          ],
+          "travel_description": "Crumbled city streets"
+        },
+        "breadbasket": {
+          "requirements": [],
+          "terrain": [
+            "road",
+            "plains"
+          ],
+          "travel_description": "Open highways"
+        },
+        "texas_spine": {
+          "requirements": [
+            {
+              "type": "faction",
+              "faction": "steel_syndicate",
+              "min_standing": "neutral"
+            }
+          ],
+          "terrain": [
+            "road",
+            "plains"
+          ],
+          "travel_description": "Patrolled trade routes",
+          "alternatives": [
+            {
+              "type": "bribe",
+              "cost": {
+                "wealth": 1
+              },
+              "description": "Pay the toll"
+            },
+            {
+              "type": "risky",
+              "cost": {
+                "social_energy": 2
+              },
+              "consequence": "syndicate_shakedown"
+            }
+          ]
+        },
+        "gulf_passage": {
+          "requirements": [],
+          "terrain": [
+            "road",
+            "coastal"
+          ],
+          "travel_description": "Coastal routes"
+        }
+      }
     },
     "northeast_scar": {
       "name": "The Northeast Scar",
       "description": "Boston to DC corridor. Bombed infrastructure, fortified enclaves, Nexus surveillance.",
       "primary_faction": "architects",
-      "contested_by": ["nexus"],
-      "adjacent": ["rust_corridor", "appalachian_hollows"],
-      "terrain": ["urban", "road"],
-      "character": "Craters and checkpoints. The Architects preserve what history remains while Nexus watchers track movement between the surviving cities."
+      "contested_by": [
+        "nexus"
+      ],
+      "terrain": [
+        "urban",
+        "road"
+      ],
+      "character": "Craters and checkpoints. The Architects preserve what history remains while Nexus watchers track movement between the surviving cities.",
+      "routes": {
+        "rust_corridor": {
+          "requirements": [],
+          "terrain": [
+            "road",
+            "urban"
+          ],
+          "travel_description": "Crumbled city streets"
+        },
+        "appalachian_hollows": {
+          "requirements": [
+            {
+              "type": "vehicle",
+              "capability": "offroad"
+            }
+          ],
+          "terrain": [
+            "mountain",
+            "off-road"
+          ],
+          "travel_description": "Winding mountain passes",
+          "alternatives": [
+            {
+              "type": "contact",
+              "faction": "ember_colonies",
+              "description": "Mountain guide"
+            },
+            {
+              "type": "risky",
+              "cost": {
+                "time": 1
+              },
+              "consequence": "lost_in_hollows"
+            }
+          ]
+        }
+      }
     },
     "sovereign_south": {
       "name": "The Sovereign South",
       "description": "Deep South religious communities. Covenant territory with Witness enclaves.",
       "primary_faction": "witnesses",
-      "contested_by": ["covenant"],
-      "adjacent": ["appalachian_hollows", "gulf_passage", "texas_spine"],
-      "terrain": ["swamp", "forest", "road"],
-      "character": "Humid nights and communities built on faith. Witnesses keep records while the Covenant offers sanctuary to those in need."
+      "contested_by": [
+        "covenant"
+      ],
+      "terrain": [
+        "swamp",
+        "forest",
+        "road"
+      ],
+      "character": "Humid nights and communities built on faith. Witnesses keep records while the Covenant offers sanctuary to those in need.",
+      "routes": {
+        "appalachian_hollows": {
+          "requirements": [
+            {
+              "type": "vehicle",
+              "capability": "offroad"
+            }
+          ],
+          "terrain": [
+            "mountain",
+            "off-road"
+          ],
+          "travel_description": "Winding mountain passes",
+          "alternatives": [
+            {
+              "type": "contact",
+              "faction": "ember_colonies",
+              "description": "Mountain guide"
+            },
+            {
+              "type": "risky",
+              "cost": {
+                "time": 1
+              },
+              "consequence": "lost_in_hollows"
+            }
+          ]
+        },
+        "gulf_passage": {
+          "requirements": [],
+          "terrain": [
+            "road",
+            "coastal"
+          ],
+          "travel_description": "Coastal routes"
+        },
+        "texas_spine": {
+          "requirements": [
+            {
+              "type": "faction",
+              "faction": "steel_syndicate",
+              "min_standing": "neutral"
+            }
+          ],
+          "terrain": [
+            "road",
+            "plains"
+          ],
+          "travel_description": "Patrolled trade routes",
+          "alternatives": [
+            {
+              "type": "bribe",
+              "cost": {
+                "wealth": 1
+              },
+              "description": "Pay the toll"
+            },
+            {
+              "type": "risky",
+              "cost": {
+                "social_energy": 2
+              },
+              "consequence": "syndicate_shakedown"
+            }
+          ]
+        }
+      }
     },
     "texas_spine": {
       "name": "The Texas Spine",
       "description": "Central Texas trade hub. Oil remnants, border towns, caravan crossroads.",
       "primary_faction": "steel_syndicate",
-      "contested_by": ["lattice"],
-      "adjacent": ["breadbasket", "desert_sprawl", "gulf_passage", "sovereign_south"],
-      "terrain": ["plains", "road", "off-road"],
-      "character": "Dust and deals. The Syndicate runs trade through here, butting heads with Lattice infrastructure that still carries power south."
+      "contested_by": [
+        "lattice"
+      ],
+      "terrain": [
+        "plains",
+        "road",
+        "off-road"
+      ],
+      "character": "Dust and deals. The Syndicate runs trade through here, butting heads with Lattice infrastructure that still carries power south.",
+      "routes": {
+        "breadbasket": {
+          "requirements": [],
+          "terrain": [
+            "road",
+            "plains"
+          ],
+          "travel_description": "Open highways"
+        },
+        "desert_sprawl": {
+          "requirements": [],
+          "terrain": [
+            "road",
+            "desert"
+          ],
+          "travel_description": "Heat-warped asphalt"
+        },
+        "gulf_passage": {
+          "requirements": [],
+          "terrain": [
+            "road",
+            "coastal"
+          ],
+          "travel_description": "Coastal routes"
+        },
+        "sovereign_south": {
+          "requirements": [],
+          "terrain": [
+            "road",
+            "swamp"
+          ],
+          "travel_description": "Humid causeways"
+        }
+      }
     },
     "frozen_edge": {
       "name": "The Frozen Edge",
       "description": "Alaska and Yukon. Extreme isolation, bunker communities, resource caches.",
       "primary_faction": "ember_colonies",
       "contested_by": [],
-      "adjacent": ["northern_reaches"],
-      "terrain": ["tundra", "mountain", "off-road"],
-      "character": "The last frontier got lonelier. Ember survivors here answer to no one, preserving pre-Collapse knowledge in underground archives."
+      "terrain": [
+        "tundra",
+        "mountain",
+        "off-road"
+      ],
+      "character": "The last frontier got lonelier. Ember survivors here answer to no one, preserving pre-Collapse knowledge in underground archives.",
+      "routes": {
+        "northern_reaches": {
+          "requirements": [],
+          "terrain": [
+            "road"
+          ],
+          "travel_description": "Northern highways, still maintained by Lattice"
+        }
+      }
     }
   },
   "travel_costs": {

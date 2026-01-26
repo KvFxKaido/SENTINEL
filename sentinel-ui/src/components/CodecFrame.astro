@@ -71,7 +71,16 @@ const factionColorVar = `--faction-${faction.toLowerCase().replace(' ', '-')}`;
     <!-- Right Column: Dialogue -->
     <div class="codec-content">
       <div class="content-header">
-        <div class="npc-name">{name.toUpperCase()}</div>
+        <div class="npc-name-row">
+          <button class="npc-name wiki-link" data-wiki-page={name} title="View wiki page">
+            {name.toUpperCase()}
+          </button>
+          <button class="wiki-btn-small" data-wiki-page={name} title="View wiki page">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+            </svg>
+          </button>
+        </div>
         <div class="npc-title">{title}</div>
         <div class="header-line"></div>
       </div>
@@ -256,11 +265,50 @@ const factionColorVar = `--faction-${faction.toLowerCase().replace(' ', '-')}`;
     gap: 2px;
   }
 
+  .npc-name-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
   .npc-name {
     font-size: 1.1rem;
     font-weight: bold;
     color: var(--frame-color);
     letter-spacing: 0.05em;
+  }
+
+  .npc-name.wiki-link {
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s ease;
+  }
+
+  .npc-name.wiki-link:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .wiki-btn-small {
+    background: transparent;
+    border: 1px solid var(--border-color, #1e1e1e);
+    border-radius: 4px;
+    padding: 4px 6px;
+    cursor: pointer;
+    color: var(--text-muted, #6e7681);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+  }
+
+  .wiki-btn-small:hover {
+    background: var(--bg-tertiary, #121212);
+    color: var(--accent-cyan, #56d4dd);
+    border-color: var(--accent-cyan, #56d4dd);
   }
 
   .npc-title {
@@ -436,3 +484,28 @@ const factionColorVar = `--faction-${faction.toLowerCase().replace(' ', '-')}`;
     background: rgba(86, 212, 221, 0.1);
   }
 </style>
+
+<script>
+  // Wiki integration - uses event delegation for dynamically injected CodecFrames
+  document.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+
+    // Check if clicked element or parent has wiki-page data
+    const wikiElement = target.closest('[data-wiki-page]') as HTMLElement | null;
+
+    if (wikiElement && wikiElement.dataset.wikiPage) {
+      e.preventDefault();
+      const pageName = wikiElement.dataset.wikiPage;
+
+      // Get campaign ID from current state if available
+      const campaignId = (window as any).currentCampaignId || null;
+
+      // Open wiki viewer
+      if ((window as any).wikiViewer) {
+        (window as any).wikiViewer.open(pageName, campaignId);
+      } else {
+        console.warn('WikiViewer not loaded yet');
+      }
+    }
+  });
+</script>

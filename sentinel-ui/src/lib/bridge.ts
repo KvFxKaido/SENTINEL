@@ -260,3 +260,126 @@ export function subscribeToEvents(
     eventSource.close();
   };
 }
+
+// ─── Wiki API ─────────────────────────────────────────────────────────────────
+
+export interface WikiFrontmatter {
+  type?: string;
+  tags?: string[];
+  campaign?: string;
+  faction?: string;
+  disposition?: string;
+  standing?: string;
+  portrait?: string;
+  extends?: string;
+  aliases?: string[];
+  [key: string]: unknown;
+}
+
+export interface WikiPage {
+  name: string;
+  path: string;
+  source: string;
+  type: string | null;
+  frontmatter: WikiFrontmatter;
+  content: string;
+}
+
+export interface WikiSearchResult {
+  name: string;
+  path: string;
+  source: string;
+  type: string | null;
+  score: number;
+  snippet: string;
+}
+
+export interface WikiPageResponse {
+  ok: true;
+  page: WikiPage;
+}
+
+export interface WikiSearchResponse {
+  ok: true;
+  query: string;
+  count: number;
+  results: WikiSearchResult[];
+}
+
+export interface WikiListResponse {
+  ok: true;
+  category: string;
+  count: number;
+  pages: Array<{
+    name: string;
+    path: string;
+    source: string;
+    type: string | null;
+    frontmatter: WikiFrontmatter;
+  }>;
+}
+
+/**
+ * Get a wiki page by name.
+ */
+export async function getWikiPage(
+  name: string,
+  campaignId?: string
+): Promise<WikiPage | null> {
+  const params = campaignId ? `?campaign=${encodeURIComponent(campaignId)}` : '';
+  const response = await fetch(
+    `${BRIDGE_URL}/wiki/page/${encodeURIComponent(name)}${params}`
+  );
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(`Failed to get wiki page: ${response.statusText}`);
+  }
+
+  const data: WikiPageResponse = await response.json();
+  return data.page;
+}
+
+/**
+ * Search wiki pages.
+ */
+export async function searchWiki(
+  query: string,
+  campaignId?: string,
+  limit = 10
+): Promise<WikiSearchResult[]> {
+  const params = new URLSearchParams({ q: query, limit: String(limit) });
+  if (campaignId) {
+    params.set('campaign', campaignId);
+  }
+
+  const response = await fetch(`${BRIDGE_URL}/wiki/search?${params}`);
+
+  if (!response.ok) {
+    throw new Error(`Failed to search wiki: ${response.statusText}`);
+  }
+
+  const data: WikiSearchResponse = await response.json();
+  return data.results;
+}
+
+/**
+ * List wiki pages in a category.
+ */
+export async function listWikiPages(
+  category: 'npcs' | 'factions' | 'characters' | 'threads' | 'hinges',
+  campaignId?: string
+): Promise<WikiListResponse['pages']> {
+  const params = campaignId ? `?campaign=${encodeURIComponent(campaignId)}` : '';
+  const response = await fetch(`${BRIDGE_URL}/wiki/list/${category}${params}`);
+
+  if (!response.ok) {
+    throw new Error(`Failed to list wiki pages: ${response.statusText}`);
+  }
+
+  const data: WikiListResponse = await response.json();
+  return data.pages;
+}

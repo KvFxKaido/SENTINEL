@@ -2203,11 +2203,145 @@ def tui_travel(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
 
 
 # -----------------------------------------------------------------------------
-# Region Command
+# Region Command - World Map with Negotiable Gates
 # -----------------------------------------------------------------------------
 
+def _check_route_requirements(
+    campaign, route_data: dict, char, vehicle
+) -> tuple[bool, list[str], list[dict]]:
+    """
+    Check if route requirements are met.
+
+    Returns: (can_pass, unmet_reasons, available_alternatives)
+    """
+    from ..state.schema import FactionName, Standing
+
+    requirements = route_data.get("requirements", [])
+    alternatives = route_data.get("alternatives", [])
+    unmet = []
+
+    for req in requirements:
+        req_type = req.get("type")
+
+        if req_type == "faction":
+            # Check faction standing
+            faction_id = req.get("faction", "")
+            min_standing = req.get("min_standing", "neutral").lower()
+
+            # Map faction_id to FactionName enum
+            faction_name = None
+            for fn in FactionName:
+                if faction_id.lower().replace("_", " ") == fn.value.lower():
+                    faction_name = fn
+                    break
+                if faction_id.lower() == fn.value.lower().replace(" ", "_"):
+                    faction_name = fn
+                    break
+
+            if faction_name:
+                current_standing = campaign.factions.get_standing(faction_name)
+                standing_order = ["hostile", "unfriendly", "neutral", "friendly", "allied"]
+                current_idx = standing_order.index(current_standing.value.lower())
+                required_idx = standing_order.index(min_standing)
+
+                if current_idx < required_idx:
+                    faction_display = faction_id.replace("_", " ").title()
+                    unmet.append(f"{faction_display} standing: need {min_standing.title()}, have {current_standing.value}")
+
+        elif req_type == "vehicle":
+            # Check vehicle capability
+            capability = req.get("vehicle_capability", "")
+            if not vehicle:
+                unmet.append(f"Vehicle required: {capability}")
+            elif capability == "offroad" and "off-road" not in vehicle.terrain:
+                unmet.append(f"Vehicle needs off-road capability")
+            elif capability == "water" and "water" not in vehicle.terrain:
+                unmet.append(f"Vehicle needs water capability")
+            elif vehicle and not vehicle.is_operational:
+                unmet.append(f"Vehicle [{vehicle.name}] is {vehicle.status}")
+
+        elif req_type == "contact":
+            # Check for NPC contact from faction
+            contact_faction = req.get("faction", "")
+            has_contact = False
+            for npc in campaign.npcs:
+                if npc.faction and contact_faction.lower() in npc.faction.value.lower().replace(" ", "_"):
+                    if npc.personal_standing >= 10:  # Need positive relationship
+                        has_contact = True
+                        break
+            if not has_contact:
+                faction_display = contact_faction.replace("_", " ").title()
+                unmet.append(f"Need contact in {faction_display}")
+
+        elif req_type == "story":
+            # Check story flag
+            story_flag = req.get("story_flag", "")
+            # Story flags stored in dormant threads or hinges
+            has_flag = any(
+                story_flag in (t.trigger or "")
+                for t in campaign.dormant_threads
+            ) or any(
+                story_flag in h.description
+                for h in campaign.hinges
+            )
+            if not has_flag:
+                desc = req.get("description", f"Story requirement: {story_flag}")
+                unmet.append(desc)
+
+    can_pass = len(unmet) == 0
+    return can_pass, unmet, alternatives
+
+
+def _apply_risky_traversal(app, log, char, alternative: dict) -> bool:
+    """Apply costs and consequences for risky traversal. Returns True if successful."""
+    costs = alternative.get("cost", {})
+    consequence = alternative.get("consequence")
+
+    # Apply costs
+    for cost_type, amount in costs.items():
+        if cost_type == "social_energy" and char:
+            if char.social_energy.current < amount:
+                log.write(Text.from_markup(
+                    f"[{Theme.DANGER}]Not enough energy ({char.social_energy.current}/{amount})[/{Theme.DANGER}]"
+                ))
+                return False
+            char.social_energy.current -= amount
+            log.write(Text.from_markup(
+                f"[{Theme.WARNING}]Risky route: -{amount} social energy[/{Theme.WARNING}]"
+            ))
+        elif cost_type == "wealth" and char:
+            # Deduct from character's wealth if tracked
+            log.write(Text.from_markup(
+                f"[{Theme.WARNING}]Bribe paid: -{amount} wealth[/{Theme.WARNING}]"
+            ))
+        elif cost_type == "time":
+            log.write(Text.from_markup(
+                f"[{Theme.WARNING}]Delayed: +{amount} session(s)[/{Theme.WARNING}]"
+            ))
+        elif cost_type == "health" and char:
+            log.write(Text.from_markup(
+                f"[{Theme.DANGER}]Hazardous journey: -{amount} condition[/{Theme.DANGER}]"
+            ))
+
+    # Queue consequence as dormant thread
+    if consequence and app.manager:
+        from ..state.schema import DormantThread, ThreadSeverity
+        thread = DormantThread(
+            description=f"Consequence of risky travel: {consequence}",
+            trigger=consequence,
+            severity=ThreadSeverity.MINOR,
+            source="travel",
+        )
+        app.manager.current.dormant_threads.append(thread)
+        log.write(Text.from_markup(
+            f"[{Theme.DIM}]Something stirs in the shadows...[/{Theme.DIM}]"
+        ))
+
+    return True
+
+
 def tui_region(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
-    """View or change current world region."""
+    """View or change current world region with negotiable gates."""
     import json
     from pathlib import Path
 
@@ -2231,7 +2365,7 @@ def tui_region(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
     current_info = regions_data.get(current_region.value, {})
 
     if not args:
-        # Show current region
+        # Show current region with routes info
         log.write(Text.from_markup(f"[bold {Theme.TEXT}]CURRENT REGION[/bold {Theme.TEXT}]"))
         log.write(Text.from_markup(f"[{Theme.ACCENT}]{current_info.get('name', current_region.value)}[/{Theme.ACCENT}]"))
         log.write(Text.from_markup(f"[{Theme.DIM}]{current_info.get('description', '')}[/{Theme.DIM}]"))
@@ -2248,14 +2382,44 @@ def tui_region(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
             contested_str = ", ".join(c.replace("_", " ").title() for c in contested)
             log.write(Text.from_markup(f"[{Theme.DIM}]Contested by:[/{Theme.DIM}] {contested_str}"))
 
-        # Adjacent regions
-        adjacent = current_info.get("adjacent", [])
-        if adjacent:
-            log.write(Text.from_markup(f"\n[{Theme.ACCENT}]Adjacent Regions:[/{Theme.ACCENT}]"))
-            for adj in adjacent:
-                adj_info = regions_data.get(adj, {})
-                name = adj_info.get("name", adj.replace("_", " ").title())
-                log.write(Text.from_markup(f"  [{Theme.DIM}]• {name}[/{Theme.DIM}]"))
+        # Show routes with requirements
+        routes = current_info.get("routes", {})
+        if routes:
+            log.write(Text.from_markup(f"\n[{Theme.ACCENT}]Routes:[/{Theme.ACCENT}]"))
+
+            char = campaign.characters[0] if campaign.characters else None
+            vehicle = char.vehicles[0] if char and char.vehicles else None
+
+            for dest, route_data in routes.items():
+                dest_info = regions_data.get(dest, {})
+                dest_name = dest_info.get("name", dest.replace("_", " ").title())
+                travel_desc = route_data.get("travel_description", "")
+
+                # Check if route is passable
+                can_pass, unmet, alternatives = _check_route_requirements(
+                    campaign, route_data, char, vehicle
+                )
+
+                if can_pass:
+                    log.write(Text.from_markup(
+                        f"  [{Theme.FRIENDLY}]• {dest_name}[/{Theme.FRIENDLY}] "
+                        f"[{Theme.DIM}]— {travel_desc}[/{Theme.DIM}]"
+                    ))
+                else:
+                    # Show blocked route with reason
+                    log.write(Text.from_markup(
+                        f"  [{Theme.WARNING}]• {dest_name}[/{Theme.WARNING}] "
+                        f"[{Theme.DIM}]— {travel_desc}[/{Theme.DIM}]"
+                    ))
+                    for reason in unmet[:1]:  # Show first reason
+                        log.write(Text.from_markup(
+                            f"    [{Theme.DANGER}]⚠ {reason}[/{Theme.DANGER}]"
+                        ))
+                    if alternatives:
+                        alt_count = len(alternatives)
+                        log.write(Text.from_markup(
+                            f"    [{Theme.DIM}]{alt_count} alternative(s) available[/{Theme.DIM}]"
+                        ))
 
         log.write(Text.from_markup(f"\n[{Theme.DIM}]/region list — all regions | /region <name> — travel[/{Theme.DIM}]"))
         return
@@ -2301,40 +2465,137 @@ def tui_region(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
         log.write(Text.from_markup(f"[{Theme.DIM}]Already in {current_info.get('name', current_region.value)}[/{Theme.DIM}]"))
         return
 
-    # Check adjacency
-    adjacent = current_info.get("adjacent", [])
+    # Get route data (new system)
+    routes = current_info.get("routes", {})
     target_info = regions_data.get(target_region.value, {})
-    is_distant = target_region.value not in adjacent
+    route_data = routes.get(target_region.value, {})
+
+    # Check if route exists
+    is_connected = target_region.value in routes
+    is_distant = not is_connected
 
     # Get character and vehicle
     char = campaign.characters[0] if campaign.characters else None
     vehicle = char.vehicles[0] if char and char.vehicles else None
 
-    # Travel costs
-    energy_cost = 20 if is_distant else 5  # Distant travel is exhausting
+    # Check route requirements for connected routes
+    if is_connected:
+        can_pass, unmet, alternatives = _check_route_requirements(
+            campaign, route_data, char, vehicle
+        )
+
+        if not can_pass:
+            # Show what's blocking
+            log.write(Text.from_markup(f"[{Theme.DANGER}]Route blocked to {target_info.get('name', target_region.value)}[/{Theme.DANGER}]"))
+            travel_desc = route_data.get("travel_description", "")
+            if travel_desc:
+                log.write(Text.from_markup(f"[{Theme.DIM}]{travel_desc}[/{Theme.DIM}]"))
+
+            log.write(Text.from_markup(f"\n[{Theme.WARNING}]Requirements not met:[/{Theme.WARNING}]"))
+            for reason in unmet:
+                log.write(Text.from_markup(f"  [{Theme.DANGER}]• {reason}[/{Theme.DANGER}]"))
+
+            # Show alternatives
+            if alternatives:
+                log.write(Text.from_markup(f"\n[{Theme.ACCENT}]Alternatives:[/{Theme.ACCENT}]"))
+                for i, alt in enumerate(alternatives):
+                    alt_type = alt.get("type", "unknown")
+                    alt_desc = alt.get("description", "")
+                    costs = alt.get("cost", {})
+
+                    cost_str = ""
+                    if costs:
+                        cost_parts = [f"-{v} {k.replace('_', ' ')}" for k, v in costs.items()]
+                        cost_str = f" [{Theme.WARNING}]({', '.join(cost_parts)})[/{Theme.WARNING}]"
+
+                    if alt_type == "contact":
+                        faction = alt.get("faction", "").replace("_", " ").title()
+                        log.write(Text.from_markup(
+                            f"  [{Theme.TEXT}]{i+1}. Contact {faction}[/{Theme.TEXT}] — {alt_desc}{cost_str}"
+                        ))
+                    elif alt_type == "bribe":
+                        log.write(Text.from_markup(
+                            f"  [{Theme.TEXT}]{i+1}. Bribe[/{Theme.TEXT}] — {alt_desc}{cost_str}"
+                        ))
+                    elif alt_type == "risky":
+                        consequence = alt.get("consequence", "")
+                        consequence_hint = f" [risk: {consequence}]" if consequence else ""
+                        log.write(Text.from_markup(
+                            f"  [{Theme.DANGER}]{i+1}. Risky route[/{Theme.DANGER}] — "
+                            f"Bypass requirements{cost_str}[{Theme.DIM}]{consequence_hint}[/{Theme.DIM}]"
+                        ))
+
+                log.write(Text.from_markup(f"\n[{Theme.DIM}]/region {target_region.value} risky — take the risky route[/{Theme.DIM}]"))
+            return
+
+    # Handle "risky" subcommand for alternative traversal
+    if len(args) >= 2 and args[-1].lower() == "risky":
+        # Player chose risky traversal
+        if is_connected and route_data:
+            can_pass, unmet, alternatives = _check_route_requirements(
+                campaign, route_data, char, vehicle
+            )
+
+            # Find risky alternative
+            risky_alt = next((a for a in alternatives if a.get("type") == "risky"), None)
+            if risky_alt:
+                if not _apply_risky_traversal(app, log, char, risky_alt):
+                    return  # Failed to apply costs
+                # Continue with travel
+            else:
+                log.write(Text.from_markup(f"[{Theme.WARNING}]No risky route available[/{Theme.WARNING}]"))
+                return
+        else:
+            log.write(Text.from_markup(f"[{Theme.WARNING}]No route to take risks on[/{Theme.WARNING}]"))
+            return
+
+    # Travel costs based on distance
+    energy_cost = 5 if is_connected else 20
     vehicle_used = False
 
-    # Check if vehicle can be used for distant travel
-    if is_distant and vehicle:
+    # Vehicle handling for distant travel
+    if is_distant:
+        if not vehicle:
+            log.write(Text.from_markup(f"[{Theme.DANGER}]No direct route to {target_info.get('name', target_region.value)}[/{Theme.DANGER}]"))
+            log.write(Text.from_markup(f"[{Theme.DIM}]Travel through connected regions or acquire transport[/{Theme.DIM}]"))
+            return
+
         if not vehicle.is_operational:
             log.write(Text.from_markup(f"[{Theme.WARNING}]Vehicle [{vehicle.name}] is {vehicle.status}[/{Theme.WARNING}]"))
             log.write(Text.from_markup(f"[{Theme.DIM}]Visit /shop to refuel or repair[/{Theme.DIM}]"))
             return
-        # Use vehicle - reduces energy cost
+
+        # Use vehicle for distant travel
         vehicle.fuel = max(0, vehicle.fuel - vehicle.fuel_cost_per_trip)
         vehicle.condition = max(0, vehicle.condition - vehicle.condition_loss_per_trip)
         vehicle_used = True
-        energy_cost = 10  # Vehicle makes distant travel less exhausting
+        energy_cost = 10
 
     # Drain social energy
+    old_energy = 0
     if char:
         old_energy = char.social_energy.current
         char.social_energy.current = max(0, char.social_energy.current - energy_cost)
 
-    # Update region
+    # Update region and map state
     campaign.region = target_region
+
+    # Update map connectivity
+    session = campaign.session_number
+    if hasattr(campaign, 'map_state'):
+        campaign.map_state.make_connected(target_region, session)
+        # Also make adjacent regions aware
+        target_routes = target_info.get("routes", {})
+        for adj_region_key in target_routes.keys():
+            try:
+                adj_region = Region(adj_region_key)
+                campaign.map_state.make_aware(adj_region, session)
+            except ValueError:
+                pass  # Invalid region key
+
     app.manager.save_campaign()
 
+    # Success message
     log.write(Text.from_markup(f"[{Theme.FRIENDLY}]Traveled to {target_info.get('name', target_region.value)}[/{Theme.FRIENDLY}]"))
     log.write(Text.from_markup(f"[{Theme.DIM}]{target_info.get('description', '')}[/{Theme.DIM}]"))
 
