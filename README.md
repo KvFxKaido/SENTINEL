@@ -361,13 +361,12 @@ pytest
 
 | Document | Purpose |
 |----------|---------|
-| [Project Brief](SENTINEL_PROJECT_BRIEF.md) | Full project overview |
 | [Agent Architecture](architecture/AGENT_ARCHITECTURE.md) | Technical design |
-| [Obsidian Integration](architecture/OBSIDIAN_INTEGRATION.md) | Wiki features (complete) |
+| [Mechanics Stack](architecture/MECHANICS_STACK.md) | How systems interconnect |
 | [Campaign MCP Server](sentinel-campaign/README.md) | Faction server design |
 | [Deno Bridge](sentinel-bridge/README.md) | HTTP API for UI integration |
 | [Web UI](sentinel-ui/README.md) | Browser interface guide |
-| [Agent Dev Guide](sentinel-agent/CLAUDE.md) | Contributor guide |
+| [Agent Dev Guide](sentinel-agent/CLAUDE.md) | For AI assistants and contributors |
 
 ## License
 
