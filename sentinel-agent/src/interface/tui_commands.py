@@ -17,6 +17,7 @@ from rich.text import Text
 
 from .command_registry import set_tui_handler, get_registry
 from .glyphs import g
+from .renderer import format_tags_rich
 
 if TYPE_CHECKING:
     from .tui import SENTINELApp
@@ -401,7 +402,7 @@ def tui_clarify(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
         if choices:
             log.write("")
             for i, opt in enumerate(choices.options, 1):
-                log.write(Text.from_markup(f"  [{Theme.FRIENDLY}]{i}.[/{Theme.FRIENDLY}] {opt}"))
+                log.write(Text.from_markup(f"  [{Theme.FRIENDLY}]{i}.[/{Theme.FRIENDLY}] {format_tags_rich(opt)}"))
         log.write(Text.from_markup(f"[bold {Theme.DIM}]------------------------[/bold {Theme.DIM}]\n"))
     else:
         log.write(Text.from_markup(f"[{Theme.DIM}]No GM response to show yet.[/{Theme.DIM}]"))

@@ -1,5 +1,21 @@
 # SENTINEL Visual & Aesthetic Roadmap
 
+## Status Summary
+
+| Component | Status |
+|-----------|--------|
+| NPC Codec System | ✅ Complete (`interface/codec.py`) |
+| Character Portraits | ✅ Complete (9 NPCs, `/portrait` skill) |
+| Color Palette | ✅ Complete |
+| Faction Colors | ✅ Complete (all 11 factions) |
+| CRT Effects | ✅ Complete (web UI portraits) |
+| Contextual Dialogue Tags | ✅ Complete (web + TUI) |
+| Typing Animation | ✅ Complete (web UI) |
+| Sound Effects | ⏳ Pending (see `sentinel_sound_roadmap.md`) |
+| World Map | ⏳ Pending |
+
+---
+
 ## Vision
 
 Transform SENTINEL from functional TUI to an **immersive tactical experience** that evokes:
@@ -86,8 +102,8 @@ Unlike Fallout's numeric skill checks, SENTINEL uses **contextual unlocks** base
 
 ### Implementation Path
 
-1. **Phase 1: Static codec layout** — CSS/HTML for the codec frame
-2. **Phase 2: Portrait integration** — Pull from `assets/portraits/` or generate
+1. **Phase 1: Static codec layout** ✅ — `interface/codec.py` with faction colors, disposition bars
+2. **Phase 2: Portrait integration** ✅ — Kitty protocol + braille fallback, pulls from `assets/portraits/`
 3. **Phase 3: Dialogue options** — Parse GM response for tag patterns `[TAG]`
 4. **Phase 4: Tag rendering** — Color-code by type (background=cyan, faction=purple, etc.)
 5. **Phase 5: Typing animation** — Character-by-character with sound
@@ -95,15 +111,15 @@ Unlike Fallout's numeric skill checks, SENTINEL uses **contextual unlocks** base
 
 ---
 
-## Character Portraits
+## Character Portraits ✅
 
 ### Sources
 
-| Source | Use Case |
-|--------|----------|
-| **NanoBanana** | Generate from `assets/characters/*.yaml` specs |
-| **Manual upload** | Custom portraits in `assets/portraits/` |
-| **Placeholder** | Silhouette with faction color accent |
+| Source | Use Case | Status |
+|--------|----------|--------|
+| **NanoBanana** | Generate from `assets/characters/*.yaml` specs | ✅ Working |
+| **Manual upload** | Custom portraits in `assets/portraits/` | ✅ Supported |
+| **Placeholder** | Silhouette with faction color accent | ✅ Fallback exists |
 
 ### Portrait Specs
 
@@ -111,6 +127,12 @@ Unlike Fallout's numeric skill checks, SENTINEL uses **contextual unlocks** base
 - **Style:** Consistent art style (see `assets/ART_STYLE.md`)
 - **Variants:** Neutral, angry, pleased, suspicious (disposition-driven)
 - **Format:** PNG with transparency
+
+### Current Portraits (9 NPCs)
+
+Located in `assets/portraits/npcs/`:
+- axiom.png, cipher.png, dr_helena_voss.png, elder_kara.png
+- kira_vance.png, kovac.png, rook.png, vex.png, wei.png
 
 ### Generation Workflow
 
@@ -250,7 +272,7 @@ See also: [Sound Roadmap](sentinel_sound_roadmap.md)
 | **NPC dialogue** | JetBrains Mono | Italic for tone hints |
 | **System** | JetBrains Mono | Dim, smaller |
 
-### Color Palette (Already Implemented)
+### Color Palette ✅
 
 | Purpose | Variable | Hex |
 |---------|----------|-----|
@@ -264,7 +286,7 @@ See also: [Sound Roadmap](sentinel_sound_roadmap.md)
 
 ### Effects
 
-- **CRT scanlines** (optional, toggleable) — subtle horizontal lines
+- **CRT scanlines** ✅ — subtle horizontal lines on portraits (web UI)
 - **Screen flicker** — on error states or dramatic moments
 - **Glitch effect** — when connection unstable or during tense scenes
 
@@ -272,18 +294,18 @@ See also: [Sound Roadmap](sentinel_sound_roadmap.md)
 
 ## Implementation Priority
 
-| Priority | Feature | Effort | Impact |
-|----------|---------|--------|--------|
-| 🔴 High | NPC codec dialogue system | Large | Transformative |
-| 🔴 High | Character portraits (NanoBanana) | Medium | High immersion |
-| 🟡 Medium | Contextual dialogue tags | Medium | SENTINEL-native feel |
-| 🟡 Medium | Typing animation for NPC text | Small | MGS feel |
-| 🟡 Medium | Sound effects (UI feedback) | Medium | Polish |
-| 🟢 Low | World map visualization | Medium | Nice-to-have |
-| 🟢 Low | Faction relationship graph | Medium | Nice-to-have |
-| 🟢 Low | Timeline visualization | Medium | Nice-to-have |
-| 🟢 Low | CRT effects | Small | Aesthetic |
-| 🟢 Low | Ambient audio | Medium | Immersion |
+| Priority | Feature | Effort | Impact | Status |
+|----------|---------|--------|--------|--------|
+| 🔴 High | NPC codec dialogue system | Large | Transformative | ✅ Done |
+| 🔴 High | Character portraits (NanoBanana) | Medium | High immersion | ✅ Done |
+| 🟡 Medium | Contextual dialogue tags | Medium | SENTINEL-native feel | ✅ Done |
+| 🟡 Medium | Typing animation for NPC text | Small | MGS feel | ✅ Done |
+| 🟡 Medium | Sound effects (UI feedback) | Medium | Polish | Pending |
+| 🟢 Low | World map visualization | Medium | Nice-to-have | Pending |
+| 🟢 Low | Faction relationship graph | Medium | Nice-to-have | Mermaid in wiki |
+| 🟢 Low | Timeline visualization | Medium | Nice-to-have | Pending |
+| 🟢 Low | CRT effects | Small | Aesthetic | ✅ Done (web) |
+| 🟢 Low | Ambient audio | Medium | Immersion | Pending |
 
 ---
 
@@ -300,11 +322,11 @@ See also: [Sound Roadmap](sentinel_sound_roadmap.md)
 
 Scope tags: [web], [tui], [both]
 
-- [x] NPC conversations feel like codec calls, not chat logs [web]
-- [ ] Skill checks are visible before committing to dialogue [both]
-- [ ] Portraits exist for key NPCs (at least 1 per faction) [both]
-- [ ] Sound enhances without annoying (mute is always available) [web]
-- [ ] The UI feels like salvaged post-collapse tech, not a modern web app [both]
+- [x] NPC conversations feel like codec calls, not chat logs [both] — Codec frames with faction colors, disposition bars
+- [x] Skill checks are visible before committing to dialogue [both] — Contextual tags color-coded by type
+- [x] Portraits exist for key NPCs (at least 1 per faction) [both] — 9 portraits, covers multiple factions
+- [ ] Sound enhances without annoying (mute is always available) [web] — Sound roadmap separate
+- [x] The UI feels like salvaged post-collapse tech, not a modern web app [both] — Dark tactical theme implemented
 
 ---
 

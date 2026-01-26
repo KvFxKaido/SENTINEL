@@ -25,6 +25,83 @@ from .glyphs import (
 )
 from ..state.schema import Campaign, Character, MissionPhase
 
+# -----------------------------------------------------------------------------
+# Dialogue Tag Formatting (Contextual Dialogue Options)
+# -----------------------------------------------------------------------------
+
+# Tag type color mapping for Rich markup
+TAG_COLORS = {
+    'background': 'cyan',           # Professional training (NEGOTIATOR, MEDIC, etc.)
+    'faction': 'medium_purple',     # Faction standing (NEXUS: Allied, etc.)
+    'enhancement': 'magenta',       # Faction-granted ability (NEURAL LINK, etc.)
+    'gear': 'yellow',               # Inventory item (FORGED PAPERS, etc.)
+    'history': 'green3',            # Past actions with NPC (Saved their courier, etc.)
+    'energy': 'orange3',            # Social energy state (LOW ENERGY, EXHAUSTED)
+    'disposition': 'steel_blue',    # NPC relationship (WARM+, LOYAL)
+    'default': 'cyan',              # Fallback for unrecognized tags
+}
+
+# Background skills that unlock dialogue options
+BACKGROUND_TAGS = {'NEGOTIATOR', 'MEDIC', 'ENGINEER', 'INTEL', 'SCAVENGER', 'COMBAT'}
+
+# Faction names for faction standing tags
+FACTION_TAGS = {'NEXUS', 'EMBER', 'LATTICE', 'CONVERGENCE', 'COVENANT', 'WANDERERS',
+                'CULTIVATORS', 'STEEL', 'WITNESSES', 'ARCHITECTS', 'GHOST'}
+
+
+def _get_tag_type(tag: str, value: str | None) -> str:
+    """Determine the type of a dialogue tag for color coding."""
+    t = tag.upper()
+    # Background skills
+    if t in BACKGROUND_TAGS:
+        return 'background'
+    # Faction standings
+    if t in FACTION_TAGS:
+        return 'faction'
+    # Energy state
+    if 'ENERGY' in t or t == 'EXHAUSTED':
+        return 'energy'
+    # Disposition
+    if 'WARM' in t or 'LOYAL' in t or 'DISPOSITION' in t:
+        return 'disposition'
+    # History
+    if t == 'HISTORY':
+        return 'history'
+    # Enhancement patterns
+    if 'LINK' in t or 'CREDENTIALS' in t or 'IMPLANT' in t:
+        return 'enhancement'
+    # Gear - items with values that aren't faction standings
+    if value and value.upper() not in {'ALLIED', 'FRIENDLY', 'NEUTRAL', 'HOSTILE', 'UNFRIENDLY'}:
+        return 'gear'
+    return 'default'
+
+
+def format_tags_rich(text: str) -> str:
+    """
+    Format [TAG] and [TAG: Value] patterns for Rich terminal markup.
+
+    Converts tags like [NEGOTIATOR] or [NEXUS: Allied] into color-coded
+    Rich markup based on tag type.
+
+    Args:
+        text: Text containing dialogue tags
+
+    Returns:
+        Text with Rich markup applied to tags
+    """
+    import re
+
+    def replace_tag(match):
+        tag = match.group(1)
+        value = match.group(2)
+        label = f"{tag}: {value}" if value else tag
+        tag_type = _get_tag_type(tag, value)
+        color = TAG_COLORS.get(tag_type, 'cyan')
+        # Escape the brackets for Rich markup
+        return f"[{color}]\\[{label}][/{color}]"
+
+    return re.sub(r'\[([a-zA-Z0-9\s_]+)(?::\s*([^\]]+))?\]', replace_tag, text)
+
 # Import StrainTier for type hints (lazy import to avoid circular deps)
 try:
     from ..context.packer import StrainTier
@@ -384,8 +461,9 @@ def show_choices(choices):
         title = None
         box_style = THEME["primary"]
 
+    # Format choices with contextual tag highlighting
     choice_text = "\n".join(
-        f"[{THEME['accent']}]{i}.[/{THEME['accent']}] {opt}"
+        f"[{THEME['accent']}]{i}.[/{THEME['accent']}] {format_tags_rich(opt)}"
         for i, opt in enumerate(choices.options, 1)
     )
 
@@ -561,9 +639,9 @@ def render_choice_block(
     if choices.context:
         title += f" - {choices.context}"
 
-    # Format choices
+    # Format choices with contextual tag highlighting
     choice_text = "\n".join(
-        f"[{THEME['accent']}]{i}.[/{THEME['accent']}] {opt}"
+        f"[{THEME['accent']}]{i}.[/{THEME['accent']}] {format_tags_rich(opt)}"
         for i, opt in enumerate(choices.options, 1)
     )
 
