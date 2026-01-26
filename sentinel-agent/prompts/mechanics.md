@@ -119,6 +119,17 @@ Each is right about something, dangerously wrong when taken too far.
 
 +5 modifier when acting within expertise.
 
+## Dialogue Tags
+
+Options can include contextual tags showing why they're available:
+- `[BACKGROUND]` — Your training (NEGOTIATOR, MEDIC, etc.)
+- `[FACTION: Standing]` — Your reputation (NEXUS: Allied)
+- `[HISTORY: Detail]` — Past actions with this NPC
+- `[LOW ENERGY]` — Exhaustion unlocks desperate options
+- `[DISPOSITION+]` — NPC relationship level (WARM+)
+
+Not every option needs a tag — untagged options are always available.
+
 ## Loadout
 
 During **planning phase**, players select gear for the mission.

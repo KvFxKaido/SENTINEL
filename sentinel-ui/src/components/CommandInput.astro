@@ -611,7 +611,29 @@
     }
 
     narrativeLog?.appendChild(message);
-    narrativeLog?.scrollTo({ top: narrativeLog.scrollHeight, behavior: 'smooth' });
+
+    // Animate dialogue text for GM messages (MGS codec style)
+    if (role === 'gm') {
+      const codecContainer = message.querySelector('.codec-container');
+      if (codecContainer) {
+        // Cancel any previous animation
+        currentAnimation?.cancel();
+
+        // Start new animation after layout settles
+        requestAnimationFrame(() => {
+          currentAnimation = animateDialogueText(codecContainer as HTMLElement, () => {
+            // Scroll to show choices after animation
+            narrativeLog?.scrollTo({ top: narrativeLog.scrollHeight, behavior: 'smooth' });
+          });
+        });
+      } else {
+        // No codec container, scroll immediately
+        narrativeLog?.scrollTo({ top: narrativeLog.scrollHeight, behavior: 'smooth' });
+      }
+    } else {
+      // Non-GM messages scroll immediately
+      narrativeLog?.scrollTo({ top: narrativeLog.scrollHeight, behavior: 'smooth' });
+    }
   }
 
   function createCodecHtml(
@@ -731,12 +753,137 @@
     `;
   }
 
+  // Tag type classification for color-coded dialogue options
+  const BACKGROUND_TAGS = ['NEGOTIATOR', 'MEDIC', 'ENGINEER', 'INTEL', 'SCAVENGER', 'COMBAT'];
+  const FACTION_TAGS = ['NEXUS', 'EMBER', 'LATTICE', 'CONVERGENCE', 'COVENANT', 'WANDERERS',
+                        'CULTIVATORS', 'STEEL', 'WITNESSES', 'ARCHITECTS', 'GHOST'];
+
+  function getTagType(tag: string, value?: string): string {
+    const t = tag.toUpperCase();
+    // Background skills (cyan)
+    if (BACKGROUND_TAGS.includes(t)) return 'background';
+    // Faction standings (purple)
+    if (FACTION_TAGS.includes(t)) return 'faction';
+    // Energy state (orange)
+    if (t.includes('ENERGY') || t === 'EXHAUSTED') return 'energy';
+    // Disposition (blue)
+    if (t.includes('WARM') || t.includes('LOYAL') || t.includes('DISPOSITION')) return 'disposition';
+    // History (green)
+    if (t === 'HISTORY') return 'history';
+    // Enhancement (magenta) - check for known enhancement patterns
+    if (t.includes('LINK') || t.includes('CREDENTIALS') || t.includes('IMPLANT')) return 'enhancement';
+    // Gear (yellow) - items with values that aren't faction standings
+    if (value && !['ALLIED', 'FRIENDLY', 'NEUTRAL', 'HOSTILE', 'UNFRIENDLY'].includes(value.toUpperCase())) {
+      return 'gear';
+    }
+    return 'default';
+  }
+
   function formatTags(text: string): string {
     // Matches [TAG] or [TAG: Value]
     return text.replace(/\[([a-zA-Z0-9\s_]+)(?::\s*([^\]]+))?\]/g, (match, tag, value) => {
       const label = value ? `${tag}: ${value}` : tag;
-      return `<span class="codec-tag">${label}</span>`;
+      const tagType = getTagType(tag, value);
+      return `<span class="codec-tag codec-tag--${tagType}">${label}</span>`;
     });
+  }
+
+  // -----------------------------------------------------------------------------
+  // Typing Animation (MGS Codec Style)
+  // -----------------------------------------------------------------------------
+
+  // Track current animation so we can cancel if new message arrives
+  let currentAnimation: { cancel: () => void } | null = null;
+
+  /**
+   * Animate dialogue text character-by-character with skip support.
+   * Respects prefers-reduced-motion for accessibility.
+   */
+  function animateDialogueText(
+    container: HTMLElement,
+    onComplete?: () => void
+  ): { cancel: () => void } {
+    // Check prefers-reduced-motion
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      onComplete?.();
+      return { cancel: () => {} };
+    }
+
+    const dialogueEl = container.querySelector('.dialogue-text');
+    const optionsEl = container.querySelector('.dialogue-options');
+    if (!dialogueEl) {
+      onComplete?.();
+      return { cancel: () => {} };
+    }
+
+    // Get the full HTML content (preserves tag formatting)
+    const fullHtml = dialogueEl.innerHTML;
+    const textContent = dialogueEl.textContent || '';
+
+    // Hide choices during animation
+    if (optionsEl) {
+      (optionsEl as HTMLElement).style.opacity = '0';
+    }
+
+    let charIndex = 0;
+    let timeoutId: number | null = null;
+    let isComplete = false;
+    const charDelay = 25; // ms per character (~40 chars/sec)
+
+    function complete() {
+      if (isComplete) return;
+      isComplete = true;
+
+      if (timeoutId) clearTimeout(timeoutId);
+      dialogueEl.innerHTML = fullHtml;
+
+      // Fade in choices
+      if (optionsEl) {
+        (optionsEl as HTMLElement).style.transition = 'opacity 0.3s ease';
+        (optionsEl as HTMLElement).style.opacity = '1';
+      }
+
+      removeListeners();
+      onComplete?.();
+    }
+
+    function reveal() {
+      if (isComplete || charIndex >= textContent.length) {
+        complete();
+        return;
+      }
+
+      // Show characters progressively (plain text during animation)
+      dialogueEl.textContent = textContent.slice(0, ++charIndex);
+      timeoutId = window.setTimeout(reveal, charDelay);
+    }
+
+    function handleSkip(e: Event) {
+      // Skip on click or Space/Enter
+      if (e.type === 'keydown') {
+        const key = (e as KeyboardEvent).key;
+        if (key !== ' ' && key !== 'Enter') return;
+      }
+      complete();
+    }
+
+    function removeListeners() {
+      container.removeEventListener('click', handleSkip);
+      document.removeEventListener('keydown', handleSkip);
+    }
+
+    // Add skip listeners
+    container.addEventListener('click', handleSkip);
+    document.addEventListener('keydown', handleSkip);
+
+    // Start animation
+    reveal();
+
+    return {
+      cancel: () => {
+        complete();
+      }
+    };
   }
 
   // Escape HTML to prevent XSS

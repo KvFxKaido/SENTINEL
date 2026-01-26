@@ -33,6 +33,7 @@ from ..tools.hinge_detector import detect_hinge
 from .choices import parse_response, ChoiceBlock
 from .config import load_config, set_backend, set_model as save_model
 from .glyphs import g, energy_bar
+from .renderer import format_tags_rich
 from .command_registry import get_registry
 from .commands import register_all_commands
 from .tui_commands import register_tui_handlers
@@ -2623,10 +2624,10 @@ class SentinelTUI(App):
             self.call_from_thread(log.write, "")
             self.call_from_thread(log.write, center_renderable(narrative_panel, panel_width, log_width))
 
-            # Display choices
+            # Display choices with contextual tag highlighting
             if choices:
                 choice_lines = "\n".join(
-                    f"[{Theme.ACCENT}]{i}.[/{Theme.ACCENT}] {opt}"
+                    f"[{Theme.ACCENT}]{i}.[/{Theme.ACCENT}] {format_tags_rich(opt)}"
                     for i, opt in enumerate(choices.options, 1)
                 )
                 choice_panel = Panel(

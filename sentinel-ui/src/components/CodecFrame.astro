@@ -364,7 +364,7 @@ const factionColorVar = `--faction-${faction.toLowerCase().replace(' ', '-')}`;
     }
   }
 
-  /* Contextual Tags */
+  /* Contextual Tags - Base style */
   .codec-tag {
     display: inline-block;
     font-size: 0.75em;
@@ -377,5 +377,62 @@ const factionColorVar = `--faction-${faction.toLowerCase().replace(' ', '-')}`;
     background: rgba(86, 212, 221, 0.1);
     vertical-align: 1px;
     text-transform: uppercase;
+  }
+
+  /* Tag type variants - Color-coded by what unlocks the option */
+  .codec-tag--background {
+    /* Cyan - Player's professional training (NEGOTIATOR, MEDIC, etc.) */
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
+    background: rgba(86, 212, 221, 0.1);
+  }
+
+  .codec-tag--faction {
+    /* Purple - Faction standing unlocks this (NEXUS: Allied, etc.) */
+    border-color: #b392f0;
+    color: #b392f0;
+    background: rgba(179, 146, 240, 0.1);
+  }
+
+  .codec-tag--enhancement {
+    /* Magenta - Faction-granted ability (NEURAL LINK, etc.) */
+    border-color: #f97583;
+    color: #f97583;
+    background: rgba(249, 117, 131, 0.1);
+  }
+
+  .codec-tag--gear {
+    /* Yellow - Inventory item creates opportunity (FORGED PAPERS, etc.) */
+    border-color: #ffea7f;
+    color: #ffea7f;
+    background: rgba(255, 234, 127, 0.1);
+  }
+
+  .codec-tag--history {
+    /* Green - Past actions with this NPC (Saved their courier, etc.) */
+    border-color: #85e89d;
+    color: #85e89d;
+    background: rgba(133, 232, 157, 0.1);
+  }
+
+  .codec-tag--energy {
+    /* Orange - Social energy state (LOW ENERGY, EXHAUSTED) */
+    border-color: #ffab70;
+    color: #ffab70;
+    background: rgba(255, 171, 112, 0.1);
+  }
+
+  .codec-tag--disposition {
+    /* Blue - NPC relationship level (WARM+, LOYAL) */
+    border-color: #79b8ff;
+    color: #79b8ff;
+    background: rgba(121, 184, 255, 0.1);
+  }
+
+  .codec-tag--default {
+    /* Cyan fallback for unrecognized tags */
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
+    background: rgba(86, 212, 221, 0.1);
   }
 </style>
