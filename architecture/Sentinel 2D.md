@@ -1,370 +1,337 @@
-SENTINEL  Spatial Embodiment & World Map Consolidated Plan
+# SENTINEL — Spatial Embodiment & World Map Consolidated Plan
 
-Version: 2.1 (Consolidated) Date: January 28, 2026 Author: Shawn Montgomery Status: Design‑binding + Implementation roadmap
+> **Version:** 2.1 (Consolidated)
+> **Date:** January 28, 2026
+> **Author:** Shawn Montgomery
+> **Status:** Design-binding + Implementation roadmap
 
-1. Purpose of This Document
+---
 
-This document defines a single, coherent source of truth for SENTINEL’s spatial embodiment layer.
+## 1. Purpose of This Document
 
-It establishes what the spatial layer is, why it exists, and how it is implemented without compromising the core engine.
+This document defines a single, coherent source of truth for SENTINEL's spatial embodiment layer.
+
+It establishes **what** the spatial layer is, **why** it exists, and **how** it is implemented — without compromising the core engine.
 
 If any part of this document conflicts with implementation convenience or UI smoothness:
 
-Design invariants win
+- **Design invariants win**
+- **Determinism and turn authority win**
 
-Determinism and turn authority win
+---
 
-2. Core Problem (Restated)
+## 2. Core Problem (Restated)
 
 SENTINEL already models:
 
-Irreversible decisions
-
-Long‑tail consequences
-
-Faction memory and leverage
-
-Avoidance as a choice
+- Irreversible decisions
+- Long-tail consequences
+- Faction memory and leverage
+- Avoidance as a choice
 
 But it is experienced through abstract interfaces.
 
-Players operate SENTINEL. They do not inhabit it.
+**Players operate SENTINEL. They do not inhabit it.**
 
-The missing element is presence.
+The missing element is **presence**.
 
-3. Design North Star
+---
 
-Presence is felt when the player quietly accounts for what they still have, in a place that is only temporarily safe.
+## 3. Design North Star
+
+> *Presence is felt when the player quietly accounts for what they still have, in a place that is only temporarily safe.*
 
 This refactor prioritizes:
 
-Reflection over spectacle
-
-Aftermath over action
-
-Ownership over optimization
+- **Reflection** over spectacle
+- **Aftermath** over action
+- **Ownership** over optimization
 
 The spatial layer is not a simulation engine. It is a lens through which decisions are framed.
 
-4. Non‑Negotiable Design Invariants
+---
+
+## 4. Non-Negotiable Design Invariants
 
 The spatial layer must not compromise:
 
-Determinism
-
-Turn authority
-
-Consequence integrity
-
-Replayability
-
-System truthfulness
-
-LLM optionality
+- **Determinism**
+- **Turn authority**
+- **Consequence integrity**
+- **Replayability**
+- **System truthfulness**
+- **LLM optionality**
 
 If the spatial UI, web UI, or LLM is removed, the game must still function correctly.
 
-5. Key Principle
+---
 
-Movement Creates Presence, Not Progress
+## 5. Key Principle
 
-Real‑time movement is cosmetic
+### Movement Creates Presence, Not Progress
 
-Movement does not advance time
+- Real-time movement is **cosmetic**
+- Movement does not advance time
+- Movement does not mutate state
+- Proximity alone never commits the player
 
-Movement does not mutate state
+All meaningful change passes through the **Commitment Gate**.
 
-Proximity alone never commits the player
+---
 
-All meaningful change passes through the Commitment Gate.
-
-6. The Commitment Gate (Authoritative Rule)
+## 6. The Commitment Gate (Authoritative Rule)
 
 All meaningful actions:
 
-Consume exactly one turn
+1. Consume exactly **one turn**
+2. Are resolved **deterministically**
+3. Apply consequences **immediately**
+4. May trigger optional narrative reaction
 
-Are resolved deterministically
+### Commitments Include
 
-Apply consequences immediately
+- Travel between regions
+- Initiating combat
+- Accepting or completing jobs
+- Calling favors
+- Advancing faction or narrative threads
 
-May trigger optional narrative reaction
+**No interface may bypass this gate.**
 
-Commitments Include
+---
 
-Travel between regions
-
-Initiating combat
-
-Accepting or completing jobs
-
-Calling favors
-
-Advancing faction or narrative threads
-
-No interface may bypass this gate.
-
-7. Spatial Layers Overview
+## 7. Spatial Layers Overview
 
 SENTINEL uses two complementary spatial surfaces.
 
-7.1 Strategic World Map (Authoritative Proposal Surface)
+### 7.1 Strategic World Map (Authoritative Proposal Surface)
 
-Purpose:
+**Purpose:**
 
-Decide what matters next
+- Decide what matters next
+- Visualize social reach and pressure
+- Propose intent for the turn
 
-Visualize social reach and pressure
+**Properties:**
 
-Propose intent for the turn
+- SVG-based (web UI)
+- Turn-scoped
+- No free movement
+- No state mutation
 
-Properties:
+> The map **proposes** actions. The engine **resolves** them.
 
-SVG‑based (web UI)
+### 7.2 Local Spatial Layer (Embodiment Surface)
 
-Turn‑scoped
+**Purpose:**
 
-No free movement
+- Make proximity, exposure, and absence legible
+- Provide emotional grounding
 
-No state mutation
+**Properties:**
 
-The map proposes actions. The engine resolves them.
+- Canvas-based
+- Real-time movement
+- Non-authoritative
+- Zero state mutation without confirmation
 
-7.2 Local Spatial Layer (Embodiment Surface)
+---
 
-Purpose:
-
-Make proximity, exposure, and absence legible
-
-Provide emotional grounding
-
-Properties:
-
-Canvas‑based
-
-Real‑time movement
-
-Non‑authoritative
-
-Zero state mutation without confirmation
-
-8. The Safehouse (Anchor Space)
+## 8. The Safehouse (Anchor Space)
 
 The safehouse is the emotional and mechanical anchor of the spatial layer.
 
-Purpose
+### Purpose
 
-Quiet accounting of consequences
+- Quiet accounting of consequences
+- Inventory as history, not loot
+- Temporary safety without permanence
 
-Inventory as history, not loot
+### Characteristics
 
-Temporary safety without permanence
+- No time pressure
+- No surprise state changes
+- No forced interactions
+- Minimal ambient motion
 
-Characteristics
-
-No time pressure
-
-No surprise state changes
-
-No forced interactions
-
-Minimal ambient motion
-
-Inventory as Presence
+### Inventory as Presence
 
 Inventory is physically placed in the room:
 
-Gear on tables or shelves
+- Gear on tables or shelves
+- Vehicles visible
+- Favors pinned on boards
+- Empty spaces where things used to be
 
-Vehicles visible
+**Absence is information.**
 
-Favors pinned on boards
+---
 
-Empty spaces where things used to be
-
-Absence is information.
-
-9. Overworld Model (Non‑Authoritative)
+## 9. Overworld Model (Non-Authoritative)
 
 The overworld exists to make:
 
-Distance
+- Distance
+- Exposure
+- Hesitation
 
-Exposure
+…legible.
 
-Hesitation
+### Properties
 
-legible.
+- Top-down or isometric
+- Player moves freely
+- NPCs occupy visible positions
+- Hazards are visible
 
-Properties
+### Critical Constraint
 
-Top‑down or isometric
+Movement does **not**:
 
-Player moves freely
+- Consume turns
+- Advance time
+- Mutate state
 
-NPCs occupy visible positions
+### Interaction Pattern
 
-Hazards are visible
+```
+Proximity → Prompt → Explicit Confirmation → Commitment Gate → Resolution
+```
 
-Critical Constraint
+---
 
-Movement does not:
+## 10. Combat Model (Hybrid)
 
-Consume turns
+Combat is always a **commitment**.
 
-Advance time
+- Overworld movement freezes
+- Combat resolves fully turn-based
+- Consequences cascade into campaign state
+- Control returns to spatial layer after resolution
 
-Mutate state
+**There is no real-time combat resolution.**
 
-Interaction Pattern
+---
 
-Proximity → Prompt → Explicit Confirmation → Commitment Gate → Resolution 
+## 11. World Map Design Philosophy
 
-10. Combat Model (Hybrid)
+### Social Connectivity (Not Fog of War)
 
-Combat is always a commitment
+Connectivity represents **who you know**, not where you've been.
 
-Overworld movement freezes
-
-Combat resolves fully turn‑based
-
-Consequences cascade into campaign state
-
-Control returns to spatial layer after resolution
-
-There is no real‑time combat resolution.
-
-11. World Map Design Philosophy
-
-Social Connectivity (Not Fog of War)
-
-Connectivity represents who you know, not where you’ve been.
-
-StateMeaningDisconnectedNo contacts or intelAwareYou’ve heard of itConnectedReliable contacts existEmbeddedDeep network and leverage 
+| State | Meaning |
+|---|---|
+| **Disconnected** | No contacts or intel |
+| **Aware** | You've heard of it |
+| **Connected** | Reliable contacts exist |
+| **Embedded** | Deep network and leverage |
 
 Exploration is social investment, not checklist completion.
 
-12. Negotiable Gates
+---
 
-Routes are not locks. They are risk and resource multipliers.
+## 12. Negotiable Gates
+
+Routes are not locks. They are **risk and resource multipliers**.
 
 Every blocked route offers:
 
-Standing solutions
+- Standing solutions
+- Contact solutions
+- Resource solutions
+- Risky traversal
 
-Contact solutions
+> The question is never "can I go?". It is **"what does it cost?"**.
 
-Resource solutions
+---
 
-Risky traversal
+## 13. Map as Proposal, Not Control
 
-The question is never “can I go?”. It is “what does it cost?”.
+### Turn Loop
 
-13. Map as Proposal, Not Control
+1. Turn start
+2. Map renders current state
+3. Player selects one map action
+4. Action is confirmed
+5. Engine resolves deterministically
+6. Map updates after resolution
 
-Turn Loop
+**No optimistic updates. No free movement.**
 
-Turn start
+---
 
-Map renders current state
-
-Player selects one map action
-
-Action is confirmed
-
-Engine resolves deterministically
-
-Map updates after resolution
-
-No optimistic updates. No free movement.
-
-14. Data Model Summary
+## 14. Data Model Summary
 
 Key additions:
 
-RegionConnectivity enum
-
-Typed route requirements
-
-RegionState (per‑campaign)
-
-MapState attached to Campaign
+- `RegionConnectivity` enum
+- Typed route requirements
+- `RegionState` (per-campaign)
+- `MapState` attached to `Campaign`
 
 Connectivity advances via:
 
-NPCs met
+- NPCs met
+- Threads resolved
+- Significant jobs
+- Faction standing
 
-Threads resolved
+---
 
-Significant jobs
+## 15. Implementation Phases (Condensed)
 
-Faction standing
+### Phase 0 — Data Foundation
 
-15. Implementation Phases (Condensed)
+- Region positions
+- MapState APIs
+- Typed route requirements
 
-Phase 0 — Data Foundation
+### Phase 1 — Strategic Map (SVG)
 
-Region positions
+- Render regions and routes
+- Travel proposals
+- Content markers
 
-MapState APIs
+### Phase 2 — Safehouse (Canvas)
 
-Typed route requirements
+- Minimal renderer
+- Inventory as physical presence
+- Quiet reflection space
 
-Phase 1 — Strategic Map (SVG)
+### Phase 3 — Overworld
 
-Render regions and routes
+- Single region space
+- NPCs and hazards
+- Commitment enforcement
 
-Travel proposals
+### Phase 4 — Expansion
 
-Content markers
+- Multi-region overworlds
+- Faction pressure visualization
+- Combat integration
 
-Phase 2 — Safehouse (Canvas)
+---
 
-Minimal renderer
+## 16. What This Is Not
 
-Inventory as physical presence
-
-Quiet reflection space
-
-Phase 3 — Overworld
-
-Single region space
-
-NPCs and hazards
-
-Commitment enforcement
-
-Phase 4 — Expansion
-
-Multi‑region overworlds
-
-Faction pressure visualization
-
-Combat integration
-
-16. What This Is Not
-
-Not a simulation engine
-
-Not a real‑time game
-
-Not a replacement for the CLI
+- Not a simulation engine
+- Not a real-time game
+- Not a replacement for the CLI
 
 The CLI becomes a debug and inspection surface. The engine remains authoritative.
 
-17. Success Criteria
+---
+
+## 17. Success Criteria
 
 This refactor succeeds if:
 
-Players feel grounded in space
+- Players feel grounded in space
+- Inventory feels like history
+- Decisions feel costly and irreversible
+- The game is playable without LLMs
+- The system remains deterministic
 
-Inventory feels like history
+---
 
-Decisions feel costly and irreversible
-
-The game is playable without LLMs
-
-The system remains deterministic
-
-SENTINEL finally has a body. And a quiet place to count the cost of surviving in it.
-
+> *SENTINEL finally has a body. And a quiet place to count the cost of surviving in it.*
