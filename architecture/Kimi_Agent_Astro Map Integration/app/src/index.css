@@ -1,0 +1,300 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* SENTINEL World Map - Military Terminal Aesthetic */
+:root {
+  /* AMOLED Dark Theme */
+  --bg-primary: #000000;
+  --bg-secondary: #0a0a0a;
+  --bg-tertiary: #121212;
+  --bg-panel: #0d0d0d;
+  
+  /* Accent Colors */
+  --accent-steel: #79c0ff;
+  --accent-cyan: #56d4dd;
+  --accent-green: #7ee787;
+  --accent-amber: #ffa657;
+  --accent-red: #f85149;
+  --accent-purple: #d2a8ff;
+  
+  /* Text Colors */
+  --text-primary: #e6edf3;
+  --text-secondary: #8b949e;
+  --text-muted: #6e7681;
+  
+  /* Border Colors */
+  --border-primary: #30363d;
+  --border-secondary: #21262d;
+  
+  /* Faction Colors */
+  --faction-nexus: #a855f7;
+  --faction-ember: #f97316;
+  --faction-lattice: #3b82f6;
+  --faction-convergence: #06b6d4;
+  --faction-covenant: #eab308;
+  --faction-wanderers: #22c55e;
+  --faction-cultivators: #10b981;
+  --faction-steel: #ef4444;
+  --faction-witnesses: #f59e0b;
+  --faction-architects: #6366f1;
+  --faction-ghost: #6b7280;
+  
+  /* Connectivity States */
+  --state-disconnected: #21262d;
+  --state-aware: #30363d;
+  --state-connected: var(--accent-steel);
+  --state-embedded: var(--accent-cyan);
+  
+  /* Shadcn overrides */
+  --background: 0 0% 0%;
+  --foreground: 213 27% 94%;
+  --card: 0 0% 4%;
+  --card-foreground: 213 27% 94%;
+  --popover: 0 0% 4%;
+  --popover-foreground: 213 27% 94%;
+  --primary: 212 100% 74%;
+  --primary-foreground: 0 0% 0%;
+  --secondary: 215 14% 16%;
+  --secondary-foreground: 213 27% 94%;
+  --muted: 215 14% 16%;
+  --muted-foreground: 215 9% 53%;
+  --accent: 215 14% 16%;
+  --accent-foreground: 213 27% 94%;
+  --destructive: 0 84% 63%;
+  --destructive-foreground: 213 27% 94%;
+  --border: 215 14% 20%;
+  --input: 215 14% 20%;
+  --ring: 212 100% 74%;
+  --radius: 0.375rem;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-black text-foreground antialiased;
+    background-color: var(--bg-primary);
+    font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  }
+  
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-primary);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-secondary);
+}
+
+/* Map-specific styles */
+.map-container {
+  background: radial-gradient(ellipse at center, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+}
+
+/* Pulsing animation for current location */
+@keyframes pulse-glow {
+  0%, 100% {
+    filter: drop-shadow(0 0 4px var(--accent-cyan));
+    opacity: 1;
+  }
+  50% {
+    filter: drop-shadow(0 0 12px var(--accent-cyan));
+    opacity: 0.8;
+  }
+}
+
+.pulse-current {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Node hover effect */
+.region-node {
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.region-node:hover {
+  filter: brightness(1.3);
+  transform: scale(1.05);
+}
+
+/* Connection line styles */
+.connection-line {
+  stroke-linecap: round;
+  transition: stroke 0.3s ease, stroke-width 0.3s ease;
+}
+
+.connection-line.open {
+  stroke: var(--border-primary);
+  stroke-width: 2;
+}
+
+.connection-line.conditional {
+  stroke: var(--text-muted);
+  stroke-width: 2;
+  stroke-dasharray: 6, 4;
+}
+
+.connection-line.contested {
+  stroke: var(--accent-amber);
+  stroke-width: 3;
+}
+
+.connection-line.risky {
+  stroke: var(--accent-red);
+  stroke-width: 2;
+  stroke-dasharray: 4, 6;
+}
+
+/* Connectivity state visuals */
+.state-disconnected {
+  fill: var(--state-disconnected);
+  stroke: var(--border-secondary);
+  stroke-width: 1;
+}
+
+.state-aware {
+  fill: transparent;
+  stroke: var(--state-aware);
+  stroke-width: 2;
+  stroke-dasharray: 4, 4;
+}
+
+.state-connected {
+  fill: transparent;
+  stroke: var(--state-connected);
+  stroke-width: 2;
+}
+
+.state-embedded {
+  fill: var(--state-embedded);
+  stroke: var(--state-embedded);
+  stroke-width: 2;
+  filter: drop-shadow(0 0 6px var(--state-embedded));
+}
+
+/* Content markers */
+.marker-current {
+  fill: var(--accent-cyan);
+  filter: drop-shadow(0 0 8px var(--accent-cyan));
+}
+
+.marker-job {
+  fill: var(--accent-green);
+}
+
+.marker-thread {
+  fill: var(--accent-amber);
+}
+
+.marker-npc {
+  fill: var(--accent-purple);
+}
+
+.marker-locked {
+  fill: var(--accent-red);
+}
+
+.marker-risky {
+  fill: var(--text-muted);
+}
+
+/* Tooltip styling */
+.map-tooltip {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-primary);
+  border-radius: 4px;
+  padding: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+  max-width: 320px;
+}
+
+/* Grid overlay effect */
+.grid-overlay {
+  background-image: 
+    linear-gradient(rgba(121, 192, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(121, 192, 255, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+}
+
+/* Nexus presence overlay */
+.nexus-overlay {
+  background: radial-gradient(circle at var(--x, 50%) var(--y, 50%), 
+    rgba(168, 85, 247, 0.08) 0%, 
+    transparent 50%);
+  pointer-events: none;
+}
+
+/* Terminal text effect */
+.terminal-text {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  letter-spacing: -0.01em;
+}
+
+/* Scanline effect */
+.scanlines::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Faction color utilities */
+.faction-nexus { color: var(--faction-nexus); }
+.faction-ember { color: var(--faction-ember); }
+.faction-lattice { color: var(--faction-lattice); }
+.faction-convergence { color: var(--faction-convergence); }
+.faction-covenant { color: var(--faction-covenant); }
+.faction-wanderers { color: var(--faction-wanderers); }
+.faction-cultivators { color: var(--faction-cultivators); }
+.faction-steel { color: var(--faction-steel); }
+.faction-witnesses { color: var(--faction-witnesses); }
+.faction-architects { color: var(--faction-architects); }
+.faction-ghost { color: var(--faction-ghost); }
+
+/* Selection ring animation */
+@keyframes selection-pulse {
+  0%, 100% {
+    stroke-opacity: 0.6;
+    stroke-width: 2;
+  }
+  50% {
+    stroke-opacity: 1;
+    stroke-width: 3;
+  }
+}
+
+.selection-ring {
+  animation: selection-pulse 1.5s ease-in-out infinite;
+}
