@@ -1,24 +1,26 @@
 # SENTINEL — 2D Implementation Roadmap
 
-> **Purpose:** Unified implementation plan for SENTINEL's 2D spatial layer — from strategic map to embodied overworld.
+> **Purpose:** Implementation roadmap for the spatial embodiment layer defined in `Sentinel 2D.md`.
 >
 > **Status:** Draft
 > **Date:** January 28, 2026
-> **Synthesizes:** `Sentinel 2D.md`, `Turn Based Map Integration.md`, `world_map_system_plan.md`
+> **Design vision:** `Sentinel 2D.md` (design-binding proposal, v2.1)
 
 ---
 
 ## What This Document Is
 
-Three design documents define SENTINEL's 2D vision:
+`Sentinel 2D.md` defines the vision: a minimal 2D spatial layer whose purpose is phenomenological embodiment — giving the system a body and a place where consequences can be quietly accounted for.
 
-| Document | Scope | Focus |
-|----------|-------|-------|
-| `Sentinel 2D.md` | Spatial embodiment refactor | Presence, safehouse, commitment gate, combat |
-| `Turn Based Map Integration.md` | Map as decision surface | Turn-scoped actions, map proposals, system authority |
-| `world_map_system_plan.md` | Interactive world map | Social connectivity, negotiable gates, network density |
+This document turns that vision into buildable phases with concrete technology decisions, dependencies, and exit conditions.
 
-Each is well-reasoned. None is an implementation roadmap. This document sequences them into buildable phases with concrete technology decisions, dependencies, and exit conditions.
+### Source Documents
+
+| Document | Role |
+|----------|------|
+| `Sentinel 2D.md` | **Authoritative design vision.** Safehouse, overworld, commitment gate, combat model. This roadmap implements it. |
+| `world_map_system_plan.md` | **Supporting reference.** Social connectivity model, negotiable gates, network density — data layer details that serve the spatial vision. |
+| `Turn Based Map Integration.md` | **Earlier iteration.** Map-as-decision-surface thinking that was refined into `Sentinel 2D.md`. Retained for historical context; superseded where they conflict. |
 
 ---
 
@@ -36,18 +38,18 @@ From the existing documents and design philosophy:
 
 ---
 
-## Two Tracks, One Roadmap
+## Two Rendering Surfaces
 
-The 2D layer splits into two distinct rendering problems:
+The spatial layer described in `Sentinel 2D.md` requires two distinct rendering surfaces:
 
-| Track | What | Rendering | Interaction Model |
-|-------|------|-----------|-------------------|
-| **Strategic Map** | Region graph, social connectivity, travel proposals | SVG (DOM-based) | Click → Propose → Confirm → Resolve |
-| **Spatial Embodiment** | Safehouse, overworld, proximity, NPCs | Canvas (pixel-based) | WASD movement → Commitment Gate for actions |
+| Surface | What | Rendering | Interaction Model |
+|---------|------|-----------|-------------------|
+| **Spatial Embodiment** (primary) | Safehouse, overworld, proximity, NPCs | Canvas (pixel-based) | WASD movement → Commitment Gate for actions |
+| **Strategic Map** (supporting) | Region graph, social connectivity, travel proposals | SVG (DOM-based) | Click → Propose → Confirm → Resolve |
 
-These tracks share the same data model but differ in rendering technology, interaction pattern, and design intent. The strategic map is a **decision tool**. The spatial layer is a **presence system**.
+The spatial layer is the **core of the vision** — presence, aftermath, quiet accounting. The strategic map is a supporting interface that makes inter-region travel legible and provides the "zoomed out" view that the overworld can't.
 
-The roadmap interleaves them because they share infrastructure and because the map validates data before the spatial layer depends on it.
+The roadmap builds the map first because it validates the data layer with lower rendering complexity, but the map serves the spatial vision — not the other way around.
 
 ---
 
@@ -638,7 +640,7 @@ Decisions made in this roadmap and their rationale.
 | Map rendering tech | SVG | DOM-native, accessible, works with Astro vanilla JS | Map needs real-time animation (unlikely) |
 | Spatial rendering tech | Custom Canvas | Minimal scope, auditable, zero deps | Renderer exceeds ~1000 lines |
 | No game framework | Skip Pixi.js/Phaser | SENTINEL's spatial needs are minimal; framework adds unjustified complexity | Combat or multi-entity scenes need physics/particles |
-| Map in web UI only | No TUI map | TUI ASCII map is a separate concern (see Phase 4 of world_map_system_plan) | TUI becomes primary play surface again |
+| Map in web UI only | No TUI map | TUI ASCII map is a separate concern; spatial embodiment targets the web UI | TUI becomes primary play surface again |
 | Safehouse before overworld | Phase 2 before 3 | Safehouse is simpler, validates renderer, tests core emotional beat | Overworld proves more valuable in playtesting |
 | No optimistic UI updates | Wait for Sentinel resolution | Design philosophy: "truth over smoothness" | Latency makes the game feel broken |
 
@@ -708,7 +710,7 @@ Decisions made in this roadmap and their rationale.
 
 - **Not a game engine architecture.** SENTINEL's engine is Python. The 2D layer is a projection of engine state, not a parallel authority.
 - **Not a timeline.** Phases have dependencies and exit conditions, not dates. Build at the pace that produces quality.
-- **Not permanent.** If playtesting reveals that the strategic map alone provides sufficient presence, the spatial embodiment phases can be deferred indefinitely. The map is the higher-confidence bet.
+- **Not a replacement for `Sentinel 2D.md`.** That document is the design-binding proposal. This roadmap sequences its vision into implementation phases. If they conflict, `Sentinel 2D.md` wins.
 
 ---
 
