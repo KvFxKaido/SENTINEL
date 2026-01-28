@@ -1,39 +1,60 @@
-SENTINEL  Spatial Embodiment Refactor Plan
+SENTINEL  Spatial Embodiment & World Map Consolidated Plan
 
-Version: 2.1
-Date: January 28, 2026
-Author: Shawn Montgomery
-Status: Design-binding proposal
+Version: 2.1 (Consolidated) Date: January 28, 2026 Author: Shawn Montgomery Status: Design‑binding + Implementation roadmap
 
-Executive Summary
+1. Purpose of This Document
 
-SENTINEL is a turn-authoritative game about aftermath.
-A deterministic, consequence-driven narrative system that began as a terminal-mediated simulator
+This document defines a single, coherent source of truth for SENTINEL’s spatial embodiment layer.
 
-The problem is not depth, realism, or narrative quality.
+It establishes what the spatial layer is, why it exists, and how it is implemented without compromising the core engine.
 
-The problem is presence.
+If any part of this document conflicts with implementation convenience or UI smoothness:
 
-Players do not inhabit SENTINEL.
-They operate it.
+Design invariants win
 
-This refactor introduces a minimal 2D spatial layer whose purpose is phenomenological embodiment, not simulation. The spatial layer gives the system a body — most importantly, a place where consequences can be quietly accounted for.
+Determinism and turn authority win
 
-Design North Star
+2. Core Problem (Restated)
 
-Presence in SENTINEL is felt when the player quietly accounts for what they still have, in a place that is only temporarily safe.
+SENTINEL already models:
 
-This refactor is designed around reflection, aftermath, and ownership, not action spectacle.
+Irreversible decisions
 
-Core Design Invariants (Non-Negotiable)
+Long‑tail consequences
 
-The refactor must not compromise:
+Faction memory and leverage
+
+Avoidance as a choice
+
+But it is experienced through abstract interfaces.
+
+Players operate SENTINEL. They do not inhabit it.
+
+The missing element is presence.
+
+3. Design North Star
+
+Presence is felt when the player quietly accounts for what they still have, in a place that is only temporarily safe.
+
+This refactor prioritizes:
+
+Reflection over spectacle
+
+Aftermath over action
+
+Ownership over optimization
+
+The spatial layer is not a simulation engine. It is a lens through which decisions are framed.
+
+4. Non‑Negotiable Design Invariants
+
+The spatial layer must not compromise:
 
 Determinism
 
-Consequence integrity
-
 Turn authority
+
+Consequence integrity
 
 Replayability
 
@@ -41,81 +62,105 @@ System truthfulness
 
 LLM optionality
 
-If the spatial client, CLI, or LLM is removed, the game must still function correctly.
+If the spatial UI, web UI, or LLM is removed, the game must still function correctly.
 
-Any feature that violates this invariant is out of scope.
+5. Key Principle
 
-The Actual Problem (Restated)
+Movement Creates Presence, Not Progress
 
-SENTINEL already models:
+Real‑time movement is cosmetic
 
-Irreversible decisions
+Movement does not advance time
 
-Long-tail consequences
+Movement does not mutate state
 
-Faction memory and leverage
-
-Avoidance as choice
-
-However, these are currently accessed through abstract interfaces (CLI/TUI), which:
-
-Position the player as an operator, not a body
-
-Obscure proximity, risk, and commitment
-
-Compress reflection into menus and commands
-
-The result is cognitive engagement without embodied presence.
-
-High-Level Solution
-
-Introduce a 2D spatial embodiment layer that:
-
-Provides situational and emotional context
-
-Makes safety, danger, and proximity legible
-
-Creates spaces for reflection (especially the safehouse)
-
-Preserves turn-authoritative gameplay
-
-This layer is not a simulation engine.
-It is a lens through which decisions are framed.
-
-Spatial Layer Overview
-
-Key Principle
-
-Movement creates presence, not progress.
-
-Real-time movement is cosmetic and non-authoritative
-
-Time does not advance through movement
-
-State does not mutate through proximity alone
+Proximity alone never commits the player
 
 All meaningful change passes through the Commitment Gate.
 
-The Safehouse (Anchor Space)
+6. The Commitment Gate (Authoritative Rule)
+
+All meaningful actions:
+
+Consume exactly one turn
+
+Are resolved deterministically
+
+Apply consequences immediately
+
+May trigger optional narrative reaction
+
+Commitments Include
+
+Travel between regions
+
+Initiating combat
+
+Accepting or completing jobs
+
+Calling favors
+
+Advancing faction or narrative threads
+
+No interface may bypass this gate.
+
+7. Spatial Layers Overview
+
+SENTINEL uses two complementary spatial surfaces.
+
+7.1 Strategic World Map (Authoritative Proposal Surface)
+
+Purpose:
+
+Decide what matters next
+
+Visualize social reach and pressure
+
+Propose intent for the turn
+
+Properties:
+
+SVG‑based (web UI)
+
+Turn‑scoped
+
+No free movement
+
+No state mutation
+
+The map proposes actions. The engine resolves them.
+
+7.2 Local Spatial Layer (Embodiment Surface)
+
+Purpose:
+
+Make proximity, exposure, and absence legible
+
+Provide emotional grounding
+
+Properties:
+
+Canvas‑based
+
+Real‑time movement
+
+Non‑authoritative
+
+Zero state mutation without confirmation
+
+8. The Safehouse (Anchor Space)
 
 The safehouse is the emotional and mechanical anchor of the spatial layer.
 
 Purpose
 
-The safehouse exists to:
+Quiet accounting of consequences
 
-Allow quiet accounting of consequences
+Inventory as history, not loot
 
-Surface loss, scarcity, and obligation
+Temporary safety without permanence
 
-Frame inventory as history, not loot
-
-Provide temporary safety without permanence
-
-It is not a hub of activity.
-It is a place of aftermath.
-
-Safehouse Characteristics
+Characteristics
 
 No time pressure
 
@@ -125,227 +170,195 @@ No forced interactions
 
 Minimal ambient motion
 
-The player is alone unless they explicitly invite interruption.
-
 Inventory as Presence
 
-Inventory is not just gear. It is what remains.
+Inventory is physically placed in the room:
 
-Inventory may include:
+Gear on tables or shelves
 
-Physical items
+Vehicles visible
 
-Damaged or degraded equipment
+Favors pinned on boards
 
-Vehicles with condition tags
+Empty spaces where things used to be
 
-Favors owed or callable
+Absence is information.
 
-Compromised intel
-
-NPC access gained or lost
-
-Empty slots where things used to be
-
-Items may carry tags such as:
-
-Promised
-
-Compromised
-
-Will be noticed if used again
-
-Illicit
-
-Last resort
-
-No narration is required.
-Absence is itself information.
-
-Overworld Model (Non-Authoritative)
-
-Overworld Properties
-
-2D top-down or isometric space
-
-Player moves freely (WASD or equivalent)
-
-NPCs occupy fixed or patrolled positions
-
-Hazards, exits, and points of interest are visible
-
-Critical Constraint
-
-Overworld movement does not consume turns.
-
-No time advancement
-
-No state mutation
-
-No accidental commitments
+9. Overworld Model (Non‑Authoritative)
 
 The overworld exists to make:
 
-distance
+Distance
 
-exposure
+Exposure
 
-hesitation
+Hesitation
+
 legible.
 
-The Commitment Gate (Authoritative Rule)
+Properties
 
-All meaningful actions pass through the Commitment Gate.
+Top‑down or isometric
 
-What Counts as a Commitment
+Player moves freely
 
-Examples include:
+NPCs occupy visible positions
 
-Initiating combat
+Hazards are visible
 
-Accepting or completing a job
+Critical Constraint
 
-Making contact that spends resources
+Movement does not:
 
-Calling in a favor
+Consume turns
 
-Traveling between regions
-
-Advancing faction or narrative threads
-
-Commitment Properties
-
-Every commitment:
-
-Consumes exactly one turn
-
-Is resolved deterministically
-
-Applies consequences immediately
-
-Triggers optional narrative reaction after resolution
-
-No interface may bypass this gate — including the CLI.
-
-Combat Model (Hybrid)
-
-Combat is always a commitment.
-
-When combat is initiated:
-
-Overworld movement freezes
-
-Turn order is established
-
-Combat resolves fully in turn-based mode
-
-Consequences cascade into campaign state
-
-Optional narration reacts
-
-Control returns to overworld or safehouse
-
-There is no real-time combat resolution.
-
-Combat should feel costly, disruptive, and memorable.
-
-Narrative Layer (LLM — Optional)
-
-LLMs are used only for:
-
-Dialogue
-
-Descriptive flavor
-
-Emotional reaction
-
-LLMs may never:
-
-Resolve mechanics
-
-Choose outcomes
+Advance time
 
 Mutate state
 
-If the LLM is removed, the game remains fully playable.
+Interaction Pattern
 
-CLI Reclassification (Binding)
+Proximity → Prompt → Explicit Confirmation → Commitment Gate → Resolution 
 
-The CLI is no longer a primary gameplay surface.
+10. Combat Model (Hybrid)
 
-It functions as:
+Combat is always a commitment
 
-Developer console
+Overworld movement freezes
 
-Debugging and balance harness
+Combat resolves fully turn‑based
 
-Scenario injector
+Consequences cascade into campaign state
 
-State inspection tool
+Control returns to spatial layer after resolution
 
-The CLI must obey the same Commitment Gate as all other interfaces.
+There is no real‑time combat resolution.
 
-Architecture Overview
+11. World Map Design Philosophy
 
-[ Spatial Client (2D) ] ↓ [ Commitment Dispatcher ] ↓ [ Turn Resolver (sentinel-agent) ] ↓ [ State + Consequence Engine ] ↓ [ Optional Narrative Layer (LLM) ] 
+Social Connectivity (Not Fog of War)
 
-Phased Implementation Plan
+Connectivity represents who you know, not where you’ve been.
 
-Phase 1 — Safehouse MVP
+StateMeaningDisconnectedNo contacts or intelAwareYou’ve heard of itConnectedReliable contacts existEmbeddedDeep network and leverage 
 
-Single safehouse scene
+Exploration is social investment, not checklist completion.
 
-Inventory view with tags and absences
+12. Negotiable Gates
 
-No NPCs
+Routes are not locks. They are risk and resource multipliers.
 
-No combat
+Every blocked route offers:
 
-One exit leading to a single overworld space
+Standing solutions
 
-Goal: Validate reflective presence.
+Contact solutions
 
-Phase 2 — Overworld Embodiment
+Resource solutions
 
-One small overworld region
+Risky traversal
 
-One NPC with proximity-based interaction
+The question is never “can I go?”. It is “what does it cost?”.
 
-One visible hazard
+13. Map as Proposal, Not Control
 
-One irreversible commitment
+Turn Loop
 
-Goal: Validate spatial framing of decisions.
+Turn start
 
-Phase 3 — Commitment Enforcement
+Map renders current state
 
-Lock all state changes behind Commitment Gate
+Player selects one map action
 
-Visual feedback for costs and consequences
+Action is confirmed
 
-Ensure replay determinism
+Engine resolves deterministically
 
-Goal: Validate authority across interfaces.
+Map updates after resolution
+
+No optimistic updates. No free movement.
+
+14. Data Model Summary
+
+Key additions:
+
+RegionConnectivity enum
+
+Typed route requirements
+
+RegionState (per‑campaign)
+
+MapState attached to Campaign
+
+Connectivity advances via:
+
+NPCs met
+
+Threads resolved
+
+Significant jobs
+
+Faction standing
+
+15. Implementation Phases (Condensed)
+
+Phase 0 — Data Foundation
+
+Region positions
+
+MapState APIs
+
+Typed route requirements
+
+Phase 1 — Strategic Map (SVG)
+
+Render regions and routes
+
+Travel proposals
+
+Content markers
+
+Phase 2 — Safehouse (Canvas)
+
+Minimal renderer
+
+Inventory as physical presence
+
+Quiet reflection space
+
+Phase 3 — Overworld
+
+Single region space
+
+NPCs and hazards
+
+Commitment enforcement
 
 Phase 4 — Expansion
 
-Additional regions
+Multi‑region overworlds
 
 Faction pressure visualization
 
-Job chains
+Combat integration
 
-Cascading consequences
+16. What This Is Not
 
-Goal: Validate depth without simulation drift.
+Not a simulation engine
 
-Success Criteria
+Not a real‑time game
+
+Not a replacement for the CLI
+
+The CLI becomes a debug and inspection surface. The engine remains authoritative.
+
+17. Success Criteria
 
 This refactor succeeds if:
 
 Players feel grounded in space
 
-Inventory feels like history, not loot
+Inventory feels like history
 
 Decisions feel costly and irreversible
 
@@ -353,9 +366,5 @@ The game is playable without LLMs
 
 The system remains deterministic
 
-Final Note
+SENTINEL finally has a body. And a quiet place to count the cost of surviving in it.
 
-This is not a pivot away from SENTINEL.
-
-It is SENTINEL finally receiving a body —
-and a quiet place to count the cost of surviving in it.
