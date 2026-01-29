@@ -1,6 +1,6 @@
 # SENTINEL — Spatial Embodiment & World Map Consolidated Plan
 
-> **Version:** 2.2 (Consolidated + Integration Architecture)
+> **Version:** 2.3 (Consolidated + Integration Architecture)
 > **Date:** January 28, 2026
 > **Author:** Shawn Montgomery
 > **Status:** Design-binding + Implementation roadmap
@@ -358,7 +358,7 @@ Sections 1–17 define the philosophy, invariants, and spatial model. This secti
 |---|-----|---------|
 | 1 | **No map API endpoint** | Bridge has `/state` and `/command` but nothing returns region connectivity, current region, or content markers |
 | 2 | **Duplicated data** | Map's `regions.ts` and `factions.ts` are static copies of what's already in `regions.json` and `schema.py` — two sources of truth |
-| 3 | **No map events** | SSE stream doesn't emit `region_changed`, `connectivity_updated`, or `travel_proposed` |
+| 3 | **No map events** | SSE stream doesn't emit `region_changed`, `connectivity_updated`, or `travel_resolved` |
 | 4 | **No travel action flow** | `onRegionClick` has nowhere to go — no path from "click region" through the commitment gate to engine resolution |
 | 5 | **No content marker aggregation** | Engine tracks NPCs, jobs, threads per campaign, but nothing rolls those up into "what's in each region" for map display |
 | 6 | **Tech stack mismatch** | Map is React/Vite standalone. The actual UI is Astro (`sentinel-ui/`). Needs integration strategy |
@@ -410,6 +410,19 @@ A new endpoint the map component consumes.
 
 The bridge constructs this by reading `Campaign.map_state`, `regions.json`, and aggregating per-region content from campaign state. No new engine logic — just a read-only projection.
 
+#### Content Marker Aggregation Rules
+
+Content markers answer "what's in this region right now?" for map display. Aggregation rules:
+
+| Entity | Rule | Rationale |
+|--------|------|-----------|
+| **NPCs** | Count NPCs whose `current_region` matches | An NPC exists in exactly one region at a time. If they move, the count updates on next refetch. |
+| **Jobs** | Count active jobs whose `region` matches | Jobs are posted to a specific region. Completed/expired jobs are excluded. |
+| **Threads** | Count active threads whose `origin_region` matches | Threads are anchored to where they began. A thread that ripples across regions still counts at its origin — the map shows where the seed was planted, not where the branches reach. |
+| **Points of interest** | Static per region (from `regions.json`) plus campaign-dynamic entries (safehouse, contacts) | Base POIs are fixed. The safehouse appears only in the player's current region. |
+
+**The rule is: current location wins.** Entities belong to exactly one region for marker purposes. No double-counting, no cross-region attribution.
+
 ### 18.4 Data Contract
 
 **`Campaign.map_state`** → **`WorldMapProps`**
@@ -427,35 +440,39 @@ The bridge is a **read-only projection layer**. It does not cache, transform, or
 
 The map subscribes to the existing SSE stream at `GET /events`. New event types:
 
-| Event | Trigger | Payload |
-|-------|---------|---------|
-| `region_changed` | Player completes travel | `{ region: string, previous: string }` |
-| `connectivity_updated` | NPC met, thread resolved, standing changed | `{ region: string, connectivity: string }` |
-| `content_markers_updated` | Job posted, NPC moved, thread activated | `{ region: string, markers: ContentMarkers }` |
-| `travel_proposed` | Player clicks region on map | `{ from: string, to: string, route: Route }` |
-| `travel_resolved` | Engine resolves travel commitment | `{ success: boolean, region: string, consequences: [] }` |
+| Event | Emitter | Trigger | Payload |
+|-------|---------|---------|---------|
+| `region_changed` | Engine | Player completes travel | `{ region: string, previous: string }` |
+| `connectivity_updated` | Engine | NPC met, thread resolved, standing changed | `{ region: string, connectivity: string }` |
+| `content_markers_updated` | Engine | Job posted, NPC moved, thread activated | `{ region: string, markers: ContentMarkers }` |
+| `travel_resolved` | Engine | Engine resolves travel commitment | `{ success: boolean, region: string, consequences: [] }` |
 
-On receiving an event, the map re-fetches `GET /map` or applies the delta directly. No optimistic updates — the map waits for engine confirmation before reflecting changes.
+All SSE events are **engine-emitted**. The map is a consumer only — it never publishes to the SSE stream.
+
+**Refresh rule:** On receiving **any** SSE event, the map re-fetches `GET /map` in full. No delta application, no partial updates. The payload is 11 regions — small enough that a full refetch is always cheaper than maintaining client-side merge logic. No optimistic updates — the map waits for engine confirmation before reflecting changes.
 
 ### 18.6 Travel Action Sequence
 
+The travel proposal is a **client-side UI event** — the map component manages it locally to drive its own confirmation dialog. It is not an SSE event and never touches the engine until the player commits.
+
 ```
 Player clicks region
-  → Map emits travel proposal
-  → Bridge forwards: POST /command { type: "travel", to: "region_id" }
-  → Engine checks route requirements
+  → Map raises local travel_proposal (client-side only, drives confirmation UI)
+  → Map shows route info: requirements, alternatives, cost
   → IF requirements unmet:
-      → Bridge returns requirement details + alternatives
       → Map displays route options (standing, contact, resource, risky)
       → Player selects approach or cancels
   → IF requirements met (or alternative chosen):
       → Confirmation UI: "Travel to [region]? This will use your turn."
       → Player confirms
+      → Map sends: POST /command { type: "travel", to: "region_id" }
       → Commitment Gate: engine resolves deterministically
       → Consequences applied immediately
-      → SSE emits region_changed
-      → Map updates to new state
+      → SSE emits travel_resolved, then region_changed
+      → Map refetches GET /map → updates to new state
 ```
+
+The `POST /command` is the **only** message the map sends to the bridge. Everything before it is client-side UI. Everything after it is engine-resolved.
 
 This sequence enforces the invariant from Section 6: **no interface may bypass the commitment gate.** The map proposes; the engine resolves.
 
@@ -472,6 +489,18 @@ This sequence enforces the invariant from Section 6: **no interface may bypass t
 | Route requirements | `regions.json` + `Campaign.map_state` | Engine, Bridge |
 
 The map component's static copies of region and faction data (`regions.ts`, `factions.ts`) are **deleted** once the bridge API is live. The component receives all data via `GET /map` — no local state files.
+
+#### Transition Sequence
+
+Static data files are not removed until the API is verified:
+
+1. **Bridge implements `GET /map`** — returns the full payload described in 18.3
+2. **Map component adds `fetchMap()` call** — wired alongside existing static imports
+3. **Verify parity** — confirm API response matches what static files provided (region count, faction IDs, route structure)
+4. **Remove static imports** — component switches to API-only data
+5. **Delete `regions.ts` and `factions.ts`** — no fallback, no feature flag
+
+Steps 1–3 can coexist with the static files. Deletion happens only after the API is the confirmed source.
 
 ### 18.8 Astro Embedding Strategy
 
