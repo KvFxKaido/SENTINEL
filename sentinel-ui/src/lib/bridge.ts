@@ -67,6 +67,20 @@ export interface Enhancement {
   benefit: string;
 }
 
+export interface Vehicle {
+  id: string;
+  name: string;
+  type: string;
+  description?: string;
+  fuel: number;
+  condition: number;
+  status: 'Operational' | 'Low Fuel' | 'Needs Repair' | 'Out of Fuel' | 'Broken Down';
+  terrain: string[];
+  capacity: number;
+  cargo: boolean;
+  stealth: boolean;
+}
+
 export interface NpcSummary {
   id: string;
   name: string;
@@ -118,6 +132,7 @@ export type CampaignState =
       }>;
       active_jobs: number;
       dormant_threads: number;
+      vehicles: Vehicle[];
     }
   | {
       ok: false;

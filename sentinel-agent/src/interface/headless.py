@@ -231,6 +231,24 @@ class HeadlessRunner:
                     "benefit": enh.benefit,
                 })
 
+        # Build vehicles list
+        vehicles = []
+        if char:
+            for v in char.vehicles:
+                vehicles.append({
+                    "id": v.id,
+                    "name": v.name,
+                    "type": v.type,
+                    "description": v.description,
+                    "fuel": v.fuel,
+                    "condition": v.condition,
+                    "status": v.status,
+                    "terrain": v.terrain,
+                    "capacity": v.capacity,
+                    "cargo": v.cargo,
+                    "stealth": v.stealth,
+                })
+
         # Get current loadout (gear IDs selected for mission)
         loadout_ids = campaign.session.loadout if campaign.session else []
 
@@ -294,6 +312,7 @@ class HeadlessRunner:
             "threads": thread_list,
             "active_jobs": len(campaign.jobs.active),
             "dormant_threads": len(campaign.dormant_threads),
+            "vehicles": vehicles,
         }
     
     def _cmd_map_state(self) -> dict:
