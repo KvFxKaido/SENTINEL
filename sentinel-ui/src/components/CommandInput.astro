@@ -366,10 +366,12 @@
         // Slash command
         const [cmd, ...args] = text.slice(1).split(' ');
 
-        // Client-side: clear narrative log + storage
+        // Clear: wipe local log + storage, then also clear backend conversation
         if (cmd === 'clear') {
           if (narrativeLog) narrativeLog.innerHTML = '';
           sessionStorage.removeItem(STORAGE_KEY);
+          // Also clear server-side conversation state
+          await slash('clear', []);
           form.classList.remove('loading');
           return;
         }

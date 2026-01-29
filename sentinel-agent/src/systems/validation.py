@@ -432,24 +432,11 @@ class ActionValidator:
     def _get_faction_standing(self, campaign: "Campaign", faction_id: str):
         """Look up a faction standing by faction ID string."""
         from ..state.schema import FactionName
-        # Map faction_id strings to FactionName enum
-        faction_map = {
-            "nexus": FactionName.NEXUS,
-            "ember_colonies": FactionName.EMBER_COLONIES,
-            "lattice": FactionName.LATTICE,
-            "convergence": FactionName.CONVERGENCE,
-            "covenant": FactionName.COVENANT,
-            "wanderers": FactionName.WANDERERS,
-            "cultivators": FactionName.CULTIVATORS,
-            "steel_syndicate": FactionName.STEEL_SYNDICATE,
-            "witnesses": FactionName.WITNESSES,
-            "architects": FactionName.ARCHITECTS,
-            "ghost_networks": FactionName.GHOST_NETWORKS,
-        }
-        faction_enum = faction_map.get(faction_id.lower().replace(" ", "_"))
-        if faction_enum:
-            return campaign.factions.get(faction_enum)
-        return None
+        try:
+            faction_enum = FactionName(faction_id.lower().replace(" ", "_"))
+        except ValueError:
+            return None
+        return campaign.factions.get(faction_enum)
 
     @staticmethod
     def _standing_meets_minimum(current: str, minimum: str) -> bool:

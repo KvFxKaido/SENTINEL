@@ -199,7 +199,7 @@ class HeadlessRunner:
         elif cmd_type == "travel_propose":
             return self._cmd_travel_propose(cmd.get("region_id", ""), cmd.get("via"))
         elif cmd_type == "travel_commit":
-            return self._cmd_travel_commit()
+            return self._cmd_travel_commit(cmd.get("via"))
         elif cmd_type == "travel_cancel":
             return self._cmd_travel_cancel()
         elif cmd_type == "say":
@@ -403,52 +403,7 @@ class HeadlessRunner:
             # Serialize ProposalResult for JSON transport
             return {
                 "ok": True,
-                "proposal": {
-                    "action_type": "travel",
-                    "region_id": region_id,
-                    "state_version": campaign.state_version,
-                    "feasible": result.feasible,
-                    "summary": result.summary,
-                    "requirements": [
-                        {
-                            "label": r.label,
-                            "status": r.status.value,
-                            "detail": r.detail,
-                            "bypass": r.bypass,
-                        }
-                        for r in result.requirements
-                    ],
-                    "costs": {
-                        "turns": result.costs.turns,
-                        "social_energy": result.costs.social_energy,
-                        "credits": result.costs.credits,
-                        "fuel": result.costs.fuel,
-                        "condition": result.costs.condition,
-                        "standing_changes": result.costs.standing_changes,
-                    },
-                    "risks": [
-                        {
-                            "label": r.label,
-                            "severity": r.severity,
-                            "detail": r.detail,
-                        }
-                        for r in result.risks
-                    ],
-                    "alternatives": [
-                        {
-                            "label": a.label,
-                            "type": a.type,
-                            "description": a.description,
-                            "consequence": a.consequence,
-                            "costs": {
-                                "turns": a.additional_costs.turns,
-                                "social_energy": a.additional_costs.social_energy,
-                                "credits": a.additional_costs.credits,
-                            },
-                        }
-                        for a in result.alternatives
-                    ],
-                },
+                "proposal": result.model_dump(),
             }
 
         except TurnError as e:
@@ -494,25 +449,7 @@ class HeadlessRunner:
             # Serialize TurnResult for JSON transport
             return {
                 "ok": True,
-                "turn_result": {
-                    "action_id": result.action_id,
-                    "success": result.success,
-                    "state_version": result.state_version,
-                    "turn_number": result.turn_number,
-                    "events": [
-                        {
-                            "event_id": e.event_id,
-                            "event_type": e.event_type,
-                            "summary": e.summary,
-                            "cascade_depth": e.cascade_depth,
-                            "payload": e.payload,
-                        }
-                        for e in result.events
-                    ],
-                    "cascade_notices": result.cascade_notices,
-                    "narrative_hooks": result.narrative_hooks,
-                    "state_snapshot": result.state_snapshot,
-                },
+                "turn_result": result.model_dump(),
             }
 
         except TurnError as e:
