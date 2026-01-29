@@ -69,6 +69,12 @@ class EventType(Enum):
     EPILOGUE_STARTED = "endgame.epilogue_started"
     CAMPAIGN_CONCLUDED = "endgame.campaign_concluded"
 
+    # Map events (spatial layer — Sentinel 2D)
+    REGION_CHANGED = "map.region_changed"
+    CONNECTIVITY_UPDATED = "map.connectivity_updated"
+    MARKER_CHANGED = "map.marker_changed"
+    ROUTE_STATUS_CHANGED = "map.route_status_changed"
+
     # Processing stage events (for TUI "thinking" display)
     STAGE_BUILDING_CONTEXT = "stage.building_context"
     STAGE_RETRIEVING_LORE = "stage.retrieving_lore"
