@@ -161,6 +161,75 @@ State serialization (JSON)
 
 What Changes (Orchestration)
 
+
+---
+
+UI Authority Shift (New)
+
+Main View → Tactical Pause Menu
+
+The current primary UI view (chat log, faction standings, gear, social energy, consequences, etc.) is no longer a live gameplay surface.
+
+It is redefined as a pause-layer interface with strict constraints.
+
+Design Intent:
+
+Preserve legibility without breaking presence
+
+Prevent the UI from competing with spatial play
+
+Centralize reflection, not action
+
+
+The Pause Menu Is Used For:
+
+At-a-glance information:
+
+Faction standings
+
+Social energy state
+
+Inventory and gear (management, equip/unequip)
+
+Known consequences and dormant threads
+
+
+Inventory management:
+
+Equip / unequip gear
+
+Reorder loadout
+
+Inspect items and condition
+
+Discard or stash items only if a valid stash exists in the world
+
+
+Messaging NPC contacts already met in the playthrough
+
+Reviewing past decisions, not making new ones
+
+
+Design Constraint: Inventory changes do not advance time, but they do respect physical plausibility (you cannot equip what you are not carrying).
+
+The Pause Menu Is Explicitly NOT Used For:
+
+Initiating new world actions
+
+Triggering missions
+
+Forcing dialogue with nearby NPCs
+
+Advancing time
+
+
+Hard Rule: If something can be done while unpaused, it must not be possible in the pause menu.
+
+This keeps the player body authoritative and prevents menu-driven play from re-emerging.
+
+
+---
+
 1. Game Loop Authority
 
 From: Python drives turn-based loop
