@@ -1,0 +1,390 @@
+/**
+ * Overworld Component Styles
+ * 
+ * The overworld makes distance, exposure, and hesitation legible.
+ * Movement is free but non-authoritative.
+ */
+
+/* ============================================================================
+   Layout
+   ============================================================================ */
+
+.overworld-container {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  background: var(--bg-primary);
+  overflow: hidden;
+}
+
+.overworld-canvas-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.overworld-canvas-wrapper canvas {
+  outline: none;
+}
+
+.overworld-sidebar {
+  width: 320px;
+  min-width: 280px;
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ============================================================================
+   Interaction Panel
+   ============================================================================ */
+
+.interaction-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.interaction-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.interaction-type {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.interaction-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.15s ease;
+}
+
+.interaction-close:hover {
+  color: var(--text-primary);
+}
+
+.interaction-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-md);
+}
+
+/* ============================================================================
+   Entity Details
+   ============================================================================ */
+
+.entity-details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.entity-name {
+  font-family: var(--font-sans);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.entity-meta {
+  display: flex;
+  gap: var(--space-sm);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.meta-label {
+  color: var(--text-muted);
+}
+
+.meta-value {
+  color: var(--text-secondary);
+}
+
+.entity-description {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* Disposition colors */
+.disposition-hostile { color: var(--status-danger); }
+.disposition-wary { color: var(--status-warning); }
+.disposition-neutral { color: var(--text-secondary); }
+.disposition-warm { color: var(--status-info); }
+.disposition-loyal { color: var(--status-success); }
+
+/* Severity colors */
+.severity-minor { color: var(--status-info); }
+.severity-moderate { color: var(--status-warning); }
+.severity-major { color: var(--status-danger); }
+
+/* Status colors */
+.status-open { color: var(--status-success); }
+.status-blocked { color: var(--status-danger); }
+
+.blocked-reason {
+  font-size: 12px;
+  color: var(--status-danger);
+  margin: 0;
+  padding: var(--space-sm);
+  background: rgba(248, 81, 73, 0.1);
+  border-left: 2px solid var(--status-danger);
+}
+
+/* ============================================================================
+   Action Buttons
+   ============================================================================ */
+
+.entity-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.action-button {
+  padding: var(--space-xs) var(--space-sm);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.action-button:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--accent-steel);
+  color: var(--accent-steel);
+}
+
+.action-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.action-button.action-risky {
+  border-color: var(--status-warning);
+  color: var(--status-warning);
+}
+
+.action-button.action-risky:hover {
+  background: rgba(210, 153, 34, 0.15);
+}
+
+.action-button.action-commit {
+  border-color: var(--status-success);
+  color: var(--status-success);
+}
+
+.action-button.action-commit:hover {
+  background: rgba(63, 185, 80, 0.15);
+}
+
+.action-button.action-confirm {
+  background: var(--status-success);
+  border-color: var(--status-success);
+  color: var(--bg-primary);
+}
+
+.action-button.action-confirm:hover {
+  background: #4cc760;
+}
+
+.action-button.action-cancel {
+  border-color: var(--text-muted);
+}
+
+/* ============================================================================
+   Hints & Warnings
+   ============================================================================ */
+
+.interaction-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 0;
+  padding: var(--space-sm);
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+  line-height: 1.5;
+}
+
+.interaction-hint.hazard-warning {
+  background: rgba(248, 81, 73, 0.1);
+  border-left: 2px solid var(--status-danger);
+}
+
+/* ============================================================================
+   Confirmation Dialog
+   ============================================================================ */
+
+.confirmation-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.confirmation-title {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.confirmation-description {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.confirmation-cost,
+.confirmation-consequence {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.cost-label,
+.consequence-label {
+  color: var(--text-muted);
+}
+
+.cost-value {
+  color: var(--status-warning);
+}
+
+.consequence-value {
+  color: var(--status-special);
+}
+
+.confirmation-actions {
+  display: flex;
+  gap: var(--space-sm);
+  justify-content: flex-end;
+}
+
+.confirmation-warning {
+  font-size: 10px;
+  color: var(--status-danger);
+  margin: 0;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ============================================================================
+   Sidebar Empty State
+   ============================================================================ */
+
+.sidebar-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: var(--space-lg);
+  text-align: center;
+}
+
+.sidebar-empty-icon {
+  font-size: 32px;
+  margin-bottom: var(--space-sm);
+  opacity: 0.5;
+}
+
+.sidebar-empty-title {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin: 0 0 var(--space-xs) 0;
+}
+
+.sidebar-empty-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.controls-hint {
+  margin-top: var(--space-md);
+  padding: var(--space-sm);
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+}
+
+.control-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.control-key {
+  color: var(--accent-cyan);
+}
+
+.control-action {
+  color: var(--text-muted);
+}
+
+/* ============================================================================
+   Loading & Error States
+   ============================================================================ */
+
+.overworld-loading,
+.overworld-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: var(--space-sm);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 14px;
+}
+
+.overworld-loading .loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--bg-tertiary);
+  border-top-color: var(--accent-cyan);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

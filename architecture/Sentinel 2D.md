@@ -286,23 +286,23 @@ Connectivity advances via:
 - [x] MapState APIs
 - [x] Typed route requirements
 
-### Phase 1 — Strategic Map (SVG)
+### Phase 1 — Strategic Map (SVG) ✓
 
-- Render regions and routes
-- Travel proposals
-- Content markers
+- [x] Render regions and routes
+- [x] Travel proposals
+- [x] Content markers
 
-### Phase 2 — Safehouse (Canvas)
+### Phase 2 — Safehouse (Canvas) ✓
 
-- Minimal renderer
-- Inventory as physical presence
-- Quiet reflection space
+- [x] Minimal renderer
+- [x] Inventory as physical presence
+- [x] Quiet reflection space
 
-### Phase 3 — Overworld
+### Phase 3 — Overworld ✓
 
-- Single region space
-- NPCs and hazards
-- Commitment enforcement
+- [x] Single region space
+- [x] NPCs and hazards
+- [x] Commitment enforcement
 
 ### Phase 4 — Expansion
 
