@@ -350,7 +350,12 @@ class HeadlessRunner:
             if job_count > 0:
                 markers.append({"type": "job", "count": job_count})
 
-            # Dormant threads with region-scoped triggers
+        try:
+            with open(regions_file) as f:
+                all_regions = json.load(f)["regions"]
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            # logger.error(f"Failed to load region data: {e}")
+            return {"ok": False, "error": "Failed to load region data"}
             thread_count = sum(
                 1 for thread in campaign.dormant_threads
                 if region.value in thread.trigger_condition.lower()
