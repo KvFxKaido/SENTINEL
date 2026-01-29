@@ -38,64 +38,52 @@ Architecture Shift
 
 Spatial Structure (New)
 
-Dual-Layer World Model
 
-SENTINEL 2D operates on two explicitly distinct spatial layers. This is intentional and design-binding.
+---
 
-1. Strategic Map (Territory Layer)
+Camera & Perspective — Locked: Isometric View
 
-Mario World–style node map representing the 11 regions
+SENTINEL 2D uses a fixed isometric camera for all local maps. This is a design-binding decision.
 
-Each region node exposes:
+Rationale:
 
-Current faction control / pressure
+Preserves distance without removing presence
 
-Active missions and threads
+Improves legibility of patrols, cover, and chokepoints
 
-Player standing and known risks
+Reinforces observation → hesitation → commitment loop
 
-
-Player selects a region and confirms travel
-
-Travel is a commitment and may advance clocks
-
-
-> This layer already exists via the Phase 1 WorldMap component.
+Supports room-scale tactical combat without spectacle
 
 
 
-2. Local Maps (Exploration Layer)
+---
 
-Hand-crafted, bounded spaces within a region
+Hard Constraints:
 
-Examples:
+Fixed isometric angle (no camera rotation)
 
-Region Hub (default landing area)
+Limited zoom range (no tactical zoom-outs)
 
-Market District
+Small, authored rooms only
 
-Residential Quarter
+Clear occlusion rules (walls fade when blocking the player)
 
-Industrial Zone
+Minimal animation set (idle, move, combat actions only)
 
-Outskirts / Checkpoints
-
-
-~10 NPCs max per local map
-
-Each NPC has a clear purpose or tension
-
-Points of interest are few, deliberate, and legible
-
-Exits connect to:
-
-Other local maps in the same region
-
-Back to the Strategic Map
+UI must never compete with the world view
 
 
+Non-Goals:
 
-Design Constraint: Local maps are small by design. Density > scale.
+Open-world scale
+
+Cinematic camera motion
+
+Physics-driven interactions
+
+
+Isometric is a tool for weight and legibility, not visual flourish.
 
 
 ---
