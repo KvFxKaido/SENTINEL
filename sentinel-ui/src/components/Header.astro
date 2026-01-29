@@ -15,6 +15,10 @@
       <span class="nav-icon">◈</span>
       <span class="nav-text">MAP</span>
     </a>
+    <a href="/safehouse" class="nav-link" title="Open Safehouse (H)">
+      <span class="nav-icon">🏠</span>
+      <span class="nav-text">SAFE</span>
+    </a>
   </div>
 
   <div class="header-center">
@@ -131,6 +135,9 @@
     }
     if (e.key === 'm' || e.key === 'M') {
       window.location.href = '/map';
+    }
+    if (e.key === 'h' || e.key === 'H') {
+      window.location.href = '/safehouse';
     }
   });
 </script>

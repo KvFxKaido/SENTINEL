@@ -1,0 +1,471 @@
+/**
+ * Safehouse Component Styles
+ * 
+ * The safehouse is a quiet place to account for what you still have.
+ * Styles emphasize clarity and reflection over spectacle.
+ */
+
+/* ============================================================================
+   Layout
+   ============================================================================ */
+
+.safehouse-container {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  background: var(--bg-primary);
+  overflow: hidden;
+}
+
+.safehouse-canvas-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-md);
+}
+
+.safehouse-sidebar {
+  width: 320px;
+  min-width: 280px;
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ============================================================================
+   Object Detail Panel
+   ============================================================================ */
+
+.object-detail-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.detail-type {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.detail-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.15s ease;
+}
+
+.detail-close:hover {
+  color: var(--text-primary);
+}
+
+.detail-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-md);
+}
+
+.detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.detail-name {
+  font-family: var(--font-sans);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.detail-meta {
+  display: flex;
+  gap: var(--space-sm);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.meta-label {
+  color: var(--text-muted);
+}
+
+.meta-value {
+  color: var(--text-secondary);
+}
+
+.detail-description {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ============================================================================
+   Status Badges
+   ============================================================================ */
+
+.detail-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.status-success {
+  background: rgba(63, 185, 80, 0.15);
+  color: var(--status-success);
+  border: 1px solid rgba(63, 185, 80, 0.3);
+}
+
+.status-warning {
+  background: rgba(210, 153, 34, 0.15);
+  color: var(--status-warning);
+  border: 1px solid rgba(210, 153, 34, 0.3);
+}
+
+.status-danger {
+  background: rgba(248, 81, 73, 0.15);
+  color: var(--status-danger);
+  border: 1px solid rgba(248, 81, 73, 0.3);
+}
+
+.status-info {
+  background: rgba(88, 166, 255, 0.15);
+  color: var(--status-info);
+  border: 1px solid rgba(88, 166, 255, 0.3);
+}
+
+.status-special {
+  background: rgba(163, 113, 247, 0.15);
+  color: #a371f7;
+  border: 1px solid rgba(163, 113, 247, 0.3);
+}
+
+.status-muted {
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+}
+
+/* ============================================================================
+   Progress Bars
+   ============================================================================ */
+
+.detail-bars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.bar-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.bar-label {
+  width: 80px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.bar-track {
+  flex: 1;
+  height: 8px;
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.bar-success {
+  background: var(--status-success);
+}
+
+.bar-warning {
+  background: var(--status-warning);
+}
+
+.bar-danger {
+  background: var(--status-danger);
+}
+
+.bar-cyan {
+  background: var(--accent-cyan);
+}
+
+.bar-value {
+  width: 40px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-align: right;
+}
+
+/* ============================================================================
+   Vehicle Capabilities
+   ============================================================================ */
+
+.detail-capabilities h4 {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin: 0 0 var(--space-xs) 0;
+}
+
+.capability-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.capability-tag {
+  padding: 2px 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  color: var(--text-secondary);
+}
+
+/* ============================================================================
+   Thread Details
+   ============================================================================ */
+
+.thread-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+}
+
+.thread-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.thread-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.thread-value {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.thread-consequence {
+  color: var(--status-special);
+}
+
+.thread-warning {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+  margin: 0;
+  padding: var(--space-sm);
+  background: rgba(240, 136, 62, 0.1);
+  border-left: 2px solid var(--status-special);
+}
+
+/* ============================================================================
+   Enhancement Details
+   ============================================================================ */
+
+.enhancement-benefit h4 {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin: 0 0 var(--space-xs) 0;
+}
+
+.enhancement-benefit p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0;
+  padding: var(--space-sm);
+  background: rgba(163, 113, 247, 0.1);
+  border-radius: 4px;
+}
+
+/* ============================================================================
+   Character Details
+   ============================================================================ */
+
+.character-stats {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-sm);
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+}
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.stat-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.stat-value {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.stat-value.credits {
+  color: var(--status-success);
+}
+
+.character-inventory-summary h4 {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin: 0 0 var(--space-sm) 0;
+}
+
+.inventory-counts {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-sm);
+}
+
+.count-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+}
+
+.count-icon {
+  font-size: 14px;
+}
+
+.count-value {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.count-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* ============================================================================
+   Loading & Empty States
+   ============================================================================ */
+
+.safehouse-loading,
+.safehouse-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: var(--space-sm);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 14px;
+}
+
+.safehouse-loading .loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--bg-tertiary);
+  border-top-color: var(--accent-cyan);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ============================================================================
+   Sidebar Empty State
+   ============================================================================ */
+
+.sidebar-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: var(--space-lg);
+  text-align: center;
+}
+
+.sidebar-empty-icon {
+  font-size: 32px;
+  margin-bottom: var(--space-sm);
+  opacity: 0.5;
+}
+
+.sidebar-empty-title {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin: 0 0 var(--space-xs) 0;
+}
+
+.sidebar-empty-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0;
+}

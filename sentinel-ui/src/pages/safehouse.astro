@@ -1,0 +1,107 @@
+---
+import GameLayout from '../layouts/GameLayout.astro';
+import Header from '../components/Header.astro';
+import { SafehouseView } from '../components/safehouse';
+---
+
+<GameLayout title="SENTINEL — Safehouse">
+  <Header />
+
+  <main class="safehouse-main">
+    <SafehouseView client:load />
+  </main>
+
+  <footer class="safehouse-footer">
+    <div class="safehouse-controls">
+      <a href="/map" class="control-button">
+        <span class="key">M</span>
+        <span class="label">OPEN MAP</span>
+      </a>
+      <a href="/" class="control-button">
+        <span class="key">ESC</span>
+        <span class="label">RETURN TO CONSOLE</span>
+      </a>
+      <div class="control-hint">
+        <span class="key">CLICK</span>
+        <span class="label">INSPECT ITEM</span>
+      </div>
+    </div>
+  </footer>
+</GameLayout>
+
+<style>
+  .safehouse-main {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .safehouse-footer {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
+    padding: var(--space-sm) var(--space-md);
+  }
+
+  .safehouse-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--space-lg);
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+
+  .control-button {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-xs) var(--space-sm);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: all 0.15s ease;
+  }
+
+  .control-button:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent-steel);
+    color: var(--accent-steel);
+  }
+
+  .control-hint {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    color: var(--text-muted);
+  }
+
+  .key {
+    display: inline-block;
+    padding: 2px 6px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    font-size: 10px;
+    color: var(--accent-cyan);
+    text-transform: uppercase;
+  }
+
+  .label {
+    color: var(--text-secondary);
+  }
+</style>
+
+<script>
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      window.location.href = '/';
+    } else if (e.key === 'm' || e.key === 'M') {
+      window.location.href = '/map';
+    }
+  });
+</script>
