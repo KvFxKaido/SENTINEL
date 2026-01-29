@@ -5,11 +5,13 @@
  * This allows web UIs to communicate with the engine.
  *
  * Endpoints:
- *   POST /command - Send command to Sentinel
- *   GET  /state   - Get bridge + Sentinel state
- *   GET  /events  - SSE stream of game events
- *   POST /start   - Start Sentinel process
- *   POST /stop    - Stop Sentinel process
+ *   POST /command       - Send command to Sentinel
+ *   GET  /state         - Get bridge + Sentinel state
+ *   GET  /events        - SSE stream of game events
+ *   GET  /map           - Get complete map state
+ *   GET  /map/region/:id - Get detailed region info
+ *   POST /start         - Start Sentinel process
+ *   POST /stop          - Stop Sentinel process
  *
  * All endpoints return JSON. CORS is enabled for local development.
  */
@@ -144,8 +146,12 @@ export class BridgeApi {
     try {
       let response: Response;
 
-      // Check for wiki routes first (they have dynamic paths)
-      if (method === "GET" && url.pathname.startsWith("/wiki/page/")) {
+      // Check for dynamic path routes first
+      if (method === "GET" && url.pathname === "/map") {
+        response = await this.handleMapState();
+      } else if (method === "GET" && url.pathname.startsWith("/map/region/")) {
+        response = await this.handleMapRegion(url);
+      } else if (method === "GET" && url.pathname.startsWith("/wiki/page/")) {
         response = await this.handleWikiPage(url);
       } else if (method === "GET" && url.pathname === "/wiki/search") {
         response = await this.handleWikiSearch(url);
@@ -330,6 +336,60 @@ export class BridgeApi {
     } catch {
       // Fallback to relative path
       return join(Deno.cwd(), "..", "wiki");
+    }
+  }
+
+  // ─── Map Endpoints (Sentinel 2D) ──────────────────────────────────────────────
+
+  /**
+   * GET /map
+   * Returns complete map state with all regions, connectivity, and content markers.
+   */
+  private async handleMapState(): Promise<Response> {
+    if (this.process.currentState !== "ready") {
+      return this.json(
+        { ok: false, error: `Sentinel is ${this.process.currentState}` },
+        503
+      );
+    }
+
+    try {
+      const result = await this.process.send({ cmd: "map_state" });
+      return this.json(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return this.json({ ok: false, error: message }, 500);
+    }
+  }
+
+  /**
+   * GET /map/region/:id
+   * Returns detailed info for a specific region including route feasibility.
+   */
+  private async handleMapRegion(url: URL): Promise<Response> {
+    const pathMatch = url.pathname.match(/^\/map\/region\/(.+)$/);
+    if (!pathMatch) {
+      return this.json({ error: "Invalid map region path" }, 400);
+    }
+
+    const regionId = decodeURIComponent(pathMatch[1]);
+
+    if (this.process.currentState !== "ready") {
+      return this.json(
+        { ok: false, error: `Sentinel is ${this.process.currentState}` },
+        503
+      );
+    }
+
+    try {
+      const result = await this.process.send({
+        cmd: "map_region",
+        region_id: regionId,
+      });
+      return this.json(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return this.json({ ok: false, error: message }, 500);
     }
   }
 
