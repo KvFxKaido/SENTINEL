@@ -92,8 +92,9 @@ export function WorldMap({
       style={{ position: 'relative', width: '100%', height: '100%', minHeight: '600px' }}
       onMouseMove={handleMouseMove}
     >
-      {/* Grid overlay */}
+      {/* Grid overlay - Metroid-style navigation grid */}
       <div className="grid-overlay" style={{ position: 'absolute', inset: 0 }} />
+      <div className="grid-overlay-unvisited" style={{ position: 'absolute', inset: 0 }} />
 
       {/* Nexus presence overlay */}
       <div
@@ -170,63 +171,79 @@ export function WorldMap({
       {/* Legend */}
       {showLegend && <MapLegend />}
 
-      {/* Header info */}
+      {/* Header info - Metroid-style map terminal */}
       <div style={{ position: 'absolute', top: '16px', left: '16px', pointerEvents: 'none' }}>
-        <div style={{
-          background: 'rgba(0,0,0,0.8)',
+        <div className="map-header" style={{
+          background: 'var(--bg-panel-glass)',
           border: '1px solid var(--border-primary)',
-          borderRadius: '4px',
-          padding: '12px 16px',
-          backdropFilter: 'blur(8px)',
+          borderRadius: '8px',
+          padding: '14px 18px',
+          backdropFilter: 'blur(16px)',
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
         }}>
+          {/* Top accent line - Metroid energy bar style */}
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: '0',
+            right: '0',
+            height: '2px',
+            background: 'linear-gradient(90deg, var(--metroid-current) 0%, var(--accent-cyan) 50%, var(--metroid-current) 100%)',
+            opacity: 0.8,
+            borderRadius: '8px 8px 0 0',
+          }} />
           <h1 className="terminal-text" style={{
             fontSize: '18px',
             fontWeight: 'bold',
-            color: 'var(--accent-steel)',
-            letterSpacing: '0.1em',
+            color: 'var(--metroid-visited-stroke)',
+            letterSpacing: '0.15em',
             margin: 0,
+            textTransform: 'uppercase',
           }}>
-            NETWORK MAP
+            SECTOR MAP
           </h1>
           <p className="terminal-text" style={{
-            fontSize: '12px',
+            fontSize: '10px',
             color: 'var(--text-muted)',
-            marginTop: '4px',
-            margin: 0,
+            margin: '4px 0 0',
+            letterSpacing: '0.08em',
           }}>
-            SENTINEL TACTICAL DISPLAY // v2.1.4
+            NAVIGATION SYSTEM v2.2 // GRID ACTIVE
           </p>
-          <div className="terminal-text" style={{ display: 'flex', gap: '16px', marginTop: '8px', fontSize: '12px' }}>
+          <div className="terminal-text" style={{ display: 'flex', gap: '20px', marginTop: '10px', fontSize: '11px' }}>
             <span style={{ color: 'var(--text-secondary)' }}>
-              CURRENT: <span style={{ color: 'var(--accent-cyan)' }}>{currentRegionName.toUpperCase()}</span>
+              LOC: <span style={{ color: 'var(--metroid-current)', fontWeight: 'bold' }}>{currentRegionName.toUpperCase()}</span>
             </span>
             {session !== undefined && (
               <span style={{ color: 'var(--text-muted)' }}>
-                SESSION: <span style={{ color: 'var(--accent-steel)' }}>{String(session).padStart(2, '0')}</span>
+                SEQ: <span style={{ color: 'var(--accent-cyan)', fontWeight: 'bold' }}>{String(session).padStart(2, '0')}</span>
               </span>
             )}
           </div>
         </div>
       </div>
 
-      {/* Status panel */}
-      <div style={{ position: 'absolute', top: '16px', right: '16px', pointerEvents: 'none' }}>
+      {/* Status panel - Metroid-style system indicator */}
+      <div style={{ position: 'absolute', top: '16px', right: '380px', pointerEvents: 'none' }}>
         <div style={{
-          background: 'rgba(0,0,0,0.8)',
+          background: 'var(--bg-panel-glass)',
           border: '1px solid var(--border-primary)',
-          borderRadius: '4px',
-          padding: '8px 12px',
-          backdropFilter: 'blur(8px)',
+          borderRadius: '6px',
+          padding: '8px 14px',
+          backdropFilter: 'blur(16px)',
+          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
         }}>
-          <div className="terminal-text" style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
+          <div className="terminal-text" style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '10px' }}>
             <span style={{
-              width: '8px',
-              height: '8px',
-              borderRadius: '50%',
-              backgroundColor: 'var(--accent-green)',
+              width: '6px',
+              height: '6px',
+              borderRadius: '1px',
+              backgroundColor: 'var(--metroid-item-marker)',
               display: 'inline-block',
+              boxShadow: '0 0 6px var(--metroid-item-marker)',
+              animation: 'pulse-glow 2s ease-in-out infinite',
             }} />
-            <span style={{ color: 'var(--text-secondary)' }}>SYSTEM ONLINE</span>
+            <span style={{ color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Map Active</span>
           </div>
         </div>
       </div>
