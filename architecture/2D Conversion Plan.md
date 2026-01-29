@@ -545,35 +545,116 @@ NPCs remember timing, not just words
 
 ---
 
-Phase 5: Combat Overlay (Est: 2 weeks)
+Phase 5: Combat Overlay — Locked: Room-Scale Tactical Combat (Est: 2 weeks)
 
-Goal: Tactical combat with narrative consequence
+Combat Model (Design-Binding):
+
+> Room-scale tactical resolution
+Turn-based, spatial, short-lived, and consequence-forward.
+
+
+
+Combat is not a separate game mode. It is an escalation of presence in the same space where failure occurred.
+
+
+---
+
+Core Characteristics:
+
+Turn-based, alternating initiative
+
+Occurs in the current local map (overlay, not scene switch)
+
+3–6 total combatants maximum
+
+Gridless or micro-grid (room-scale only)
+
+Average duration: 3–6 total rounds
+
+
+
+---
+
+Design Rules (Hard Locks):
+
+1. Combat Is a Consequence, Not a Goal
+Combat is triggered by detection, escalation, or failed restraint — never as a primary objective loop.
+
+
+2. Positioning > Abilities
+Actions are limited and legible:
+
+Move (expose / reposition)
+
+Fire / Strike (commit violence)
+
+Suppress (buy time)
+
+Interact (doors, cover, environment)
+
+Talk (rare, risky)
+
+Flee (always available)
+
+
+
+3. Retreat Is First-Class
+Fleeing is always possible unless the player explicitly chose to trap themselves. Retreat carries social and faction consequences, not mechanical punishment.
+
+
+4. Injuries > HP
+Damage creates persistent conditions:
+
+Impaired movement
+
+Reduced accuracy
+
+Gear damage
+
+Visible scars remembered by NPCs
+
+
+HP exists only as a short-term survival buffer.
+
+
+5. Fast Resolution or Spiral
+Prepared encounters resolve quickly. Unprepared encounters deteriorate rapidly. Long, attritional fights are a failure state.
+
+
+
+
+---
 
 Tasks:
 
-1. Combat state machine (initiative, turns, actions)
+1. Combat state machine (initiative, turns, escalation)
 
 
-2. Action selection UI
+2. Overlay UI (dimmed map, locked camera)
 
 
-3. Targeting system
+3. Action selection UI (small, explicit choices)
 
 
 4. Python resolves outcomes; frontend animates
 
 
-5. Reputation and injury consequences propagate
+5. Injury, fear, and reputation consequences propagate immediately
 
 
+
+
+---
 
 Success Criteria:
 
-Combat rewards preparation and positioning
+Combat feels avoidable
 
-Stealth vs violence meaningfully diverge
+Retreat feels like survival, not failure
 
-Fleeing or negotiating is always possible
+Positioning and preparation matter more than raw stats
+
+Combat leaves lasting marks on the world and the character
 
 
 
