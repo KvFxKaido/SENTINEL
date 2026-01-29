@@ -334,4 +334,243 @@ This refactor succeeds if:
 
 ---
 
+## 18. Integration Architecture
+
+The Kimi world map prototype (`architecture/Kimi_Agent_Astro Map Integration/`) proves the visual layer. This section defines how it connects to the live game.
+
+### 18.1 Data Ownership
+
+The engine is the single source of truth. The map **consumes** — it never stores.
+
+| Data | Owner | Location |
+|------|-------|----------|
+| Region definitions | Engine | `sentinel-agent/data/regions.json` |
+| Region connectivity | Engine | `Campaign.map_state.regions[id].connectivity` |
+| Current region | Engine | `Campaign.map_state.current_region` |
+| Route requirements | Engine | `regions.json` routes + `schema.py` models |
+| Faction standings | Engine | `Campaign.faction_standings` |
+| NPCs per region | Engine | Derived from `Campaign.npcs` by location |
+| Active jobs/threads | Engine | Derived from `Campaign.jobs` / `Campaign.threads` |
+
+Kimi's static `regions.ts` and `factions.ts` are deleted at integration time. The map component receives all data via props hydrated from the bridge API.
+
+### 18.2 Bridge Map API
+
+New endpoints on the Deno bridge (`localhost:3333`):
+
+#### `GET /map`
+
+Returns the complete map state for the current campaign.
+
+```json
+{
+  "ok": true,
+  "current_region": "rust_corridor",
+  "regions": {
+    "rust_corridor": {
+      "connectivity": "embedded",
+      "markers": [
+        { "type": "current" },
+        { "type": "npc", "count": 3 },
+        { "type": "job", "count": 1 }
+      ]
+    },
+    "breadbasket": {
+      "connectivity": "connected",
+      "markers": [
+        { "type": "thread", "count": 1 }
+      ]
+    },
+    "frozen_edge": {
+      "connectivity": "disconnected",
+      "markers": []
+    }
+  }
+}
+```
+
+Content markers are **aggregated server-side** from campaign state:
+
+| Marker | Source |
+|--------|--------|
+| `current` | `map_state.current_region` |
+| `npc` | NPCs whose `location` matches the region |
+| `job` | Active jobs assigned to the region |
+| `thread` | Dormant threads with region-scoped triggers |
+| `locked` | Adjacent region where no route requirements are met |
+| `risky` | Adjacent region reachable only via risky alternatives |
+
+#### `GET /map/region/:id`
+
+Returns detailed region info including route feasibility for the current player.
+
+```json
+{
+  "ok": true,
+  "region": {
+    "id": "northeast_scar",
+    "name": "Northeast Scar",
+    "description": "...",
+    "primary_faction": "architects",
+    "contested_by": ["nexus"],
+    "terrain": ["urban", "ruins", "contaminated"],
+    "connectivity": "aware",
+    "hazards": ["radiation", "structural_collapse"],
+    "points_of_interest": ["Manhattan Quarantine Zone", "..."]
+  },
+  "routes_from_current": [
+    {
+      "from": "rust_corridor",
+      "to": "northeast_scar",
+      "requirements": [
+        { "type": "faction", "faction": "architects", "min_standing": "neutral", "met": false }
+      ],
+      "alternatives": [
+        { "type": "contact", "faction": "ghost_networks", "description": "Smuggler route through ruins", "available": true },
+        { "type": "risky", "description": "Sneak through at night", "cost": { "social_energy": 2 }, "consequence": "architects_noticed" }
+      ],
+      "traversable": true,
+      "best_option": "contact"
+    }
+  ],
+  "content": {
+    "npcs": ["Wei", "Kol"],
+    "jobs": [],
+    "threads": ["architect_credentials"]
+  }
+}
+```
+
+The `met` field on requirements and `available` field on alternatives are resolved server-side against current campaign state (standings, vehicles, contacts, story flags).
+
+#### `POST /command` (existing — travel action)
+
+Travel is proposed through the existing command interface:
+
+```json
+{ "cmd": "slash", "command": "travel", "args": ["northeast_scar"] }
+```
+
+The engine validates route requirements, consumes the turn, and resolves consequences. No new endpoint needed — travel is a commitment like any other.
+
+### 18.3 Map Event Stream
+
+The existing SSE stream (`GET /events`) gains map-relevant event types:
+
+| Event | Trigger | Data |
+|-------|---------|------|
+| `region_changed` | Travel resolved | `{ from, to, session }` |
+| `connectivity_updated` | NPC met, job done, thread resolved | `{ region, old, new, reason }` |
+| `marker_changed` | Job/NPC/thread added or removed in region | `{ region, markers }` |
+| `route_status_changed` | Faction standing shift unlocks/locks route | `{ from, to, traversable, reason }` |
+
+The map subscribes to the SSE stream and re-renders on these events. No polling.
+
+### 18.4 Travel Action Sequence
+
+This is the commitment gate (Section 6) made concrete in the UI:
+
+```
+1. Player clicks region on map
+2. Map calls GET /map/region/:id
+3. UI displays region detail panel:
+   - Region info, connectivity, content
+   - Route feasibility (requirements met/unmet)
+   - Available alternatives with costs
+4. Player selects travel option (direct, alternative, or cancel)
+5. UI shows confirmation dialog:
+   "Travel to Northeast Scar via Ghost Networks smuggler route?
+    Cost: 1 turn
+    Consequence: owes Ghost Networks a favor"
+6. Player confirms
+7. Map calls POST /command { cmd: "slash", command: "travel", args: ["northeast_scar", "--via", "contact"] }
+8. Engine resolves:
+   - Validates requirements
+   - Consumes turn
+   - Updates current_region
+   - Applies consequences (favor owed, social energy cost, etc.)
+   - Emits region_changed event
+9. SSE delivers region_changed to map
+10. Map re-renders with new state
+```
+
+**Cancellation at any step before 7 has zero side effects.** This is the commitment gate in action — the UI proposes, the engine resolves.
+
+### 18.5 Component Integration
+
+The Kimi prototype is a standalone React + Vite app. Integration path into `sentinel-ui/` (Astro):
+
+#### Strategy: React Island
+
+Astro supports [React component islands](https://docs.astro.build/en/guides/integrations-guide/react/) — interactive React components embedded in otherwise static Astro pages.
+
+```
+sentinel-ui/
+├── src/
+│   ├── components/
+│   │   └── map/                    # Extracted from Kimi prototype
+│   │       ├── WorldMap.tsx        # Main component (props-driven, no static data)
+│   │       ├── RegionNode.tsx
+│   │       ├── ConnectionLines.tsx
+│   │       ├── MapTooltip.tsx
+│   │       ├── MapLegend.tsx
+│   │       └── RegionDetail.tsx    # New: detail panel + travel confirmation
+│   ├── pages/
+│   │   └── index.astro             # Main game view — embeds <WorldMap client:load />
+│   └── lib/
+│       └── bridge.ts               # Existing bridge client — add map methods
+```
+
+#### What migrates from Kimi prototype
+
+| Keep | Discard |
+|------|---------|
+| `WorldMap.tsx` (refactored to props-only) | `regions.ts` (static data) |
+| `RegionNode.tsx` | `factions.ts` (static data) |
+| `ConnectionLines.tsx` | `App.tsx` (demo harness) |
+| `MapTooltip.tsx` | `ui/` components (use sentinel-ui's existing library) |
+| `MapLegend.tsx` | Vite config, Tailwind config (use sentinel-ui's) |
+| `types/map.ts` (aligned to engine schema) | |
+| CSS variables and faction colors | |
+
+#### Bridge Client Additions
+
+```typescript
+// sentinel-ui/src/lib/bridge.ts — new methods
+
+async getMapState(): Promise<MapState>
+async getRegionDetail(regionId: string): Promise<RegionDetail>
+async travel(regionId: string, via?: string): Promise<CommandResult>
+onMapEvent(handler: (event: MapEvent) => void): () => void
+```
+
+### 18.6 Data Alignment
+
+The Kimi TypeScript types and engine Python models must stay in sync. The canonical direction is **Python → TypeScript**.
+
+| Python (schema.py) | TypeScript (map.ts) | Notes |
+|---------------------|---------------------|-------|
+| `Region` enum | `Region` type | Same string values |
+| `RegionConnectivity` enum | `RegionConnectivity` type | Same string values |
+| `RegionState` model | `RegionState` interface | TS version omits methods |
+| `MapState` model | `MapState` interface | TS version is the API response shape |
+| `RouteRequirement` model | `RouteRequirement` interface | TS adds `met: boolean` from API |
+| `RouteAlternative` model | `RouteAlternative` interface | TS adds `available: boolean` from API |
+| `FactionName` enum | `Faction` type | Same string values |
+
+If `schema.py` changes, the bridge must update its serialization and the TypeScript types must follow. The Kimi prototype's types are already close — minor field name casing differences (`minStanding` → `min_standing`) resolve during migration.
+
+### 18.7 What the Map Does Not Do
+
+Restating the invariants from Section 4 in integration terms:
+
+- The map **never writes** to campaign state directly
+- The map **never skips** the confirmation step
+- The map **never resolves** route requirements client-side (it displays server-resolved `met`/`available` fields)
+- The map **never polls** — it subscribes to SSE
+- The map **renders correctly with no data** — a new campaign shows 11 disconnected regions and that's it
+- If the bridge is down, the map shows last-known state with a connection indicator — the CLI still works
+
+---
+
 > *SENTINEL finally has a body. And a quiet place to count the cost of surviving in it.*
