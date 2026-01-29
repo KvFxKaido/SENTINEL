@@ -280,11 +280,11 @@ Connectivity advances via:
 
 ## 15. Implementation Phases (Condensed)
 
-### Phase 0 — Data Foundation
+### Phase 0 — Data Foundation (Complete)
 
-- Region positions
-- MapState APIs
-- Typed route requirements
+- [x] Region positions
+- [x] MapState APIs
+- [x] Typed route requirements
 
 ### Phase 1 — Strategic Map (SVG)
 
