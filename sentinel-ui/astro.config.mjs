@@ -18,6 +18,8 @@ export default defineConfig({
   // Vite config for dev experience
   vite: {
     server: {
+      // Allow all hosts for external access
+      allowedHosts: ['.manus.computer'],
       // Proxy API requests to the Deno bridge during development
       proxy: {
         '/api': {

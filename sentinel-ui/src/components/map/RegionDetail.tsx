@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { Region, RegionConnectivity } from './types';
 import { FACTION_INFO } from './types';
 
@@ -6,6 +7,11 @@ import { FACTION_INFO } from './types';
  *
  * Displayed when a region is clicked on the world map.
  * Shows route feasibility and provides travel confirmation (commitment gate).
+ *
+ * The confirmation dialog is the key part of the commitment gate:
+ * - Player sees full cost and consequences before committing
+ * - Cancel at any point has zero side effects
+ * - Only explicit confirmation triggers the travel action
  *
  * @see architecture/Sentinel 2D.md, Section 18.4 (Travel Action Sequence)
  */
@@ -55,6 +61,14 @@ interface RegionDetailProps {
   onClose: () => void;
 }
 
+interface PendingTravel {
+  regionId: string;
+  via?: string;
+  label: string;
+  cost?: Record<string, number>;
+  consequence?: string;
+}
+
 export function RegionDetail({
   region,
   routes,
@@ -62,8 +76,34 @@ export function RegionDetail({
   onTravel,
   onClose,
 }: RegionDetailProps) {
+  const [pendingTravel, setPendingTravel] = useState<PendingTravel | null>(null);
+  
   const faction = FACTION_INFO[region.primary_faction as keyof typeof FACTION_INFO];
   const route = routes[0]; // Route from current region (if adjacent)
+
+  // Handle travel selection - show confirmation
+  const handleTravelSelect = (via?: string, label?: string, cost?: Record<string, number>, consequence?: string) => {
+    setPendingTravel({
+      regionId: region.id,
+      via,
+      label: label || 'Direct Route',
+      cost,
+      consequence,
+    });
+  };
+
+  // Confirm travel - this is the commitment gate
+  const handleConfirmTravel = () => {
+    if (pendingTravel) {
+      onTravel?.(pendingTravel.regionId, pendingTravel.via);
+      setPendingTravel(null);
+    }
+  };
+
+  // Cancel travel - zero side effects
+  const handleCancelTravel = () => {
+    setPendingTravel(null);
+  };
 
   return (
     <div className="region-detail-panel terminal-text" style={{
@@ -81,6 +121,93 @@ export function RegionDetail({
       maxHeight: 'calc(100vh - 120px)',
       overflowY: 'auto',
     }}>
+      {/* Confirmation Dialog Overlay */}
+      {pendingTravel && (
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          background: 'rgba(0,0,0,0.9)',
+          borderRadius: '8px',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          padding: '24px',
+          zIndex: 50,
+        }}>
+          <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', letterSpacing: '0.1em', marginBottom: '8px' }}>
+              CONFIRM TRAVEL
+            </div>
+            <div style={{ fontSize: '14px', color: 'var(--accent-cyan)', fontWeight: 'bold' }}>
+              {region.name.toUpperCase()}
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+              via {pendingTravel.label}
+            </div>
+          </div>
+
+          <div style={{ 
+            background: 'var(--bg-tertiary)', 
+            border: '1px solid var(--border-primary)',
+            borderRadius: '4px',
+            padding: '12px',
+            marginBottom: '16px',
+          }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+              This action will:
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--accent-amber)', marginBottom: '4px' }}>
+              • Consume 1 turn
+            </div>
+            {pendingTravel.cost && Object.entries(pendingTravel.cost).map(([key, value]) => (
+              <div key={key} style={{ fontSize: '12px', color: 'var(--accent-amber)', marginBottom: '4px' }}>
+                • Cost: {key.replace(/_/g, ' ')} {value}
+              </div>
+            ))}
+            {pendingTravel.consequence && (
+              <div style={{ fontSize: '12px', color: 'var(--accent-red)' }}>
+                • Risk: {pendingTravel.consequence.replace(/_/g, ' ')}
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={handleCancelTravel}
+              style={{
+                flex: 1,
+                padding: '10px',
+                background: 'transparent',
+                border: '1px solid var(--border-primary)',
+                borderRadius: '4px',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+                fontSize: '12px',
+                fontWeight: 'bold',
+              }}
+            >
+              CANCEL
+            </button>
+            <button
+              onClick={handleConfirmTravel}
+              style={{
+                flex: 1,
+                padding: '10px',
+                background: 'var(--accent-steel)',
+                border: 'none',
+                borderRadius: '4px',
+                color: 'black',
+                cursor: 'pointer',
+                fontSize: '12px',
+                fontWeight: 'bold',
+              }}
+            >
+              CONFIRM
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
         <div>
@@ -164,7 +291,7 @@ export function RegionDetail({
               label="Direct Route"
               description="All requirements met"
               available={true}
-              onSelect={() => onTravel?.(region.id)}
+              onSelect={() => handleTravelSelect(undefined, 'Direct Route')}
             />
           ) : (
             <div style={{ fontSize: '12px', marginBottom: '8px' }}>
@@ -186,7 +313,7 @@ export function RegionDetail({
               cost={alt.cost}
               consequence={alt.consequence}
               available={alt.available}
-              onSelect={() => onTravel?.(region.id, alt.type)}
+              onSelect={() => handleTravelSelect(alt.type, alt.type.charAt(0).toUpperCase() + alt.type.slice(1), alt.cost, alt.consequence)}
             />
           ))}
 
@@ -249,7 +376,7 @@ function TravelOption({
               fontWeight: 'bold',
             }}
           >
-            TRAVEL
+            SELECT
           </button>
         )}
       </div>
