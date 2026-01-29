@@ -5,21 +5,28 @@ import type { Region, RegionData, RegionConnectivity, ContentMarker } from './ty
 import {
   getMapState,
   getRegionDetail,
-  travel,
+  proposeTravel,
+  commitTravel,
+  cancelTravel,
   onMapEvent,
   type MapState,
   type RegionDetailResponse,
+  type TravelProposal,
+  type TurnResult,
 } from '../../lib/bridge';
 import './map.css';
 
 /**
  * MapView — Container component for the SENTINEL strategic world map.
  *
- * Handles:
- * - Fetching map state from the bridge API
- * - Region selection and detail panel
- * - Travel confirmation flow (commitment gate)
- * - SSE event subscription for live updates
+ * Orchestrates the turn-based travel pipeline (Sentinel 2D §6):
+ *   1. Player clicks a region → fetch detail + propose travel (parallel)
+ *   2. RegionDetail renders the engine's ProposalResult
+ *   3. Player selects route → confirmation overlay
+ *   4. COMMIT → commitTravel() → engine resolves → TurnResult
+ *   5. Map refreshes, panel closes, parent receives TurnResult
+ *
+ * Cancel at any point calls cancelTravel() — zero side effects.
  *
  * @see architecture/Sentinel 2D.md, Section 18 (Integration Architecture)
  */
@@ -27,15 +34,14 @@ import './map.css';
 interface MapViewProps {
   /** Current session number for display */
   session?: number;
-  /** Callback when travel is initiated (for narrative log integration) */
-  onTravelInitiated?: (from: string, to: string) => void;
+  /** Callback when travel resolves with the full TurnResult */
+  onTravelComplete?: (turnResult: TurnResult) => void;
 }
 
-// Static region data loaded from regions.json via the API
-// This will be populated on first load
+// Static region data loaded from regions.json via the API — cached across renders
 let cachedRegionData: Record<string, RegionData> | null = null;
 
-export function MapView({ session, onTravelInitiated }: MapViewProps) {
+export function MapView({ session, onTravelComplete }: MapViewProps) {
   // Map state from bridge API
   const [mapState, setMapState] = useState<MapState | null>(null);
   const [regionData, setRegionData] = useState<Record<string, RegionData>>({});
@@ -47,9 +53,10 @@ export function MapView({ session, onTravelInitiated }: MapViewProps) {
   const [regionDetail, setRegionDetail] = useState<RegionDetailResponse | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  // Travel confirmation state
-  const [travelPending, setTravelPending] = useState(false);
-  const [travelTarget, setTravelTarget] = useState<{ regionId: string; via?: string } | null>(null);
+  // Turn-based travel state (replaces old travelPending/travelTarget)
+  const [activeProposal, setActiveProposal] = useState<TravelProposal | null>(null);
+  const [proposalLoading, setProposalLoading] = useState(false);
+  const [resolving, setResolving] = useState(false);
 
   // Fetch initial map state
   useEffect(() => {
@@ -59,8 +66,6 @@ export function MapView({ session, onTravelInitiated }: MapViewProps) {
         const state = await getMapState();
         setMapState(state);
 
-        // If we don't have region data yet, fetch it from the first region detail
-        // In a full implementation, this would come from a dedicated endpoint
         if (!cachedRegionData) {
           await loadRegionData(state);
         } else {
@@ -83,7 +88,6 @@ export function MapView({ session, onTravelInitiated }: MapViewProps) {
     const regions: Record<string, RegionData> = {};
     const regionIds = Object.keys(state.regions);
 
-    // Fetch region details in parallel (limited concurrency)
     const results = await Promise.allSettled(
       regionIds.map(async (id) => {
         try {
@@ -110,8 +114,8 @@ export function MapView({ session, onTravelInitiated }: MapViewProps) {
           terrain: data.terrain,
           character: data.character,
           position: data.position,
-          routes: [], // Routes are fetched per-region when needed
-          nexus_presence: 'medium', // Default
+          routes: [],
+          nexus_presence: 'medium',
           hazards: [],
           points_of_interest: [],
         };
@@ -122,12 +126,11 @@ export function MapView({ session, onTravelInitiated }: MapViewProps) {
     setRegionData(regions);
   }
 
-  // Subscribe to map events
+  // Subscribe to map events for live updates
   useEffect(() => {
     const unsubscribe = onMapEvent((event) => {
       console.log('Map event:', event);
 
-      // Refresh map state on relevant events
       if (
         event.event_type === 'map.region_changed' ||
         event.event_type === 'map.connectivity_updated' ||
@@ -140,57 +143,85 @@ export function MapView({ session, onTravelInitiated }: MapViewProps) {
     return unsubscribe;
   }, []);
 
-  // Handle region click
+  // ── Region click: fetch detail + propose travel in parallel ─────────────────
   const handleRegionClick = useCallback(async (regionId: Region) => {
+    // Cancel any existing proposal before starting a new one
+    if (activeProposal) {
+      await cancelTravel().catch(console.error);
+    }
+
     setSelectedRegion(regionId);
+    setActiveProposal(null);
     setDetailLoading(true);
 
+    const isTravelTarget = mapState != null && regionId !== mapState.current_region;
+    if (isTravelTarget) setProposalLoading(true);
+
     try {
-      const detail = await getRegionDetail(regionId);
+      // Fetch region detail and propose travel in parallel
+      const [detail, proposalResult] = await Promise.all([
+        getRegionDetail(regionId),
+        isTravelTarget ? proposeTravel(regionId) : null,
+      ]);
+
       setRegionDetail(detail);
+
+      if (proposalResult != null && proposalResult.ok) {
+        setActiveProposal(proposalResult.proposal);
+      }
     } catch (err) {
-      console.error('Failed to fetch region detail:', err);
+      console.error('Failed to load region:', err);
       setRegionDetail(null);
     } finally {
       setDetailLoading(false);
+      setProposalLoading(false);
     }
-  }, []);
+  }, [mapState, activeProposal]);
 
-  // Handle travel request
-  const handleTravel = useCallback(async (regionId: string, via?: string) => {
-    setTravelPending(true);
-    setTravelTarget({ regionId, via });
+  // ── Commit travel: crosses the commitment gate ──────────────────────────────
+  const handleCommitTravel = useCallback(async (via?: string) => {
+    setResolving(true);
 
     try {
-      const result = await travel(regionId, via);
+      const result = await commitTravel(via);
 
       if (result.ok) {
-        // Travel successful - close detail panel and refresh
+        const turnResult = result.turn_result;
+
+        // Close panel, clear proposal
         setSelectedRegion(null);
         setRegionDetail(null);
-        onTravelInitiated?.(mapState?.current_region || '', regionId);
+        setActiveProposal(null);
 
-        // Refresh map state
+        // Notify parent with the full TurnResult
+        onTravelComplete?.(turnResult);
+
+        // Refresh map state to reflect new position
         const newState = await getMapState();
         setMapState(newState);
       } else {
-        // Travel failed - show error
-        console.error('Travel failed:', result.error);
-        alert(`Travel failed: ${result.error}`);
+        console.error('Travel commit failed:', result.error);
       }
     } catch (err) {
-      console.error('Travel error:', err);
-      alert(`Travel error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      console.error('Travel commit error:', err);
     } finally {
-      setTravelPending(false);
-      setTravelTarget(null);
+      setResolving(false);
     }
-  }, [mapState, onTravelInitiated]);
+  }, [onTravelComplete]);
 
-  // Close detail panel
+  // ── Cancel travel: zero side effects ────────────────────────────────────────
+  const handleCancelTravel = useCallback(() => {
+    if (activeProposal) {
+      cancelTravel().catch(console.error);
+      setActiveProposal(null);
+    }
+  }, [activeProposal]);
+
+  // ── Close detail panel ──────────────────────────────────────────────────────
   const handleCloseDetail = useCallback(() => {
     setSelectedRegion(null);
     setRegionDetail(null);
+    setActiveProposal(null);
   }, []);
 
   // Build region states and markers from map state
@@ -244,6 +275,8 @@ export function MapView({ session, onTravelInitiated }: MapViewProps) {
     );
   }
 
+  const isCurrentRegion = selectedRegion === mapState?.current_region;
+
   return (
     <div className="map-view" style={{ position: 'relative', width: '100%', height: '100%' }}>
       <WorldMap
@@ -256,18 +289,22 @@ export function MapView({ session, onTravelInitiated }: MapViewProps) {
         session={session}
       />
 
-      {/* Region Detail Panel */}
+      {/* Region Detail Panel — driven by engine proposal */}
       {selectedRegion && regionDetail && (
         <RegionDetail
           region={regionDetail.region}
-          routes={regionDetail.routes_from_current}
           content={regionDetail.content}
-          onTravel={handleTravel}
+          proposal={activeProposal}
+          proposalLoading={proposalLoading}
+          isCurrentRegion={isCurrentRegion}
+          onCommitTravel={handleCommitTravel}
+          onCancelTravel={handleCancelTravel}
           onClose={handleCloseDetail}
+          resolving={resolving}
         />
       )}
 
-      {/* Loading overlay for detail */}
+      {/* Loading overlay for detail fetch */}
       {detailLoading && (
         <div style={{
           position: 'absolute',
@@ -285,8 +322,8 @@ export function MapView({ session, onTravelInitiated }: MapViewProps) {
         </div>
       )}
 
-      {/* Travel pending overlay */}
-      {travelPending && (
+      {/* Resolving overlay — engine is processing the committed action */}
+      {resolving && (
         <div style={{
           position: 'absolute',
           inset: 0,
@@ -305,10 +342,10 @@ export function MapView({ session, onTravelInitiated }: MapViewProps) {
             fontFamily: 'var(--font-mono)',
           }}>
             <div style={{ color: 'var(--accent-cyan)', marginBottom: '8px', fontSize: '14px' }}>
-              INITIATING TRAVEL
+              RESOLVING TRAVEL
             </div>
             <div style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>
-              Destination: {travelTarget?.regionId.replace(/_/g, ' ').toUpperCase()}
+              Engine processing turn...
             </div>
           </div>
         </div>

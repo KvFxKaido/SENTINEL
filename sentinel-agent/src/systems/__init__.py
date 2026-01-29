@@ -11,6 +11,9 @@ from .jobs import JobSystem
 from .favors import FavorSystem
 from .endgame import EndgameSystem
 from .interrupts import InterruptDetector, InterruptCandidate, InterruptTrigger, InterruptUrgency
+from .turns import TurnOrchestrator, TurnPhase, TurnError, StaleStateError
+from .validation import ActionValidator
+from .cascades import CascadeProcessor, CascadeResult, Notice, NoticeSeverity
 
 __all__ = [
     "LeverageSystem",
@@ -22,4 +25,14 @@ __all__ = [
     "InterruptCandidate",
     "InterruptTrigger",
     "InterruptUrgency",
+    # Turn-based engine (Phases 5-8)
+    "TurnOrchestrator",
+    "TurnPhase",
+    "TurnError",
+    "StaleStateError",
+    "ActionValidator",
+    "CascadeProcessor",
+    "CascadeResult",
+    "Notice",
+    "NoticeSeverity",
 ]
