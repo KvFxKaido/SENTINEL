@@ -261,6 +261,123 @@ export function subscribeToEvents(
   };
 }
 
+// ─── Map API (Sentinel 2D) ────────────────────────────────────────────────────
+
+export interface MapRegionState {
+  connectivity: 'disconnected' | 'aware' | 'connected' | 'embedded';
+  markers: Array<{
+    type: 'current' | 'job' | 'thread' | 'npc' | 'locked' | 'risky';
+    count?: number;
+  }>;
+}
+
+export interface MapState {
+  ok: true;
+  current_region: string;
+  regions: Record<string, MapRegionState>;
+}
+
+export interface RegionDetailResponse {
+  ok: true;
+  region: {
+    id: string;
+    name: string;
+    description: string;
+    primary_faction: string;
+    contested_by: string[];
+    terrain: string[];
+    character: string;
+    connectivity: 'disconnected' | 'aware' | 'connected' | 'embedded';
+    position: { x: number; y: number };
+  };
+  routes_from_current: Array<{
+    from: string;
+    to: string;
+    requirements: Array<{
+      type: string;
+      faction?: string;
+      min_standing?: string;
+      vehicle_capability?: string;
+      met: boolean;
+    }>;
+    alternatives: Array<{
+      type: string;
+      description: string;
+      cost?: Record<string, number>;
+      consequence?: string;
+      available: boolean;
+    }>;
+    traversable: boolean;
+    best_option: 'direct' | 'alternative' | 'blocked';
+  }>;
+  content: {
+    npcs: string[];
+    jobs: string[];
+    threads: string[];
+  };
+}
+
+export type MapEvent = {
+  type: 'event';
+  event_type:
+    | 'map.region_changed'
+    | 'map.connectivity_updated'
+    | 'map.marker_changed'
+    | 'map.route_status_changed';
+  data: Record<string, unknown>;
+  campaign_id: string | null;
+  session: number | null;
+  timestamp: string;
+};
+
+/**
+ * Get complete map state with all regions and content markers.
+ */
+export async function getMapState(): Promise<MapState> {
+  const response = await fetch(`${BRIDGE_URL}/map`);
+  if (!response.ok) {
+    throw new Error(`Failed to get map state: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Get detailed info for a specific region, including route feasibility.
+ */
+export async function getRegionDetail(regionId: string): Promise<RegionDetailResponse> {
+  const response = await fetch(`${BRIDGE_URL}/map/region/${encodeURIComponent(regionId)}`);
+  if (!response.ok) {
+    throw new Error(`Failed to get region detail: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Initiate travel to a region (via the existing command interface).
+ * This passes through the commitment gate — the engine validates and resolves.
+ */
+export async function travel(regionId: string, via?: string): Promise<CommandResult> {
+  const args = [regionId];
+  if (via) {
+    args.push('--via', via);
+  }
+  return sendCommand('slash', { command: 'travel', args });
+}
+
+/**
+ * Subscribe to map-specific SSE events.
+ * Returns a cleanup function to stop listening.
+ */
+export function onMapEvent(
+  handler: (event: MapEvent) => void
+): () => void {
+  return subscribeToEvents((event) => {
+    if (event.event_type.startsWith('map.')) {
+      handler(event as MapEvent);
+    }
+  });
+}
+
 // ─── Wiki API ─────────────────────────────────────────────────────────────────
 
 export interface WikiFrontmatter {

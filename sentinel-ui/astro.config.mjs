@@ -1,6 +1,9 @@
 import { defineConfig } from 'astro/config';
+import react from '@astrojs/react';
 
 export default defineConfig({
+  // React islands for interactive components (world map)
+  integrations: [react()],
   // Development server
   server: {
     port: 4321,
