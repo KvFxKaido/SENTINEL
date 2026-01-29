@@ -4,6 +4,7 @@
       "name": "The Rust Corridor",
       "description": "Great Lakes industrial belt \u2014 Detroit to Pittsburgh. Rusted factories, salvage economies, flickering power grids.",
       "primary_faction": "lattice",
+      "position": { "x": 65, "y": 32 },
       "contested_by": [
         "steel_syndicate"
       ],
@@ -90,6 +91,7 @@
       "name": "The Appalachian Hollows",
       "description": "Mountain communities that survived by going dark. Hidden valleys, coal towns turned communes.",
       "primary_faction": "ember_colonies",
+      "position": { "x": 72, "y": 52 },
       "contested_by": [
         "cultivators"
       ],
@@ -150,6 +152,7 @@
       "name": "The Gulf Passage",
       "description": "Coastal trade routes from Texas to Florida. Boat traffic, floating markets, hurricane scars.",
       "primary_faction": "wanderers",
+      "position": { "x": 55, "y": 72 },
       "contested_by": [
         "ghost_networks"
       ],
@@ -212,6 +215,7 @@
       "name": "The Breadbasket",
       "description": "Great Plains agricultural expanse. Vast fields, grain silos, scattered communities.",
       "primary_faction": "cultivators",
+      "position": { "x": 42, "y": 45 },
       "contested_by": [
         "wanderers"
       ],
@@ -281,6 +285,7 @@
       "name": "The Northern Reaches",
       "description": "Former Canada \u2014 harsh winters, isolated settlements, resource extraction.",
       "primary_faction": "covenant",
+      "position": { "x": 35, "y": 25 },
       "contested_by": [
         "ember_colonies"
       ],
@@ -348,6 +353,7 @@
       "name": "The Pacific Corridor",
       "description": "West Coast megalopolis remnants. Tech enclaves, port cities, earthquake ruins.",
       "primary_faction": "convergence",
+      "position": { "x": 12, "y": 35 },
       "contested_by": [
         "architects"
       ],
@@ -379,6 +385,7 @@
       "name": "The Desert Sprawl",
       "description": "Southwest badlands. Abandoned suburbs, solar farms, cartel territories.",
       "primary_faction": "ghost_networks",
+      "position": { "x": 18, "y": 58 },
       "contested_by": [
         "steel_syndicate"
       ],
@@ -449,6 +456,7 @@
       "name": "The Northeast Scar",
       "description": "Boston to DC corridor. Bombed infrastructure, fortified enclaves, Nexus surveillance.",
       "primary_faction": "architects",
+      "position": { "x": 85, "y": 28 },
       "contested_by": [
         "nexus"
       ],
@@ -499,6 +507,7 @@
       "name": "The Sovereign South",
       "description": "Deep South religious communities. Covenant territory with Witness enclaves.",
       "primary_faction": "witnesses",
+      "position": { "x": 70, "y": 78 },
       "contested_by": [
         "covenant"
       ],
@@ -580,6 +589,7 @@
       "name": "The Texas Spine",
       "description": "Central Texas trade hub. Oil remnants, border towns, caravan crossroads.",
       "primary_faction": "steel_syndicate",
+      "position": { "x": 38, "y": 62 },
       "contested_by": [
         "lattice"
       ],
@@ -628,6 +638,7 @@
       "name": "The Frozen Edge",
       "description": "Alaska and Yukon. Extreme isolation, bunker communities, resource caches.",
       "primary_faction": "ember_colonies",
+      "position": { "x": 50, "y": 8 },
       "contested_by": [],
       "terrain": [
         "tundra",
