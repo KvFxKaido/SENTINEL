@@ -8,15 +8,15 @@ export function MapLegend() {
     {
       symbol: (
         <svg width="16" height="16" viewBox="0 0 16 16">
-          <circle cx="8" cy="8" r="5" fill="var(--state-disconnected)" stroke="var(--border-secondary)" strokeWidth="1" />
+          <rect x="3" y="4" width="10" height="8" rx="1.5" fill="var(--metroid-unvisited-fill)" stroke="var(--metroid-unvisited-stroke)" strokeWidth="1" />
         </svg>
       ),
-      label: 'Disconnected',
+      label: 'Unvisited',
     },
     {
       symbol: (
         <svg width="16" height="16" viewBox="0 0 16 16">
-          <circle cx="8" cy="8" r="5" fill="none" stroke="var(--state-aware)" strokeWidth="2" strokeDasharray="3,3" />
+          <rect x="3" y="4" width="10" height="8" rx="1.5" fill="var(--metroid-visited-fill)" stroke="var(--metroid-visited-stroke)" strokeWidth="1.5" strokeDasharray="2,2" />
         </svg>
       ),
       label: 'Aware',
@@ -24,7 +24,7 @@ export function MapLegend() {
     {
       symbol: (
         <svg width="16" height="16" viewBox="0 0 16 16">
-          <circle cx="8" cy="8" r="5" fill="none" stroke="var(--state-connected)" strokeWidth="2" />
+          <rect x="3" y="4" width="10" height="8" rx="1.5" fill="var(--metroid-visited-fill)" stroke="var(--metroid-visited-stroke)" strokeWidth="2" />
         </svg>
       ),
       label: 'Connected',
@@ -32,7 +32,7 @@ export function MapLegend() {
     {
       symbol: (
         <svg width="16" height="16" viewBox="0 0 16 16">
-          <circle cx="8" cy="8" r="5" fill="var(--state-embedded)" stroke="var(--state-embedded)" strokeWidth="2" />
+          <rect x="3" y="4" width="10" height="8" rx="1.5" fill="var(--metroid-embedded-fill)" stroke="var(--metroid-embedded-stroke)" strokeWidth="2" />
         </svg>
       ),
       label: 'Embedded',
@@ -43,8 +43,8 @@ export function MapLegend() {
     {
       symbol: (
         <svg width="16" height="16" viewBox="0 0 16 16">
-          <circle cx="8" cy="8" r="4" fill="var(--accent-cyan)" />
-          <circle cx="8" cy="8" r="6" fill="none" stroke="var(--accent-cyan)" strokeWidth="1" opacity="0.5" />
+          <rect x="4" y="4" width="8" height="8" rx="1.5" fill="none" stroke="var(--metroid-current)" strokeWidth="2" />
+          <rect x="6" y="6" width="4" height="4" rx="1" fill="var(--metroid-current)" opacity="0.3" />
         </svg>
       ),
       label: 'Current Location',
@@ -52,8 +52,8 @@ export function MapLegend() {
     {
       symbol: (
         <svg width="16" height="16" viewBox="0 0 16 16">
-          <circle cx="8" cy="8" r="4" fill="var(--accent-green)" />
-          <text x="8" y="10" textAnchor="middle" style={{ fontSize: '8px', fill: 'black', fontWeight: 'bold' }}>J</text>
+          <rect x="2" y="6" width="4" height="4" rx="0.5" fill="var(--metroid-item-marker)" />
+          <text x="4" y="9" textAnchor="middle" style={{ fontSize: '6px', fill: 'black', fontWeight: 'bold' }}>J</text>
         </svg>
       ),
       label: 'Job Available',
@@ -61,8 +61,8 @@ export function MapLegend() {
     {
       symbol: (
         <svg width="16" height="16" viewBox="0 0 16 16">
-          <polygon points="8,3 12,11 4,11" fill="var(--accent-amber)" />
-          <text x="8" y="10" textAnchor="middle" style={{ fontSize: '8px', fill: 'black', fontWeight: 'bold' }}>!</text>
+          <polygon points="8,2 11,8 8,11 5,8" fill="var(--metroid-secret-marker)" />
+          <text x="8" y="8.5" textAnchor="middle" style={{ fontSize: '5px', fill: 'black', fontWeight: 'bold' }}>!</text>
         </svg>
       ),
       label: 'Dormant Thread',
@@ -70,8 +70,8 @@ export function MapLegend() {
     {
       symbol: (
         <svg width="16" height="16" viewBox="0 0 16 16">
-          <circle cx="8" cy="8" r="5" fill="var(--accent-purple)" />
-          <text x="8" y="10" textAnchor="middle" style={{ fontSize: '8px', fill: 'white', fontWeight: 'bold' }}>2</text>
+          <circle cx="4" cy="8" r="3" fill="var(--metroid-npc-marker)" />
+          <text x="4" y="9" textAnchor="middle" style={{ fontSize: '6px', fill: 'white', fontWeight: 'bold' }}>2</text>
         </svg>
       ),
       label: 'NPCs Present',
@@ -81,32 +81,41 @@ export function MapLegend() {
   const routeItems = [
     {
       symbol: (
-        <svg width="24" height="8" viewBox="0 0 24 8">
-          <line x1="2" y1="4" x2="22" y2="4" stroke="var(--border-primary)" strokeWidth="2" />
+        <svg width="24" height="12" viewBox="0 0 24 12">
+          {/* Metroid-style corridor: horizontal passage connecting rooms */}
+          <rect x="2" y="4" width="4" height="4" rx="1" fill="var(--metroid-visited-fill)" stroke="var(--metroid-corridor-normal)" strokeWidth="1.5" />
+          <line x1="6" y1="6" x2="18" y2="6" stroke="var(--metroid-corridor-normal)" strokeWidth="2" />
+          <rect x="18" y="4" width="4" height="4" rx="1" fill="var(--metroid-visited-fill)" stroke="var(--metroid-corridor-normal)" strokeWidth="1.5" />
         </svg>
       ),
       label: 'Open Passage',
     },
     {
       symbol: (
-        <svg width="24" height="8" viewBox="0 0 24 8">
-          <line x1="2" y1="4" x2="22" y2="4" stroke="var(--text-muted)" strokeWidth="2" strokeDasharray="4,3" />
+        <svg width="24" height="12" viewBox="0 0 24 12">
+          <rect x="2" y="4" width="4" height="4" rx="1" fill="var(--metroid-visited-fill)" stroke="var(--metroid-corridor-conditional)" strokeWidth="1.5" strokeDasharray="2,1" />
+          <line x1="6" y1="6" x2="18" y2="6" stroke="var(--metroid-corridor-conditional)" strokeWidth="2" strokeDasharray="3,2" />
+          <rect x="18" y="4" width="4" height="4" rx="1" fill="var(--metroid-visited-fill)" stroke="var(--metroid-corridor-conditional)" strokeWidth="1.5" strokeDasharray="2,1" />
         </svg>
       ),
       label: 'Conditional',
     },
     {
       symbol: (
-        <svg width="24" height="8" viewBox="0 0 24 8">
-          <line x1="2" y1="4" x2="22" y2="4" stroke="var(--accent-amber)" strokeWidth="3" />
+        <svg width="24" height="12" viewBox="0 0 24 12">
+          <rect x="2" y="4" width="4" height="4" rx="1" fill="rgba(245, 158, 11, 0.2)" stroke="var(--metroid-corridor-contested)" strokeWidth="2" />
+          <line x1="6" y1="6" x2="18" y2="6" stroke="var(--metroid-corridor-contested)" strokeWidth="2.5" />
+          <rect x="18" y="4" width="4" height="4" rx="1" fill="rgba(245, 158, 11, 0.2)" stroke="var(--metroid-corridor-contested)" strokeWidth="2" />
         </svg>
       ),
       label: 'Contested Border',
     },
     {
       symbol: (
-        <svg width="24" height="8" viewBox="0 0 24 8">
-          <line x1="2" y1="4" x2="22" y2="4" stroke="var(--accent-red)" strokeWidth="2" strokeDasharray="3,5" />
+        <svg width="24" height="12" viewBox="0 0 24 12">
+          <rect x="2" y="4" width="4" height="4" rx="1" fill="var(--metroid-visited-fill)" stroke="var(--metroid-corridor-risky)" strokeWidth="1.5" />
+          <line x1="6" y1="6" x2="18" y2="6" stroke="var(--metroid-corridor-risky)" strokeWidth="2" strokeDasharray="2,3" />
+          <rect x="18" y="4" width="4" height="4" rx="1" fill="var(--metroid-visited-fill)" stroke="var(--metroid-corridor-risky)" strokeWidth="1.5" />
         </svg>
       ),
       label: 'Risky Route',
@@ -116,7 +125,9 @@ export function MapLegend() {
   const factionItems = Object.values(FACTION_INFO).map(f => ({
     symbol: (
       <svg width="16" height="16" viewBox="0 0 16 16">
-        <circle cx="8" cy="8" r="6" fill={f.color} />
+        {/* Room outline with faction color stripe */}
+        <rect x="2" y="3" width="12" height="10" rx="1.5" fill="var(--metroid-visited-fill)" stroke="var(--metroid-visited-stroke)" strokeWidth="1.5" />
+        <rect x="11" y="4" width="2" height="8" rx="0.5" fill={f.color} opacity="0.8" />
       </svg>
     ),
     label: f.shortName,
@@ -132,8 +143,9 @@ export function MapLegend() {
         left: '16px',
         background: 'rgba(0,0,0,0.9)',
         border: '1px solid var(--border-primary)',
-        borderRadius: '8px',
-        backdropFilter: 'blur(8px)',
+        borderRadius: '12px',
+        backdropFilter: 'blur(16px)',
+        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
         overflow: 'hidden',
         maxWidth: isExpanded ? '280px' : '140px',
       }}
@@ -143,7 +155,7 @@ export function MapLegend() {
         onClick={() => setIsExpanded(!isExpanded)}
         style={{
           width: '100%',
-          padding: '8px 12px',
+          padding: '12px 16px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -153,8 +165,13 @@ export function MapLegend() {
           color: 'var(--text-secondary)',
         }}
       >
-        <span className="terminal-text" style={{ fontSize: '12px', fontWeight: 'bold', letterSpacing: '0.05em' }}>
-          MAP LEGEND
+        <span className="terminal-text" style={{
+          fontSize: '11px',
+          fontWeight: 'bold',
+          letterSpacing: '0.1em',
+          textTransform: 'uppercase',
+        }}>
+          Map Data
         </span>
         <svg
           width="12"
@@ -166,11 +183,18 @@ export function MapLegend() {
         </svg>
       </button>
 
+      {/* Top accent line */}
+      <div style={{
+        height: '1px',
+        background: 'linear-gradient(90deg, transparent 0%, var(--accent-steel) 30%, var(--accent-cyan) 50%, var(--accent-steel) 70%, transparent 100%)',
+        opacity: 0.6,
+      }} />
+
       {isExpanded && (
-        <div style={{ padding: '0 12px 12px', maxHeight: '400px', overflowY: 'auto' }}>
+        <div style={{ padding: '0 16px 16px', maxHeight: '400px', overflowY: 'auto' }}>
           {/* Connectivity States */}
-          <Section title="Connectivity">
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+          <Section title="Sectors">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               {connectivityItems.map((item, idx) => (
                 <LegendItem key={idx} symbol={item.symbol} label={item.label} />
               ))}
@@ -178,8 +202,8 @@ export function MapLegend() {
           </Section>
 
           {/* Content Markers */}
-          <Section title="Markers">
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+          <Section title="Signals">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               {markerItems.map((item, idx) => (
                 <LegendItem key={idx} symbol={item.symbol} label={item.label} />
               ))}
@@ -187,36 +211,40 @@ export function MapLegend() {
           </Section>
 
           {/* Route Types */}
-          <Section title="Routes">
+          <Section title="Passages">
             {routeItems.map((item, idx) => (
               <LegendItem key={idx} symbol={item.symbol} label={item.label} />
             ))}
           </Section>
 
           {/* Factions */}
-          <Section title="Factions">
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+          <Section title="Networks">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
               {factionItems.map((item, idx) => (
                 <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   {item.symbol}
-                  <span style={{ fontSize: '12px', color: item.color }}>{item.label}</span>
+                  <span style={{ fontSize: '11px', color: item.color, fontWeight: 500 }}>{item.label}</span>
                 </div>
               ))}
             </div>
           </Section>
 
           {/* Help text */}
-          <div style={{ paddingTop: '8px', borderTop: '1px solid var(--border-secondary)' }}>
-            <p style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: '1.5' }}>
-              Hover over regions for details. Click to select.
-              Connectivity represents your social network, not geographic knowledge.
+          <div style={{
+            paddingTop: '12px',
+            borderTop: '1px solid var(--border-secondary)',
+            marginTop: '8px',
+          }}>
+            <p style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: '1.5', margin: 0 }}>
+              Rooms show network reach. Yellow = current sector.
+              Corridors link adjacent regions. Markers indicate content.
             </p>
           </div>
         </div>
       )}
 
       {!isExpanded && (
-        <div style={{ padding: '0 12px 8px' }}>
+        <div style={{ padding: '0 16px 12px' }}>
           <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: 0 }}>
             Click to expand
           </p>
@@ -229,7 +257,23 @@ export function MapLegend() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: '16px' }}>
-      <h4 className="terminal-text" style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--text-muted)', marginBottom: '8px', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+      <h4 className="terminal-text" style={{ 
+        fontSize: '9px', 
+        fontWeight: 'bold', 
+        color: 'var(--text-muted)', 
+        marginBottom: '10px', 
+        letterSpacing: '0.12em', 
+        textTransform: 'uppercase',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+      }}>
+        <span style={{
+          width: '8px',
+          height: '2px',
+          background: 'var(--accent-steel)',
+          borderRadius: '1px',
+        }} />
         {title}
       </h4>
       {children}
@@ -239,9 +283,19 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function LegendItem({ symbol, label }: { symbol: React.ReactNode; label: string }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+    <div style={{ 
+      display: 'flex', 
+      alignItems: 'center', 
+      gap: '10px',
+      padding: '4px 8px',
+      borderRadius: '4px',
+      transition: 'background 0.15s ease',
+    }}>
       {symbol}
-      <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{label}</span>
+      <span style={{ 
+        fontSize: '11px', 
+        color: 'var(--text-secondary)',
+      }}>{label}</span>
     </div>
   );
 }

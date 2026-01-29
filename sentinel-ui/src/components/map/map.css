@@ -7,7 +7,8 @@
   --bg-primary: #000000;
   --bg-secondary: #0a0a0a;
   --bg-tertiary: #121212;
-  --bg-panel: #0d0d0d;
+  --bg-panel: rgba(13, 13, 13, 0.95);
+  --bg-panel-glass: rgba(10, 10, 10, 0.85);
 
   /* Accent Colors */
   --accent-steel: #79c0ff;
@@ -16,6 +17,7 @@
   --accent-amber: #ffa657;
   --accent-red: #f85149;
   --accent-purple: #d2a8ff;
+  --accent-gold: #ffd700;
 
   /* Text Colors */
   --text-primary: #e6edf3;
@@ -25,6 +27,7 @@
   /* Border Colors */
   --border-primary: #30363d;
   --border-secondary: #21262d;
+  --border-glow: rgba(121, 192, 255, 0.3);
 
   /* Faction Colors */
   --faction-nexus: #a855f7;
@@ -39,16 +42,88 @@
   --faction-architects: #6366f1;
   --faction-ghost: #6b7280;
 
-  /* Connectivity States */
+  /* Connectivity States (Legacy - keep for compatibility) */
   --state-disconnected: #21262d;
   --state-aware: #30363d;
   --state-connected: var(--accent-steel);
   --state-embedded: var(--accent-cyan);
+
+  /* Metroidvania Map Theme */
+  /* Unvisited rooms - dark gray/blue like unexplored areas in Metroid */
+  --metroid-unvisited-fill: rgba(40, 45, 55, 0.3);
+  --metroid-unvisited-stroke: #4a5568;
+
+  /* Visited/connected rooms - white outline like explored areas */
+  --metroid-visited-fill: rgba(30, 35, 45, 0.5);
+  --metroid-visited-stroke: #a0aec0;
+
+  /* Embedded rooms - bright filled like save stations/special rooms */
+  --metroid-embedded-fill: rgba(86, 212, 221, 0.15);
+  --metroid-embedded-stroke: var(--accent-cyan);
+
+  /* Current location - energy tank yellow/gold with pulse */
+  --metroid-current: #fbbf24;
+  --metroid-current-glow: 0 0 20px rgba(251, 191, 36, 0.6);
+
+  /* Corridor colors - different types of paths */
+  --metroid-corridor-normal: #6b7280;
+  --metroid-corridor-conditional: #9ca3af;
+  --metroid-corridor-contested: #f59e0b;
+  --metroid-corridor-risky: #ef4444;
+
+  /* Item/Content markers - Metroid item dot colors */
+  --metroid-item-marker: #4ade80;      /* Green for jobs */
+  --metroid-secret-marker: #fbbf24;    /* Yellow/amber for threads */
+  --metroid-npc-marker: #a855f7;       /* Purple for NPCs */
+  --metroid-locked-marker: #ef4444;    /* Red for locked */
+
+  /* Glow Effects */
+  --glow-cyan: 0 0 20px rgba(86, 212, 221, 0.4);
+  --glow-steel: 0 0 20px rgba(121, 192, 255, 0.3);
+  --glow-amber: 0 0 15px rgba(255, 166, 87, 0.3);
+  --glow-metroid-current: 0 0 25px rgba(251, 191, 36, 0.5);
 }
 
-/* Map container */
+/* Map container - Metroid map aesthetic */
 .map-container {
-  background: radial-gradient(ellipse at center, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+  background:
+    /* Subtle vignette like Metroid's dark map edges */
+    radial-gradient(ellipse at center, transparent 0%, rgba(0, 0, 0, 0.4) 100%),
+    /* Sector glow - subtle cyan like map terminals */
+    radial-gradient(ellipse at 30% 20%, rgba(86, 212, 221, 0.02) 0%, transparent 40%),
+    radial-gradient(ellipse at 70% 80%, rgba(86, 212, 221, 0.02) 0%, transparent 40%),
+    /* Base gradient - dark like Samus's map screen */
+    linear-gradient(180deg, var(--bg-primary) 0%, #050a10 50%, var(--bg-primary) 100%);
+  position: relative;
+}
+
+/* Holographic map header */
+.map-header {
+  background: var(--bg-panel-glass);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  padding: 12px 16px;
+  backdrop-filter: blur(12px);
+  box-shadow: 
+    0 4px 24px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.map-header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, 
+    transparent 0%, 
+    var(--accent-cyan) 20%, 
+    var(--accent-steel) 50%, 
+    var(--accent-cyan) 80%, 
+    transparent 100%
+  );
+  opacity: 0.5;
 }
 
 /* Terminal monospace text */
@@ -57,15 +132,61 @@
   letter-spacing: -0.01em;
 }
 
-/* Pulsing animation for current location */
+/* Holographic text effect */
+.holographic-text {
+  background: linear-gradient(135deg, 
+    var(--accent-cyan) 0%, 
+    var(--accent-steel) 50%, 
+    var(--accent-cyan) 100%
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 0 0 30px rgba(86, 212, 221, 0.3);
+}
+
+/* Pulsing animation for current location - Metroid energy tank style */
 @keyframes pulse-glow {
   0%, 100% {
-    filter: drop-shadow(0 0 4px var(--accent-cyan));
+    filter: drop-shadow(0 0 4px var(--metroid-current)) drop-shadow(0 0 8px var(--metroid-current));
     opacity: 1;
+    stroke-opacity: 1;
   }
   50% {
-    filter: drop-shadow(0 0 12px var(--accent-cyan));
-    opacity: 0.8;
+    filter: drop-shadow(0 0 12px var(--metroid-current)) drop-shadow(0 0 20px var(--metroid-current));
+    opacity: 0.7;
+    stroke-opacity: 0.6;
+  }
+}
+
+/* Metroid current room pulse - alternating bright/dim like energy tanks */
+@keyframes metroid-energy-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 6px var(--metroid-current)) drop-shadow(0 0 12px var(--metroid-current));
+    stroke: var(--metroid-current);
+    stroke-width: 3;
+    fill-opacity: 0.2;
+  }
+  50% {
+    filter: drop-shadow(0 0 15px var(--metroid-current)) drop-shadow(0 0 25px var(--metroid-current));
+    stroke: #fcd34d;
+    stroke-width: 3.5;
+    fill-opacity: 0.35;
+  }
+}
+
+.metroid-current-room {
+  animation: metroid-energy-pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
   }
 }
 
@@ -73,15 +194,25 @@
   animation: pulse-glow 2s ease-in-out infinite;
 }
 
+.pulse-ring {
+  animation: pulse-ring 1.5s ease-out infinite;
+  transform-origin: center;
+}
+
 /* Node hover effect */
 .region-node {
-  transition: all 0.2s ease;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
 }
 
 .region-node:hover {
-  filter: brightness(1.3);
-  transform: scale(1.05);
+  filter: brightness(1.4) drop-shadow(0 0 8px var(--accent-steel));
+  transform: scale(1.08);
+}
+
+/* Holographic region node */
+.region-node-holographic {
+  filter: drop-shadow(0 0 4px currentColor);
 }
 
 /* Connection line styles */
@@ -90,24 +221,172 @@
   transition: stroke 0.3s ease, stroke-width 0.3s ease;
 }
 
+/* Metroid corridor styles - corridor/room connections */
+.connection-corridor {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: all 0.3s ease;
+}
+
+.connection-corridor:hover {
+  filter: drop-shadow(0 0 4px currentColor);
+  stroke-width: 3;
+}
+
+/* Region node - Metroid room style */
+.region-node {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+}
+
+.region-node:hover {
+  filter: brightness(1.3) drop-shadow(0 0 6px var(--metroid-visited-stroke));
+}
+
+.region-node rect {
+  transition: all 0.2s ease;
+}
+
+/* Room discovery animation - fade in like Metroid map reveals */
+@keyframes room-discover {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.region-node.discovered {
+  animation: room-discover 0.5s ease-out;
+}
+
+/* Animated data flow on connections */
+@keyframes data-flow {
+  0% {
+    stroke-dashoffset: 20;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+.connection-line.active {
+  stroke-dasharray: 5, 5;
+  animation: data-flow 1s linear infinite;
+}
+
+.connection-line.animated {
+  stroke-dasharray: 8, 4;
+  animation: data-flow 2s linear infinite;
+}
+
 /* Tooltip styling */
 .map-tooltip {
-  background: var(--bg-panel);
+  background: var(--bg-panel-glass);
   border: 1px solid var(--border-primary);
-  border-radius: 4px;
+  border-radius: 8px;
   padding: 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(8px);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(121, 192, 255, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
   max-width: 320px;
 }
 
-/* Grid overlay effect */
+.map-tooltip::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, 
+    transparent 0%, 
+    var(--accent-steel) 50%, 
+    transparent 100%
+  );
+  opacity: 0.6;
+}
+
+/* Grid overlay effect - Metroid map style */
 .grid-overlay {
   background-image:
-    linear-gradient(rgba(121, 192, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(121, 192, 255, 0.03) 1px, transparent 1px);
-  background-size: 40px 40px;
+    linear-gradient(rgba(86, 212, 221, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(86, 212, 221, 0.04) 1px, transparent 1px);
+  background-size: 25px 25px;
   pointer-events: none;
+}
+
+/* Darker grid for unvisited areas - like Metroid's dark map areas */
+.grid-overlay-unvisited {
+  background-image:
+    linear-gradient(rgba(75, 85, 99, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(75, 85, 99, 0.08) 1px, transparent 1px);
+  background-size: 25px 25px;
+  pointer-events: none;
+  mask-image: radial-gradient(ellipse at center, transparent 0%, black 70%);
+}
+
+/* Animated grid effect - subtle scan like Metroid map */
+.grid-overlay-animated {
+  background-image:
+    linear-gradient(rgba(86, 212, 221, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(86, 212, 221, 0.05) 1px, transparent 1px);
+  background-size: 25px 25px;
+  pointer-events: none;
+  animation: grid-pan 30s linear infinite;
+}
+
+@keyframes grid-pan {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 25px 25px;
+  }
+}
+
+/* Map scanline animation - like Metroid's CRT map display */
+@keyframes map-scanline {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh);
+    opacity: 0;
+  }
+}
+
+.map-scanline::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(180deg,
+    transparent 0%,
+    rgba(86, 212, 221, 0.1) 50%,
+    transparent 100%
+  );
+  animation: map-scanline 8s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 5;
 }
 
 /* Nexus presence overlay */
@@ -137,6 +416,200 @@
   z-index: 10;
 }
 
+/* Enhanced scanline with color tint */
+.scanlines-color::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(86, 212, 221, 0.02) 2px,
+    rgba(86, 212, 221, 0.02) 4px
+  );
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Region Detail Panel - Glassmorphism */
+.region-detail-panel {
+  background: var(--bg-panel-glass) !important;
+  border: 1px solid var(--border-primary) !important;
+  border-radius: 12px !important;
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(121, 192, 255, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+  backdrop-filter: blur(16px) !important;
+}
+
+.region-detail-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 16px;
+  right: 16px;
+  height: 1px;
+  background: linear-gradient(90deg, 
+    transparent 0%, 
+    var(--accent-steel) 30%, 
+    var(--accent-cyan) 50%, 
+    var(--accent-steel) 70%, 
+    transparent 100%
+  );
+  opacity: 0.6;
+}
+
+/* Panel header accent */
+.region-detail-header {
+  position: relative;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border-secondary);
+}
+
+.region-detail-header::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 60px;
+  height: 1px;
+  background: linear-gradient(90deg, var(--accent-cyan), transparent);
+}
+
+/* Cost item styling */
+.cost-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  margin-bottom: 4px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  border-left: 2px solid var(--accent-amber);
+  font-size: 12px;
+}
+
+.cost-item.danger {
+  border-left-color: var(--accent-red);
+}
+
+.cost-item.free {
+  border-left-color: var(--accent-green);
+}
+
+/* Travel option cards */
+.travel-option-card {
+  background: linear-gradient(135deg, rgba(18, 18, 18, 0.8) 0%, rgba(10, 10, 10, 0.9) 100%);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 8px;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.travel-option-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 100%;
+  background: linear-gradient(180deg, var(--accent-steel), var(--accent-cyan));
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.travel-option-card:hover {
+  border-color: var(--border-glow);
+  transform: translateX(4px);
+  box-shadow: var(--glow-steel);
+}
+
+.travel-option-card:hover::before {
+  opacity: 1;
+}
+
+.travel-option-card.selected {
+  border-color: var(--accent-cyan);
+  background: linear-gradient(135deg, rgba(86, 212, 221, 0.1) 0%, rgba(10, 10, 10, 0.9) 100%);
+}
+
+.travel-option-card.selected::before {
+  opacity: 1;
+}
+
+/* Faction badge */
+.faction-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid currentColor;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.faction-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 6px currentColor;
+}
+
+/* Connectivity badge */
+.connectivity-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.connectivity-badge::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* Section divider with label */
+.section-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0 12px;
+  color: var(--text-muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.section-divider::before,
+.section-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border-primary), transparent);
+}
+
 /* Selection ring animation */
 @keyframes selection-pulse {
   0%, 100% {
@@ -151,6 +624,11 @@
 
 .selection-ring {
   animation: selection-pulse 1.5s ease-in-out infinite;
+}
+
+/* Spinner animation */
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 /* Custom scrollbar for map panels */
