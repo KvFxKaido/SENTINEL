@@ -196,7 +196,7 @@ class CascadeProcessor:
         all_events.extend(derived_from_cascades)
         all_notices.extend(derived_notices)
 
-                standing.shift(propagated_delta)
+        return all_events, all_notices
 
     # ─── Faction Propagation ─────────────────────────────────
 

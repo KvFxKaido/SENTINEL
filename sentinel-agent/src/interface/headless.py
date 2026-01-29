@@ -372,11 +372,7 @@ class HeadlessRunner:
         Propose travel to a region — returns costs and requirements.
 
         No state mutation occurs. The player reviews the ProposalResult
-            # Serialize ProposalResult for JSON transport
-            return {
-                "ok": True,
-                "proposal": result.model_dump(),
-            }
+        and decides whether to commit or cancel.
         """
         campaign = self.manager.current
         if not campaign:
