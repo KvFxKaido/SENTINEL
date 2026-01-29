@@ -13,7 +13,11 @@ export type SentinelCommand =
   | { cmd: "save" }
   | { cmd: "quit" }
   | { cmd: "map_state" }
-  | { cmd: "map_region"; region_id: string };
+  | { cmd: "map_region"; region_id: string }
+  // Turn-based travel commands (Sentinel 2D Phase 7)
+  | { cmd: "travel_propose"; region_id: string; via?: string }
+  | { cmd: "travel_commit"; via?: string }
+  | { cmd: "travel_cancel" };
 
 // Response from Sentinel
 export interface SentinelResponse {
@@ -81,11 +85,6 @@ export interface ContentMarker {
   type: "current" | "job" | "thread" | "npc" | "locked" | "risky";
   count?: number;
 }
-export interface MapState {
-  ok: boolean;
-  current_region: Region;
-  regions: Record<Region, RegionMapState>;
-}
 export interface RegionMapState {
   connectivity: RegionConnectivity;
   markers: ContentMarker[];
@@ -148,3 +147,88 @@ export type MapEventType =
   | "map.connectivity_updated"
   | "map.marker_changed"
   | "map.route_status_changed";
+
+// ─── Turn-Based Travel Types (Sentinel 2D Phase 7) ─────────────────────────
+
+export type RequirementStatus = "met" | "unmet" | "bypassable";
+
+export interface TravelRequirement {
+  label: string;
+  status: RequirementStatus;
+  detail: string;
+  bypass: string | null;
+}
+
+export interface TravelCostPreview {
+  turns: number;
+  social_energy: number;
+  credits: number;
+  fuel: number;
+  condition: number;
+  standing_changes: Record<string, number>;
+}
+
+export interface TravelRisk {
+  label: string;
+  severity: "low" | "medium" | "high";
+  detail: string;
+}
+
+export interface TravelAlternative {
+  label: string;
+  type: string;
+  description: string;
+  consequence: string | null;
+  costs: {
+    turns: number;
+    social_energy: number;
+    credits: number;
+  };
+}
+
+export interface TravelProposal {
+  action_type: "travel";
+  region_id: Region;
+  state_version: number;
+  feasible: boolean;
+  summary: string;
+  requirements: TravelRequirement[];
+  costs: TravelCostPreview;
+  risks: TravelRisk[];
+  alternatives: TravelAlternative[];
+}
+
+export interface TravelProposalResponse {
+  ok: true;
+  proposal: TravelProposal;
+}
+
+export interface TurnEventResult {
+  event_id: string;
+  event_type: string;
+  summary: string;
+  cascade_depth: number;
+  payload: Record<string, unknown>;
+}
+
+export interface CascadeNotice {
+  headline: string;
+  details: string[];
+  severity: "info" | "warning" | "critical";
+}
+
+export interface TurnResult {
+  action_id: string;
+  success: boolean;
+  state_version: number;
+  turn_number: number;
+  events: TurnEventResult[];
+  cascade_notices: CascadeNotice[];
+  narrative_hooks: string[];
+  state_snapshot: Record<string, unknown>;
+}
+
+export interface TravelCommitResponse {
+  ok: true;
+  turn_result: TurnResult;
+}

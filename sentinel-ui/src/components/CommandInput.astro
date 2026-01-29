@@ -177,6 +177,49 @@
   const input = document.getElementById('command-input') as HTMLInputElement;
   const narrativeLog = document.getElementById('narrative-log');
 
+  // ---------------------------------------------------------------------------
+  // Session Storage — persist narrative log across page navigation
+  // ---------------------------------------------------------------------------
+  const STORAGE_KEY = 'sentinel_narrative_log';
+  const MAX_STORED_MESSAGES = 200;
+
+  interface StoredMessage {
+    role: 'user' | 'gm' | 'system' | 'error';
+    content: string;
+    meta?: MessageMeta;
+  }
+
+  function persistMessages(entry: StoredMessage) {
+    try {
+      const raw = sessionStorage.getItem(STORAGE_KEY);
+      const messages: StoredMessage[] = raw ? JSON.parse(raw) : [];
+      messages.push(entry);
+      // Keep only the most recent messages to avoid storage limits
+      if (messages.length > MAX_STORED_MESSAGES) {
+        messages.splice(0, messages.length - MAX_STORED_MESSAGES);
+      }
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+    } catch { /* storage full or unavailable — degrade silently */ }
+  }
+
+  function restoreMessages() {
+    try {
+      const raw = sessionStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const messages: StoredMessage[] = JSON.parse(raw);
+      if (messages.length === 0) return;
+
+      // Remove welcome banner before restoring
+      const welcome = narrativeLog?.querySelector('.welcome-message');
+      if (welcome) welcome.remove();
+
+      // Re-render each stored message (skip persistence to avoid duplication)
+      for (const msg of messages) {
+        addMessage(msg.role, msg.content, msg.meta || {}, true);
+      }
+    } catch { /* corrupt data — start fresh */ }
+  }
+
   // -----------------------------------------------------------------------------
   // Tab Completion
   // -----------------------------------------------------------------------------
@@ -323,6 +366,14 @@
         // Slash command
         const [cmd, ...args] = text.slice(1).split(' ');
 
+        // Client-side: clear narrative log + storage
+        if (cmd === 'clear') {
+          if (narrativeLog) narrativeLog.innerHTML = '';
+          sessionStorage.removeItem(STORAGE_KEY);
+          form.classList.remove('loading');
+          return;
+        }
+
         // Client-side visual test
         if (cmd === 'test') {
           addMessage('gm', 'Kira Vance: "Secure channel established. Visual diagnostics green. The Codec system is operational."');
@@ -358,6 +409,11 @@
           const bridgeCommands = ['backend', 'load', 'new'];
           if (bridgeCommands.includes(cmd.toLowerCase()) && (window as any).refreshBridgeState) {
             await (window as any).refreshBridgeState();
+          }
+
+          // Clear stored narrative when switching campaigns
+          if (['load', 'new'].includes(cmd.toLowerCase())) {
+            sessionStorage.removeItem(STORAGE_KEY);
           }
         } else {
           addMessage('error', result.error || 'Command failed');
@@ -537,8 +593,13 @@
   function addMessage(
     role: 'user' | 'gm' | 'system' | 'error',
     content: string,
-    meta: MessageMeta = {}
+    meta: MessageMeta = {},
+    _skipPersist = false
   ) {
+    // Persist to sessionStorage so messages survive page navigation
+    if (!_skipPersist) {
+      persistMessages({ role, content, meta });
+    }
     // Remove welcome message if present
     const welcome = narrativeLog?.querySelector('.welcome-message');
     if (welcome) {
@@ -894,4 +955,12 @@
   }
 
   (window as any).addNarrativeMessage = addMessage;
+
+  // Clear stored log when loading a different campaign
+  (window as any).clearNarrativeStorage = () => {
+    sessionStorage.removeItem(STORAGE_KEY);
+  };
+
+  // Restore messages from previous page visit
+  restoreMessages();
 </script>

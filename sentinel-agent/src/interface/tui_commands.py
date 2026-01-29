@@ -718,10 +718,15 @@ def tui_mission(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
     # Subcommand: new — request a new mission from GM
     if subcmd == "new":
         hint = " ".join(args[1:]) if len(args) > 1 else ""
-        action = "REQUEST_MISSION"
+        prompt = (
+            "Generate a mission briefing for me. Consider my current faction standings "
+            "and any dormant threads that might be relevant. Present the situation, "
+            "who's asking, what's at stake, and the competing truths involved. "
+            "Include the urgency level: routine, pressing, urgent, or critical."
+        )
         if hint:
-            action = f"REQUEST_MISSION: {hint}"
-        app.handle_action(action)
+            prompt += f" I'm particularly interested in: {hint}"
+        app.handle_action(prompt)
         return
 
     # Default: show pending offers
@@ -787,7 +792,7 @@ def tui_help(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
         f"  [{Theme.ACCENT}]/arc[/{Theme.ACCENT}] - View character arcs\n"
         f"\n[bold {Theme.TEXT}]Session:[/bold {Theme.TEXT}]\n"
         f"  [{Theme.ACCENT}]/start[/{Theme.ACCENT}] - Begin story\n"
-        f"  [{Theme.ACCENT}]/mission[/{Theme.ACCENT}] - Request mission\n"
+        f"  [{Theme.ACCENT}]/mission[/{Theme.ACCENT}] - View offers | /mission new [hint] | accept/decline <n>\n"
         f"  [{Theme.ACCENT}]/consult[/{Theme.ACCENT}] [topic] - Ask for advice\n"
         f"  [{Theme.ACCENT}]/debrief[/{Theme.ACCENT}] - End session\n"
         f"\n[bold {Theme.TEXT}]Info:[/bold {Theme.TEXT}]\n"

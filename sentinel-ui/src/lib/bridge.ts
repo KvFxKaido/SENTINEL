@@ -370,6 +370,7 @@ export async function getRegionDetail(regionId: string): Promise<RegionDetailRes
 /**
  * Initiate travel to a region (via the existing command interface).
  * This passes through the commitment gate — the engine validates and resolves.
+ * @deprecated Use proposeTravel() + commitTravel() for turn-based travel
  */
 export async function travel(regionId: string, via?: string): Promise<CommandResult> {
   const args = [regionId];
@@ -377,6 +378,119 @@ export async function travel(regionId: string, via?: string): Promise<CommandRes
     args.push('--via', via);
   }
   return sendCommand('slash', { command: 'travel', args });
+}
+
+// ─── Turn-Based Travel (Sentinel 2D Phase 7) ──────────────────────────────
+
+export interface TravelProposal {
+  action_type: 'travel';
+  region_id: string;
+  state_version: number;
+  feasible: boolean;
+  summary: string;
+  requirements: Array<{
+    label: string;
+    status: 'met' | 'unmet' | 'bypassable';
+    detail: string;
+    bypass: string | null;
+  }>;
+  costs: {
+    turns: number;
+    social_energy: number;
+    credits: number;
+    fuel: number;
+    condition: number;
+    standing_changes: Record<string, number>;
+  };
+  risks: Array<{
+    label: string;
+    severity: 'low' | 'medium' | 'high';
+    detail: string;
+  }>;
+  alternatives: Array<{
+    label: string;
+    type: string;
+    description: string;
+    consequence: string | null;
+    costs: { turns: number; social_energy: number; credits: number };
+  }>;
+}
+
+export interface TravelProposalResponse {
+  ok: true;
+  proposal: TravelProposal;
+}
+
+export interface TurnEventSummary {
+  event_id: string;
+  event_type: string;
+  summary: string;
+  cascade_depth: number;
+  payload: Record<string, unknown>;
+}
+
+export interface CascadeNotice {
+  headline: string;
+  details: string[];
+  severity: 'info' | 'warning' | 'critical';
+}
+
+export interface TurnResult {
+  action_id: string;
+  success: boolean;
+  state_version: number;
+  turn_number: number;
+  events: TurnEventSummary[];
+  cascade_notices: CascadeNotice[];
+  narrative_hooks: string[];
+  state_snapshot: Record<string, unknown>;
+}
+
+export interface TravelCommitResponse {
+  ok: true;
+  turn_result: TurnResult;
+}
+
+/**
+ * Propose travel to a region — returns costs, requirements, and alternatives.
+ * No state mutation occurs. Cancel at any point with cancelTravel().
+ */
+export async function proposeTravel(
+  regionId: string,
+): Promise<TravelProposalResponse | { ok: false; error: string }> {
+  const response = await fetch(`${BRIDGE_URL}/command`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cmd: 'travel_propose', region_id: regionId }),
+  });
+  return response.json();
+}
+
+/**
+ * Commit the proposed travel — this is the commitment gate.
+ * Resolves deterministically and returns a TurnResult with events and state.
+ */
+export async function commitTravel(
+  via?: string,
+): Promise<TravelCommitResponse | { ok: false; error: string }> {
+  const response = await fetch(`${BRIDGE_URL}/command`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cmd: 'travel_commit', via }),
+  });
+  return response.json();
+}
+
+/**
+ * Cancel the pending travel proposal — zero side effects.
+ */
+export async function cancelTravel(): Promise<{ ok: boolean; message?: string; error?: string }> {
+  const response = await fetch(`${BRIDGE_URL}/command`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cmd: 'travel_cancel' }),
+  });
+  return response.json();
 }
 
 /**

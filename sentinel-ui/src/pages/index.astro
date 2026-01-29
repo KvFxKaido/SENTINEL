@@ -661,14 +661,7 @@ import CommandInput from '../components/CommandInput.astro';
       'enhancement.called',
     ];
     if (refreshEvents.includes(event.event_type)) {
-      try {
-        const campaignState = await getCampaignState();
-        if (campaignState.ok) {
-          updateCampaignUI(campaignState);
-        }
-      } catch (err) {
-        console.error('Failed to refresh campaign state:', err);
-      }
+      debouncedRefreshCampaignState();
     }
   }
 
@@ -686,17 +679,35 @@ import CommandInput from '../components/CommandInput.astro';
     }
   }
 
-  // Global refresh functions
-  (window as any).refreshCampaignState = async () => {
-    try {
-      const campaignState = await getCampaignState();
-      if (campaignState.ok) {
-        updateCampaignUI(campaignState);
+  // Debounced campaign refresh — coalesces rapid-fire events into one update
+  let _refreshTimer: ReturnType<typeof setTimeout> | null = null;
+  let _refreshPromise: Promise<void> | null = null;
+
+  function debouncedRefreshCampaignState(delayMs = 300): Promise<void> {
+    if (_refreshTimer) clearTimeout(_refreshTimer);
+    _refreshPromise ??= new Promise<void>((resolve) => {
+      // resolve is captured below after the timer fires
+      (debouncedRefreshCampaignState as any)._resolve = resolve;
+    });
+    const existing = _refreshPromise;
+    _refreshTimer = setTimeout(async () => {
+      _refreshTimer = null;
+      _refreshPromise = null;
+      try {
+        const campaignState = await getCampaignState();
+        if (campaignState.ok) {
+          updateCampaignUI(campaignState);
+        }
+      } catch (err) {
+        console.error('Failed to refresh campaign state:', err);
       }
-    } catch (err) {
-      console.error('Failed to refresh campaign state:', err);
-    }
-  };
+      (debouncedRefreshCampaignState as any)._resolve?.();
+    }, delayMs);
+    return existing;
+  }
+
+  // Global refresh functions
+  (window as any).refreshCampaignState = () => debouncedRefreshCampaignState();
 
   (window as any).refreshBridgeState = async () => {
     try {
