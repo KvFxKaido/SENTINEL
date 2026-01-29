@@ -81,7 +81,11 @@ export interface ContentMarker {
   type: "current" | "job" | "thread" | "npc" | "locked" | "risky";
   count?: number;
 }
-
+export interface MapState {
+  ok: boolean;
+  current_region: Region;
+  regions: Record<Region, RegionMapState>;
+}
 export interface RegionMapState {
   connectivity: RegionConnectivity;
   markers: ContentMarker[];
