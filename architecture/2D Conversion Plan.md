@@ -796,11 +796,183 @@ If no, the 2D layer is still ornamental.
 
 ---
 
-Godot Migration Path (Fallback)
+Art Asset Strategy (New)
 
-(unchanged — architecture remains compatible)
+Constraint-First Asset Pipeline
+
+Art production for SENTINEL 2D prioritizes consistency, legibility, and constraint over expressiveness or volume. LLMs are treated as junior production tools, not creative directors.
 
 
 ---
 
-Final Note: The remaining work is not about responsiveness or content. It is about withholding. The 2D layer must sometimes stare back and say nothing.
+Core Principle
+
+> Do not describe vibes. Enforce rules.
+
+
+
+Art direction is defined through fixed grammars that the asset generator must comply with. Any output that violates constraints is discarded without iteration.
+
+
+---
+
+Asset Grammar (Design-Binding)
+
+Camera & Scale
+
+Fixed isometric perspective
+
+Consistent tile ratio across all maps
+
+Character height expressed in tiles (locked)
+
+Doors, walls, and props snap to tile grid
+
+
+Palette
+
+Muted, desaturated colors only
+
+No pure whites or neons
+
+Metals skew blue-gray
+
+Fabrics skew brown/olive
+
+Blood and damage indicators are dark and restrained
+
+
+Detail Budget
+
+No micro-texture noise
+
+No decorative clutter
+
+Silhouette clarity > surface detail
+
+Fewer props with clearer purpose
+
+
+
+---
+
+Production Stages
+
+1. Blockout Phase (Mandatory)
+
+Flat colors only
+
+No textures
+
+No lighting effects
+
+Focus on proportion, silhouette, and scale
+
+
+LLM prompts at this stage must request blockouts only. Any textured or stylized output is rejected.
+
+2. Texture & Material Pass (Selective)
+
+Applied only after blockout approval
+
+Limited palette overlays
+
+No additional geometry introduced
+
+
+
+---
+
+Shape Before Style
+
+LLMs are never permitted to invent:
+
+Proportions
+
+Silhouettes
+
+Camera framing
+
+
+These are locked by specification before generation. Texture and color are applied only after shapes are approved.
+
+
+---
+
+Role-Based Asset Definition
+
+Assets are defined by role, not appearance.
+
+Example:
+
+Guard NPC:
+
+Tall vertical silhouette
+
+Weapon visible at isometric angle
+
+Readable posture at 6 tiles distance
+
+
+
+Behavior and placement provide personality; art provides readability.
+
+
+---
+
+Reuse & Variation Strategy
+
+Single base body per NPC class
+
+Palette swaps for faction identity
+
+One accessory variation maximum per role
+
+
+Visual variety emerges from behavior, context, and consequence — not bespoke sprites.
+
+
+---
+
+Reference-Driven Prompting
+
+When generating assets:
+
+Provide 2–4 reference images
+
+Explicitly state what to copy (angle, scale, restraint)
+
+Explicitly state what to ignore (lighting, flourish, detail)
+
+
+LLMs are better at subtraction than invention.
+
+
+---
+
+SENTINEL-Specific Allowances
+
+Because the game emphasizes observation and hesitation:
+
+Lower texture fidelity is acceptable
+
+Strong silhouettes are preferred
+
+Heavy shadowing and occlusion are encouraged
+
+
+This reduces asset load while reinforcing tone.
+
+
+---
+
+Enforcement Rule
+
+Any asset that requires explanation to be understood is invalid. If it does not read at a glance in motion, it is discarded.
+
+
+---
+
+Godot Migration Path (Fallback)
+
+(unchanged — architecture remains compatible)
