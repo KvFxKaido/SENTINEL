@@ -1,7 +1,7 @@
 # SENTINEL — Spatial Embodiment & World Map Consolidated Plan
 
-> **Version:** 2.1 (Consolidated)
-> **Date:** January 28, 2026
+> **Version:** 3.0 (Consolidated + Engine Backbone)
+> **Date:** January 29, 2026
 > **Author:** Shawn Montgomery
 > **Status:** Design-binding + Implementation roadmap
 
@@ -64,6 +64,28 @@ The spatial layer must not compromise:
 
 If the spatial UI, web UI, or LLM is removed, the game must still function correctly.
 
+### Engine Invariants (Council Review, 2026-01-28)
+
+These invariants were identified through external review by Gemini, Codex, and ChatGPT. Each exists to prevent a specific failure mode.
+
+**4a. State Persistence Timing**
+State MUST be saved **after resolution** and **before narrative**. If the LLM crashes or times out, the mechanical outcome must already be secured.
+
+**4b. Pure Function Resolution**
+Each resolution phase is a pure function: `(state, action, seed) -> (state, events)`. Persist phase + seed in the turn log for replay and debugging.
+
+**4c. Cascade Depth Limit**
+Cascade effects have a maximum depth of 5 to prevent infinite loops. A `processed_events` set prevents re-processing the same event within a turn.
+
+**4d. Idempotent Actions**
+Include `state_version` and `action_id` in all committed actions to prevent double-submits and enable safe retries.
+
+**4e. Minor Actions Are Non-Mutating**
+"Free" actions (hover, inspect, query) are **read-only**. If an action can change standing, threads, inventory, dispositions, or flags — it's a commitment, not a free action.
+
+**4f. Animation From Truth, Not Speculation**
+UI may animate `RESOLVING` (action submitted) and `EVENTS_RECEIVED` (server returned). UI may **never** animate `LIKELY_OUTCOME` (prediction of what might happen).
+
 ---
 
 ## 5. Key Principle
@@ -97,6 +119,30 @@ All meaningful actions:
 - Advancing faction or narrative threads
 
 **No interface may bypass this gate.**
+
+### Turn Cost Granularity
+
+| Action Type | Turn Cost | Examples |
+|-------------|-----------|----------|
+| **Commitments** | 1 turn | Travel, accept/complete job, call favor, initiate combat |
+| **Free Actions** | None | Inspect region, view NPC disposition, check standing, read map |
+| **Cascade Effects** | None | Faction reactions, thread triggers, NPC disposition shifts |
+
+### Proposal → Action Separation
+
+Three distinct artifacts prevent the commitment gate from being bypassed:
+
+```
+Player clicks region → Proposal (read-only query, no mutation)
+                           ↓
+              Server returns ProposalResult (costs/risks preview, no mutation)
+                           ↓
+              Player clicks "Commit" → Action (mutation begins)
+                           ↓
+              Server returns TurnResult (mutation complete, state persisted)
+```
+
+Cancellation at any point before Action has zero side effects.
 
 ---
 
@@ -310,9 +356,160 @@ Connectivity advances via:
 - [x] Faction pressure visualization
 - [x] Combat integration
 
+### Phase 5 — Schema Contracts
+
+The spatial layer is built. Now build the engine backbone. **Schemas first, resolvers second.**
+
+- [ ] Define `Proposal` schema (read-only intent, no `action_id`)
+- [ ] Define `ProposalResult` schema (requirements pass/fail, costs preview, risks, alternatives — no mutations)
+- [ ] Define `Action` schema (`action_id`, `action_type`, `state_version`, `payload`, `timestamp`)
+- [ ] Define `TurnResult` schema (`action_id`, `success`, `state_version`, `events`, `state_snapshot`, `narrative_hooks`, `seed`)
+- [ ] Define `Event` schema (`event_id`, `event_type`, `source_action`, `payload`, `cascaded_from`)
+- [ ] Add `turn_count` and `state_version` to `Campaign` schema
+- [ ] Create TypeScript mirrors in `sentinel-bridge/src/types.ts`
+
+### Phase 6 — Turn Orchestration
+
+- [ ] Create `TurnOrchestrator` in `systems/turns.py` — phase sequencing only
+- [ ] Create `ActionValidator` in `systems/validation.py` — requirement checking, cost preview
+- [ ] Create stub `ResolutionEngine` in `systems/resolution.py` — delegates to typed resolvers
+- [ ] Define turn phases as state machine (`IDLE → PROPOSED → RESOLVING → RESOLVED → NARRATING → COMPLETE`)
+- [ ] Implement concurrency lock (reject actions during `RESOLVING`)
+- [ ] Emit `TURN_START`, `TURN_END` events
+- [ ] Persist state after resolution, before narrative (invariant 4a)
+
+### Phase 7 — Vertical Slice: Travel Resolution
+
+One complete action type works end-to-end across the full stack. **This is the integration test.**
+
+- [ ] Create `TravelResolver` in `systems/travel.py`
+- [ ] Implement route requirement validation (pure function, no globals)
+- [ ] Implement cost calculation and application
+- [ ] Implement connectivity tier updates
+- [ ] Implement travel alternatives (bribe, contact, risky)
+- [ ] Wire to bridge API (`POST /command` → orchestrator → resolver → `TurnResult`)
+- [ ] Wire to Astro UI (map submits proposal → shows `ProposalResult` → commits → renders `TurnResult.state_snapshot`)
+- [ ] Add golden tests for travel scenarios
+
+**Success gate:** Player can travel via web UI map, see updated state, with no LLM involvement.
+
+### Phase 8 — Cascade Engine
+
+- [ ] Create `CascadeProcessor` in `systems/cascades.py`
+- [ ] Implement depth limit (`MAX_CASCADE_DEPTH = 5`) and loop guards (`processed_events` set)
+- [ ] Implement faction relationship propagation (thresholds in config, not code)
+- [ ] Implement NPC reaction triggers
+- [ ] Implement dormant thread condition matching
+- [ ] Separate **audit log** (full event chain for debugging) from **player feed** (grouped notices for UX)
+- [ ] Wire cascade events to existing systems (jobs, favors, leverage)
+- [ ] Add property tests for cascade determinism
+
+### Phase 9 — Remaining Resolvers
+
+- [ ] Create `JobResolver` — accept/complete/fail with reward/penalty
+- [ ] Create `FavorResolver` — token tracking, disposition gates, standing costs
+- [ ] Create `CommitAttentionResolver` — remote influence on regions/NPCs/threads
+- [ ] Create `ReconResolver` — intel gathering with social energy costs
+- [ ] Create `CombatResolver` — wire to existing combat overlay UI
+- [ ] Add skill check framework (2d6 + modifiers, outcome tiers: critical/success/partial/failure)
+- [ ] Integrate all resolvers with cascade processor
+
+### Phase 10 — LLM Narrative Layer
+
+- [ ] Create `NarrativeAdapter` in `systems/narrative.py`
+- [ ] Define narrative request schema (context + constraints + tone)
+- [ ] LLM receives resolution events, generates flavor text
+- [ ] LLM consumes events only — **no state writes** (invariant 4b)
+- [ ] Display narrative in overworld/safehouse UI
+- [ ] Verify game functions identically with narrative adapter disabled
+
 ---
 
-## 16. What This Is Not
+## 16. Engine Architecture
+
+### Component Separation
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                       TurnOrchestrator                          │
+│  Owns phase state machine. Sequences, delegates, never resolves.│
+└─────────────────────────────────────────────────────────────────┘
+        │              │                │              │
+        ▼              ▼                ▼              ▼
+┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+│ActionValidator│ │ResolutionEngine│ │CascadeProcessor│ │NarrativeAdapter│
+│ - Requirement │ │ - TravelResolver│ │ - Depth limit  │ │ - Event → LLM │
+│   checking    │ │ - JobResolver   │ │ - Loop guard   │ │ - Optional    │
+│ - Cost preview│ │ - FavorResolver │ │ - Effect chain │ │ - Post-process│
+│ - ProposalResult│ │ - CombatResolver│ │ - Audit + Feed│ │               │
+└──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘
+```
+
+### Single Source of Truth
+
+```
+UI submits Proposal → Bridge forwards → Python validates → Returns ProposalResult
+UI submits Action   → Bridge forwards → Python resolves  → Returns TurnResult
+UI renders ONLY from TurnResult.state_snapshot
+```
+
+Python backend is the authority. Deno bridge is a thin adapter. UI renders from authoritative snapshots. No layer simulates or predicts state.
+
+### Data-Driven Rules
+
+Thresholds and multipliers live in config, not code:
+
+```yaml
+# cascade_rules.yaml
+faction_propagation:
+  allied_threshold: 30
+  allied_multiplier: 0.3
+  hostile_threshold: -30
+  hostile_multiplier: -0.2
+```
+
+### Cascade UX: Audit Log vs Player Feed
+
+Cascades that are technically terminating can still be narratively unreadable. Separate two streams:
+
+| Stream | Purpose | Audience |
+|--------|---------|----------|
+| **Audit Log** | Every event, every cascade, full provenance | Developer, debug, replay |
+| **Player Feed** | Grouped by "what you should notice" | Player-facing UI |
+
+The player sees: *"Your action angered the Ember Colonies. Steel Syndicate noticed."*
+The audit log sees: 47 cascade events with full chain.
+
+---
+
+## 17. Testing Strategy
+
+### Phase Unit Tests
+Each resolver is a pure function. Test with fixed seeds:
+```python
+def test_travel_deterministic():
+    state = load_fixture("basic_campaign")
+    action = TravelAction(to="appalachian_hollows")
+    result1 = resolver.resolve(action, state, seed=12345)
+    result2 = resolver.resolve(action, state, seed=12345)
+    assert result1 == result2
+```
+
+### Scenario / Golden Tests
+Snapshot expected events and state for known scenarios.
+
+### Property Tests
+Verify invariants across random action sequences with fixed seeds — assert determinism, no negative resources, no invalid locations.
+
+### API Contract Tests
+Verify Deno ↔ Python schemas stay in sync. If `state_version` doesn't match, reject with `STALE_STATE`.
+
+### UI Sync Tests
+Verify UI renders from server snapshot, not local assumptions.
+
+---
+
+## 18. What This Is Not (Restated)
 
 - Not a simulation engine
 - Not a real-time game
@@ -322,23 +519,37 @@ The CLI becomes a debug and inspection surface. The engine remains authoritative
 
 ---
 
-## 17. Success Criteria
+## 19. Success Criteria
 
-This refactor succeeds if:
+### Spatial Success (Phases 0–4)
+- [ ] Players feel grounded in space
+- [ ] Inventory feels like history
+- [ ] Decisions feel costly and irreversible
 
-- Players feel grounded in space
-- Inventory feels like history
-- Decisions feel costly and irreversible
-- The game is playable without LLMs
-- The system remains deterministic
+### Engine Success (Phases 5–10)
+- [ ] Commitments cost exactly one turn; free actions are non-mutating
+- [ ] Travel resolves without LLM involvement
+- [ ] Same seed produces identical outcomes (determinism)
+- [ ] Cascade effects fire automatically with depth limit
+- [ ] State persists after resolution, before narrative
+- [ ] `state_version` increments correctly; stale actions rejected
+- [ ] Each resolver is a pure function, independently testable
+- [ ] Visual feedback prevents "spreadsheet fatigue" even without LLM
+
+### System Success (All Phases)
+- [ ] The game is playable without LLMs
+- [ ] The system remains deterministic
+- [ ] Bridge remains game-logic-free
+- [ ] Schemas are versioned and shared across stack
+- [ ] No God classes — responsibilities are split
 
 ---
 
-## 18. Integration Architecture
+## 20. Integration Architecture
 
 The Kimi world map prototype (`architecture/Kimi_Agent_Astro Map Integration/`) proves the visual layer. This section defines how it connects to the live game.
 
-### 18.1 Data Ownership
+### 20.1 Data Ownership
 
 The engine is the single source of truth. The map **consumes** — it never stores.
 
@@ -354,7 +565,7 @@ The engine is the single source of truth. The map **consumes** — it never stor
 
 Kimi's static `regions.ts` and `factions.ts` are deleted at integration time. The map component receives all data via props hydrated from the bridge API.
 
-### 18.2 Bridge Map API
+### 20.2 Bridge Map API
 
 New endpoints on the Deno bridge (`localhost:3333`):
 
@@ -453,7 +664,7 @@ Travel is proposed through the existing command interface:
 
 The engine validates route requirements, consumes the turn, and resolves consequences. No new endpoint needed — travel is a commitment like any other.
 
-### 18.3 Map Event Stream
+### 20.3 Map Event Stream
 
 The existing SSE stream (`GET /events`) gains map-relevant event types:
 
@@ -466,7 +677,7 @@ The existing SSE stream (`GET /events`) gains map-relevant event types:
 
 The map subscribes to the SSE stream and re-renders on these events. No polling.
 
-### 18.4 Travel Action Sequence
+### 20.4 Travel Action Sequence
 
 This is the commitment gate (Section 6) made concrete in the UI:
 
@@ -496,7 +707,7 @@ This is the commitment gate (Section 6) made concrete in the UI:
 
 **Cancellation at any step before 7 has zero side effects.** This is the commitment gate in action — the UI proposes, the engine resolves.
 
-### 18.5 Component Integration
+### 20.5 Component Integration
 
 The Kimi prototype is a standalone React + Vite app. Integration path into `sentinel-ui/` (Astro):
 
@@ -544,7 +755,7 @@ async travel(regionId: string, via?: string): Promise<CommandResult>
 onMapEvent(handler: (event: MapEvent) => void): () => void
 ```
 
-### 18.6 Data Alignment
+### 20.6 Data Alignment
 
 The Kimi TypeScript types and engine Python models must stay in sync. The canonical direction is **Python → TypeScript**.
 
@@ -560,7 +771,7 @@ The Kimi TypeScript types and engine Python models must stay in sync. The canoni
 
 If `schema.py` changes, the bridge must update its serialization and the TypeScript types must follow. The Kimi prototype's types are already close — minor field name casing differences (`minStanding` → `min_standing`) resolve during migration.
 
-### 18.7 What the Map Does Not Do
+### 20.7 What the Map Does Not Do
 
 Restating the invariants from Section 4 in integration terms:
 
@@ -573,4 +784,47 @@ Restating the invariants from Section 4 in integration terms:
 
 ---
 
+---
+
+## 21. Council Review (2026-01-28)
+
+The engine backbone (Phases 5–10) was reviewed by three external AI consultants.
+
+### Reviewers
+| Consultant | Strength | Focus |
+|------------|----------|-------|
+| **Gemini** | Big-picture design | Interrupt handling, cascade architecture, God class risk |
+| **Codex** | Implementation depth | Determinism, sync drift, contract-first approach |
+| **ChatGPT** | Edge case detection | Free action abuse, animation speculation, proposal separation |
+
+### Risks Identified & Mitigated
+
+| Risk | Mitigation | Invariant |
+|------|------------|-----------|
+| Cascade infinite loops | `MAX_CASCADE_DEPTH` + `processed_events` set | 4c |
+| State lost if LLM crashes | Persist after resolution, before narrative | 4a |
+| God class TurnManager | Split into Orchestrator, Validator, Engine, Processor | Section 16 |
+| Sync drift across stack | Single source of truth (Python), one-way data flow | 4b, Section 16 |
+| "Free" actions used to grind state | Free = non-mutating only | 4e |
+| UI animates predicted outcomes | Animate truth, not speculation | 4f |
+| Order-dependent bugs | Pure functions with seed for replay | 4b |
+| Cascade events unreadable to player | Audit log vs player feed separation | Section 16 |
+| Double-submit race condition | `state_version` + `action_id` idempotency | 4d |
+
+### Alternative Approaches Considered
+- **Command Pattern** (Gemini): Actions as objects with `validate()/execute()/undo()`. Deferred unless undo is needed.
+- **Pub/Sub Cascades** (Gemini): Systems subscribe to events. Consider if cascade complexity grows.
+- **Interrupt Phase** (Gemini): Sub-turn for reactions. Rejected — interrupts are cascaded events within same turn.
+
+### Consensus
+All three consultants agreed:
+- LLM as post-processor only — no state writes
+- Schema contracts before implementation
+- Vertical slice (travel) early to surface integration issues
+- Determinism is non-negotiable
+
+---
+
 > *SENTINEL finally has a body. And a quiet place to count the cost of surviving in it.*
+>
+> *Now it needs a spine.*

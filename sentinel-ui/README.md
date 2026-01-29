@@ -76,7 +76,7 @@ The UI uses a 3-column TUI-style layout:
 | Column | Content | Updates |
 |--------|---------|---------|
 | **SELF** (left) | Character name, background, status (pistachios, credits), location, loadout, enhancements | Refreshes after specific commands or select bridge events |
-| **NARRATIVE** (center) | Conversation log with GM responses | Appends on command/message (local, no backfill) |
+| **NARRATIVE** (center) | Conversation log with GM responses | Appends on command/message; persisted to `sessionStorage` and restored on page navigation |
 | **WORLD** (right) | Faction standings with progress bars, active threads, event stream | Refreshes after specific commands or select bridge events |
 
 ### Message Types
@@ -187,14 +187,17 @@ The UI refreshes state automatically after certain commands:
 
 | Command | Refreshes |
 |---------|-----------|
-| `/load`, `/new` | Bridge state + Campaign state |
+| `/load`, `/new` | Bridge state + Campaign state (also clears narrative storage) |
 | `/start`, `/save`, `/jobs`, `/shop`, `/roll` | Campaign state |
 | `/backend` | Bridge state |
+| `/clear` | Clears narrative log + sessionStorage |
 | Any message to GM | Campaign state |
 
 The UI also refreshes campaign state on select SSE events:
 
-`campaign.loaded`, `faction.changed`, `social_energy.changed`, `session.started`, `session.ended`.
+`campaign.loaded`, `faction.changed`, `social_energy.changed`, `session.started`, `session.ended`, `npc.added`, `npc.disposition_changed`, `npc.memory_added`, `thread.queued`, `thread.surfaced`, `enhancement.granted`, `enhancement.called`.
+
+All state refreshes are **debounced** (300ms) — rapid-fire events coalesce into a single HTTP fetch and UI update to prevent layout thrashing.
 
 ## Theme
 

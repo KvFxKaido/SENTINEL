@@ -91,17 +91,58 @@ class HeadlessRunner:
             local_mode=local_mode,
         )
         self.conversation: list[Message] = []
-        
+
         register_all_commands()
         register_tui_handlers()
-        
+
         self._subscribe_to_events()
+        self._init_turn_engine()
     
     def _subscribe_to_events(self):
         """Subscribe to all events and emit them as JSON."""
         bus = get_event_bus()
         for event_type in EventType:
             bus.on(event_type, self._emit_event)
+
+    def _init_turn_engine(self):
+        """Initialize the turn-based engine components."""
+        from ..systems.turns import TurnOrchestrator
+        from ..systems.validation import ActionValidator
+        from ..systems.travel import TravelResolver
+        from ..systems.cascades import CascadeProcessor
+
+        self._validator = ActionValidator()
+        self._travel_resolver = TravelResolver()
+        self._cascade_processor = CascadeProcessor()
+        self._orchestrator = None  # Created per-campaign in _ensure_orchestrator
+
+    def _ensure_orchestrator(self):
+        """Ensure orchestrator exists and is bound to current campaign."""
+        from ..systems.turns import TurnOrchestrator
+
+        campaign = self.manager.current
+        if not campaign:
+            return None
+
+        # Re-create if campaign changed or not yet created
+        if (
+            self._orchestrator is None
+            or self._orchestrator.campaign is not campaign
+        ):
+            self._orchestrator = TurnOrchestrator(campaign)
+            self._orchestrator.set_validator(self._validator.validate)
+            self._orchestrator.register_resolver(
+                "travel", self._travel_resolver.resolve,
+            )
+            self._orchestrator.set_cascade_processor(
+                lambda event, camp: self._cascade_processor.process(event, camp),
+            )
+            # Persist via manager save
+            self._orchestrator.set_persist_fn(
+                lambda camp: self.manager.save_campaign(),
+            )
+
+        return self._orchestrator
     
     def _emit_event(self, event: GameEvent):
         """Emit a game event as JSON to stdout."""
@@ -137,13 +178,16 @@ class HeadlessRunner:
             {"cmd": "slash", "command": "/new", "args": [...]} - Run slash command
             {"cmd": "load", "campaign_id": "..."} - Load campaign
             {"cmd": "save"} - Save current campaign
+            {"cmd": "travel_propose", "region_id": "..."} - Propose travel (turn-based)
+            {"cmd": "travel_commit"} - Commit proposed travel
+            {"cmd": "travel_cancel"} - Cancel proposed travel
             {"cmd": "quit"} - Exit
-        
+
         Returns:
             Response dict
         """
         cmd_type = cmd.get("cmd", "")
-        
+
         if cmd_type == "status":
             return self._cmd_status()
         elif cmd_type == "campaign_state":
@@ -152,6 +196,12 @@ class HeadlessRunner:
             return self._cmd_map_state()
         elif cmd_type == "map_region":
             return self._cmd_map_region(cmd.get("region_id", ""))
+        elif cmd_type == "travel_propose":
+            return self._cmd_travel_propose(cmd.get("region_id", ""), cmd.get("via"))
+        elif cmd_type == "travel_commit":
+            return self._cmd_travel_commit(cmd.get("via"))
+        elif cmd_type == "travel_cancel":
+            return self._cmd_travel_cancel()
         elif cmd_type == "say":
             return self._cmd_say(cmd.get("text", ""))
         elif cmd_type == "slash":
@@ -315,6 +365,112 @@ class HeadlessRunner:
             "vehicles": vehicles,
         }
     
+    # ── Turn-Based Travel Commands ─────────────────────────
+
+    def _cmd_travel_propose(self, region_id: str, via: str | None = None) -> dict:
+        """
+        Propose travel to a region — returns costs and requirements.
+
+        No state mutation occurs. The player reviews the ProposalResult
+        and decides whether to commit or cancel.
+        """
+        campaign = self.manager.current
+        if not campaign:
+            return {"ok": False, "error": "No campaign loaded"}
+
+        if not region_id:
+            return {"ok": False, "error": "No region_id provided"}
+
+        orchestrator = self._ensure_orchestrator()
+        if not orchestrator:
+            return {"ok": False, "error": "Failed to initialize turn engine"}
+
+        from ..state.schemas.action import Proposal, ActionType
+        from ..systems.turns import TurnError
+
+        try:
+            proposal = Proposal(
+                action_type=ActionType.TRAVEL,
+                payload={"to": region_id},
+            )
+
+            result = orchestrator.propose(proposal)
+
+            # Serialize ProposalResult for JSON transport
+            return {
+                "ok": True,
+                "proposal": result.model_dump(),
+            }
+
+        except TurnError as e:
+            return {"ok": False, "error": str(e)}
+
+    def _cmd_travel_commit(self, via: str | None = None) -> dict:
+        """
+        Commit the proposed travel — this is the commitment gate.
+
+        Resolves deterministically, persists state, returns TurnResult.
+        """
+        campaign = self.manager.current
+        if not campaign:
+            return {"ok": False, "error": "No campaign loaded"}
+
+        orchestrator = self._ensure_orchestrator()
+        if not orchestrator:
+            return {"ok": False, "error": "Failed to initialize turn engine"}
+
+        from ..state.schemas.action import Action
+        from ..systems.turns import TurnError, TurnPhase
+
+        if orchestrator.phase != TurnPhase.PROPOSED:
+            return {
+                "ok": False,
+                "error": f"No pending proposal (current phase: {orchestrator.phase.value})",
+            }
+
+        try:
+            # Build action from the pending proposal
+            proposal = orchestrator._current_proposal
+            if not proposal:
+                return {"ok": False, "error": "No proposal in progress"}
+
+            action = Action.from_proposal(
+                proposal,
+                state_version=campaign.state_version,
+                chosen_alternative=via,
+            )
+
+            result = orchestrator.commit(action)
+
+            # Serialize TurnResult for JSON transport
+            return {
+                "ok": True,
+                "turn_result": result.model_dump(),
+            }
+
+        except TurnError as e:
+            return {"ok": False, "error": str(e)}
+
+    def _cmd_travel_cancel(self) -> dict:
+        """Cancel the pending travel proposal — zero side effects."""
+        orchestrator = self._ensure_orchestrator()
+        if not orchestrator:
+            return {"ok": False, "error": "Failed to initialize turn engine"}
+
+        from ..systems.turns import TurnError, TurnPhase
+
+        if orchestrator.phase != TurnPhase.PROPOSED:
+            return {
+                "ok": True,
+                "message": "No pending proposal to cancel",
+            }
+
+        try:
+            orchestrator.cancel()
+            return {"ok": True, "message": "Travel proposal cancelled"}
+        except TurnError as e:
+            return {"ok": False, "error": str(e)}
+
     def _cmd_map_state(self) -> dict:
         """Return complete map state for the world map UI."""
         campaign = self.manager.current
