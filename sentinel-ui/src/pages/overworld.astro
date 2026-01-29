@@ -1,0 +1,129 @@
+---
+import GameLayout from '../layouts/GameLayout.astro';
+import Header from '../components/Header.astro';
+import { OverworldView } from '../components/overworld';
+---
+
+<GameLayout title="SENTINEL — Overworld">
+  <Header />
+
+  <main class="overworld-main">
+    <OverworldView client:load />
+  </main>
+
+  <footer class="overworld-footer">
+    <div class="overworld-controls">
+      <div class="control-hint">
+        <span class="key">WASD</span>
+        <span class="label">MOVE</span>
+      </div>
+      <div class="control-hint">
+        <span class="key">E</span>
+        <span class="label">INTERACT</span>
+      </div>
+      <a href="/map" class="control-button">
+        <span class="key">M</span>
+        <span class="label">WORLD MAP</span>
+      </a>
+      <a href="/safehouse" class="control-button">
+        <span class="key">H</span>
+        <span class="label">SAFEHOUSE</span>
+      </a>
+      <a href="/" class="control-button">
+        <span class="key">ESC</span>
+        <span class="label">CONSOLE</span>
+      </a>
+    </div>
+  </footer>
+</GameLayout>
+
+<style>
+  .overworld-main {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .overworld-footer {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
+    padding: var(--space-sm) var(--space-md);
+  }
+
+  .overworld-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--space-lg);
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+
+  .control-button {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-xs) var(--space-sm);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: all 0.15s ease;
+  }
+
+  .control-button:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent-steel);
+    color: var(--accent-steel);
+  }
+
+  .control-hint {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    color: var(--text-muted);
+  }
+
+  .key {
+    display: inline-block;
+    padding: 2px 6px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    font-size: 10px;
+    color: var(--accent-cyan);
+    text-transform: uppercase;
+  }
+
+  .label {
+    color: var(--text-secondary);
+  }
+</style>
+
+<script>
+  // Keyboard shortcuts (only for navigation, not movement)
+  document.addEventListener('keydown', (e) => {
+    // Don't interfere with canvas movement
+    if (document.activeElement?.tagName === 'CANVAS') {
+      if (e.key === 'Escape') {
+        window.location.href = '/';
+      } else if (e.key === 'm' || e.key === 'M') {
+        window.location.href = '/map';
+      } else if (e.key === 'h' || e.key === 'H') {
+        window.location.href = '/safehouse';
+      }
+      return;
+    }
+
+    if (e.key === 'Escape') {
+      window.location.href = '/';
+    } else if (e.key === 'm' || e.key === 'M') {
+      window.location.href = '/map';
+    } else if (e.key === 'h' || e.key === 'H') {
+      window.location.href = '/safehouse';
+    }
+  });
+</script>
