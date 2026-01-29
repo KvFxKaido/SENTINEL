@@ -291,6 +291,18 @@ class TurnOrchestrator:
                 events.extend(cascade_events)
                 cascade_notices.extend(notices)
 
+        # Remove surfaced dormant threads (deferred from CascadeProcessor)
+        surfaced_thread_ids = {
+            e.payload.get("thread_id")
+            for e in events
+            if e.event_type == "thread.surfaced" and e.payload.get("thread_id")
+        }
+        if surfaced_thread_ids:
+            self._campaign.dormant_threads = [
+                t for t in self._campaign.dormant_threads
+                if t.id not in surfaced_thread_ids
+            ]
+
         # Transition to RESOLVED
         self._transition(TurnPhase.RESOLVED)
         self._bus.emit(

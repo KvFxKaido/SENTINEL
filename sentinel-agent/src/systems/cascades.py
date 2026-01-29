@@ -21,6 +21,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING
 
+from pydantic import BaseModel, Field
+
 from ..state.schemas.event import TurnEvent
 from ..state.event_bus import get_event_bus, EventType
 
@@ -60,8 +62,7 @@ class NoticeSeverity(str, Enum):
     CRITICAL = "critical"
 
 
-@dataclass
-class Notice:
+class Notice(BaseModel):
     """
     Player-facing cascade notice.
 
@@ -72,16 +73,8 @@ class Notice:
     Not: "CASCADE event_id=abc123 depth=2 STANDING_CHANGED..."
     """
     headline: str  # "Ripple Effect" or "Thread Awakened"
-    details: list[str] = field(default_factory=list)
+    details: list[str] = Field(default_factory=list)
     severity: NoticeSeverity = NoticeSeverity.INFO
-
-    def model_dump(self) -> dict:
-        """Serialize for JSON (matches Pydantic convention)."""
-        return {
-            "headline": self.headline,
-            "details": self.details,
-            "severity": self.severity.value,
-        }
 
 
 @dataclass
@@ -268,7 +261,7 @@ class CascadeProcessor:
                 # Apply the standing shift
                 standing = campaign.factions.get(other_faction)
                 old_standing = standing.standing.value
-                standing.shift(1 if propagated_delta > 0 else -1)
+                standing.shift(propagated_delta)
                 new_standing = standing.standing.value
 
                 cascade_event = TurnEvent(
@@ -480,9 +473,10 @@ class CascadeProcessor:
                     severity=thread.severity.value,
                 )
 
-        # Remove surfaced threads (in reverse to preserve indices)
-        for i in reversed(threads_to_surface):
-            campaign.dormant_threads.pop(i)
+        # NOTE: We do NOT mutate campaign.dormant_threads here.
+        # Surfaced thread IDs are included in the event payloads
+        # (thread_id field). The TurnOrchestrator is responsible for
+        # removing them after all cascade processing completes.
 
         notices = []
         if notice_details:
