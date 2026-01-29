@@ -33,6 +33,73 @@ Player Experience: Move/explore in 2D → hesitate/observe → commit to actions
 
 Architecture Shift
 
+
+---
+
+Spatial Structure (New)
+
+Dual-Layer World Model
+
+SENTINEL 2D operates on two explicitly distinct spatial layers. This is intentional and design-binding.
+
+1. Strategic Map (Territory Layer)
+
+Mario World–style node map representing the 11 regions
+
+Each region node exposes:
+
+Current faction control / pressure
+
+Active missions and threads
+
+Player standing and known risks
+
+
+Player selects a region and confirms travel
+
+Travel is a commitment and may advance clocks
+
+
+> This layer already exists via the Phase 1 WorldMap component.
+
+
+
+2. Local Maps (Exploration Layer)
+
+Hand-crafted, bounded spaces within a region
+
+Examples:
+
+Region Hub (default landing area)
+
+Market District
+
+Residential Quarter
+
+Industrial Zone
+
+Outskirts / Checkpoints
+
+
+~10 NPCs max per local map
+
+Each NPC has a clear purpose or tension
+
+Points of interest are few, deliberate, and legible
+
+Exits connect to:
+
+Other local maps in the same region
+
+Back to the Strategic Map
+
+
+
+Design Constraint: Local maps are small by design. Density > scale.
+
+
+---
+
 Before
 
 Player → CLI → Python Agent → LLM (always) → State Update → 2D Visualization
@@ -172,6 +239,10 @@ Constraint: Patrols should not be the first source of tension; player vulnerabil
 
 Conversion Phases
 
+> Structural Note: SENTINEL is not an open world. It is a network of curated locations connected by a strategic layer. This dramatically reduces scope while increasing authorial control.
+
+
+
 Phase 0: Foundation (Completed ✓)
 
 [x] Region data structure
@@ -229,7 +300,46 @@ State persists between requests
 
 ---
 
-Phase 2: Frontend Exploration Loop (Est: 2–3 weeks)
+Phase 2: Frontend Exploration Loop (Local Maps)
+
+Goal: Real-time character movement within small, intentional spaces
+
+Tasks:
+
+1. Local map template system (tiles, walls, exits)
+
+
+2. Character controller (WASD/click movement)
+
+
+3. Collision detection (walls, NPCs, objects)
+
+
+4. Interaction zones (proximity without auto-commit)
+
+
+5. Exit handling between local maps and region hub
+
+
+6. Local game clock (pauses during dialogue)
+
+
+7. Explicit separation between observation and commitment
+
+
+
+Success Criteria:
+
+Smooth movement in a bounded space
+
+Player immediately understands where they are
+
+NPC density feels intentional, not crowded
+
+Leaving a location can quietly advance unresolved threads
+
+
+--- (Est: 2–3 weeks)
 
 Goal: Real-time character movement with spatial hesitation
 
@@ -308,7 +418,50 @@ Player leaves due to discomfort or uncertainty, not broken flow
 
 ---
 
-Phase 3: Patrol AI System (Est: 1–2 weeks)
+Phase 3: Patrol AI System (Local Scope)
+
+Goal: NPC movement that supports readable, authored spaces
+
+Tasks:
+
+1. Patrol routes defined per local map (not global)
+
+
+2. TypeScript patrol simulation tuned for ~10 NPCs
+
+
+3. Faction behavior patterns expressed spatially:
+
+Lattice: coordinated sweeps across chokepoints
+
+Ember: loose, wandering solo paths
+
+Ghost: static presence → sudden relocation
+
+Covenant: ritualized, time-bound circuits
+
+
+
+4. Line-of-sight calculations
+
+
+5. Alert states (patrolling → investigating → combat)
+
+
+6. Python validates outcomes on commit
+
+
+
+Success Criteria:
+
+Patrol patterns are learnable within minutes
+
+Player reads space before reading UI
+
+Combat triggers feel spatially fair
+
+
+--- (Est: 1–2 weeks)
 
 Goal: Dynamic NPC movement with readable intent
 
