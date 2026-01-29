@@ -302,67 +302,21 @@ class HeadlessRunner:
         if not campaign:
             return {"ok": False, "error": "No campaign loaded"}
 
-        from ..state.schema import Region, RegionConnectivity
-        import json
-        from pathlib import Path
-
-        # Load region data for static info
-        data_dir = Path(__file__).parent.parent.parent / "data"
-        regions_file = data_dir / "regions.json"
-        try:
-        try:
-            with open(regions_file) as f:
-                regions_data = json.load(f)["regions"]
-        except (FileNotFoundError, json.JSONDecodeError) as e:
-            # It's good practice to log the actual error.
-            # logger.error(f"Failed to load region data: {e}")
-            regions_data = {}
-                regions_data = json.load(f)["regions"]
-        except Exception:
-            regions_data = {}
+        from ..state.schema import Region
 
         # Build per-region state with content markers
         regions_out = {}
         for region in Region:
             region_state = campaign.map_state.regions.get(region)
-            connectivity = region_state.connectivity.value if region_state else "disconnected"
-
-            # Aggregate content markers
-            markers = []
-
-            # Current location
-            if campaign.map_state.current_region == region:
-                markers.append({"type": "current"})
-
-            # NPCs in this region (match by location field if available)
-            npc_count = sum(
-                1 for npc in campaign.npcs.active
-                if hasattr(npc, "location") and getattr(npc, "location", None) == region.value
+            connectivity = (
+                region_state.connectivity.value
+                if region_state
+                else "disconnected"
             )
-            if npc_count > 0:
-                markers.append({"type": "npc", "count": npc_count})
 
-            # Active jobs in this region
-            job_count = sum(
-                1 for job in campaign.jobs.active
-                if job.region and job.region == region
+            markers = self._build_content_markers(
+                campaign, region
             )
-            if job_count > 0:
-                markers.append({"type": "job", "count": job_count})
-
-        try:
-            with open(regions_file) as f:
-                all_regions = json.load(f)["regions"]
-        except (FileNotFoundError, json.JSONDecodeError) as e:
-            # logger.error(f"Failed to load region data: {e}")
-            return {"ok": False, "error": "Failed to load region data"}
-            thread_count = sum(
-                1 for thread in campaign.dormant_threads
-                if region.value in thread.trigger_condition.lower()
-                or region.value.replace("_", " ") in thread.trigger_condition.lower()
-            )
-            if thread_count > 0:
-                markers.append({"type": "thread", "count": thread_count})
 
             regions_out[region.value] = {
                 "connectivity": connectivity,
@@ -382,121 +336,66 @@ class HeadlessRunner:
             return {"ok": False, "error": "No campaign loaded"}
 
         from ..state.schema import Region
-        import json
-        from pathlib import Path
 
         # Validate region
         try:
             region = Region(region_id)
         except ValueError:
-            return {"ok": False, "error": f"Unknown region: {region_id}"}
+            return {
+                "ok": False,
+                "error": f"Unknown region: {region_id}",
+            }
 
         # Load static region data
-        data_dir = Path(__file__).parent.parent.parent / "data"
-        regions_file = data_dir / "regions.json"
-        try:
-            with open(regions_file) as f:
-                all_regions = json.load(f)["regions"]
-        except Exception:
-            return {"ok": False, "error": "Failed to load region data"}
+        all_regions = self._load_regions_data()
+        if all_regions is None:
+            return {
+                "ok": False,
+                "error": "Failed to load region data",
+            }
 
         static = all_regions.get(region_id, {})
         if not static:
-            return {"ok": False, "error": f"No data for region: {region_id}"}
+            return {
+                "ok": False,
+                "error": f"No data for region: {region_id}",
+            }
 
         # Region connectivity
         region_state = campaign.map_state.regions.get(region)
-        connectivity = region_state.connectivity.value if region_state else "disconnected"
+        connectivity = (
+            region_state.connectivity.value
+            if region_state
+            else "disconnected"
+        )
 
         # Build route feasibility from current region
-        routes_from_current = []
         current_id = campaign.map_state.current_region.value
         current_static = all_regions.get(current_id, {})
         current_routes = current_static.get("routes", {})
 
+        routes_from_current = []
         if region_id in current_routes:
-            route_data = current_routes[region_id]
-            requirements = []
-            all_met = True
-
-            for req in route_data.get("requirements", []):
-                met = False
-                req_out = {"type": req.get("type", "unknown")}
-
-                if req.get("type") == "faction":
-                    faction_id = req.get("faction", "")
-                    min_standing = req.get("min_standing", "neutral")
-                    req_out["faction"] = faction_id
-                    req_out["min_standing"] = min_standing
-
-                    # Check if player meets standing
-                    from ..state.schema import FactionName, Standing
-                    try:
-                        faction_enum = FactionName(faction_id.replace("_", " ").title())
-                        player_standing = campaign.factions.get(faction_enum)
-                        standing_order = ["Hostile", "Unfriendly", "Neutral", "Friendly", "Allied"]
-                        player_idx = standing_order.index(player_standing.standing.value)
-                        req_idx = standing_order.index(min_standing.title())
-                        met = player_idx >= req_idx
-                    except (ValueError, KeyError):
-                        met = False
-
-                elif req.get("type") == "vehicle":
-                    capability = req.get("capability", "")
-                    req_out["vehicle_capability"] = capability
-                    # Check if player has suitable vehicle
-                    if campaign.characters:
-                        char = campaign.characters[0]
-                        met = any(
-                            capability in v.terrain or capability in v.unlocks_tags
-                            for v in char.vehicles
-                            if v.is_operational
-                        )
-
-                req_out["met"] = met
-                if not met:
-                    all_met = False
-                requirements.append(req_out)
-
-            # Build alternatives
-            alternatives = []
-            for alt in route_data.get("alternatives", []):
-                alt_out = {
-                    "type": alt.get("type", "unknown"),
-                    "description": alt.get("description", ""),
-                }
-                if "cost" in alt:
-                    alt_out["cost"] = alt["cost"]
-                if "consequence" in alt:
-                    alt_out["consequence"] = alt["consequence"]
-                # Check availability for contact alternatives
-                alt_out["available"] = True  # Default; full check requires NPC lookup
-                alternatives.append(alt_out)
-
-            traversable = all_met or len(alternatives) > 0
-
-            routes_from_current.append({
-                "from": current_id,
-                "to": region_id,
-                "requirements": requirements,
-                "alternatives": alternatives,
-                "traversable": traversable,
-                "best_option": "direct" if all_met else ("alternative" if alternatives else "blocked"),
-            })
+            route = self._build_route_feasibility(
+                campaign,
+                current_id,
+                region_id,
+                current_routes[region_id],
+            )
+            routes_from_current.append(route)
 
         # Content in this region
         npc_names = [
             npc.name for npc in campaign.npcs.active
-            if hasattr(npc, "location") and getattr(npc, "location", None) == region_id
+            if getattr(npc, "location", None) == region_id
         ]
         job_titles = [
             job.title for job in campaign.jobs.active
             if job.region and job.region == region
         ]
         thread_ids = [
-            thread.id for thread in campaign.dormant_threads
-            if region_id in thread.trigger_condition.lower()
-            or region_id.replace("_", " ") in thread.trigger_condition.lower()
+            t.id for t in campaign.dormant_threads
+            if self._thread_matches_region(t, region_id)
         ]
 
         return {
@@ -505,12 +404,16 @@ class HeadlessRunner:
                 "id": region_id,
                 "name": static.get("name", ""),
                 "description": static.get("description", ""),
-                "primary_faction": static.get("primary_faction", ""),
+                "primary_faction": static.get(
+                    "primary_faction", ""
+                ),
                 "contested_by": static.get("contested_by", []),
                 "terrain": static.get("terrain", []),
                 "character": static.get("character", ""),
                 "connectivity": connectivity,
-                "position": static.get("position", {"x": 50, "y": 50}),
+                "position": static.get(
+                    "position", {"x": 50, "y": 50}
+                ),
             },
             "routes_from_current": routes_from_current,
             "content": {
@@ -519,6 +422,184 @@ class HeadlessRunner:
                 "threads": thread_ids,
             },
         }
+
+    # ── Map helpers ─────────────────────────────────────────
+
+    def _load_regions_data(self) -> dict | None:
+        """Load static region data from regions.json."""
+        import json
+        from pathlib import Path
+
+        data_dir = (
+            Path(__file__).parent.parent.parent / "data"
+        )
+        regions_file = data_dir / "regions.json"
+        try:
+            with open(regions_file) as f:
+                return json.load(f)["regions"]
+        except Exception:
+            return None
+
+    def _build_content_markers(
+        self, campaign, region
+    ) -> list[dict]:
+        """Build content marker list for a region."""
+        markers = []
+
+        if campaign.map_state.current_region == region:
+            markers.append({"type": "current"})
+
+        npc_count = sum(
+            1 for npc in campaign.npcs.active
+            if getattr(npc, "location", None) == region.value
+        )
+        if npc_count > 0:
+            markers.append({"type": "npc", "count": npc_count})
+
+        job_count = sum(
+            1 for job in campaign.jobs.active
+            if job.region and job.region == region
+        )
+        if job_count > 0:
+            markers.append({"type": "job", "count": job_count})
+
+        thread_count = sum(
+            1 for t in campaign.dormant_threads
+            if self._thread_matches_region(t, region.value)
+        )
+        if thread_count > 0:
+            markers.append(
+                {"type": "thread", "count": thread_count}
+            )
+
+        return markers
+
+    @staticmethod
+    def _thread_matches_region(thread, region_id: str) -> bool:
+        """Check if a dormant thread's trigger mentions a region."""
+        trigger = thread.trigger_condition.lower()
+        return (
+            region_id in trigger
+            or region_id.replace("_", " ") in trigger
+        )
+
+    def _build_route_feasibility(
+        self, campaign, from_id: str, to_id: str, route_data: dict
+    ) -> dict:
+        """
+        Build route feasibility result for travel from one
+        region to another.
+
+        Returns a dict with requirements, alternatives,
+        traversability, and best travel option.
+        """
+        requirements = []
+        all_met = True
+
+        for req in route_data.get("requirements", []):
+            result = self._evaluate_route_requirement(
+                campaign, req
+            )
+            requirements.append(result)
+            if not result["met"]:
+                all_met = False
+
+        alternatives = []
+        for alt in route_data.get("alternatives", []):
+            alt_out = {
+                "type": alt.get("type", "unknown"),
+                "description": alt.get("description", ""),
+            }
+            if "cost" in alt:
+                alt_out["cost"] = alt["cost"]
+            if "consequence" in alt:
+                alt_out["consequence"] = alt["consequence"]
+            alt_out["available"] = True
+            alternatives.append(alt_out)
+
+        traversable = all_met or len(alternatives) > 0
+
+        if all_met:
+            best = "direct"
+        elif alternatives:
+            best = "alternative"
+        else:
+            best = "blocked"
+
+        return {
+            "from": from_id,
+            "to": to_id,
+            "requirements": requirements,
+            "alternatives": alternatives,
+            "traversable": traversable,
+            "best_option": best,
+        }
+
+    def _evaluate_route_requirement(
+        self, campaign, req: dict
+    ) -> dict:
+        """Evaluate a single route requirement against campaign state."""
+        req_type = req.get("type", "unknown")
+        result = {"type": req_type}
+
+        if req_type == "faction":
+            faction_id = req.get("faction", "")
+            min_standing = req.get("min_standing", "neutral")
+            result["faction"] = faction_id
+            result["min_standing"] = min_standing
+            result["met"] = self._check_faction_standing(
+                campaign, faction_id, min_standing
+            )
+        elif req_type == "vehicle":
+            capability = req.get("capability", "")
+            result["vehicle_capability"] = capability
+            result["met"] = self._check_vehicle_requirement(
+                campaign, capability
+            )
+        else:
+            result["met"] = False
+
+        return result
+
+    @staticmethod
+    def _check_faction_standing(
+        campaign, faction_id: str, min_standing: str
+    ) -> bool:
+        """Check if the player meets a faction standing requirement."""
+        from ..state.schema import FactionName
+
+        standing_order = [
+            "Hostile", "Unfriendly", "Neutral",
+            "Friendly", "Allied",
+        ]
+        try:
+            name = faction_id.replace("_", " ").title()
+            faction_enum = FactionName(name)
+            player = campaign.factions.get(faction_enum)
+            player_idx = standing_order.index(
+                player.standing.value
+            )
+            req_idx = standing_order.index(
+                min_standing.title()
+            )
+            return player_idx >= req_idx
+        except (ValueError, KeyError, AttributeError):
+            return False
+
+    @staticmethod
+    def _check_vehicle_requirement(
+        campaign, capability: str
+    ) -> bool:
+        """Check if the player has a vehicle with the required capability."""
+        if not campaign.characters:
+            return False
+        char = campaign.characters[0]
+        return any(
+            capability in v.terrain
+            or capability in v.unlocks_tags
+            for v in char.vehicles
+            if v.is_operational
+        )
 
     def _cmd_say(self, text: str) -> dict:
         """Send player input to GM and get response."""
