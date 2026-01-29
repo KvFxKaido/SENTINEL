@@ -10,6 +10,11 @@
       <span class="status-dot"></span>
       <span id="bridge-state">connecting</span>
     </span>
+    <span class="sep">│</span>
+    <a href="/map" class="nav-link" title="Open Network Map (M)">
+      <span class="nav-icon">◈</span>
+      <span class="nav-text">MAP</span>
+    </a>
   </div>
 
   <div class="header-center">
@@ -77,6 +82,31 @@
     color: var(--text-muted);
   }
 
+  .nav-link {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    color: var(--text-secondary);
+    text-decoration: none;
+    padding: 2px 6px;
+    border-radius: 3px;
+    transition: all 0.15s ease;
+  }
+
+  .nav-link:hover {
+    background: var(--bg-tertiary);
+    color: var(--accent-cyan);
+  }
+
+  .nav-icon {
+    font-size: 10px;
+  }
+
+  .nav-text {
+    font-size: 10px;
+    letter-spacing: 0.05em;
+  }
+
   .backend-label {
     color: var(--text-muted);
   }
@@ -91,3 +121,16 @@
     }
   }
 </style>
+
+<script>
+  // Keyboard shortcut: M to open map
+  document.addEventListener('keydown', (e) => {
+    // Don't trigger if typing in an input
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      return;
+    }
+    if (e.key === 'm' || e.key === 'M') {
+      window.location.href = '/map';
+    }
+  });
+</script>

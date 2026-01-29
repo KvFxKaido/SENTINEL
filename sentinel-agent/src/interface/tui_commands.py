@@ -2595,6 +2595,17 @@ def tui_region(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
 
     app.manager.save_campaign()
 
+    # Emit map event for UI updates
+    from ..state.event_bus import get_event_bus, EventType
+    bus = get_event_bus()
+    bus.emit(
+        EventType.REGION_CHANGED,
+        campaign_id=campaign.id,
+        session=session,
+        from_region=current_region.value,
+        to_region=target_region.value,
+    )
+
     # Success message
     log.write(Text.from_markup(f"[{Theme.FRIENDLY}]Traveled to {target_info.get('name', target_region.value)}[/{Theme.FRIENDLY}]"))
     log.write(Text.from_markup(f"[{Theme.DIM}]{target_info.get('description', '')}[/{Theme.DIM}]"))
