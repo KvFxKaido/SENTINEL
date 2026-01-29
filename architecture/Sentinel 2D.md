@@ -1,6 +1,6 @@
 # SENTINEL — Spatial Embodiment & World Map Consolidated Plan
 
-> **Version:** 2.2 (Consolidated + Integration Architecture)
+> **Version:** 2.1 (Consolidated)
 > **Date:** January 28, 2026
 > **Author:** Shawn Montgomery
 > **Status:** Design-binding + Implementation roadmap
@@ -336,167 +336,240 @@ This refactor succeeds if:
 
 ## 18. Integration Architecture
 
-Sections 1–17 define the philosophy, invariants, and spatial model. This section specifies the **contract** between the engine and the map component — the concrete work required to close the gap between what exists and what the design demands.
+The Kimi world map prototype (`architecture/Kimi_Agent_Astro Map Integration/`) proves the visual layer. This section defines how it connects to the live game.
 
-### 18.1 Current State
+### 18.1 Data Ownership
 
-**Engine side (Python + Deno bridge):**
+The engine is the single source of truth. The map **consumes** — it never stores.
 
-- `schema.py` already has `Region`, `RegionConnectivity`, `MapState`, `RegionState`, `RouteRequirement`, `RouteAlternative` — all wired into `Campaign`
-- `regions.json` has all 11 regions with routes, requirements, alternatives, factions
-- Bridge at `localhost:3333` exposes `POST /command`, `GET /state`, `GET /events` (SSE)
+| Data | Owner | Location |
+|------|-------|----------|
+| Region definitions | Engine | `sentinel-agent/data/regions.json` |
+| Region connectivity | Engine | `Campaign.map_state.regions[id].connectivity` |
+| Current region | Engine | `Campaign.map_state.current_region` |
+| Route requirements | Engine | `regions.json` routes + `schema.py` models |
+| Faction standings | Engine | `Campaign.faction_standings` |
+| NPCs per region | Engine | Derived from `Campaign.npcs` by location |
+| Active jobs/threads | Engine | Derived from `Campaign.jobs` / `Campaign.threads` |
 
-**Map side (React + Vite standalone):**
+Kimi's static `regions.ts` and `factions.ts` are deleted at integration time. The map component receives all data via props hydrated from the bridge API.
 
-- `WorldMap` component takes `currentRegion`, `regionStates`, `markers`, `onRegionClick`
-- Own copies of region data, faction data, and types
-- Demo states only — no live connection to anything
+### 18.2 Bridge Map API
 
-### 18.2 The Six Gaps
+New endpoints on the Deno bridge (`localhost:3333`):
 
-| # | Gap | Problem |
-|---|-----|---------|
-| 1 | **No map API endpoint** | Bridge has `/state` and `/command` but nothing returns region connectivity, current region, or content markers |
-| 2 | **Duplicated data** | Map's `regions.ts` and `factions.ts` are static copies of what's already in `regions.json` and `schema.py` — two sources of truth |
-| 3 | **No map events** | SSE stream doesn't emit `region_changed`, `connectivity_updated`, or `travel_proposed` |
-| 4 | **No travel action flow** | `onRegionClick` has nowhere to go — no path from "click region" through the commitment gate to engine resolution |
-| 5 | **No content marker aggregation** | Engine tracks NPCs, jobs, threads per campaign, but nothing rolls those up into "what's in each region" for map display |
-| 6 | **Tech stack mismatch** | Map is React/Vite standalone. The actual UI is Astro (`sentinel-ui/`). Needs integration strategy |
+#### `GET /map`
 
-### 18.3 Bridge Map API
-
-A new endpoint the map component consumes.
-
-**`GET /map`** returns:
+Returns the complete map state for the current campaign.
 
 ```json
 {
-  "current_region": "haven",
-  "regions": [
-    {
-      "id": "haven",
-      "name": "Haven",
-      "position": { "x": 0.5, "y": 0.3 },
-      "controlling_faction": "covenant",
+  "ok": true,
+  "current_region": "rust_corridor",
+  "regions": {
+    "rust_corridor": {
       "connectivity": "embedded",
-      "content_markers": {
-        "npcs": 3,
-        "active_jobs": 1,
-        "active_threads": 2,
-        "points_of_interest": ["safehouse", "job_board"]
-      },
-      "routes": [
-        {
-          "to": "crossroads",
-          "accessible": true,
-          "requirements": [],
-          "alternatives": []
-        },
-        {
-          "to": "rustfield",
-          "accessible": false,
-          "requirements": [
-            { "type": "standing", "faction": "lattice", "minimum": 1 }
-          ],
-          "alternatives": [
-            { "type": "risky_traversal", "risk": "moderate" }
-          ]
-        }
+      "markers": [
+        { "type": "current" },
+        { "type": "npc", "count": 3 },
+        { "type": "job", "count": 1 }
       ]
+    },
+    "breadbasket": {
+      "connectivity": "connected",
+      "markers": [
+        { "type": "thread", "count": 1 }
+      ]
+    },
+    "frozen_edge": {
+      "connectivity": "disconnected",
+      "markers": []
     }
-  ]
+  }
 }
 ```
 
-The bridge constructs this by reading `Campaign.map_state`, `regions.json`, and aggregating per-region content from campaign state. No new engine logic — just a read-only projection.
+Content markers are **aggregated server-side** from campaign state:
 
-### 18.4 Data Contract
+| Marker | Source |
+|--------|--------|
+| `current` | `map_state.current_region` |
+| `npc` | NPCs whose `location` matches the region |
+| `job` | Active jobs assigned to the region |
+| `thread` | Dormant threads with region-scoped triggers |
+| `locked` | Adjacent region where no route requirements are met |
+| `risky` | Adjacent region reachable only via risky alternatives |
 
-**`Campaign.map_state`** → **`WorldMapProps`**
+#### `GET /map/region/:id`
 
-| Engine (Python) | Bridge (Deno) | Map (React) |
-|-----------------|---------------|-------------|
-| `MapState.current_region` | `response.current_region` | `currentRegion` prop |
-| `MapState.region_states[id].connectivity` | `response.regions[].connectivity` | `regionStates[id].connectivity` |
-| `MapState.region_states[id].discovered_routes` | `response.regions[].routes` | `regionStates[id].routes` |
-| Aggregated from NPCs, jobs, threads | `response.regions[].content_markers` | `markers[id]` |
+Returns detailed region info including route feasibility for the current player.
 
-The bridge is a **read-only projection layer**. It does not cache, transform, or enrich — it maps Python state to the JSON shape the component expects.
+```json
+{
+  "ok": true,
+  "region": {
+    "id": "northeast_scar",
+    "name": "Northeast Scar",
+    "description": "...",
+    "primary_faction": "architects",
+    "contested_by": ["nexus"],
+    "terrain": ["urban", "ruins", "contaminated"],
+    "connectivity": "aware",
+    "hazards": ["radiation", "structural_collapse"],
+    "points_of_interest": ["Manhattan Quarantine Zone", "..."]
+  },
+  "routes_from_current": [
+    {
+      "from": "rust_corridor",
+      "to": "northeast_scar",
+      "requirements": [
+        { "type": "faction", "faction": "architects", "min_standing": "neutral", "met": false }
+      ],
+      "alternatives": [
+        { "type": "contact", "faction": "ghost_networks", "description": "Smuggler route through ruins", "available": true },
+        { "type": "risky", "description": "Sneak through at night", "cost": { "social_energy": 2 }, "consequence": "architects_noticed" }
+      ],
+      "traversable": true,
+      "best_option": "contact"
+    }
+  ],
+  "content": {
+    "npcs": ["Wei", "Kol"],
+    "jobs": [],
+    "threads": ["architect_credentials"]
+  }
+}
+```
 
-### 18.5 Event Flow
+The `met` field on requirements and `available` field on alternatives are resolved server-side against current campaign state (standings, vehicles, contacts, story flags).
 
-The map subscribes to the existing SSE stream at `GET /events`. New event types:
+#### `POST /command` (existing — travel action)
 
-| Event | Trigger | Payload |
-|-------|---------|---------|
-| `region_changed` | Player completes travel | `{ region: string, previous: string }` |
-| `connectivity_updated` | NPC met, thread resolved, standing changed | `{ region: string, connectivity: string }` |
-| `content_markers_updated` | Job posted, NPC moved, thread activated | `{ region: string, markers: ContentMarkers }` |
-| `travel_proposed` | Player clicks region on map | `{ from: string, to: string, route: Route }` |
-| `travel_resolved` | Engine resolves travel commitment | `{ success: boolean, region: string, consequences: [] }` |
+Travel is proposed through the existing command interface:
 
-On receiving an event, the map re-fetches `GET /map` or applies the delta directly. No optimistic updates — the map waits for engine confirmation before reflecting changes.
+```json
+{ "cmd": "slash", "command": "travel", "args": ["northeast_scar"] }
+```
 
-### 18.6 Travel Action Sequence
+The engine validates route requirements, consumes the turn, and resolves consequences. No new endpoint needed — travel is a commitment like any other.
+
+### 18.3 Map Event Stream
+
+The existing SSE stream (`GET /events`) gains map-relevant event types:
+
+| Event | Trigger | Data |
+|-------|---------|------|
+| `region_changed` | Travel resolved | `{ from, to, session }` |
+| `connectivity_updated` | NPC met, job done, thread resolved | `{ region, old, new, reason }` |
+| `marker_changed` | Job/NPC/thread added or removed in region | `{ region, markers }` |
+| `route_status_changed` | Faction standing shift unlocks/locks route | `{ from, to, traversable, reason }` |
+
+The map subscribes to the SSE stream and re-renders on these events. No polling.
+
+### 18.4 Travel Action Sequence
+
+This is the commitment gate (Section 6) made concrete in the UI:
 
 ```
-Player clicks region
-  → Map emits travel proposal
-  → Bridge forwards: POST /command { type: "travel", to: "region_id" }
-  → Engine checks route requirements
-  → IF requirements unmet:
-      → Bridge returns requirement details + alternatives
-      → Map displays route options (standing, contact, resource, risky)
-      → Player selects approach or cancels
-  → IF requirements met (or alternative chosen):
-      → Confirmation UI: "Travel to [region]? This will use your turn."
-      → Player confirms
-      → Commitment Gate: engine resolves deterministically
-      → Consequences applied immediately
-      → SSE emits region_changed
-      → Map updates to new state
+1. Player clicks region on map
+2. Map calls GET /map/region/:id
+3. UI displays region detail panel:
+   - Region info, connectivity, content
+   - Route feasibility (requirements met/unmet)
+   - Available alternatives with costs
+4. Player selects travel option (direct, alternative, or cancel)
+5. UI shows confirmation dialog:
+   "Travel to Northeast Scar via Ghost Networks smuggler route?
+    Cost: 1 turn
+    Consequence: owes Ghost Networks a favor"
+6. Player confirms
+7. Map calls POST /command { cmd: "slash", command: "travel", args: ["northeast_scar", "--via", "contact"] }
+8. Engine resolves:
+   - Validates requirements
+   - Consumes turn
+   - Updates current_region
+   - Applies consequences (favor owed, social energy cost, etc.)
+   - Emits region_changed event
+9. SSE delivers region_changed to map
+10. Map re-renders with new state
 ```
 
-This sequence enforces the invariant from Section 6: **no interface may bypass the commitment gate.** The map proposes; the engine resolves.
+**Cancellation at any step before 7 has zero side effects.** This is the commitment gate in action — the UI proposes, the engine resolves.
 
-### 18.7 Data Ownership
+### 18.5 Component Integration
 
-**The engine is the single source of truth.**
+The Kimi prototype is a standalone React + Vite app. Integration path into `sentinel-ui/` (Astro):
 
-| Data | Owner | Consumers |
-|------|-------|-----------|
-| Region definitions | `regions.json` | Engine, Bridge |
-| Faction definitions | `sentinel-campaign/data/factions/` | Engine, Bridge |
-| Campaign state | `Campaign` (schema.py) | Engine, Bridge |
-| Map state | `Campaign.map_state` | Engine, Bridge |
-| Route requirements | `regions.json` + `Campaign.map_state` | Engine, Bridge |
+#### Strategy: React Island
 
-The map component's static copies of region and faction data (`regions.ts`, `factions.ts`) are **deleted** once the bridge API is live. The component receives all data via `GET /map` — no local state files.
-
-### 18.8 Astro Embedding Strategy
-
-The map component is embedded in `sentinel-ui/` as a **React island** inside the existing Astro layout.
+Astro supports [React component islands](https://docs.astro.build/en/guides/integrations-guide/react/) — interactive React components embedded in otherwise static Astro pages.
 
 ```
 sentinel-ui/
-  src/
-    components/
-      WorldMap.tsx        ← React component (moved from standalone)
-    pages/
-      index.astro         ← Main game view, includes <WorldMap client:load />
-    lib/
-      bridge.ts           ← Already exists; add fetchMap() and subscribeMapEvents()
+├── src/
+│   ├── components/
+│   │   └── map/                    # Extracted from Kimi prototype
+│   │       ├── WorldMap.tsx        # Main component (props-driven, no static data)
+│   │       ├── RegionNode.tsx
+│   │       ├── ConnectionLines.tsx
+│   │       ├── MapTooltip.tsx
+│   │       ├── MapLegend.tsx
+│   │       └── RegionDetail.tsx    # New: detail panel + travel confirmation
+│   ├── pages/
+│   │   └── index.astro             # Main game view — embeds <WorldMap client:load />
+│   └── lib/
+│       └── bridge.ts               # Existing bridge client — add map methods
 ```
 
-**Steps:**
+#### What migrates from Kimi prototype
 
-1. Move `WorldMap` component and its dependencies into `sentinel-ui/src/components/`
-2. Remove standalone Vite app scaffolding (own `index.html`, `main.tsx`, dev server config)
-3. Add `@astrojs/react` integration if not already present
-4. Import as `<WorldMap client:load />` in the game page
-5. Wire props through `bridge.ts` — `fetchMap()` on mount, SSE subscription for updates
+| Keep | Discard |
+|------|---------|
+| `WorldMap.tsx` (refactored to props-only) | `regions.ts` (static data) |
+| `RegionNode.tsx` | `factions.ts` (static data) |
+| `ConnectionLines.tsx` | `App.tsx` (demo harness) |
+| `MapTooltip.tsx` | `ui/` components (use sentinel-ui's existing library) |
+| `MapLegend.tsx` | Vite config, Tailwind config (use sentinel-ui's) |
+| `types/map.ts` (aligned to engine schema) | |
+| CSS variables and faction colors | |
 
-The component remains a pure React component. Astro handles hydration. No framework coupling beyond the island boundary.
+#### Bridge Client Additions
+
+```typescript
+// sentinel-ui/src/lib/bridge.ts — new methods
+
+async getMapState(): Promise<MapState>
+async getRegionDetail(regionId: string): Promise<RegionDetail>
+async travel(regionId: string, via?: string): Promise<CommandResult>
+onMapEvent(handler: (event: MapEvent) => void): () => void
+```
+
+### 18.6 Data Alignment
+
+The Kimi TypeScript types and engine Python models must stay in sync. The canonical direction is **Python → TypeScript**.
+
+| Python (schema.py) | TypeScript (map.ts) | Notes |
+|---------------------|---------------------|-------|
+| `Region` enum | `Region` type | Same string values |
+| `RegionConnectivity` enum | `RegionConnectivity` type | Same string values |
+| `RegionState` model | `RegionState` interface | TS version omits methods |
+| `MapState` model | `MapState` interface | TS version is the API response shape |
+| `RouteRequirement` model | `RouteRequirement` interface | TS adds `met: boolean` from API |
+| `RouteAlternative` model | `RouteAlternative` interface | TS adds `available: boolean` from API |
+| `FactionName` enum | `Faction` type | Same string values |
+
+If `schema.py` changes, the bridge must update its serialization and the TypeScript types must follow. The Kimi prototype's types are already close — minor field name casing differences (`minStanding` → `min_standing`) resolve during migration.
+
+### 18.7 What the Map Does Not Do
+
+Restating the invariants from Section 4 in integration terms:
+
+- The map **never writes** to campaign state directly
+- The map **never skips** the confirmation step
+- The map **never resolves** route requirements client-side (it displays server-resolved `met`/`available` fields)
+- The map **never polls** — it subscribes to SSE
+- The map **renders correctly with no data** — a new campaign shows 11 disconnected regions and that's it
+- If the bridge is down, the map shows last-known state with a connection indicator — the CLI still works
 
 ---
 
