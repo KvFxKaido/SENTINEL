@@ -1540,6 +1540,10 @@ class Campaign(BaseModel):
     # Mission offers — time-sensitive story opportunities
     mission_offers: list[MissionOffer] = Field(default_factory=list)
 
+    # Turn-based engine tracking (Sentinel 2D §4d)
+    turn_count: int = 0  # Total turns taken this campaign
+    state_version: int = 0  # Increments on every state mutation, used for idempotency
+
     # Session Bridging
     last_session_snapshot: CampaignSnapshot | None = None
 

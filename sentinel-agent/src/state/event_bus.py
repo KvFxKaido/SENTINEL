@@ -75,6 +75,16 @@ class EventType(Enum):
     MARKER_CHANGED = "map.marker_changed"
     ROUTE_STATUS_CHANGED = "map.route_status_changed"
 
+    # Turn lifecycle events (Sentinel 2D §6)
+    TURN_START = "turn.start"
+    TURN_PROPOSED = "turn.proposed"
+    TURN_RESOLVING = "turn.resolving"
+    TURN_RESOLVED = "turn.resolved"
+    TURN_END = "turn.end"
+
+    # Standing events (for cascade triggers)
+    STANDING_CHANGED = "standing.changed"
+
     # Processing stage events (for TUI "thinking" display)
     STAGE_BUILDING_CONTEXT = "stage.building_context"
     STAGE_RETRIEVING_LORE = "stage.retrieving_lore"
