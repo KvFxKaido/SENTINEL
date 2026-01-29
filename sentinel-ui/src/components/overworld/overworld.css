@@ -388,3 +388,642 @@
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+
+/* ============================================================================
+   Phase 4: Region Transition
+   ============================================================================ */
+
+.region-transition-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.transition-content {
+  text-align: center;
+  color: var(--text-primary);
+}
+
+.transition-direction {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--text-muted);
+  letter-spacing: 0.2em;
+  margin-bottom: var(--space-sm);
+}
+
+.transition-arrow {
+  font-size: 48px;
+  color: var(--accent-cyan);
+  margin-bottom: var(--space-md);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.1); }
+}
+
+.transition-destination {
+  font-family: var(--font-sans);
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: var(--space-lg);
+}
+
+.transition-progress-bar {
+  width: 200px;
+  height: 4px;
+  background: var(--bg-tertiary);
+  border-radius: 2px;
+  margin: 0 auto var(--space-md);
+  overflow: hidden;
+}
+
+.transition-progress-fill {
+  height: 100%;
+  background: var(--accent-cyan);
+  transition: width 0.1s linear;
+}
+
+.transition-cost {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--status-warning);
+}
+
+.transition-consequence {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--status-special);
+  margin-top: var(--space-sm);
+}
+
+/* ============================================================================
+   Phase 4: Mini-map
+   ============================================================================ */
+
+.mini-map {
+  position: absolute;
+  top: var(--space-md);
+  right: var(--space-md);
+  width: 150px;
+  background: rgba(0, 0, 0, 0.8);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: var(--space-sm);
+}
+
+.mini-map-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: var(--space-xs);
+}
+
+.mini-map-content {
+  position: relative;
+  width: 100%;
+  height: 100px;
+}
+
+.mini-map-region {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.mini-map-region.blocked {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mini-map-region:hover:not(.blocked) {
+  opacity: 0.8;
+}
+
+.region-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.region-dot.current {
+  background: var(--accent-cyan);
+  box-shadow: 0 0 8px var(--accent-cyan);
+}
+
+.region-dot.open {
+  background: var(--status-success);
+}
+
+.region-dot.blocked {
+  background: var(--status-danger);
+}
+
+.region-name {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  white-space: nowrap;
+  max-width: 50px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-map-connections {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.connection-open {
+  stroke: var(--status-success);
+  stroke-width: 1;
+  opacity: 0.5;
+}
+
+.connection-blocked {
+  stroke: var(--status-danger);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+  opacity: 0.3;
+}
+
+/* ============================================================================
+   Phase 4: Faction Pressure
+   ============================================================================ */
+
+.faction-legend {
+  position: absolute;
+  bottom: var(--space-md);
+  left: var(--space-md);
+  background: rgba(0, 0, 0, 0.8);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: var(--space-sm);
+  min-width: 180px;
+}
+
+.faction-legend-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: var(--space-xs);
+}
+
+.faction-legend-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.faction-legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.faction-color-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.faction-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.faction-name {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-transform: capitalize;
+}
+
+.primary-badge {
+  font-size: 8px;
+  color: var(--accent-cyan);
+  margin-left: var(--space-xs);
+  text-transform: uppercase;
+}
+
+.faction-influence {
+  font-size: 9px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.faction-standing {
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.standing-hostile { color: var(--status-danger); }
+.standing-unfriendly { color: var(--status-warning); }
+.standing-neutral { color: var(--text-muted); }
+.standing-friendly { color: var(--status-info); }
+.standing-allied { color: var(--status-success); }
+
+.faction-indicator {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs);
+}
+
+.faction-indicator-bar {
+  width: 4px;
+  height: 16px;
+  border-radius: 2px;
+}
+
+.faction-indicator-name {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-secondary);
+  text-transform: capitalize;
+}
+
+.faction-indicator-standing {
+  font-size: 9px;
+  margin-left: auto;
+}
+
+/* ============================================================================
+   Phase 4: Combat Overlay
+   ============================================================================ */
+
+.combat-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.95);
+  display: flex;
+  flex-direction: column;
+  z-index: 1000;
+  padding: var(--space-lg);
+}
+
+.combat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: var(--space-md);
+}
+
+.combat-turn {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.combat-phase {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  color: var(--accent-cyan);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.combat-arena {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xl);
+}
+
+.combat-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.combat-vs {
+  font-family: var(--font-sans);
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--status-danger);
+  opacity: 0.5;
+}
+
+.combatant-card {
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  padding: var(--space-md);
+  min-width: 200px;
+  transition: all 0.15s ease;
+}
+
+.combatant-card.active {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 12px rgba(86, 212, 221, 0.3);
+}
+
+.combatant-card.targetable {
+  cursor: pointer;
+  border-style: dashed;
+}
+
+.combatant-card.targetable:hover {
+  border-color: var(--status-danger);
+  background: rgba(248, 81, 73, 0.1);
+}
+
+.combatant-card.selected {
+  border-color: var(--status-danger);
+  box-shadow: 0 0 12px rgba(248, 81, 73, 0.3);
+}
+
+.combatant-name {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--space-xs);
+}
+
+.combatant-faction {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--space-sm);
+}
+
+.combatant-bars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.stat-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.bar-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  width: 20px;
+}
+
+.bar-track {
+  flex: 1;
+  height: 8px;
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.bar-value {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-secondary);
+  width: 50px;
+  text-align: right;
+}
+
+.target-indicator {
+  margin-top: var(--space-sm);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--status-danger);
+  text-align: center;
+  animation: blink 1s ease-in-out infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.combat-actions {
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-color);
+  padding: var(--space-md);
+}
+
+.actions-header {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: var(--space-sm);
+}
+
+.actions-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.combat-actions .action-button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: var(--space-sm);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-width: 120px;
+}
+
+.combat-actions .action-button:hover:not(:disabled) {
+  border-color: var(--accent-cyan);
+  background: rgba(86, 212, 221, 0.1);
+}
+
+.combat-actions .action-button.selected {
+  border-color: var(--accent-cyan);
+  background: rgba(86, 212, 221, 0.15);
+}
+
+.combat-actions .action-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.action-name {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-primary);
+  text-transform: uppercase;
+}
+
+.action-cost {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--status-info);
+}
+
+.action-desc {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.target-prompt {
+  margin-top: var(--space-sm);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--status-warning);
+  text-align: center;
+}
+
+.combat-log {
+  background: var(--bg-tertiary);
+  border-top: 1px solid var(--border-color);
+  padding: var(--space-sm);
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.log-header {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-bottom: var(--space-xs);
+}
+
+.log-entries {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.log-entry {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.log-turn {
+  color: var(--text-muted);
+}
+
+.log-actor {
+  color: var(--accent-cyan);
+}
+
+.log-action {
+  color: var(--text-secondary);
+}
+
+.log-target {
+  color: var(--status-warning);
+}
+
+.log-result {
+  color: var(--text-primary);
+}
+
+.log-damage {
+  color: var(--status-danger);
+}
+
+.combat-outcome {
+  text-align: center;
+  padding: var(--space-xl);
+}
+
+.outcome-title {
+  font-family: var(--font-sans);
+  font-size: 36px;
+  font-weight: 700;
+  margin-bottom: var(--space-lg);
+}
+
+.outcome-title.victory {
+  color: var(--status-success);
+}
+
+.outcome-title.defeat {
+  color: var(--status-danger);
+}
+
+.outcome-section {
+  margin-bottom: var(--space-md);
+}
+
+.outcome-section h3 {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-bottom: var(--space-xs);
+}
+
+.outcome-section ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.outcome-section li {
+  font-size: 14px;
+  color: var(--text-secondary);
+  padding: var(--space-xs) 0;
+}
+
+.combat-end-button {
+  margin-top: var(--space-lg);
+  padding: var(--space-sm) var(--space-lg);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  background: var(--accent-cyan);
+  border: none;
+  border-radius: 4px;
+  color: var(--bg-primary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.combat-end-button:hover {
+  background: var(--accent-steel);
+}

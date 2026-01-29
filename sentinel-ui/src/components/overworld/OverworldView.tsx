@@ -6,11 +6,19 @@
  * 
  * Interaction Pattern:
  * Proximity → Prompt → Explicit Confirmation → Commitment Gate → Resolution
+ * 
+ * Phase 4 adds:
+ * - Multi-region transitions
+ * - Faction pressure visualization
+ * - Combat integration
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { OverworldCanvas } from './OverworldCanvas';
 import { InteractionPanel } from './InteractionPanel';
+import { RegionTransition, MiniMap } from './RegionTransition';
+import { FactionLegend, generateFactionZones } from './FactionPressure';
+import { CombatOverlay, createInitialCombatState, processCombatAction } from './CombatOverlay';
 import type {
   OverworldState,
   Entity,
@@ -21,6 +29,13 @@ import type {
   POIData,
   ExitData,
 } from './types';
+import type {
+  RegionTransition as TransitionType,
+  FactionPressure,
+  CombatState,
+  CombatAction,
+  CombatOutcome,
+} from './expansion-types';
 import {
   HAZARD_TEMPLATES,
   POI_TEMPLATES,
@@ -54,7 +69,7 @@ function generateEntities(
     
     for (let i = 0; i < maxAttempts; i++) {
       const x = margin + Math.random() * (canvasWidth - margin * 2);
-      const y = margin + 40 + Math.random() * (canvasHeight - margin * 2 - 40); // Account for header
+      const y = margin + 40 + Math.random() * (canvasHeight - margin * 2 - 40);
       
       const overlaps = usedPositions.some(pos => {
         const dx = pos.x - x;
@@ -69,7 +84,6 @@ function generateEntities(
       }
     }
     
-    // Fallback to random position
     return {
       x: margin + Math.random() * (canvasWidth - margin * 2),
       y: margin + 40 + Math.random() * (canvasHeight - margin * 2 - 40),
@@ -190,26 +204,38 @@ export function OverworldView({ onExit, onTravel }: OverworldViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
 
+  // Phase 4: Expansion state
+  const [transition, setTransition] = useState<TransitionType | null>(null);
+  const [factionPressure, setFactionPressure] = useState<FactionPressure | null>(null);
+  const [factionStandings, setFactionStandings] = useState<Array<{ id: string; name: string; standing: string }>>([]);
+  const [combat, setCombat] = useState<CombatState | null>(null);
+  const [connectedRegions, setConnectedRegions] = useState<Array<{
+    id: string;
+    name: string;
+    direction: 'north' | 'south' | 'east' | 'west';
+    traversable: boolean;
+  }>>([]);
+
   // Fetch initial state
   useEffect(() => {
     async function fetchState() {
       try {
         setLoading(true);
         
-        // Get campaign state for NPCs and current region
         const campaignState = await getCampaignState();
         if (!campaignState.ok) {
           setError('Failed to load campaign state');
           return;
         }
 
-        // Get region details
+        // Store faction standings for Phase 4
+        setFactionStandings(campaignState.factions || []);
+
         const regionId = campaignState.region || 'rust_corridor';
         let regionDetail;
         try {
           regionDetail = await getRegionDetail(regionId);
         } catch {
-          // Use fallback data if region detail fails
           regionDetail = {
             ok: true,
             region: {
@@ -237,7 +263,25 @@ export function OverworldView({ onExit, onTravel }: OverworldViewProps) {
           character: regionDetail.region.character,
         };
 
-        // Generate entities
+        // Phase 4: Generate faction pressure zones
+        const pressure = generateFactionZones(
+          regionDetail.region.primary_faction || 'unknown',
+          regionDetail.region.contested_by || [],
+          canvasSize.width,
+          canvasSize.height
+        );
+        setFactionPressure(pressure);
+
+        // Phase 4: Store connected regions for mini-map
+        const directions: Array<'north' | 'south' | 'east' | 'west'> = ['north', 'south', 'east', 'west'];
+        const connected = (regionDetail.routes_from_current || []).map((r: { to: string; traversable: boolean }, i: number) => ({
+          id: r.to,
+          name: r.to.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
+          direction: directions[i % directions.length],
+          traversable: r.traversable,
+        }));
+        setConnectedRegions(connected);
+
         const entities = generateEntities(
           region,
           campaignState.npcs || [],
@@ -245,7 +289,6 @@ export function OverworldView({ onExit, onTravel }: OverworldViewProps) {
           canvasSize.height
         );
 
-        // Generate exits from routes
         const exits = generateExits(
           regionId,
           regionDetail.routes_from_current?.map((r: { to: string; traversable: boolean }) => ({
@@ -282,7 +325,6 @@ export function OverworldView({ onExit, onTravel }: OverworldViewProps) {
         event.event_type === 'map.region_changed' ||
         event.event_type === 'state_changed'
       ) {
-        // Refresh state on region change
         window.location.reload();
       }
     });
@@ -310,6 +352,9 @@ export function OverworldView({ onExit, onTravel }: OverworldViewProps) {
   // Keyboard shortcuts
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      // Don't handle keys during combat
+      if (combat) return;
+
       if (e.key === 'Escape') {
         if (selectedEntity) {
           setSelectedEntity(null);
@@ -321,38 +366,128 @@ export function OverworldView({ onExit, onTravel }: OverworldViewProps) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedEntity, onExit]);
+  }, [selectedEntity, onExit, combat]);
 
   const handleEntityInteract = useCallback((entity: Entity) => {
     setSelectedEntity(entity);
   }, []);
 
   const handleExitApproach = useCallback((entity: Entity) => {
-    // Show exit in sidebar when approached
     setSelectedEntity(entity);
+  }, []);
+
+  // Phase 4: Handle region transition
+  const handleTransitionComplete = useCallback(() => {
+    setTransition(null);
+    // Reload the page to load new region
+    window.location.reload();
+  }, []);
+
+  // Phase 4: Handle combat actions
+  const handleCombatAction = useCallback((action: CombatAction, targetId?: string) => {
+    if (!combat) return;
+    const newState = processCombatAction(combat, action, targetId);
+    setCombat(newState);
+
+    // If it's enemy turn, auto-process after delay
+    if (newState.phase === 'enemy_turn' && !newState.outcome) {
+      setTimeout(() => {
+        // Simple enemy AI: attack player
+        const enemy = newState.combatants.find(c => c.id === newState.currentCombatant);
+        if (enemy) {
+          const attackAction: CombatAction = {
+            id: 'enemy_attack',
+            name: 'Attack',
+            type: 'attack',
+            cost: 1,
+            description: 'Enemy attack',
+            targetType: 'single',
+          };
+          const afterEnemy = processCombatAction(newState, attackAction, 'player');
+          setCombat(afterEnemy);
+        }
+      }, 1000);
+    }
+  }, [combat]);
+
+  // Phase 4: Handle combat end
+  const handleCombatEnd = useCallback((outcome: CombatOutcome) => {
+    setCombat(null);
+    // Could send outcome to backend here
+    console.log('Combat ended:', outcome);
   }, []);
 
   const handleAction = useCallback(async (action: string, params?: Record<string, unknown>) => {
     if (!selectedEntity) return;
 
-    // Handle travel action
+    // Handle travel action with Phase 4 transition
     if (action === 'travel' && selectedEntity.type === 'exit') {
       const exitData = selectedEntity.data as ExitData;
+      
+      // Start transition animation
+      setTransition({
+        fromRegion: state?.region.id || 'unknown',
+        toRegion: exitData.targetRegion,
+        direction: exitData.direction,
+        cost: 1,
+      });
+
       try {
         await sendCommand('slash', { command: 'travel', args: [exitData.targetRegion] });
         onTravel?.(exitData.targetRegion);
       } catch (err) {
         console.error('Travel failed:', err);
+        setTransition(null);
       }
     }
 
-    // Other actions would be handled here
+    // Phase 4: Handle combat initiation
+    if (action === 'attack' && selectedEntity.type === 'npc') {
+      const npcData = selectedEntity.data as NPCData;
+      const combatState = createInitialCombatState(
+        state?.player.name || 'Agent',
+        100, // player health
+        10,  // player energy
+        [{ name: npcData.name, health: 50, faction: npcData.faction || undefined }]
+      );
+      setCombat(combatState);
+      setSelectedEntity(null);
+    }
+
+    // Handle hazard bypass (may trigger combat)
+    if (action === 'bypass' && selectedEntity.type === 'hazard') {
+      const hazardData = selectedEntity.data as HazardData;
+      // 30% chance of combat encounter when bypassing hazard
+      if (Math.random() < 0.3) {
+        const combatState = createInitialCombatState(
+          state?.player.name || 'Agent',
+          100,
+          10,
+          [{ name: `${hazardData.terrain} Hostile`, health: 40 }]
+        );
+        setCombat(combatState);
+        setSelectedEntity(null);
+      }
+    }
+
     console.log('Action:', action, 'Entity:', selectedEntity.id, 'Params:', params);
-  }, [selectedEntity, onTravel]);
+  }, [selectedEntity, state, onTravel]);
 
   const handleClosePanel = useCallback(() => {
     setSelectedEntity(null);
   }, []);
+
+  // Phase 4: Handle mini-map region click
+  const handleMiniMapRegionClick = useCallback((regionId: string) => {
+    // Find the exit entity for this region
+    const exitEntity = state?.exits.find(e => {
+      const data = e.data as ExitData;
+      return data.targetRegion === regionId;
+    });
+    if (exitEntity) {
+      setSelectedEntity(exitEntity);
+    }
+  }, [state]);
 
   // Loading state
   if (loading) {
@@ -380,6 +515,23 @@ export function OverworldView({ onExit, onTravel }: OverworldViewProps) {
 
   return (
     <div className="overworld-container" ref={containerRef}>
+      {/* Phase 4: Combat overlay */}
+      {combat && (
+        <CombatOverlay
+          combat={combat}
+          onAction={handleCombatAction}
+          onEnd={handleCombatEnd}
+        />
+      )}
+
+      {/* Phase 4: Region transition overlay */}
+      {transition && (
+        <RegionTransition
+          transition={transition}
+          onComplete={handleTransitionComplete}
+        />
+      )}
+
       <div className="overworld-canvas-wrapper">
         <OverworldCanvas
           state={state}
@@ -388,6 +540,23 @@ export function OverworldView({ onExit, onTravel }: OverworldViewProps) {
           onEntityInteract={handleEntityInteract}
           onExitApproach={handleExitApproach}
         />
+
+        {/* Phase 4: Mini-map */}
+        {connectedRegions.length > 0 && (
+          <MiniMap
+            currentRegion={state.region.id}
+            connectedRegions={connectedRegions}
+            onRegionClick={handleMiniMapRegionClick}
+          />
+        )}
+
+        {/* Phase 4: Faction legend */}
+        {factionPressure && (
+          <FactionLegend
+            pressure={factionPressure}
+            factionStandings={factionStandings}
+          />
+        )}
       </div>
 
       {selectedEntity ? (

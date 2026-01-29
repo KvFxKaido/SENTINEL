@@ -304,11 +304,11 @@ Connectivity advances via:
 - [x] NPCs and hazards
 - [x] Commitment enforcement
 
-### Phase 4 — Expansion
+### Phase 4 — Expansion ✓
 
-- Multi-region overworlds
-- Faction pressure visualization
-- Combat integration
+- [x] Multi-region overworlds
+- [x] Faction pressure visualization
+- [x] Combat integration
 
 ---
 
