@@ -310,7 +310,13 @@ class HeadlessRunner:
         data_dir = Path(__file__).parent.parent.parent / "data"
         regions_file = data_dir / "regions.json"
         try:
+        try:
             with open(regions_file) as f:
+                regions_data = json.load(f)["regions"]
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            # It's good practice to log the actual error.
+            # logger.error(f"Failed to load region data: {e}")
+            regions_data = {}
                 regions_data = json.load(f)["regions"]
         except Exception:
             regions_data = {}
