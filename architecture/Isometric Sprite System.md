@@ -268,3 +268,14 @@ Once Cipher works:
 **Time per variant:** 30-60 minutes
 
 ---
+## Readability Lock (Design-Binding)
+
+If a sprite cannot be correctly identified at a glance:
+- Facing direction
+- Equipped role (armed, tech, civilian)
+- Faction affiliation (via silhouette + color)
+
+Then the sprite is invalid, regardless of detail quality.
+
+No outlines, glows, or UI markers may be added to compensate.
+Readability must come from shape, contrast, and motion alone.
