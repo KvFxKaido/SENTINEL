@@ -1,0 +1,61 @@
+---
+import GameLayout from '../layouts/GameLayout.astro';
+---
+
+<GameLayout title="SENTINEL - Local Map">
+  <div id="localmap-root" class="localmap-page"></div>
+</GameLayout>
+
+<script>
+  import { LocalMapView } from '../components/localmap';
+
+  // Mount React component
+  import { createElement } from 'react';
+  import { createRoot } from 'react-dom/client';
+
+  const container = document.getElementById('localmap-root');
+  if (container) {
+    const root = createRoot(container);
+    
+    // Get map ID from URL params or default to safehouse
+    const params = new URLSearchParams(window.location.search);
+    const mapId = params.get('map') || 'safehouse_main';
+    const spawnId = params.get('spawn') || undefined;
+
+    const handleMapChange = (newMapId: string) => {
+      // Update URL without reload
+      const newParams = new URLSearchParams(window.location.search);
+      newParams.set('map', newMapId);
+      window.history.replaceState({}, '', `?${newParams.toString()}`);
+    };
+
+    const handleInteraction = (type: string, target: unknown) => {
+      console.log('Interaction:', type, target);
+      // TODO: Send to backend API
+    };
+
+    const handleExit = () => {
+      // Navigate back to main game view
+      window.location.href = '/';
+    };
+
+    root.render(
+      createElement(LocalMapView, {
+        initialMapId: mapId,
+        initialSpawnId: spawnId,
+        onMapChange: handleMapChange,
+        onInteraction: handleInteraction,
+        onExit: handleExit,
+      })
+    );
+  }
+</script>
+
+<style>
+  .localmap-page {
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background: #000;
+  }
+</style>
