@@ -201,7 +201,14 @@ If you eventually need diagonals:
 - 8-direction footprint math complexity note
 
 ---
+## Animation Integrity (Reference)
 
+All walk cycles must obey the Anti-Slide rules defined in:
+→ `Isometric Animation Rules.md`
+
+Sprites that visually slide or drift relative to world movement are invalid,
+regardless of aesthetic quality.
+---
 **Version:** 1.1 (Gemini-patched)  
 **Status:** Production-ready for CLI implementation  
 **Next Review:** After first faction variant (Syndicate) test
