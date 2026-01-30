@@ -1,0 +1,498 @@
+/**
+ * Local Map Styles (Phase 2)
+ * 
+ * Minimal, tactical aesthetic.
+ * Dark theme with high contrast for readability.
+ */
+
+/* ============================================================================
+   Container & Layout
+   ============================================================================ */
+
+.localmap-container {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  position: relative;
+  overflow: hidden;
+}
+
+.localmap-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+.localmap-canvas-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0a0a0a;
+  padding: 16px;
+}
+
+.localmap-canvas-wrapper canvas {
+  border: 1px solid #1a1a2a;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+.localmap-sidebar {
+  width: 280px;
+  background: #0a0a0f;
+  border-left: 1px solid #1a1a2a;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ============================================================================
+   HUD Indicators
+   ============================================================================ */
+
+.localmap-hud {
+  position: absolute;
+  bottom: 24px;
+  left: 24px;
+  right: 24px;
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.hud-time {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.85);
+  padding: 6px 12px;
+  border: 1px solid #2a2a3a;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.time-indicator {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
+.time-dawn { color: #d29922; }
+.time-morning { color: #58a6ff; }
+.time-midday { color: #c9d1d9; }
+.time-afternoon { color: #f0883e; }
+.time-evening { color: #d29922; }
+.time-night { color: #6e7681; }
+
+.time-day {
+  font-size: 10px;
+  color: #6e7681;
+  text-transform: uppercase;
+}
+
+.time-paused {
+  font-size: 10px;
+  color: #f85149;
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.hud-position {
+  background: rgba(0, 0, 0, 0.8);
+  padding: 6px 12px;
+  border: 1px solid #2a2a3a;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: #6e7681;
+}
+
+/* ============================================================================
+   Interaction Panel
+   ============================================================================ */
+
+.localmap-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+}
+
+.localmap-panel-empty {
+  justify-content: center;
+  align-items: center;
+}
+
+.panel-empty-content {
+  text-align: center;
+}
+
+.panel-empty-icon {
+  font-size: 32px;
+  color: #3a3a4a;
+  margin-bottom: 16px;
+}
+
+.panel-empty-hint {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: #6e7681;
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+
+.panel-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.control-row {
+  display: flex;
+  justify-content: space-between;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+}
+
+.control-key {
+  background: #1a1a2a;
+  padding: 2px 8px;
+  border-radius: 2px;
+  color: #8b949e;
+}
+
+.control-action {
+  color: #6e7681;
+}
+
+/* Panel Header */
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #1a1a2a;
+  margin-bottom: 12px;
+}
+
+.panel-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: #c9d1d9;
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.panel-close {
+  background: none;
+  border: none;
+  color: #6e7681;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s;
+}
+
+.panel-close:hover {
+  color: #f85149;
+}
+
+/* Panel Content */
+.panel-content {
+  flex: 1;
+}
+
+.panel-description {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: #8b949e;
+  line-height: 1.5;
+  margin: 0 0 16px;
+}
+
+.panel-hint {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: #6e7681;
+  margin-top: 12px;
+}
+
+/* NPC Info */
+.panel-npc-info {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.npc-faction {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: #58a6ff;
+  text-transform: uppercase;
+  background: rgba(88, 166, 255, 0.1);
+  padding: 2px 8px;
+  border-radius: 2px;
+}
+
+.npc-disposition {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 2px;
+}
+
+.disposition-hostile {
+  color: #f85149;
+  background: rgba(248, 81, 73, 0.1);
+}
+
+.disposition-wary {
+  color: #d29922;
+  background: rgba(210, 153, 34, 0.1);
+}
+
+.disposition-neutral {
+  color: #8b949e;
+  background: rgba(139, 148, 158, 0.1);
+}
+
+.disposition-warm {
+  color: #58a6ff;
+  background: rgba(88, 166, 255, 0.1);
+}
+
+.disposition-loyal {
+  color: #3fb950;
+  background: rgba(63, 185, 80, 0.1);
+}
+
+/* Action Buttons */
+.panel-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.action-button {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  padding: 10px 16px;
+  border: 1px solid #2a2a3a;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.action-primary {
+  background: rgba(88, 166, 255, 0.1);
+  color: #58a6ff;
+  border-color: rgba(88, 166, 255, 0.3);
+}
+
+.action-primary:hover {
+  background: rgba(88, 166, 255, 0.2);
+  border-color: #58a6ff;
+}
+
+.action-secondary {
+  background: rgba(139, 148, 158, 0.05);
+  color: #8b949e;
+}
+
+.action-secondary:hover {
+  background: rgba(139, 148, 158, 0.1);
+  border-color: #8b949e;
+}
+
+/* ============================================================================
+   Loading State
+   ============================================================================ */
+
+.localmap-loading {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid #2a2a3a;
+  border-top-color: #58a6ff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.localmap-loading span {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: #6e7681;
+  letter-spacing: 1px;
+}
+
+/* ============================================================================
+   Map Transition
+   ============================================================================ */
+
+.map-transition {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.transition-overlay {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeInOut 0.8s ease-in-out;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; }
+  30% { opacity: 1; }
+  70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.transition-north {
+  animation: slideUp 0.8s ease-in-out;
+}
+
+.transition-south {
+  animation: slideDown 0.8s ease-in-out;
+}
+
+.transition-east {
+  animation: slideRight 0.8s ease-in-out;
+}
+
+.transition-west {
+  animation: slideLeft 0.8s ease-in-out;
+}
+
+@keyframes slideUp {
+  0% { transform: translateY(100%); opacity: 0; }
+  30% { transform: translateY(0); opacity: 1; }
+  70% { transform: translateY(0); opacity: 1; }
+  100% { transform: translateY(-100%); opacity: 0; }
+}
+
+@keyframes slideDown {
+  0% { transform: translateY(-100%); opacity: 0; }
+  30% { transform: translateY(0); opacity: 1; }
+  70% { transform: translateY(0); opacity: 1; }
+  100% { transform: translateY(100%); opacity: 0; }
+}
+
+@keyframes slideRight {
+  0% { transform: translateX(-100%); opacity: 0; }
+  30% { transform: translateX(0); opacity: 1; }
+  70% { transform: translateX(0); opacity: 1; }
+  100% { transform: translateX(100%); opacity: 0; }
+}
+
+@keyframes slideLeft {
+  0% { transform: translateX(100%); opacity: 0; }
+  30% { transform: translateX(0); opacity: 1; }
+  70% { transform: translateX(0); opacity: 1; }
+  100% { transform: translateX(-100%); opacity: 0; }
+}
+
+.transition-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.transition-arrow {
+  font-size: 48px;
+  color: #56d4dd;
+}
+
+.transition-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: #6e7681;
+  letter-spacing: 2px;
+}
+
+/* ============================================================================
+   Pause Overlay
+   ============================================================================ */
+
+.localmap-pause-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.pause-menu {
+  background: #0a0a0f;
+  border: 1px solid #2a2a3a;
+  padding: 32px 48px;
+  text-align: center;
+}
+
+.pause-menu h2 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 18px;
+  font-weight: 600;
+  color: #c9d1d9;
+  margin: 0 0 24px;
+  letter-spacing: 2px;
+}
+
+.pause-menu button {
+  display: block;
+  width: 100%;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  padding: 12px 24px;
+  margin-top: 12px;
+  background: rgba(88, 166, 255, 0.1);
+  border: 1px solid rgba(88, 166, 255, 0.3);
+  color: #58a6ff;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.pause-menu button:hover {
+  background: rgba(88, 166, 255, 0.2);
+  border-color: #58a6ff;
+}
+
+.pause-menu button:first-of-type {
+  margin-top: 0;
+}

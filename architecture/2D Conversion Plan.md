@@ -364,43 +364,52 @@ Implementation Notes:
 
 ---
 
-Phase 2: Frontend Exploration Loop (Local Maps)
+Phase 2: Frontend Exploration Loop (Local Maps) — In Progress
 
 Goal: Real-time character movement within small, intentional spaces
 
 Tasks:
 
-1. Local map template system (tiles, walls, exits)
+[x] 1. Local map template system (tiles, walls, exits)
 
 
-2. Character controller (WASD/click movement)
+[x] 2. Character controller (WASD/click movement)
 
 
-3. Collision detection (walls, NPCs, objects)
+[x] 3. Collision detection (walls, NPCs, objects)
 
 
-4. Interaction zones (proximity without auto-commit)
+[x] 4. Interaction zones (proximity without auto-commit)
 
 
-5. Exit handling between local maps and region hub
+[x] 5. Exit handling between local maps and region hub
 
 
-6. Local game clock (pauses during dialogue)
+[x] 6. Local game clock (pauses during dialogue)
 
 
-7. Explicit separation between observation and commitment
+[ ] 7. Explicit separation between observation and commitment
 
 
 
 Success Criteria:
 
-Smooth movement in a bounded space
+[x] Smooth movement in a bounded space
 
-Player immediately understands where they are
+[x] Player immediately understands where they are
 
-NPC density feels intentional, not crowded
+[ ] NPC density feels intentional, not crowded
 
-Leaving a location can quietly advance unresolved threads
+[ ] Leaving a location can quietly advance unresolved threads
+
+
+Implementation Notes:
+- Local map module: sentinel-ui/src/components/localmap/
+- Tile-based collision with smooth movement (swept AABB)
+- Sample maps: safehouse, market, street (Rust Corridor)
+- Game clock with auto-advance, pauses during interaction/menus
+- Map transitions with directional animations
+- Test page: /localmap?map=safehouse_main
 
 
 --- (Est: 2–3 weeks)
