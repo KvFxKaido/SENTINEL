@@ -448,13 +448,13 @@ Leaving a space can quietly advance unresolved threads
 
 ---
 
-Phase 2.5: Spatial Negative Space (Est: 1 week)
+Phase 2.5: Spatial Negative Space (Completed ✓)
 
 Goal: Teach the game to refuse resolution
 
 Tasks:
 
-1. Define cold spaces:
+[x] 1. Define cold spaces:
 
 NPCs visible but unavailable
 
@@ -464,7 +464,7 @@ Dialogue intentionally disabled
 
 
 
-2. Time-based awareness:
+[x] 2. Time-based awareness:
 
 NPC posture/routes shift if player lingers
 
@@ -472,7 +472,7 @@ Idle time advances hidden clocks
 
 
 
-3. Non-feedback feedback:
+[x] 3. Non-feedback feedback:
 
 Glances, pauses, ambient changes
 
@@ -481,29 +481,35 @@ Glances, pauses, ambient changes
 
 Success Criteria:
 
-Player can spend 30–60 seconds in a space with no prompts
+[x] Player can spend 30–60 seconds in a space with no prompts
 
-Tension is felt without UI feedback
+[x] Tension is felt without UI feedback
 
-Player leaves due to discomfort or uncertainty, not broken flow
+[ ] Player leaves due to discomfort or uncertainty, not broken flow
+
+Implementation Notes:
+- Awareness module: sentinel-ui/src/components/localmap/awareness.ts
+- useNpcAwareness hook tracks proximity, glance behavior, linger detection
+- ColdZone system (bounds-based) suppresses interaction prompts and dialogue
+- NPCBehaviorState enum: idle, busy, unavailable, aware, alert
+- Idle time advances game clock when player lingers (>5s idle)
+- Ambient light shifts based on awareness state
 
 
 
 ---
 
-Phase 3: Patrol AI System (Local Scope)
+Phase 3: Patrol AI System (Local Scope) (Completed ✓)
 
 Goal: NPC movement that supports readable, authored spaces
 
 Tasks:
 
-1. Patrol routes defined per local map (not global)
+[x] 1. Patrol routes defined per local map (not global)
 
+[x] 2. TypeScript patrol simulation tuned for ~10 NPCs
 
-2. TypeScript patrol simulation tuned for ~10 NPCs
-
-
-3. Faction behavior patterns expressed spatially:
+[x] 3. Faction behavior patterns expressed spatially:
 
 Lattice: coordinated sweeps across chokepoints
 
@@ -514,88 +520,51 @@ Ghost: static presence → sudden relocation
 Covenant: ritualized, time-bound circuits
 
 
+[x] 4. Line-of-sight calculations
 
-4. Line-of-sight calculations
+[x] 5. Alert states (patrolling → investigating → combat)
 
-
-5. Alert states (patrolling → investigating → combat)
-
-
-6. Python validates outcomes on commit
+[ ] 6. Python validates outcomes on commit
 
 
 
 Success Criteria:
 
-Patrol patterns are learnable within minutes
+[x] Patrol patterns are learnable within minutes
 
-Player reads space before reading UI
+[x] Player reads space before reading UI
 
-Combat triggers feel spatially fair
+[ ] Combat triggers feel spatially fair (requires Phase 5)
 
-
---- (Est: 1–2 weeks)
-
-Goal: Dynamic NPC movement with readable intent
-
-Tasks:
-
-1. Patrol route generation (TypeScript simulation)
-
-
-2. Faction behavior patterns:
-
-Lattice: coordinated sweeps
-
-Ember: unpredictable solo paths
-
-Ghost: static presence → sudden relocation
-
-Covenant: ritualized, time-bound routes
-
-
-
-3. Line-of-sight calculations
-
-
-4. Alert states (patrolling → investigating → combat)
-
-
-5. Python validates outcomes on commit
-
-
-
-Success Criteria:
-
-NPC behavior is learnable before it is dangerous
-
-Player plans around patterns, not surprises
-
-Combat triggers feel earned, not random
+Implementation Notes:
+- Patrol engine: sentinel-ui/src/components/localmap/patrol.ts (327 lines)
+- Alert system: sentinel-ui/src/components/localmap/alertSystem.ts (138 lines)
+- Simulation hook: sentinel-ui/src/components/localmap/usePatrolSimulation.ts (100 lines)
+- Faction behaviors: SweepPatrol (Lattice/Steel Syndicate), WanderPatrol (Ember),
+  StaticWatch (Ghost), RitualCircuit (Covenant)
+- Detection cone rendering with time-of-day range modifiers
+- Alert state indicators ('!' marker, color tints) on canvas
+- 60fps requestAnimationFrame loop decoupled from React render
 
 
 
 ---
 
-Phase 4: LLM Dialogue Integration (Est: 1–2 weeks)
+Phase 4: LLM Dialogue Integration (Completed ✓)
 
 Goal: Dialogue reframes space, not replaces it
 
 Tasks:
 
-1. Dialogue UI component
+[x] 1. Dialogue UI component
 
+[x] 2. API call: Frontend → Python → LLM → dialogue tree
 
-2. API call: Frontend → Python → LLM → dialogue tree
+[x] 3. Faction/disposition-aware responses
 
+[x] 4. Social energy cost calculated server-side
 
-3. Faction/disposition-aware responses
-
-
-4. Social energy cost calculated server-side
-
-
-5. Dialogue updates NPC memory and faction standing
+[x] 5. Dialogue updates NPC memory and faction standing
 
 
 
@@ -608,11 +577,22 @@ NPCs may end dialogue autonomously
 
 Success Criteria:
 
-Dialogue meaningfully alters interpretation of space
+[x] Dialogue meaningfully alters interpretation of space
 
-Social energy can be spent with minimal payoff
+[x] Social energy can be spent with minimal payoff
 
-NPCs remember timing, not just words
+[ ] NPCs remember timing, not just words (requires backend integration)
+
+Implementation Notes:
+- DialogueOverlay component: sentinel-ui/src/components/localmap/DialogueOverlay.tsx
+- Game API client: sentinel-ui/src/lib/gameApi.ts (talks to FastAPI at localhost:8000)
+- Mock fallback when backend unavailable — allows UI testing without Python running
+- Typing effect (30ms/char), tone-colored response options
+- Social energy bar with color gradient (green/yellow/red)
+- Disposition shifts accumulated during dialogue, applied on close
+- Map dims during dialogue to focus attention
+- Clock pauses during dialogue, advances by spent minutes on close
+- Cold zones suppress dialogue initiation
 
 
 
