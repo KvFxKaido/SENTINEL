@@ -19,6 +19,9 @@ export interface NPCSimulationState {
   velocity: Point;
   currentPathIndex: number;
   waitTime: number; // ms to wait at current node
+  approachTimer: number;
+  approachCooldown: number;
+  approachTarget: Point | null;
   data: NPCObjectData;
 }
 
@@ -42,10 +45,50 @@ class SimplePatrol implements PatrolBehavior {
   update(npc: NPCSimulationState, context: PatrolContext) {
     const { map, deltaMs, alertManager } = context;
     const alertData = alertManager.getAlertState(npc.id);
+    const disposition = npc.data.disposition || 'neutral';
+
+    npc.approachCooldown = Math.max(0, npc.approachCooldown - deltaMs);
+    npc.approachTimer = Math.max(0, npc.approachTimer - deltaMs);
+
+    const distanceToPlayer = euclideanDistance(npc.position, context.playerPos);
 
     // Stop if in combat (phase 5 will handle combat movement)
     if (alertData.state === AlertState.COMBAT) {
       return; 
+    }
+
+    // Disposition-driven behavior (patrolling only)
+    if (alertData.state === AlertState.PATROLLING) {
+      if (disposition === 'wary' && distanceToPlayer < TILE_SIZE * 4) {
+        const avoidTarget = offsetAway(npc.position, context.playerPos, TILE_SIZE * 3);
+        this.moveTo(npc, avoidTarget, deltaMs, map);
+        return;
+      }
+
+      if ((disposition === 'warm' || disposition === 'loyal')) {
+        if (npc.approachTimer > 0 && npc.approachTarget) {
+          npc.approachTarget = context.playerPos;
+          this.moveTo(npc, npc.approachTarget, deltaMs, map);
+          return;
+        }
+
+        if (
+          npc.approachCooldown <= 0 &&
+          distanceToPlayer > TILE_SIZE * 3 &&
+          distanceToPlayer < TILE_SIZE * 9
+        ) {
+          const chance = deltaMs / 9000;
+          if (Math.random() < chance) {
+            npc.approachTimer = 1400 + Math.random() * 1000;
+            npc.approachCooldown = 7000 + Math.random() * 3000;
+            npc.approachTarget = { ...context.playerPos };
+          }
+        }
+      }
+    }
+
+    if (npc.approachTimer <= 0) {
+      npc.approachTarget = null;
     }
 
     // Investigating logic
@@ -83,6 +126,7 @@ class SimplePatrol implements PatrolBehavior {
     if (dist < 1) return;
 
     let speed = MOVEMENT_SPEED * (deltaMs / 16.66); // Normalize to 60fps
+    speed *= getDispositionSpeedMultiplier(npc.data.disposition);
     if (run) speed *= 1.5;
 
     const moveX = (dx / dist) * speed;
@@ -265,6 +309,9 @@ export class PatrolEngine {
       velocity: { x: 0, y: 0 },
       currentPathIndex: 0,
       waitTime: 0,
+      approachTimer: 0,
+      approachCooldown: 0,
+      approachTarget: null,
       data,
     });
 
@@ -301,7 +348,8 @@ export class PatrolEngine {
         playerPos, 
         map, 
         deltaMs, 
-        timeOfDay
+        timeOfDay,
+        npc.data.disposition
       );
 
       // 2. Run Behavior
@@ -324,4 +372,39 @@ export class PatrolEngine {
   getAllNPCStates(): Map<string, NPCSimulationState> {
     return this.npcs;
   }
+
+  updateNPCData(id: string, data: NPCObjectData) {
+    const npc = this.npcs.get(id);
+    if (!npc) return;
+    npc.data = data;
+    if (data.facing) {
+      npc.facing = data.facing;
+    }
+  }
+}
+
+function getDispositionSpeedMultiplier(disposition?: string): number {
+  switch (disposition) {
+    case 'hostile':
+      return 1.25;
+    case 'wary':
+      return 1.05;
+    case 'warm':
+      return 0.95;
+    case 'loyal':
+      return 0.9;
+    default:
+      return 1.0;
+  }
+}
+
+function offsetAway(source: Point, from: Point, magnitude: number): Point {
+  const dx = source.x - from.x;
+  const dy = source.y - from.y;
+  const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+
+  return {
+    x: source.x + (dx / dist) * magnitude,
+    y: source.y + (dy / dist) * magnitude,
+  };
 }

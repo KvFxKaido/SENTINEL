@@ -1,16 +1,4 @@
-/**
- * LocalMapCanvas — Tile-based local map renderer (Phase 2)
- * 
- * Renders authored local maps with collision-aware movement.
- * Fixed isometric-style top-down view with tile grid.
- * 
- * Design Constraints:
- * - Movement is free but non-authoritative
- * - Proximity alone never commits
- * - Clear visual distinction between observation and commitment
- */
-
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useCallback, type MouseEvent } from 'react';
 import type {
   LocalMapTemplate,
   MapObject,
@@ -38,9 +26,21 @@ import {
   gridToWorld,
   euclideanDistance,
   clampToMapBounds,
+  getTileAt,
 } from './collision';
 import type { SimulatedNPC } from './usePatrolSimulation';
 import { AlertState } from './alertSystem';
+import type { CombatRenderState } from './combat';
+import { CombatActionType, getActionRangeTiles, getCoverValueAtPosition } from './combat';
+import type {
+  ConsequenceHighlight,
+  DormantThread,
+  FactionPressure,
+  FactionPressureZone,
+} from './consequences';
+import { FactionPressureOverlay } from './FactionPressureOverlay';
+import { useAudio } from './useAudio';
+import { useTutorial } from './useTutorial';
 
 // ============================================================================
 // Types
@@ -57,8 +57,16 @@ interface LocalMapCanvasProps {
   onIdleChange?: (idleSeconds: number) => void;
   awarenessState?: Map<string, AwarenessState>;
   ambientShift?: number;
+  factionPressures?: FactionPressure[];
+  pressureZones?: FactionPressureZone[];
+  dormantThreads?: DormantThread[];
+  highlights?: ConsequenceHighlight[];
   paused?: boolean;
   dimmed?: boolean;
+  onCanvasClick?: (position: Point, gridPos: GridPosition) => void;
+  playerPositionOverride?: Point;
+  playerFacingOverride?: 'north' | 'south' | 'east' | 'west';
+  combatOverlay?: CombatRenderState | null;
 }
 
 interface InteractionPrompt {
@@ -68,12 +76,22 @@ interface InteractionPrompt {
   distance: number;
 }
 
+interface Particle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number; // 0-1
+  size: number;
+  color: string;
+}
+
 // ============================================================================
 // Rendering Helpers
 // ============================================================================
 
 function drawTile(
-  ctx: CanvasRenderingContext2D,
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   col: number,
   row: number,
   tileType: TileType,
@@ -90,8 +108,6 @@ function drawTile(
   ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
   
   // Tile-specific decorations
-  const props = TILE_PROPERTIES[tileType];
-  
   // Wall top edge highlight
   if (tileType === TileType.WALL) {
     ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
@@ -113,13 +129,8 @@ function drawTile(
   
   // Exit glow
   if (tileType === TileType.EXIT) {
-    const gradient = ctx.createRadialGradient(
-      x + TILE_SIZE / 2, y + TILE_SIZE / 2, 0,
-      x + TILE_SIZE / 2, y + TILE_SIZE / 2, TILE_SIZE / 2
-    );
-    gradient.addColorStop(0, 'rgba(63, 185, 80, 0.3)');
-    gradient.addColorStop(1, 'transparent');
-    ctx.fillStyle = gradient;
+    // Gradient not supported on OffscreenCanvas in some envs, fallback to solid
+    ctx.fillStyle = 'rgba(63, 185, 80, 0.1)';
     ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
   }
   
@@ -165,7 +176,8 @@ function drawTile(
 function drawPlayer(
   ctx: CanvasRenderingContext2D,
   position: Point,
-  facing: 'north' | 'south' | 'east' | 'west'
+  facing: 'north' | 'south' | 'east' | 'west',
+  isMoving: boolean
 ) {
   const { x, y } = position;
   
@@ -248,7 +260,8 @@ function drawObject(
   positionOverride?: Point,
   facingOverride?: 'north' | 'south' | 'east' | 'west',
   alertState?: AlertState,
-  alertLevel?: number
+  alertLevel?: number,
+  time: number = 0
 ) {
   const pos = positionOverride || gridToWorld(obj.position.col, obj.position.row);
   const radius = 10;
@@ -258,7 +271,10 @@ function drawObject(
   if (obj.type === 'npc') {
     const npcData = obj.data as { disposition?: string } | undefined;
     const disposition = npcData?.disposition || 'neutral';
-    color = ENTITY_COLORS.npc[disposition as keyof typeof ENTITY_COLORS.npc] || ENTITY_COLORS.npc.neutral;
+    const baseColor =
+      ENTITY_COLORS.npc[disposition as keyof typeof ENTITY_COLORS.npc] || ENTITY_COLORS.npc.neutral;
+    const intensity = getDispositionIntensity(disposition);
+    color = applyColorIntensity(baseColor, intensity);
   } else if (obj.type === 'item') {
     color = ENTITY_COLORS.item;
   }
@@ -270,10 +286,22 @@ function drawObject(
   
   // Nearby highlight
   if (isNearby) {
+    // Pulse effect
+    const pulse = Math.sin(time / 200) * 0.1 + 0.15;
+    
     ctx.beginPath();
     ctx.arc(pos.x, pos.y, INTERACTION_RANGE, 0, Math.PI * 2);
-    ctx.fillStyle = `${color}15`;
+    ctx.fillStyle = colorWithAlpha(color, pulse);
     ctx.fill();
+    
+    // Interaction ring (subtle expanding)
+    const ringSize = (time % 1000) / 1000 * (INTERACTION_RANGE - radius) + radius;
+    const ringAlpha = 1 - (time % 1000) / 1000;
+    
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, ringSize, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(255, 255, 255, ${ringAlpha * 0.2})`;
+    ctx.stroke();
   }
   
   // Selection ring
@@ -288,6 +316,7 @@ function drawObject(
   }
   
   // Object body
+  // Fade in effect could be added here if we tracked spawn time
   ctx.beginPath();
   ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
   ctx.fillStyle = color;
@@ -325,10 +354,8 @@ function drawObject(
     ctx.fillStyle = alertState === AlertState.COMBAT ? '#f85149' : '#d29922';
     ctx.font = 'bold 16px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('!', pos.x, pos.y - 15);
-    
-    // Investigation timer ring?
-    // Maybe later
+    const floatY = Math.sin(time / 150) * 3;
+    ctx.fillText('!', pos.x, pos.y - 15 + floatY);
   }
   
   // Label (when nearby)
@@ -343,15 +370,19 @@ function drawObject(
 function drawExit(
   ctx: CanvasRenderingContext2D,
   exit: MapExit,
-  isNearby: boolean
+  isNearby: boolean,
+  time: number
 ) {
   const pos = gridToWorld(exit.position.col, exit.position.row);
   const color = exit.locked ? ENTITY_COLORS.exit.locked : ENTITY_COLORS.exit.open;
   
   // Exit glow when nearby
   if (isNearby && !exit.locked) {
+    // Breathing glow
+    const breath = Math.sin(time / 500) * 0.1 + 0.3;
+    
     const gradient = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, TILE_SIZE);
-    gradient.addColorStop(0, `${color}40`);
+    gradient.addColorStop(0, `rgba(63, 185, 80, ${breath})`);
     gradient.addColorStop(1, 'transparent');
     ctx.fillStyle = gradient;
     ctx.fillRect(pos.x - TILE_SIZE, pos.y - TILE_SIZE, TILE_SIZE * 2, TILE_SIZE * 2);
@@ -385,6 +416,50 @@ function drawExit(
       ctx.fillText(`[${exit.lockReason}]`, pos.x, pos.y + 32);
     }
   }
+}
+
+function drawDormantThreadMarker(
+  ctx: CanvasRenderingContext2D,
+  thread: DormantThread,
+  timeMs: number
+) {
+  const pos = gridToWorld(thread.spatial.position.col, thread.spatial.position.row);
+  const pulse = 0.6 + 0.4 * Math.sin(timeMs / 700);
+  const color =
+    thread.severity === 'major'
+      ? '248, 81, 73'
+      : thread.severity === 'minor'
+      ? '139, 148, 158'
+      : '210, 153, 34';
+
+  const gradient = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, 12);
+  gradient.addColorStop(0, `rgba(${color}, ${0.25 * pulse})`);
+  gradient.addColorStop(1, 'transparent');
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(pos.x, pos.y, 12, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = `rgba(${color}, ${0.5 * pulse})`;
+  ctx.beginPath();
+  ctx.arc(pos.x, pos.y, 2, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawHighlight(
+  ctx: CanvasRenderingContext2D,
+  highlight: ConsequenceHighlight,
+  timeMs: number
+) {
+  const pos = gridToWorld(highlight.position.col, highlight.position.row);
+  const pulse = 0.7 + 0.3 * Math.sin(timeMs / 350);
+  const color = highlight.color || '88, 166, 255';
+
+  ctx.strokeStyle = `rgba(${color}, ${0.6 * pulse})`;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(pos.x, pos.y, 18 + 4 * pulse, 0, Math.PI * 2);
+  ctx.stroke();
 }
 
 function drawInteractionPrompt(
@@ -455,16 +530,215 @@ function drawMapInfo(
   ctx.fillText(`[${atmosphere.toUpperCase()}]`, width - 10, 14);
 }
 
+function drawTutorialHint(
+  ctx: CanvasRenderingContext2D,
+  hint: string,
+  playerPos: Point
+) {
+  ctx.font = '12px "JetBrains Mono", monospace';
+  const textWidth = ctx.measureText(hint).width;
+  const padding = 8;
+  const boxWidth = textWidth + padding * 2;
+  const boxHeight = 26;
+  
+  const boxX = playerPos.x - boxWidth / 2;
+  const boxY = playerPos.y - 50;
+  
+  // Background
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+  ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+  
+  // Border (Gold for tutorial)
+  ctx.strokeStyle = '#d29922';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+  
+  // Text
+  ctx.fillStyle = '#d29922';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(hint, boxX + boxWidth / 2, boxY + boxHeight / 2);
+  
+  // Arrow
+  ctx.beginPath();
+  ctx.moveTo(playerPos.x, boxY + boxHeight);
+  ctx.lineTo(playerPos.x - 5, boxY + boxHeight + 5);
+  ctx.lineTo(playerPos.x + 5, boxY + boxHeight + 5);
+  ctx.fill();
+}
+
+function drawCoverHighlights(
+  ctx: CanvasRenderingContext2D,
+  map: LocalMapTemplate
+) {
+  for (let row = 0; row < map.height; row++) {
+    for (let col = 0; col < map.width; col++) {
+      const tile = map.tiles[row][col];
+      const coverValue = TILE_PROPERTIES[tile].coverValue;
+      if (coverValue <= 0) continue;
+
+      const x = col * TILE_SIZE;
+      const y = row * TILE_SIZE;
+      ctx.fillStyle = coverValue >= 2
+        ? 'rgba(88, 166, 255, 0.18)'
+        : 'rgba(86, 212, 221, 0.12)';
+      ctx.fillRect(x + 1, y + 1, TILE_SIZE - 2, TILE_SIZE - 2);
+    }
+  }
+}
+
+function drawMovementRange(
+  ctx: CanvasRenderingContext2D,
+  position: Point,
+  range: number,
+  color: string
+) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([6, 4]);
+  ctx.beginPath();
+  ctx.arc(position.x, position.y, range, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawTargetLine(
+  ctx: CanvasRenderingContext2D,
+  from: Point,
+  to: Point,
+  color: string
+) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([4, 6]);
+  ctx.beginPath();
+  ctx.moveTo(from.x, from.y);
+  ctx.lineTo(to.x, to.y);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawIntentArrow(
+  ctx: CanvasRenderingContext2D,
+  from: Point,
+  to: Point,
+  color: string
+) {
+  const angle = Math.atan2(to.y - from.y, to.x - from.x);
+  const arrowLength = 10;
+
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(from.x, from.y);
+  ctx.lineTo(to.x, to.y);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(to.x, to.y);
+  ctx.lineTo(
+    to.x - arrowLength * Math.cos(angle - Math.PI / 6),
+    to.y - arrowLength * Math.sin(angle - Math.PI / 6)
+  );
+  ctx.lineTo(
+    to.x - arrowLength * Math.cos(angle + Math.PI / 6),
+    to.y - arrowLength * Math.sin(angle + Math.PI / 6)
+  );
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawTargetRing(
+  ctx: CanvasRenderingContext2D,
+  position: Point,
+  coverValue: number,
+  inRange: boolean
+) {
+  const baseColor = coverValue >= 2
+    ? 'rgba(248, 81, 73, 0.7)'
+    : coverValue === 1
+    ? 'rgba(210, 153, 34, 0.7)'
+    : 'rgba(86, 212, 221, 0.7)';
+
+  ctx.save();
+  ctx.strokeStyle = inRange ? baseColor : 'rgba(110, 118, 129, 0.5)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(position.x, position.y, 16, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function isTargetingAction(action: CombatActionType | null | undefined): boolean {
+  return (
+    action === CombatActionType.FIRE ||
+    action === CombatActionType.STRIKE ||
+    action === CombatActionType.SUPPRESS
+  );
+}
+
 function adjustBrightness(hex: string, factor: number): string {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
   
-  const nr = Math.round(r * factor);
-  const ng = Math.round(g * factor);
-  const nb = Math.round(b * factor);
+  const nr = clampColor(Math.round(r * factor));
+  const ng = clampColor(Math.round(g * factor));
+  const nb = clampColor(Math.round(b * factor));
   
   return `rgb(${nr}, ${ng}, ${nb})`;
+}
+
+function applyColorIntensity(hex: string, intensity: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+
+  const nr = clampColor(Math.round(r * intensity));
+  const ng = clampColor(Math.round(g * intensity));
+  const nb = clampColor(Math.round(b * intensity));
+
+  return `rgb(${nr}, ${ng}, ${nb})`;
+}
+
+function colorWithAlpha(color: string, alpha: number): string {
+  if (color.startsWith('#')) {
+    const r = parseInt(color.slice(1, 3), 16);
+    const g = parseInt(color.slice(3, 5), 16);
+    const b = parseInt(color.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
+  const rgbMatch = color.match(/rgb\\((\\d+),\\s*(\\d+),\\s*(\\d+)\\)/i);
+  if (rgbMatch) {
+    return `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${alpha})`;
+  }
+
+  return color;
+}
+
+function getDispositionIntensity(disposition: string): number {
+  switch (disposition) {
+    case 'hostile':
+      return 1.15;
+    case 'wary':
+      return 1.05;
+    case 'warm':
+      return 0.92;
+    case 'loyal':
+      return 0.9;
+    default:
+      return 1.0;
+  }
+}
+
+function clampColor(value: number): number {
+  return Math.max(0, Math.min(255, value));
 }
 
 // ============================================================================
@@ -482,13 +756,27 @@ export function LocalMapCanvas({
   onIdleChange,
   awarenessState,
   ambientShift = 0,
+  factionPressures = [],
+  pressureZones = [],
+  dormantThreads = [],
+  highlights = [],
   paused = false,
   dimmed = false,
+  onCanvasClick,
+  playerPositionOverride,
+  playerFacingOverride,
+  combatOverlay,
 }: LocalMapCanvasProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const baseCanvasRef = useRef<HTMLCanvasElement>(null);
+  const entityCanvasRef = useRef<HTMLCanvasElement>(null);
+  const combatCanvasRef = useRef<HTMLCanvasElement>(null);
   const keysPressed = useRef<Set<string>>(new Set());
   
-  // Calculate initial position from default spawn if not provided
+  // Hooks
+  const audio = useAudio();
+  const tutorial = useTutorial();
+  
+  // Initialization
   const defaultSpawn = map.spawnPoints.find(sp => sp.isDefault) || map.spawnPoints[0];
   const startPos = initialPosition || (defaultSpawn 
     ? gridToWorld(defaultSpawn.position.col, defaultSpawn.position.row)
@@ -501,19 +789,60 @@ export function LocalMapCanvas({
   const [playerFacing, setPlayerFacing] = useState<'north' | 'south' | 'east' | 'west'>(
     initialFacing || (defaultSpawn?.facing as typeof initialFacing) || 'south'
   );
+  
   const [nearbyObjects, setNearbyObjects] = useState<MapObject[]>([]);
   const [nearbyExits, setNearbyExits] = useState<MapExit[]>([]);
   const [activePrompt, setActivePrompt] = useState<InteractionPrompt | null>(null);
   
+  // Particles
+  const particlesRef = useRef<Particle[]>([]);
+  const footstepDistRef = useRef<number>(0);
+  
+  // Offscreen canvas for map cache
+  const mapCacheRef = useRef<OffscreenCanvas | HTMLCanvasElement | null>(null);
+  const mapCacheCtxRef = useRef<OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D | null>(null);
+  const prevMapRef = useRef<string>('');
+  const prevAmbientRef = useRef<number>(-1);
+  
   const canvasWidth = map.width * TILE_SIZE;
   const canvasHeight = map.height * TILE_SIZE;
 
+  const handleCanvasClick = useCallback((event: MouseEvent<HTMLCanvasElement>) => {
+    if (!onCanvasClick) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const scaleX = canvasWidth / rect.width;
+    const scaleY = canvasHeight / rect.height;
+    const x = (event.clientX - rect.left) * scaleX;
+    const y = (event.clientY - rect.top) * scaleY;
+    onCanvasClick({ x, y }, worldToGrid(x, y));
+  }, [onCanvasClick, canvasWidth, canvasHeight]);
+
+  // Update atmosphere audio
+  useEffect(() => {
+    audio.setAtmosphere(map.atmosphere);
+  }, [map.atmosphere]);
+
+  // Sync ref
   useEffect(() => {
     playerPosRef.current = playerPos;
     lastMoveAtRef.current = performance.now();
   }, [playerPos]);
+
+  useEffect(() => {
+    if (!playerPositionOverride) return;
+    const next = playerPositionOverride;
+    const current = playerPosRef.current;
+    if (current.x === next.x && current.y === next.y) return;
+    playerPosRef.current = next;
+    setPlayerPos(next);
+  }, [playerPositionOverride?.x, playerPositionOverride?.y]);
+
+  useEffect(() => {
+    if (!playerFacingOverride) return;
+    setPlayerFacing(playerFacingOverride);
+  }, [playerFacingOverride]);
   
-  // Find nearby interactables
+  // Proximity Logic
   useEffect(() => {
     const coldZone = getColdZoneAt(map, playerPos);
     const suppressPrompts = !!coldZone?.suppressPrompts;
@@ -526,10 +855,13 @@ export function LocalMapCanvas({
     }
 
     const nearby: MapObject[] = [];
+    let closestDist = INTERACTION_RANGE;
+    let closestPrompt: InteractionPrompt | null = null;
+
+    // Check objects
     for (const obj of map.objects) {
       if (!isObjectInteractable(obj)) continue;
 
-      // Use simulated position for NPCs if available
       let objPos: Point;
       if (obj.type === 'npc' && npcStates?.has(obj.id)) {
         objPos = npcStates.get(obj.id)!.position;
@@ -540,10 +872,21 @@ export function LocalMapCanvas({
       const dist = euclideanDistance(playerPos, objPos);
       if (dist < INTERACTION_RANGE) {
         nearby.push(obj);
+        
+        if (dist < closestDist) {
+          closestDist = dist;
+          closestPrompt = {
+            target: obj,
+            type: 'object',
+            action: getObjectAction(obj),
+            distance: dist,
+          };
+        }
       }
     }
     setNearbyObjects(nearby);
     
+    // Check exits
     const nearExits: MapExit[] = [];
     for (const exit of map.exits) {
       const exitPos = gridToWorld(exit.position.col, exit.position.row);
@@ -553,50 +896,26 @@ export function LocalMapCanvas({
         if (!exit.locked) {
           onExitApproach?.(exit);
         }
+        
+        if (dist < closestDist) {
+          closestDist = dist;
+          closestPrompt = {
+            target: exit,
+            type: 'exit',
+            action: exit.locked ? `Locked: ${exit.lockReason}` : `Go to ${exit.label}`,
+            distance: dist,
+          };
+        }
       }
     }
     setNearbyExits(nearExits);
-    
-    // Set active prompt to closest interactable
-    let closestDist = INTERACTION_RANGE;
-    let closestPrompt: InteractionPrompt | null = null;
-    
-    for (const obj of nearby) {
-      // Use simulated position for NPCs if available
-      let objPos: Point;
-      if (obj.type === 'npc' && npcStates?.has(obj.id)) {
-        objPos = npcStates.get(obj.id)!.position;
-      } else {
-        objPos = gridToWorld(obj.position.col, obj.position.row);
-      }
-
-      const dist = euclideanDistance(playerPos, objPos);
-      if (dist < closestDist) {
-        closestDist = dist;
-        closestPrompt = {
-          target: obj,
-          type: 'object',
-          action: getObjectAction(obj),
-          distance: dist,
-        };
-      }
-    }
-    
-    for (const exit of nearExits) {
-      const exitPos = gridToWorld(exit.position.col, exit.position.row);
-      const dist = euclideanDistance(playerPos, exitPos);
-      if (dist < closestDist) {
-        closestDist = dist;
-        closestPrompt = {
-          target: exit,
-          type: 'exit',
-          action: exit.locked ? `Locked: ${exit.lockReason}` : `Go to ${exit.label}`,
-          distance: dist,
-        };
-      }
-    }
-    
     setActivePrompt(closestPrompt);
+
+    // Tutorial Triggers
+    if (closestPrompt && closestPrompt.distance < 40) {
+      tutorial.onApproach(closestPrompt.distance);
+    }
+
   }, [playerPos, map, onExitApproach, npcStates]);
   
   // Notify position changes
@@ -605,7 +924,7 @@ export function LocalMapCanvas({
     onPositionChange?.(playerPos, gridPos);
   }, [playerPos, onPositionChange]);
   
-  // Movement loop
+  // Game Loop
   useEffect(() => {
     if (paused) return;
     
@@ -617,6 +936,7 @@ export function LocalMapCanvas({
       let vx = 0;
       let vy = 0;
       let newFacing: typeof playerFacing | null = null;
+      let isMoving = false;
       
       if (keys.has('w') || keys.has('arrowup')) { vy = -MOVEMENT_SPEED; newFacing = 'north'; }
       if (keys.has('s') || keys.has('arrowdown')) { vy = MOVEMENT_SPEED; newFacing = 'south'; }
@@ -638,10 +958,56 @@ export function LocalMapCanvas({
       let nextPos = currentPos;
 
       if (vx !== 0 || vy !== 0) {
+        isMoving = true;
+        tutorial.onMove();
+        
         const targetPos = { x: currentPos.x + vx, y: currentPos.y + vy };
         const clamped = clampToMapBounds(map, targetPos, PLAYER_RADIUS);
         const collision = checkCollision(map, currentPos, clamped, PLAYER_RADIUS);
         nextPos = collision.newPosition;
+        
+        // Footsteps & Dust
+        const dist = Math.sqrt(vx*vx + vy*vy);
+        footstepDistRef.current += dist;
+        
+        if (footstepDistRef.current > 24) {
+          footstepDistRef.current = 0;
+          
+          // Determine floor type
+          const gridPos = worldToGrid(nextPos.x, nextPos.y);
+          const tile = getTileAt(map, gridPos.col, gridPos.row);
+          let floorType: any = 'default';
+          if (tile === TileType.WATER) floorType = 'water';
+          if (tile === TileType.DEBRIS) floorType = 'debris';
+          // Metal check? Maybe by map ID or region
+          if (map.id.includes('lab') || map.id.includes('bunker')) floorType = 'metal';
+          
+          audio.playFootstep(floorType);
+          
+          // Spawn dust
+          for (let i = 0; i < 2; i++) {
+            particlesRef.current.push({
+              x: nextPos.x + (Math.random() - 0.5) * 10,
+              y: nextPos.y + 10 + (Math.random() - 0.5) * 4,
+              vx: (Math.random() - 0.5) * 0.5,
+              vy: (Math.random() * -0.5),
+              life: 1.0,
+              size: Math.random() * 2 + 1,
+              color: 'rgba(150, 150, 150, 0.4)',
+            });
+          }
+        }
+      }
+
+      // Update particles
+      for (let i = particlesRef.current.length - 1; i >= 0; i--) {
+        const p = particlesRef.current[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life -= 0.05;
+        if (p.life <= 0) {
+          particlesRef.current.splice(i, 1);
+        }
       }
 
       if (nextPos.x !== currentPos.x || nextPos.y !== currentPos.y) {
@@ -670,14 +1036,22 @@ export function LocalMapCanvas({
       keysPressed.current.add(key);
       
       // Interaction
-      if (key === 'e' && activePrompt && !paused) {
-        if (activePrompt.type === 'object') {
-          onObjectInteract?.(activePrompt.target as MapObject);
-        } else if (activePrompt.type === 'exit') {
-          const exit = activePrompt.target as MapExit;
-          if (!exit.locked) {
-            onExitApproach?.(exit);
+      if (key === 'e' && !paused) {
+        if (activePrompt) {
+          tutorial.onInteract();
+          audio.playInteraction('select');
+          if (activePrompt.type === 'object') {
+            onObjectInteract?.(activePrompt.target as MapObject);
+          } else if (activePrompt.type === 'exit') {
+            const exit = activePrompt.target as MapExit;
+            if (!exit.locked) {
+              onExitApproach?.(exit);
+            } else {
+              audio.playInteraction('cancel');
+            }
           }
+        } else {
+          audio.playInteraction('cancel');
         }
       }
     }
@@ -694,9 +1068,62 @@ export function LocalMapCanvas({
     };
   }, [activePrompt, paused, onObjectInteract, onExitApproach]);
   
-  // Render
+  // Cache map tiles
   useEffect(() => {
-    const canvas = canvasRef.current;
+    const baseAmbient = dimmed ? map.ambientLight * 0.5 : map.ambientLight;
+    const ambientLight = Math.max(0.05, Math.min(1, baseAmbient + ambientShift));
+    
+    // Only rebuild cache if map or lighting changed significantly
+    if (mapCacheRef.current && 
+        prevMapRef.current === map.id && 
+        Math.abs(prevAmbientRef.current - ambientLight) < 0.05) {
+      return;
+    }
+    
+    if (!mapCacheRef.current || 
+        mapCacheRef.current.width !== canvasWidth || 
+        mapCacheRef.current.height !== canvasHeight) {
+          
+      if (typeof OffscreenCanvas !== 'undefined') {
+        mapCacheRef.current = new OffscreenCanvas(canvasWidth, canvasHeight);
+      } else {
+        mapCacheRef.current = document.createElement('canvas');
+        mapCacheRef.current.width = canvasWidth;
+        mapCacheRef.current.height = canvasHeight;
+      }
+      mapCacheCtxRef.current = mapCacheRef.current.getContext('2d') as any;
+    }
+
+    const ctx = mapCacheCtxRef.current;
+    if (!ctx) return;
+
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+    
+    // Draw tiles to cache
+    for (let row = 0; row < map.height; row++) {
+      for (let col = 0; col < map.width; col++) {
+        drawTile(ctx, col, row, map.tiles[row][col], ambientLight);
+      }
+    }
+    
+    prevMapRef.current = map.id;
+    prevAmbientRef.current = ambientLight;
+
+    const baseCanvas = baseCanvasRef.current;
+    if (baseCanvas) {
+      const baseCtx = baseCanvas.getContext('2d');
+      if (baseCtx) {
+        baseCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+        if (mapCacheRef.current) {
+          baseCtx.drawImage(mapCacheRef.current, 0, 0);
+        }
+      }
+    }
+  }, [map, canvasWidth, canvasHeight, ambientShift, dimmed]);
+
+  // Render Frame
+  useEffect(() => {
+    const canvas = entityCanvasRef.current;
     if (!canvas) return;
     
     const ctx = canvas.getContext('2d');
@@ -704,25 +1131,38 @@ export function LocalMapCanvas({
     
     // Clear
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-    
-    const baseAmbient = dimmed ? map.ambientLight * 0.5 : map.ambientLight;
-    const ambientLight = Math.max(0.05, Math.min(1, baseAmbient + ambientShift));
 
-    // Draw tiles
-    for (let row = 0; row < map.height; row++) {
-      for (let col = 0; col < map.width; col++) {
-        drawTile(ctx, col, row, map.tiles[row][col], ambientLight);
-      }
+    const now = performance.now();
+
+    // Draw dormant thread markers
+    for (const thread of dormantThreads) {
+      if (thread.spatial.mapId !== map.id) continue;
+      drawDormantThreadMarker(ctx, thread, now);
     }
-    
-    // Draw exits
+
+    // Draw exits (dynamic parts)
     for (const exit of map.exits) {
       const isNearby = nearbyExits.includes(exit);
-      drawExit(ctx, exit, isNearby);
+      drawExit(ctx, exit, isNearby, now);
     }
     
+    // Draw particles (behind objects)
+    for (const p of particlesRef.current) {
+      ctx.globalAlpha = p.life;
+      ctx.fillStyle = p.color;
+      ctx.fillRect(p.x, p.y, p.size, p.size);
+    }
+    ctx.globalAlpha = 1.0;
+    
     // Draw objects
-    for (const obj of map.objects) {
+    // Sort by Y for depth
+    const sortedObjects = [...map.objects].sort((a, b) => {
+      const ay = a.position.row * TILE_SIZE;
+      const by = b.position.row * TILE_SIZE;
+      return ay - by;
+    });
+
+    for (const obj of sortedObjects) {
       const isNearby = nearbyObjects.includes(obj);
       const isSelected = activePrompt?.type === 'object' && 
         (activePrompt.target as MapObject).id === obj.id;
@@ -760,22 +1200,39 @@ export function LocalMapCanvas({
         posOverride, 
         facingOverride, 
         alertState, 
-        alertLevel
+        alertLevel,
+        now
       );
     }
     
     // Draw player
-    drawPlayer(ctx, playerPos, playerFacing);
+    drawPlayer(ctx, playerPos, playerFacing, false);
+
+    // Draw highlights
+    const activeHighlights = highlights.filter(highlight => {
+      if (highlight.mapId !== map.id) return false;
+      if (!highlight.durationMs) return true;
+      return now - highlight.createdAt <= highlight.durationMs;
+    });
+
+    for (const highlight of activeHighlights) {
+      drawHighlight(ctx, highlight, now);
+    }
     
+    // Draw tutorial hint
+    const hint = tutorial.getHint(
+      nearbyObjects.length > 0 ? 'interaction' :
+      nearbyExits.length > 0 ? 'interaction' :
+      'movement'
+    );
+    
+    if (hint && !activePrompt && !dimmed) {
+       drawTutorialHint(ctx, hint, playerPos);
+    }
+
     // Draw interaction prompt
     if (activePrompt) {
       drawInteractionPrompt(ctx, activePrompt, canvasWidth);
-    }
-    
-    // Dim overlay
-    if (dimmed) {
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
-      ctx.fillRect(0, 0, canvasWidth, canvasHeight);
     }
 
     // Draw map info overlay
@@ -794,20 +1251,106 @@ export function LocalMapCanvas({
     awarenessState,
     ambientShift,
     dimmed,
+    dormantThreads,
+    highlights,
+    tutorial // Re-render when tutorial state changes
   ]);
+
+  useEffect(() => {
+    const canvas = combatCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+    if (!combatOverlay?.active) return;
+
+    const combatantById = new Map(combatOverlay.combatants.map(combatant => [combatant.id, combatant]));
+    const player = combatantById.get(combatOverlay.playerId);
+
+    drawCoverHighlights(ctx, map);
+
+    const activeId = combatOverlay.activeCombatantId || combatOverlay.playerId;
+    const activeCombatant = combatantById.get(activeId);
+    if (activeCombatant) {
+      const color = activeCombatant.isPlayer ? 'rgba(86, 212, 221, 0.7)' : 'rgba(248, 81, 73, 0.7)';
+      drawMovementRange(ctx, activeCombatant.position, combatOverlay.movementRange, color);
+    }
+
+    if (player && isTargetingAction(combatOverlay.selectedAction)) {
+      const rangeTiles = getActionRangeTiles(combatOverlay.selectedAction || CombatActionType.FIRE);
+
+      combatOverlay.combatants
+        .filter(combatant => !combatant.isPlayer && combatant.status === 'active')
+        .forEach(combatant => {
+          const distance = euclideanDistance(player.position, combatant.position) / TILE_SIZE;
+          const coverValue = getCoverValueAtPosition(map, combatant.position);
+          drawTargetRing(ctx, combatant.position, coverValue, distance <= rangeTiles);
+        });
+
+      if (combatOverlay.selectedTargetId) {
+        const target = combatantById.get(combatOverlay.selectedTargetId);
+        if (target) {
+          drawTargetLine(ctx, player.position, target.position, 'rgba(88, 166, 255, 0.8)');
+        }
+      }
+    }
+
+    combatOverlay.intents.forEach(intent => {
+      const npc = combatantById.get(intent.npcId);
+      if (!npc) return;
+      let targetPos = intent.targetPosition;
+      if (!targetPos && intent.targetId) {
+        targetPos = combatantById.get(intent.targetId)?.position;
+      }
+      if (!targetPos && player) {
+        targetPos = player.position;
+      }
+      if (!targetPos) return;
+      const intentColor = intent.action === CombatActionType.FLEE
+        ? 'rgba(110, 118, 129, 0.6)'
+        : intent.action === CombatActionType.MOVE
+        ? 'rgba(86, 212, 221, 0.6)'
+        : 'rgba(248, 81, 73, 0.6)';
+      drawIntentArrow(ctx, npc.position, targetPos, intentColor);
+    });
+  }, [combatOverlay, map, canvasWidth, canvasHeight]);
   
   return (
-    <canvas
-      ref={canvasRef}
-      width={canvasWidth}
-      height={canvasHeight}
-      style={{ 
-        display: 'block', 
-        background: '#000',
-        imageRendering: 'pixelated',
-      }}
-      tabIndex={0}
-    />
+    <div
+      className="localmap-canvas-stack"
+      style={{ width: canvasWidth, height: canvasHeight }}
+    >
+      <canvas
+        ref={baseCanvasRef}
+        width={canvasWidth}
+        height={canvasHeight}
+        className="localmap-layer localmap-layer-base"
+      />
+      <FactionPressureOverlay
+        map={map}
+        pressures={factionPressures}
+        zones={pressureZones}
+        tileSize={map.tileSize || TILE_SIZE}
+        active={!paused}
+      />
+      <canvas
+        ref={entityCanvasRef}
+        width={canvasWidth}
+        height={canvasHeight}
+        className="localmap-layer localmap-layer-entities"
+        onClick={handleCanvasClick}
+        tabIndex={0}
+      />
+      <canvas
+        ref={combatCanvasRef}
+        width={canvasWidth}
+        height={canvasHeight}
+        className="localmap-layer localmap-layer-combat"
+      />
+      {dimmed && <div className="localmap-dim-overlay" />}
+    </div>
   );
 }
 

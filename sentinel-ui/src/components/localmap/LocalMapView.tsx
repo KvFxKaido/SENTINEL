@@ -15,7 +15,12 @@ import { gridToWorld } from './collision';
 import { getColdZoneAt, useNpcAwareness } from './awareness';
 import { useGameClock, formatTimeShort, getTimeOfDay } from './useGameClock';
 import { usePatrolSimulation } from './usePatrolSimulation';
+import { useCombat } from './useCombat';
+import { useConsequences } from './useConsequences';
+import { NotificationSystem } from './NotificationSystem';
+import { CombatOverlay } from './CombatOverlay';
 import { startDialogue, continueDialogue, getState } from '../../lib/gameApi';
+import { useAudio } from './useAudio'; // Import Audio Hook
 import type { 
   LocalMapTemplate, 
   MapObject, 
@@ -24,8 +29,10 @@ import type {
   GridPosition,
   NPCObjectData,
 } from './types';
-import { TileType } from './types';
-import type { DialogueOption, DialogueResponse, SocialEnergyState } from '../../lib/gameApi';
+import { TileType, INTERACTION_RANGE } from './types';
+import type { ConsequenceHighlight, ConsequenceNotification } from './consequences';
+import type { CombatEndResult, DialogueOption, DialogueResponse, SocialEnergyState } from '../../lib/gameApi';
+import { CombatState } from './combat';
 import './localmap.css';
 
 // ============================================================================
@@ -47,6 +54,7 @@ interface InteractionPanelProps {
   type: 'object' | 'exit' | null;
   onAction: (action: string, params?: Record<string, unknown>) => void;
   onClose: () => void;
+  playInteraction: (type: 'hover' | 'select' | 'alert' | 'cancel') => void; // Add audio prop
 }
 
 interface DialogueSession {
@@ -83,7 +91,7 @@ const EMPTY_MAP: LocalMapTemplate = {
 // Interaction Panel Component
 // ============================================================================
 
-function InteractionPanel({ target, type, onAction, onClose }: InteractionPanelProps) {
+function InteractionPanel({ target, type, onAction, onClose, playInteraction }: InteractionPanelProps) {
   if (!target) {
     return (
       <div className="localmap-panel localmap-panel-empty">
@@ -116,13 +124,23 @@ function InteractionPanel({ target, type, onAction, onClose }: InteractionPanelP
   const exit = isExit ? (target as MapExit) : null;
   const obj = !isExit ? (target as MapObject) : null;
 
+  const handleAction = (action: string, params?: any) => {
+    playInteraction('select');
+    onAction(action, params);
+  };
+
+  const handleClose = () => {
+    playInteraction('cancel');
+    onClose();
+  };
+
   return (
     <div className="localmap-panel">
       <div className="panel-header">
         <h3 className="panel-title">
           {isExit ? exit?.label : obj?.name}
         </h3>
-        <button className="panel-close" onClick={onClose}>×</button>
+        <button className="panel-close" onClick={handleClose} onMouseEnter={() => playInteraction('hover')}>×</button>
       </div>
       
       <div className="panel-content">
@@ -138,7 +156,8 @@ function InteractionPanel({ target, type, onAction, onClose }: InteractionPanelP
               <div className="panel-actions">
                 <button 
                   className="action-button action-primary"
-                  onClick={() => onAction('travel', { exitId: exit.id })}
+                  onClick={() => handleAction('travel', { exitId: exit.id })}
+                  onMouseEnter={() => playInteraction('hover')}
                 >
                   Enter
                 </button>
@@ -169,13 +188,15 @@ function InteractionPanel({ target, type, onAction, onClose }: InteractionPanelP
             <div className="panel-actions">
               <button 
                 className="action-button action-primary"
-                onClick={() => onAction('talk', { npcId: (obj.data as { npcId?: string })?.npcId })}
+                onClick={() => handleAction('talk', { npcId: (obj.data as { npcId?: string })?.npcId })}
+                onMouseEnter={() => playInteraction('hover')}
               >
                 Talk
               </button>
               <button 
                 className="action-button action-secondary"
-                onClick={() => onAction('observe', { objectId: obj.id })}
+                onClick={() => handleAction('observe', { objectId: obj.id })}
+                onMouseEnter={() => playInteraction('hover')}
               >
                 Observe
               </button>
@@ -196,14 +217,16 @@ function InteractionPanel({ target, type, onAction, onClose }: InteractionPanelP
               {(obj.data as { interactable?: boolean })?.interactable && (
                 <button 
                   className="action-button action-primary"
-                  onClick={() => onAction('use', { objectId: obj.id })}
+                  onClick={() => handleAction('use', { objectId: obj.id })}
+                  onMouseEnter={() => playInteraction('hover')}
                 >
                   {(obj.data as { propType?: string })?.propType === 'container' ? 'Open' : 'Use'}
                 </button>
               )}
               <button 
                 className="action-button action-secondary"
-                onClick={() => onAction('examine', { objectId: obj.id })}
+                onClick={() => handleAction('examine', { objectId: obj.id })}
+                onMouseEnter={() => playInteraction('hover')}
               >
                 Examine
               </button>
@@ -221,7 +244,8 @@ function InteractionPanel({ target, type, onAction, onClose }: InteractionPanelP
             <div className="panel-actions">
               <button 
                 className="action-button action-primary"
-                onClick={() => onAction('pickup', { itemId: (obj.data as { itemId?: string })?.itemId })}
+                onClick={() => handleAction('pickup', { itemId: (obj.data as { itemId?: string })?.itemId })}
+                onMouseEnter={() => playInteraction('hover')}
               >
                 Pick Up
               </button>
@@ -298,6 +322,7 @@ export function LocalMapView({
   const [selectedTarget, setSelectedTarget] = useState<MapObject | MapExit | null>(null);
   const [selectedType, setSelectedType] = useState<'object' | 'exit' | null>(null);
   const [paused, setPaused] = useState(false);
+  const [combatPaused, setCombatPaused] = useState(false);
 
   const [campaignId, setCampaignId] = useState<string>('');
   const [dialogueSession, setDialogueSession] = useState<DialogueSession | null>(null);
@@ -310,6 +335,10 @@ export function LocalMapView({
   const dialogueRequestRef = useRef(0);
   const dialogueClosingRef = useRef(false);
 
+  // Audio Hook
+  const audio = useAudio();
+  const { playInteraction } = audio;
+
   const dialogueActive = !!dialogueSession;
   
   // Game clock - pauses during interactions and transitions
@@ -320,15 +349,6 @@ export function LocalMapView({
   });
   const { advanceTime } = clockActions;
   
-  // Pause clock when interacting, in dialogue, or paused
-  useEffect(() => {
-    if (paused || selectedTarget || dialogueActive) {
-      const reason = paused ? 'menu' : dialogueActive ? 'dialogue' : 'interaction';
-      clockActions.pause(reason);
-    } else {
-      clockActions.resume();
-    }
-  }, [paused, selectedTarget, dialogueActive, clockActions]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -361,6 +381,10 @@ export function LocalMapView({
   const [playerGridPos, setPlayerGridPos] = useState<GridPosition>({ col: 0, row: 0 });
   const [currentPlayerPos, setCurrentPlayerPos] = useState<Point>({ x: 0, y: 0 });
   const [idleSeconds, setIdleSeconds] = useState(0);
+  const [mapHighlight, setMapHighlight] = useState<ConsequenceHighlight | null>(null);
+  const [, setFactionStanding] = useState<Map<string, number>>(new Map());
+  const observedConsequencesRef = useRef<Set<string>>(new Set());
+  const missedConsequencesRef = useRef<Set<string>>(new Set());
   
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -389,7 +413,7 @@ export function LocalMapView({
     currentMap || { objects: [] } as any, // Dummy fallback if null, useEffect handles null map
     currentPlayerPos,
     clockState.time,
-    !!(paused || transition || selectedTarget || dialogueActive)
+    !!(paused || transition || selectedTarget || dialogueActive || combatPaused)
   );
   const npcPositions = useMemo(() => {
     const positions = new Map<string, Point>();
@@ -400,17 +424,106 @@ export function LocalMapView({
   }, [npcStates]);
 
   const mapForAwareness = currentMap || getMapTemplate(currentMapId) || EMPTY_MAP;
+
+  const handleCombatEnd = useCallback((result: CombatEndResult) => {
+    if (!result?.faction_impact) return;
+
+    setFactionStanding(prev => {
+      const next = new Map(prev);
+      Object.entries(result.faction_impact || {}).forEach(([faction, delta]) => {
+        if (typeof delta !== 'number' || delta === 0) return;
+        next.set(faction, (next.get(faction) || 0) + delta);
+      });
+      return next;
+    });
+
+    setCurrentMap(prev => {
+      if (!prev) return prev;
+      let changed = false;
+      const updatedObjects = prev.objects.map(obj => {
+        if (obj.type !== 'npc') return obj;
+        const data = obj.data as NPCObjectData | undefined;
+        const faction = data?.faction;
+        if (!faction) return obj;
+        const delta = result.faction_impact?.[faction] || 0;
+        if (delta === 0) return obj;
+        const nextDisposition = shiftDisposition(data?.disposition || 'neutral', Math.sign(delta));
+        if (nextDisposition === data?.disposition) return obj;
+        changed = true;
+        return {
+          ...obj,
+          data: {
+            ...(data || { npcId: obj.id, faction, disposition: nextDisposition }),
+            disposition: nextDisposition,
+          } as NPCObjectData,
+        };
+      });
+      return changed ? { ...prev, objects: updatedObjects } : prev;
+    });
+  }, []);
+
+  const combat = useCombat({
+    map: currentMap || mapForAwareness,
+    npcStates,
+    playerPosition: currentPlayerPos,
+    playerFacing: spawnFacing,
+    paused: !!(paused || transition || selectedTarget || dialogueActive),
+    onCombatEnd: handleCombatEnd,
+  });
+  const combatActive = combat.active;
+  const clearCombat = combat.actions.clearCombat;
+  const clearCombatSelection = combat.actions.clearSelection;
+
+  useEffect(() => {
+    setCombatPaused(combatActive);
+  }, [combatActive]);
+
+  // Pause clock when interacting, in dialogue, combat, or paused
+  useEffect(() => {
+    if (paused || selectedTarget || dialogueActive || combatActive) {
+      const reason = paused
+        ? 'menu'
+        : dialogueActive
+        ? 'dialogue'
+        : combatActive
+        ? 'combat'
+        : 'interaction';
+      clockActions.pause(reason);
+    } else {
+      clockActions.resume();
+    }
+  }, [paused, selectedTarget, dialogueActive, combatActive, clockActions]);
+
   const awarenessSnapshot = useNpcAwareness({
     map: mapForAwareness,
     playerPosition: currentPlayerPos,
-    paused: !!(paused || transition || selectedTarget || dialogueActive),
+    paused: !!(paused || transition || selectedTarget || dialogueActive || combatActive),
     idleSeconds,
     npcPositions,
   });
 
+  const consequenceState = useConsequences({
+    map: currentMap || mapForAwareness,
+    mapId: currentMapId,
+    campaignId,
+    playerPosition: currentPlayerPos,
+    gameTime: clockState.time,
+    paused: !!(paused || transition || selectedTarget || dialogueActive || combatActive),
+  });
+
+  const {
+    pressures: factionPressures,
+    pressureZones,
+    dormantThreads,
+    events: consequenceEvents,
+    notifications: consequenceNotifications,
+    npcDispositionOverrides,
+    dismissNotification,
+  } = consequenceState;
+
   const coldZone = getColdZoneAt(mapForAwareness, currentPlayerPos);
   const suppressPrompts = !!coldZone?.suppressPrompts;
-  const suppressPanels = suppressPrompts || !!coldZone?.suppressDialogue;
+  const suppressPanels = suppressPrompts || !!coldZone?.suppressDialogue || combatActive;
 
   useEffect(() => {
     if (!suppressPanels) return;
@@ -421,7 +534,80 @@ export function LocalMapView({
   }, [suppressPanels, selectedTarget, selectedType]);
 
   useEffect(() => {
-    if (clockState.paused || paused || transition || dialogueActive) return;
+    if (!currentMap) return;
+    if (npcDispositionOverrides.size === 0) return;
+
+    setCurrentMap(prev => {
+      if (!prev) return prev;
+      let changed = false;
+      const updatedObjects = prev.objects.map(obj => {
+        if (obj.type !== 'npc') return obj;
+        const nextDisposition = npcDispositionOverrides.get(obj.id);
+        if (!nextDisposition) return obj;
+        const data = obj.data as NPCObjectData | undefined;
+        if (data?.disposition === nextDisposition) return obj;
+        changed = true;
+        return {
+          ...obj,
+          data: {
+            ...(data || { npcId: obj.id, faction: null, disposition: nextDisposition }),
+            disposition: nextDisposition,
+          } as NPCObjectData,
+        };
+      });
+      return changed ? { ...prev, objects: updatedObjects } : prev;
+    });
+  }, [currentMap, npcDispositionOverrides]);
+
+  useEffect(() => {
+    setMapHighlight(null);
+  }, [currentMapId]);
+
+  useEffect(() => {
+    if (consequenceEvents.length === 0) return;
+
+    const nextObserved = new Set(observedConsequencesRef.current);
+    const nextMissed = new Set(missedConsequencesRef.current);
+    let observedChanged = false;
+    let missedChanged = false;
+
+    for (const event of consequenceEvents) {
+      if (nextObserved.has(event.id) || nextMissed.has(event.id)) continue;
+
+      const observed = event.mapId === currentMapId && (!event.position || (() => {
+        const worldPos = gridToWorld(event.position.col, event.position.row);
+        const dist = Math.hypot(worldPos.x - currentPlayerPos.x, worldPos.y - currentPlayerPos.y);
+        return dist <= INTERACTION_RANGE;
+      })());
+
+      if (observed) {
+        nextObserved.add(event.id);
+        observedChanged = true;
+      } else {
+        nextMissed.add(event.id);
+        missedChanged = true;
+      }
+    }
+
+    if (observedChanged) {
+      observedConsequencesRef.current = nextObserved;
+    }
+    if (missedChanged) {
+      missedConsequencesRef.current = nextMissed;
+    }
+  }, [consequenceEvents, currentMapId, currentPlayerPos]);
+
+  useEffect(() => {
+    if (!mapHighlight) return;
+    const duration = mapHighlight.durationMs ?? 2400;
+    const timer = window.setTimeout(() => {
+      setMapHighlight(null);
+    }, duration);
+    return () => window.clearTimeout(timer);
+  }, [mapHighlight]);
+
+  useEffect(() => {
+    if (clockState.paused || paused || transition || dialogueActive || combatActive) return;
 
     const idleActive = idleSeconds >= 5;
     const awarenessActive = awarenessSnapshot.anyAware;
@@ -440,6 +626,7 @@ export function LocalMapView({
     paused,
     transition,
     dialogueActive,
+    combatActive,
     idleSeconds,
     awarenessSnapshot.anyAware,
     advanceTime,
@@ -447,24 +634,45 @@ export function LocalMapView({
 
   // Handle exit approach
   const handleExitApproach = useCallback((exit: MapExit) => {
-    if (suppressPrompts || dialogueActive) return;
+    if (suppressPrompts || dialogueActive || combatActive) return;
     setSelectedTarget(exit);
     setSelectedType('exit');
-  }, [suppressPrompts, dialogueActive]);
+  }, [suppressPrompts, dialogueActive, combatActive]);
 
   // Handle object interaction
   const handleObjectInteract = useCallback((obj: MapObject) => {
-    if (suppressPrompts || dialogueActive) return;
+    if (suppressPrompts || dialogueActive || combatActive) return;
     setSelectedTarget(obj);
     setSelectedType('object');
     onInteraction?.('select', obj);
-  }, [suppressPrompts, dialogueActive, onInteraction]);
+  }, [suppressPrompts, dialogueActive, combatActive, onInteraction]);
 
   // Handle position change
   const handlePositionChange = useCallback((pos: Point, gridPos: GridPosition) => {
     setPlayerGridPos(gridPos);
     setCurrentPlayerPos(pos);
   }, []);
+
+  const handleNotificationHighlight = useCallback((notification: ConsequenceNotification) => {
+    dismissNotification(notification.id);
+    if (notification.mapId && notification.mapId !== currentMapId) return;
+    if (!notification.position) return;
+
+    const color = notification.severity === 'critical'
+      ? '248, 81, 73'
+      : notification.severity === 'warning'
+      ? '210, 153, 34'
+      : '88, 166, 255';
+
+    setMapHighlight({
+      id: notification.id,
+      mapId: notification.mapId || currentMapId,
+      position: notification.position,
+      createdAt: performance.now(),
+      durationMs: 2200,
+      color,
+    });
+  }, [currentMapId, dismissNotification]);
 
   const applyDialogueResponse = useCallback((response: DialogueResponse, optionCost?: number) => {
     setDialogueResponse(response);
@@ -532,16 +740,20 @@ export function LocalMapView({
 
   const handleDialogueOption = useCallback(async (option: DialogueOption) => {
     if (!dialogueSession) return;
+    
+    playInteraction('select'); // Sound
 
     setDialogueLoading(true);
     const requestId = ++dialogueRequestRef.current;
     const response = await continueDialogue(dialogueSession.npcId, option.id, option.text);
     if (dialogueRequestRef.current !== requestId) return;
     applyDialogueResponse(response, option.social_cost);
-  }, [dialogueSession, applyDialogueResponse]);
+  }, [dialogueSession, applyDialogueResponse, playInteraction]);
 
   const closeDialogue = useCallback(() => {
     if (dialogueClosingRef.current) return;
+    playInteraction('cancel'); // Sound
+    
     dialogueClosingRef.current = true;
     dialogueRequestRef.current += 1;
 
@@ -582,7 +794,7 @@ export function LocalMapView({
     setDialogueLoading(false);
     setDialogueSpentMinutes(0);
     setDialogueDispositionDelta(0);
-  }, [dialogueSession, dialogueDispositionDelta, dialogueSpentMinutes, clockActions]);
+  }, [dialogueSession, dialogueDispositionDelta, dialogueSpentMinutes, clockActions, playInteraction]);
 
   // Handle panel action
   const handleAction = useCallback((action: string, _params?: Record<string, unknown>) => {
@@ -639,12 +851,25 @@ export function LocalMapView({
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
+        if (combatActive) {
+          if (combat.state === CombatState.ENDED) {
+            clearCombat();
+          } else {
+            clearCombatSelection();
+          }
+          return;
+        }
         if (dialogueActive) {
           closeDialogue();
         } else if (selectedTarget) {
           handleClosePanel();
         } else {
           setPaused(p => !p);
+          if (!paused) {
+            playInteraction('cancel');
+          } else {
+            playInteraction('select');
+          }
           onExit?.();
         }
       }
@@ -652,7 +877,19 @@ export function LocalMapView({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [dialogueActive, selectedTarget, handleClosePanel, closeDialogue, onExit]);
+  }, [
+    combatActive,
+    combat.state,
+    clearCombat,
+    clearCombatSelection,
+    dialogueActive,
+    selectedTarget,
+    handleClosePanel,
+    closeDialogue,
+    onExit,
+    paused,
+    playInteraction,
+  ]);
 
   // Loading state
   if (!currentMap) {
@@ -686,7 +923,7 @@ export function LocalMapView({
         <div className="localmap-canvas-wrapper">
           <LocalMapCanvas
             map={currentMap}
-            npcStates={npcStates}
+            npcStates={combat.npcRenderStates || npcStates}
             initialPosition={spawnPosition || undefined}
             initialFacing={spawnFacing}
             onExitApproach={handleExitApproach}
@@ -695,8 +932,16 @@ export function LocalMapView({
             onIdleChange={setIdleSeconds}
             awarenessState={awarenessSnapshot.states}
             ambientShift={awarenessSnapshot.ambientShift}
-            paused={paused || !!transition || dialogueActive}
-            dimmed={dialogueActive}
+            factionPressures={factionPressures}
+            pressureZones={pressureZones}
+            dormantThreads={dormantThreads}
+            highlights={mapHighlight ? [mapHighlight] : []}
+            paused={paused || !!transition || dialogueActive || combatActive}
+            dimmed={dialogueActive || combatActive}
+            onCanvasClick={combat.actions.handleMapClick}
+            playerPositionOverride={combat.playerPositionOverride}
+            playerFacingOverride={combat.playerFacingOverride}
+            combatOverlay={combat.renderState}
           />
         </div>
 
@@ -716,6 +961,12 @@ export function LocalMapView({
           </div>
         </div>
 
+        <NotificationSystem
+          notifications={consequenceNotifications}
+          onDismiss={dismissNotification}
+          onHighlight={handleNotificationHighlight}
+        />
+
         {dialogueSession && (
           <DialogueOverlay
             active={dialogueActive}
@@ -730,6 +981,25 @@ export function LocalMapView({
             onExit={closeDialogue}
           />
         )}
+
+        {combat.renderState && (
+          <CombatOverlay
+            active={combat.active}
+            state={combat.state}
+            round={combat.round}
+            playerId={combat.renderState.playerId}
+            combatants={combat.combatants}
+            selectedAction={combat.selectedAction}
+            selectedTargetId={combat.selectedTargetId}
+            targetOptions={combat.targetOptions}
+            intents={combat.intents}
+            outcome={combat.outcome}
+            onSelectAction={combat.actions.selectAction}
+            onSelectTarget={combat.actions.selectTarget}
+            onClearSelection={combat.actions.clearSelection}
+            onClearCombat={combat.actions.clearCombat}
+          />
+        )}
       </div>
 
       <div className="localmap-sidebar">
@@ -739,16 +1009,17 @@ export function LocalMapView({
             type={selectedType}
             onAction={handleAction}
             onClose={handleClosePanel}
+            playInteraction={playInteraction}
           />
         )}
       </div>
 
       {/* Pause overlay */}
-      {paused && !transition && !dialogueActive && (
+      {paused && !transition && !dialogueActive && !combatActive && (
         <div className="localmap-pause-overlay">
           <div className="pause-menu">
             <h2>PAUSED</h2>
-            <button onClick={() => setPaused(false)}>Resume</button>
+            <button onClick={() => { setPaused(false); playInteraction('select'); }}>Resume</button>
             <button onClick={onExit}>Exit to Menu</button>
           </div>
         </div>
