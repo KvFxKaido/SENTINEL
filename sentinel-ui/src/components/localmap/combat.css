@@ -1,0 +1,323 @@
+/**
+ * Combat Overlay Styles (Phase 5)
+ * AMOLED dark theme with minimal, explicit controls.
+ */
+
+.combat-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.combat-topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.75);
+  border-bottom: 1px solid #1a1a2a;
+  pointer-events: auto;
+}
+
+.combat-round {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: #c9d1d9;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 1px;
+}
+
+.combat-round-value {
+  font-size: 16px;
+  color: #56d4dd;
+}
+
+.combat-turn {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+}
+
+.combat-turn-indicator {
+  padding: 4px 12px;
+  border: 1px solid #2a2a3a;
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.combat-turn-indicator.turn-player {
+  color: #56d4dd;
+  border-color: rgba(86, 212, 221, 0.5);
+}
+
+.combat-turn-indicator.turn-npc {
+  color: #f85149;
+  border-color: rgba(248, 81, 73, 0.5);
+}
+
+.combat-turn-order {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.combat-turn-chip {
+  padding: 2px 6px;
+  border: 1px solid #2a2a3a;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+.combat-turn-chip.active {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.combat-panels {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(220px, 260px) minmax(220px, 260px);
+  grid-template-rows: auto 1fr;
+  gap: 12px;
+  padding: 12px 16px 16px;
+  pointer-events: none;
+}
+
+.combat-panel {
+  background: #0a0a0f;
+  border: 1px solid #1a1a2a;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: auto;
+}
+
+.combat-panel-actions {
+  grid-row: 1 / span 2;
+}
+
+.combat-panel-targets {
+  max-height: 260px;
+}
+
+.combat-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #8b949e;
+}
+
+.combat-clear {
+  background: none;
+  border: none;
+  color: #6e7681;
+  cursor: pointer;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.combat-clear:hover {
+  color: #58a6ff;
+}
+
+.combat-actions {
+  gap: 6px;
+}
+
+.action-button.action-danger {
+  color: #f85149;
+  border-color: rgba(248, 81, 73, 0.4);
+  background: rgba(248, 81, 73, 0.08);
+}
+
+.action-button.action-danger:hover {
+  background: rgba(248, 81, 73, 0.18);
+  border-color: #f85149;
+}
+
+.combat-hint {
+  font-size: 10px;
+  color: #6e7681;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.combat-empty {
+  font-size: 10px;
+  color: #6e7681;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.combat-target-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.combat-target {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid #1a1a2a;
+  padding: 6px 8px;
+  cursor: pointer;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #c9d1d9;
+}
+
+.combat-target.selected {
+  border-color: #56d4dd;
+  box-shadow: 0 0 0 1px rgba(86, 212, 221, 0.3);
+}
+
+.target-name {
+  flex: 1;
+  text-align: left;
+}
+
+.target-range {
+  font-size: 9px;
+  color: #6e7681;
+}
+
+.target-range.in-range {
+  color: #3fb950;
+}
+
+.target-range.out-range {
+  color: #f85149;
+}
+
+.target-cover {
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 2px;
+  background: rgba(88, 166, 255, 0.08);
+  color: #58a6ff;
+}
+
+.target-cover.cover-2 {
+  background: rgba(248, 81, 73, 0.12);
+  color: #f85149;
+}
+
+.target-cover.cover-1 {
+  background: rgba(210, 153, 34, 0.15);
+  color: #d29922;
+}
+
+.combat-injury-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.combat-injury-name {
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #c9d1d9;
+}
+
+.combat-injury-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.combat-injury-tag {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 6px;
+  border-radius: 2px;
+  background: rgba(248, 81, 73, 0.12);
+  color: #f0883e;
+}
+
+.combat-injury-none {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #6e7681;
+}
+
+.combat-intent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.combat-intent {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #8b949e;
+}
+
+.combat-outcome {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.65);
+  pointer-events: auto;
+}
+
+.combat-outcome-panel {
+  background: #0a0a0f;
+  border: 1px solid #1a1a2a;
+  padding: 24px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+}
+
+.combat-outcome-title {
+  font-size: 12px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #8b949e;
+}
+
+.combat-outcome-result {
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #56d4dd;
+}
+
+@media (max-width: 900px) {
+  .combat-panels {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+  }
+
+  .combat-panel-actions {
+    grid-row: auto;
+  }
+}

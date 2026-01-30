@@ -58,13 +58,15 @@ export class AlertManager {
     playerPos: Point,
     map: LocalMapTemplate,
     deltaMs: number,
-    timeOfDay: string
+    timeOfDay: string,
+    disposition?: string
   ) {
     const state = this.getAlertState(npcId);
     const dist = euclideanDistance(npcPos, playerPos);
     
     // Calculate detection range based on time of day
     let detectionRange = NPC_DETECTION_RANGE;
+    detectionRange *= getDispositionDetectionMultiplier(disposition);
     if (timeOfDay === 'night' || timeOfDay === 'evening') {
       detectionRange *= 0.7; // Reduced visibility
     }
@@ -134,5 +136,20 @@ export class AlertManager {
       case 'west': return Math.PI;
       default: return 0;
     }
+  }
+}
+
+function getDispositionDetectionMultiplier(disposition?: string): number {
+  switch (disposition) {
+    case 'hostile':
+      return 1.25;
+    case 'wary':
+      return 1.1;
+    case 'warm':
+      return 0.95;
+    case 'loyal':
+      return 0.9;
+    default:
+      return 1.0;
   }
 }

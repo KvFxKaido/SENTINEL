@@ -7,6 +7,8 @@
 // Main components
 export { LocalMapCanvas } from './LocalMapCanvas';
 export { LocalMapView } from './LocalMapView';
+export { FactionPressureOverlay } from './FactionPressureOverlay';
+export { NotificationSystem } from './NotificationSystem';
 
 // Types
 export type {
@@ -26,6 +28,15 @@ export type {
   LocalMapState,
   ColdZone,
 } from './types';
+
+export type {
+  FactionPressure,
+  DormantThread,
+  ConsequenceEvent,
+  ConsequenceNotification,
+  FactionPressureZone,
+  ConsequenceHighlight,
+} from './consequences';
 
 export {
   TILE_SIZE,
@@ -79,6 +90,8 @@ export {
   timeToMinutes,
   minutesToTime,
 } from './useGameClock';
+
+export { useConsequences } from './useConsequences';
 
 export type {
   GameTime,

@@ -41,6 +41,25 @@ export function usePatrolSimulation(
     }
   }, [map.id]); // Re-init when map ID changes
 
+  const npcSignature = useMemo(() => {
+    return map.objects
+      .filter(obj => obj.type === 'npc' && obj.data)
+      .map(obj => {
+        const data = obj.data as NPCObjectData;
+        return `${obj.id}:${data.disposition || 'neutral'}:${data.faction || 'none'}`;
+      })
+      .join('|');
+  }, [map.objects]);
+
+  useEffect(() => {
+    const engine = engineRef.current;
+    for (const obj of map.objects) {
+      if (obj.type === 'npc' && obj.data) {
+        engine.updateNPCData(obj.id, obj.data as NPCObjectData);
+      }
+    }
+  }, [npcSignature, map.objects]);
+
   // Simulation Loop
   useEffect(() => {
     if (paused) {
