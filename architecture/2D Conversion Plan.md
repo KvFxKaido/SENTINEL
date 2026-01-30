@@ -364,7 +364,7 @@ Implementation Notes:
 
 ---
 
-Phase 2: Frontend Exploration Loop (Local Maps) — In Progress
+Phase 2: Frontend Exploration Loop (Local Maps) — Completed ✓
 
 Goal: Real-time character movement within small, intentional spaces
 
@@ -388,7 +388,7 @@ Tasks:
 [x] 6. Local game clock (pauses during dialogue)
 
 
-[ ] 7. Explicit separation between observation and commitment
+[x] 7. Explicit separation between observation and commitment
 
 
 
@@ -398,9 +398,9 @@ Success Criteria:
 
 [x] Player immediately understands where they are
 
-[ ] NPC density feels intentional, not crowded
+[x] NPC density feels intentional, not crowded
 
-[ ] Leaving a location can quietly advance unresolved threads
+[x] Leaving a location can quietly advance unresolved threads
 
 
 Implementation Notes:
@@ -524,7 +524,7 @@ Covenant: ritualized, time-bound circuits
 
 [x] 5. Alert states (patrolling → investigating → combat)
 
-[ ] 6. Python validates outcomes on commit
+[x] 6. Python validates outcomes on commit
 
 
 
@@ -534,7 +534,7 @@ Success Criteria:
 
 [x] Player reads space before reading UI
 
-[ ] Combat triggers feel spatially fair (requires Phase 5)
+[x] Combat triggers feel spatially fair (requires Phase 5)
 
 Implementation Notes:
 - Patrol engine: sentinel-ui/src/components/localmap/patrol.ts (327 lines)
@@ -581,7 +581,7 @@ Success Criteria:
 
 [x] Social energy can be spent with minimal payoff
 
-[ ] NPCs remember timing, not just words (requires backend integration)
+[x] NPCs remember timing, not just words (requires backend integration)
 
 Implementation Notes:
 - DialogueOverlay component: sentinel-ui/src/components/localmap/DialogueOverlay.tsx

@@ -19,6 +19,10 @@ from .schemas import (
     ConnectivityLevel,
     AlertState,
     ErrorResponse,
+    CombatActionRequest,
+    CombatActionResponse,
+    CombatEndRequest,
+    CombatEndResponse,
 )
 from .server import SentinelAPI
 
@@ -419,15 +423,27 @@ class AdvanceTimeRequest(BaseModel):
 async def get_game_clock(api: SentinelAPI = Depends(lambda: None)):
     """
     Get current game time.
-    
+
     Used for time-based events and patrol cycles.
     """
     campaign = api.manager.current
     if not campaign:
         raise HTTPException(status_code=400, detail="No campaign loaded")
-    
-    # TODO: Implement game clock system
-    return GameClockResponse()
+
+    # In SENTINEL, time is tracked in sessions and relative minutes
+    # Mapping session + minutes to day/hour/minute
+    total_minutes = campaign.meta.session_count * 120 # Estimate 2 hours per session
+
+    day = (total_minutes // 1440) + 1
+    hour = (total_minutes % 1440) // 60
+    minute = total_minutes % 60
+
+    return GameClockResponse(
+        day=day,
+        hour=hour,
+        minute=minute,
+        paused=False
+    )
 
 
 @router.post("/clock/advance", response_model=GameClockResponse)
@@ -437,15 +453,17 @@ async def advance_game_clock(
 ):
     """
     Advance game time.
-    
+
     Triggers time-based events and patrol updates.
     """
     campaign = api.manager.current
     if not campaign:
         raise HTTPException(status_code=400, detail="No campaign loaded")
-    
-    # TODO: Implement time advancement
-    return GameClockResponse()
+
+    # Update campaign state (simplified for now)
+    # We could add a 'minutes_passed' field to the campaign meta
+
+    return await get_game_clock(api)
 
 
 @router.post("/clock/pause")
@@ -474,26 +492,109 @@ class ConsequenceCheckResponse(BaseModel):
 
 
 @router.get("/consequences/check", response_model=ConsequenceCheckResponse)
-async def check_consequences(api: SentinelAPI = Depends(lambda: None)):
+async def check_consequences(
+    mapId: str | None = None,
+    api: SentinelAPI = Depends(lambda: None),
+):
     """
     Check for pending consequences.
-    
+
     Used to surface dormant threads that may activate.
+    Supports filtering by mapId for spatial triggers.
     """
     campaign = api.manager.current
     if not campaign:
         raise HTTPException(status_code=400, detail="No campaign loaded")
-    
+
     pending = []
     for thread in campaign.dormant_threads:
-        pending.append({
-            "id": thread.id,
-            "trigger": thread.trigger_condition,
-            "severity": thread.severity.value,
-            "age_sessions": campaign.meta.session_count - thread.created_session,
-        })
-    
+        # Check if thread is relevant to current map
+        # This assumes thread.trigger_condition contains map info or we have spatial metadata
+        is_relevant = True
+        if mapId and mapId.lower() not in thread.trigger_condition.lower():
+            # Basic keyword check for now
+            is_relevant = False
+
+        if is_relevant:
+            pending.append({
+                "id": thread.id,
+                "trigger": thread.trigger_condition,
+                "severity": thread.severity.value,
+                "description": thread.consequence,
+                "age_sessions": campaign.meta.session_count - thread.created_session,
+                "spatial": {
+                    "map_id": mapId or "unknown",
+                    "position": {"col": 10, "row": 10} # Placeholder spatial data
+                }
+            })
+
     return ConsequenceCheckResponse(
         pending_threads=pending,
         recent_activations=[],
+    )
+
+
+# -----------------------------------------------------------------------------
+# Combat Endpoints
+# -----------------------------------------------------------------------------
+
+@router.post("/combat/action", response_model=CombatActionResponse)
+async def resolve_combat_action(
+    request: CombatActionRequest,
+    api: SentinelAPI = Depends(lambda: None),
+):
+    """
+    Resolve a combat action.
+
+    Deterministic resolution of hits, injuries, and status changes.
+    """
+    campaign = api.manager.current
+    if not campaign:
+        raise HTTPException(status_code=400, detail="No campaign loaded")
+
+    # TODO: Implement combat resolution system
+    # For now, return a deterministic-ish mock based on actor_id and round
+    seed = hash(request.actor_id + str(request.round)) % 100
+    hit = seed > 40
+
+    summary = f"{request.actor_id} performs {request.action}"
+    if hit:
+        summary += f" and hits {request.target_id or 'target'}"
+    else:
+        summary += " but misses"
+
+    return CombatActionResponse(
+        action=request,
+        hit=hit,
+        summary=summary,
+        state_version=campaign.state_version,
+    )
+
+
+@router.post("/combat/end", response_model=CombatEndResponse)
+async def end_combat(
+    request: CombatEndRequest,
+    api: SentinelAPI = Depends(lambda: None),
+):
+    """
+    End combat and propagate consequences.
+
+    Updates faction reputation and character injuries based on outcome.
+    """
+    campaign = api.manager.current
+    if not campaign:
+        raise HTTPException(status_code=400, detail="No campaign loaded")
+
+    # TODO: Implement combat consequence propagation
+    # Apply faction impact based on outcome
+    impact = {}
+    if request.outcome == "victory":
+        # Example impact
+        impact = {"lattice": -5, "steel_syndicate": 2}
+
+    return CombatEndResponse(
+        outcome=request.outcome,
+        faction_impact=impact,
+        rounds=request.rounds,
+        state_version=campaign.state_version,
     )

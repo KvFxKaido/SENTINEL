@@ -313,7 +313,7 @@ class SentinelAPI:
         
         # Build map state
         map_state = self._build_map_state(campaign)
-        
+
         # Get location
         location = LocationType.SAFE_HOUSE
         if campaign.session and campaign.session.location:
@@ -321,7 +321,15 @@ class SentinelAPI:
                 location = LocationType(campaign.session.location.value)
             except ValueError:
                 pass
-        
+
+        # Build game time
+        total_minutes = campaign.meta.session_count * 120
+        game_time = {
+            "day": (total_minutes // 1440) + 1,
+            "hour": (total_minutes % 1440) // 60,
+            "minute": total_minutes % 60
+        }
+
         return GameStateResponse(
             ok=True,
             version=self._state_version,
@@ -338,6 +346,7 @@ class SentinelAPI:
             npcs=npcs,
             threads=threads,
             map=map_state,
+            game_time=game_time,
             paused=False,
         )
     
@@ -587,7 +596,7 @@ class SentinelAPI:
     async def crystallize_dialogue(self, request: DialogueRequest) -> DialogueResponse:
         """
         Crystallize meaning via LLM.
-        
+
         Invoked only when pressure collapses into dialogue.
         Design Rule: Silence is a valid (and often preferred) outcome.
         """
@@ -600,7 +609,7 @@ class SentinelAPI:
                 npc_response="",
                 error="No campaign loaded",
             )
-        
+
         # Get NPC
         npc = self.manager.get_npc(request.npc_id)
         if not npc:
@@ -611,7 +620,7 @@ class SentinelAPI:
                 npc_response="",
                 error=f"NPC not found: {request.npc_id}",
             )
-        
+
         # Check if agent is available
         if not self.agent.is_available:
             return DialogueResponse(
@@ -621,38 +630,52 @@ class SentinelAPI:
                 npc_response="",
                 error="LLM backend not available",
             )
-        
+
         try:
             # Build dialogue prompt
             prompt = self._build_dialogue_prompt(npc, request)
-            
+
             # Get LLM response
-            response = self.agent.respond(prompt, [])
-            
-            # Parse response for dialogue options
-            # TODO: Implement proper dialogue parsing
+            # We use the agent's respond method but with a restricted context
+            # to ensure the NPC doesn't break character or system boundaries.
+            response_text = self.agent.respond(prompt, [])
+
+            # Extract dialogue and options
+            # In a real implementation, we'd use a parser to get JSON from the LLM
+            # For now, we perform a basic extraction
+            dialogue_text = response_text
+            if "---options---" in response_text.lower():
+                parts = response_text.lower().split("---options---")
+                dialogue_text = parts[0].strip()
+                # Options parsing logic would go here
+
+            # Generate default options if parsing failed
             options = [
-                DialogueOption(id="1", text="Continue conversation", tone="neutral"),
-                DialogueOption(id="2", text="Ask about something else", tone="neutral"),
-                DialogueOption(id="3", text="End conversation", tone="neutral"),
+                DialogueOption(id="neutral", text="Continue conversation", tone="neutral"),
+                DialogueOption(id="probe", text="Probe for information", tone="neutral", social_cost=2),
+                DialogueOption(id="end", text="End conversation", tone="neutral"),
             ]
-            
-            # Calculate social energy cost
-            social_cost = 5  # Base cost
-            
+
             # Update state version
             new_version = self._increment_version()
-            
+
+            # Record the interaction in campaign history
+            npc.record_interaction(
+                session=campaign.meta.session_count,
+                action="Dialogue",
+                outcome=dialogue_text[:50] + "...",
+            )
+
             return DialogueResponse(
                 ok=True,
                 npc_id=request.npc_id,
                 state_version=new_version,
-                npc_response=response,
+                npc_response=dialogue_text,
                 tone="neutral",
                 options=options,
-                social_energy_cost=social_cost,
+                social_energy_cost=2,
             )
-            
+
         except Exception as e:
             return DialogueResponse(
                 ok=False,
@@ -661,16 +684,24 @@ class SentinelAPI:
                 npc_response="",
                 error=str(e),
             )
-    
+
     def _build_dialogue_prompt(self, npc, request: DialogueRequest) -> str:
         """Build prompt for dialogue crystallization."""
-        return f"""You are {npc.name}, a {npc.faction.value if npc.faction else 'independent'} character.
+        return f"""You are now crystallizing a dialogue moment for SENTINEL 2D.
+NPC: {npc.name}
+Faction: {npc.faction.value if npc.faction else 'Independent'}
 Disposition: {npc.disposition.value}
+Agenda: Wants '{npc.agenda.wants}', Fears '{npc.agenda.fears}'
 
 Context: {request.context}
-Player intent: {request.player_intent}
+Player Intent: {request.player_intent}
 
-Respond in character. Keep it brief and meaningful.
+RESPONSE RULES:
+1. Speak as {npc.name}.
+2. Keep it under 3 sentences.
+3. Be atmospheric and consistent with the world's tension.
+4. Do NOT use emojis.
+5. If the player is being aggressive, react accordingly based on your fears.
 """
     
     # -------------------------------------------------------------------------
