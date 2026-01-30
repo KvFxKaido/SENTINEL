@@ -5,7 +5,7 @@
  * Tense atmosphere - factions present but not hostile.
  */
 
-import { TileType, type LocalMapTemplate } from '../types';
+import { TileType, NPCBehaviorState, type LocalMapTemplate } from '../types';
 
 const _ = TileType.FLOOR;
 const W = TileType.WALL;
@@ -83,6 +83,7 @@ export const MARKET_MAP: LocalMapTemplate = {
         faction: 'nexus',
         disposition: 'wary',
         facing: 'south',
+        behaviorState: NPCBehaviorState.UNAVAILABLE,
       },
     },
     {
@@ -136,6 +137,12 @@ export const MARKET_MAP: LocalMapTemplate = {
         faction: 'steel_syndicate',
         disposition: 'neutral',
         facing: 'north',
+        patrolRoute: [
+          { col: 9, row: 14 },
+          { col: 9, row: 6 },
+          { col: 14, row: 6 },
+          { col: 14, row: 14 },
+        ],
       },
     },
   ],
@@ -169,6 +176,16 @@ export const MARKET_MAP: LocalMapTemplate = {
   
   ambientLight: 0.4,
   atmosphere: 'tense',
+
+  coldZones: [
+    {
+      id: 'market_center_cold',
+      name: 'Market Center',
+      bounds: { col: 6, row: 6, width: 8, height: 5 },
+      suppressPrompts: true,
+      suppressDialogue: true,
+    },
+  ],
   
   author: 'SENTINEL',
   version: 1,
