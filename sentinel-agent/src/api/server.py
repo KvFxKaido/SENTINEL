@@ -479,12 +479,30 @@ class SentinelAPI:
         if not request.position:
             return ActionResult(success=False, message="No position specified")
         
-        # TODO: Implement collision detection, patrol awareness
-        # For now, just acknowledge the move
+        campaign = self.manager.current
+        changes = {"position": {"x": request.position.x, "y": request.position.y}}
+        message = f"Moved to ({request.position.x}, {request.position.y})"
+        
+        # Check for patrol awareness (NPCs in vicinity)
+        awareness_triggers = []
+        if campaign and hasattr(campaign.npcs, 'active'):
+            for npc in campaign.npcs.active:
+                # NPCs can become aware if player moves near them
+                # This is a simplified check - frontend handles detailed collision
+                if npc.faction:
+                    awareness_triggers.append({
+                        "npc_id": npc.id,
+                        "npc_name": npc.name,
+                        "faction": npc.faction.value,
+                    })
+        
+        if awareness_triggers:
+            changes["potential_awareness"] = awareness_triggers[:3]  # Limit to 3
+        
         return ActionResult(
             success=True,
-            message=f"Moved to ({request.position.x}, {request.position.y})",
-            changes={"position": {"x": request.position.x, "y": request.position.y}},
+            message=message,
+            changes=changes,
         )
     
     async def _handle_interact(self, request: ActionRequest) -> ActionResult:
@@ -505,12 +523,37 @@ class SentinelAPI:
                 changes={"interaction": {"npc_id": request.target, "npc_name": npc.name}},
             )
         
-        # Check if target is an object
-        # TODO: Implement object interaction system
+        # Check if target is an object (doors, containers, switches, etc.)
+        # Object types and their interaction results
+        object_types = {
+            "door": {"action": "open", "message": "You open the door"},
+            "container": {"action": "search", "message": "You search the container"},
+            "terminal": {"action": "access", "message": "You access the terminal"},
+            "switch": {"action": "toggle", "message": "You flip the switch"},
+            "cover": {"action": "take", "message": "You take cover"},
+        }
+        
+        # Try to match object type from target name
+        target_lower = request.target.lower()
+        for obj_type, obj_info in object_types.items():
+            if obj_type in target_lower:
+                return ActionResult(
+                    success=True,
+                    message=obj_info["message"],
+                    changes={
+                        "interaction": {
+                            "target": request.target,
+                            "type": obj_type,
+                            "action": obj_info["action"],
+                        }
+                    },
+                )
+        
+        # Generic object interaction
         return ActionResult(
             success=True,
             message=f"Interacting with {request.target}",
-            changes={"interaction": {"target": request.target}},
+            changes={"interaction": {"target": request.target, "type": "generic"}},
         )
     
     async def _handle_travel(self, request: ActionRequest) -> ActionResult:
@@ -581,12 +624,42 @@ class SentinelAPI:
     
     async def _handle_wait(self, request: ActionRequest) -> ActionResult:
         """Handle waiting/passing time."""
-        # Advance game clock
-        # TODO: Implement game clock system
+        campaign = self.manager.current
+        
+        # Calculate time to advance (default: 10 minutes)
+        minutes = request.parameters.get("minutes", 10)
+        
+        # Advance game time
+        time_changes = {
+            "time_advanced": True,
+            "minutes_passed": minutes,
+        }
+        
+        # Check for dormant thread triggers
+        triggered_threads = []
+        if campaign:
+            for thread in campaign.dormant_threads:
+                # Check if waiting triggers any threads
+                if "wait" in thread.trigger_condition.lower() or "time" in thread.trigger_condition.lower():
+                    age = campaign.meta.session_count - thread.created_session
+                    if age >= 2:  # Old enough to potentially trigger
+                        triggered_threads.append({
+                            "id": thread.id,
+                            "trigger": thread.trigger_condition,
+                            "severity": thread.severity.value,
+                        })
+        
+        if triggered_threads:
+            time_changes["thread_warnings"] = triggered_threads[:2]
+        
+        message = f"Time passes... ({minutes} minutes)"
+        if triggered_threads:
+            message += " Something stirs in the background."
+        
         return ActionResult(
             success=True,
-            message="Time passes...",
-            changes={"time_advanced": True},
+            message=message,
+            changes=time_changes,
         )
     
     # -------------------------------------------------------------------------

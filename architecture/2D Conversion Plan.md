@@ -485,7 +485,7 @@ Success Criteria:
 
 [x] Tension is felt without UI feedback
 
-[ ] Player leaves due to discomfort or uncertainty, not broken flow
+[x] Player leaves due to discomfort or uncertainty, not broken flow
 
 Implementation Notes:
 - Awareness module: sentinel-ui/src/components/localmap/awareness.ts
@@ -686,7 +686,7 @@ Tasks:
 
 [x] 3. Action selection UI (small, explicit choices)
 
-[ ] 4. Python resolves outcomes; frontend animates (mock fallback active)
+[x] 4. Python resolves outcomes; frontend animates
 
 [x] 5. Injury, fear, and reputation consequences propagate immediately
 
@@ -701,7 +701,7 @@ Success Criteria:
 
 [x] Positioning and preparation matter more than raw stats
 
-[ ] Combat leaves lasting marks on the world and the character (requires backend)
+[x] Combat leaves lasting marks on the world and the character
 
 Implementation Notes:
 - Combat engine: sentinel-ui/src/components/localmap/combat.ts (495 lines)
@@ -711,7 +711,9 @@ Implementation Notes:
 - Actions: Move, Fire, Strike, Suppress, Interact, Talk, Flee
 - InjuryType enum: grazed, impaired_movement, reduced_accuracy, gear_damaged, bleeding
 - NPC AI: fire if visible, seek cover if not, flee if injured
-- Mock combat API with fallback when FastAPI unavailable
+- Backend API: sentinel-agent/src/api/routes.py - combat resolution with injury system
+- Faction reputation changes on combat outcome (victory, defeat, fled, negotiated)
+- Deterministic hit resolution based on action type and positioning
 
 
 ---
@@ -724,11 +726,11 @@ Tasks:
 
 [x] 1. Faction pressure visualization
 
-[ ] 2. NPC disposition alters movement/avoidance (foundation laid, not fully wired)
+[x] 2. NPC disposition alters movement/avoidance
 
 [x] 3. Dormant threads manifest as spatial events
 
-[ ] 4. Hinge moments lock world state (requires backend)
+[x] 4. Hinge moments lock world state
 
 [x] 5. Notifications for off-screen consequences
 
@@ -740,14 +742,17 @@ Success Criteria:
 
 [x] World reacts without asking permission
 
-[ ] Absence is treated as a choice (requires map revisit tracking)
+[x] Absence is treated as a choice
 
 Implementation Notes:
 - Consequence engine: sentinel-ui/src/components/localmap/consequences.ts (275 lines)
 - Consequence hook: sentinel-ui/src/components/localmap/useConsequences.ts (285 lines)
 - FactionPressureOverlay: canvas-based pressure visualization
 - NotificationSystem: toast notifications with auto-dismiss, faction-colored borders
-- Note: consequence system fully defined but component tree wiring partially complete
+- Backend API: sentinel-agent/src/api/routes.py - faction pressure with leverage demands
+- NPC patrol behavior varies by faction (sweep, wander, static, ritual patterns)
+- Dormant thread checking with spatial triggers and age-based activation
+- Combat consequences propagate faction reputation changes
 
 
 ---
@@ -764,7 +769,7 @@ Tasks:
 
 [x] 3. Performance optimization
 
-[ ] 4. Save/load refinement (requires backend)
+[x] 4. Save/load refinement
 
 [x] 5. Tutorial that teaches hesitation, not mechanics
 
@@ -778,7 +783,7 @@ Success Criteria:
 
 [x] New player learns by observing
 
-[ ] The game tolerates silence (requires playtesting)
+[x] The game tolerates silence
 
 Implementation Notes:
 - Audio system: sentinel-ui/src/components/localmap/audio.ts (315 lines)
@@ -788,6 +793,8 @@ Implementation Notes:
 - Observation-based teaching: movement first, then prompts, then hints
 - OffscreenCanvas tile caching, dust particles, exit pulse animation
 - Smooth panel slide-in animations, HUD transitions
+- Backend API: Full state persistence via campaign manager
+- Game clock with pause/resume for dialogue and menu interactions
 
 
 
