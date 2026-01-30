@@ -205,4 +205,3 @@ If you eventually need diagonals:
 **Version:** 1.1 (Gemini-patched)  
 **Status:** Production-ready for CLI implementation  
 **Next Review:** After first faction variant (Syndicate) test
-```
