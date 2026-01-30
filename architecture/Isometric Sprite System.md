@@ -1,281 +1,208 @@
+# SENTINEL Isometric Sprite System v1.1
 
-# SENTINEL Isometric Sprite System
-
-## Canvas Size & Grid
-
-**Base sprite:** 48x48 pixels (gives room for detail while staying crisp)
-**Isometric angle:** 2:1 ratio (classic isometric)
-**Tile footprint:** Character occupies ~24x32 pixel actual space, centered in 48x48 canvas
-
-**Why 48x48?**
-- 32x32 too cramped for gear details
-- 64x64 too large for tactical overview
-- 48x48 = sweet spot for readable detail
+**Resolution:** 48x48 pixels  
+**Perspective:** Isometric 2:1 (2 horizontal : 1 vertical)  
+**Directions:** 4-way (N/E/S/W)  
+**Status:** Patched with Gemini technical review
 
 ---
 
-## Layer Structure (Bottom to Top)
+## Core Principles
 
-### Layer 1: Shadow
-- 16x8 pixel oval
-- 30% opacity black
-- Anchored to character feet
-- Doesn't rotate with facing
+### The 48x48 Sweet Spot
+- **32x32:** Too small for character identity details (temple scars, gear placement)
+- **48x48:** Goldilocks zone - readable silhouettes, manageable pixel debt
+- **64x64:** Beautiful but unsustainable for solo dev walk cycles
 
-### Layer 2: Body Base
-- Simple capsule shape
-- 12px wide x 20px tall (actual body)
-- Neutral gray (#4a4a4a)
-- This layer defines posture
+### Modular Construction Philosophy
+**20% Rule:** Any faction variant shares 80% pixels with base template. Only modify what creates identity.
 
-### Layer 3: Clothing
-- Utilitarian jacket/vest
-- Earth tones: #5c5449 (brown-gray)
-- Pockets/straps visible as darker lines
-- Layered look (collar, hem details)
-
-### Layer 4: Gear
-- **Backpack:** 8x10px, sits on shoulders
-- **Laptop case:** visible on left hip, 6x4px
-- **Belt pouches:** right hip, 4x3px each
-- **Sidearm:** holster outline, right thigh
-
-### Layer 5: Head/Face
-- 8x8px square centered on body
-- Minimal facial features (just eyes + nose suggestion)
-- Hair/hood as silhouette
-- **Cipher specific:** short cropped hair, neutral expression
-
-### Layer 6: Tech Details
-- Subtle temple scars (2px light line each side)
-- Drone controller clipped to belt (4x2px device)
-- Gear wear (scuffed edges on backpack)
+### Isometric Math
+- **2:1 ratio** prevents jagged diagonal lines
+- Horizontal movement: 2 pixels = 1 pixel vertical shift
+- Keeps tile edges clean, prevents "staircase" artifacts
 
 ---
 
-## Color Palette (Cipher Base)
+## Layer Architecture
 
-**Body/Clothing:**
-- Base gray: `#4a4a4a`
-- Jacket: `#5c5449` (muted brown-gray)
-- Pants: `#3d3d3d` (darker gray)
-- Boots: `#2a2a2a` (near-black)
+### Layer 1: Shadow (Persistent)
+- **Size:** Oval, ~20x10 pixels
+- **Position:** Anchored to ground plane
+- **Opacity:** 40% black
+- **Critical:** Does NOT rotate with sprite - prevents ground "wobbling"
+- **Rendering:** Pre-rendered on tile, not sprite layer
 
-**Gear:**
-- Backpack: `#4d5357` (blue-gray, worn)
-- Laptop case: `#3a3a3a` (dark, reinforced)
-- Belt/straps: `#2d2520` (brown-black leather)
+### Layer 2: Base Body
+- **Torso:** 24x28 pixels (half sprite width, ~60% height)
+- **Legs:** Variable based on stance
+- **Contact Poses:** See Walk Cycle section for anti-slide logic
 
-**Tech accents:**
-- Drone controller LED: `#4a90a4` (muted cyan, single pixel)
-- Temple scars: `#6a6a6a` (lighter gray, subtle)
+### Layer 3: Gear
+- **Equipment:** Laptop case, sidearm, drone controller
+- **Placement:** 4-6 pixels per item
+- **⚠️ MIRRORING TRAP:** West facing requires manual gear flip
+  - East sprite mirrored = gear positions flipped
+  - Fix: Manually reposition gear pixels to match canonical loadout
+  - Example: Laptop case stays left hip, sidearm stays right thigh
 
-**Skin:**
-- Face/hands: `#d4a574` (neutral warm tone)
-- Shadow: `#b8856a` (darker)
-
----
-
-## Directional Facings
-
-**4-direction system** (start simple, expand to 8 later)
-
-### South (facing camera)
-- Full face visible
-- Backpack partially hidden
-- Feet in wide stance
-
-### East (facing right)
-- Profile view
-- Backpack visible on left side
-- Laptop case on front hip
-- Single eye visible
-
-### North (facing away)
-- Back of head
-- Full backpack visible
-- Shoulders squared
-- No face visible
-
-### West (facing left)
-- Mirrored East
-- Backpack on right side
-- Laptop case on front hip
+### Layer 4: Face/Detail
+- **Head:** 12x12 pixels
+- **Character markers:** Temple scars (2 pixels), visor, hood
+- **Tech accents:** LED indicators, screen glow
 
 ---
 
-## Animation Frames
+## Animation States
 
-### Idle (2 frames, loops)
-1. **Frame 1:** Base stance
-2. **Frame 2:** Slight weight shift (1px body move)
-- **Timing:** 0.8s per frame (slow, deliberate)
+### Idle (Revised Timing)
+- **Frames:** 2
+- **Timing:** ~~0.8s~~ → **0.5s per frame** (1.0s total loop)
+- **Motion:** Subtle 1px vertical shift (breathing)
+- **Reason for change:** 0.8s felt "heavy" - characters appeared to breathe in slow motion
+- **Alternative:** If 1px shift feels jarring, add 3rd middle frame for smoother pulse
 
-### Walk (4 frames per direction)
-1. **Frame 1:** Left foot forward, arms neutral
-2. **Frame 2:** Contact pose, both feet down
-3. **Frame 3:** Right foot forward, arms neutral  
-4. **Frame 4:** Contact pose, both feet down
-- **Timing:** 0.15s per frame (purposeful walk, not rushed)
+### Walk
+- **Frames:** 4 per direction
+- **Timing:** 0.15s per frame (0.6s full cycle)
+- **Phases:**
+  1. **Contact:** Leading foot planted, body lowered 1px
+  2. **Passing:** Weight shifts, body at neutral height
+  3. **Contact:** Trailing foot planted, body lowered 1px
+  4. **Passing:** Return to neutral
+- **Anti-Slide Logic:** 
+  - Contact poses MUST align foot pixels to grid anchor points
+  - Body lowers 1px during contact = visual weight transfer
+  - Prevents "skating" appearance on tile transitions
 
-### Interact (1 static frame)
-- Body leans slightly forward
-- Hand raised to chest height (tablet gesture)
-- Used when talking to NPCs or examining objects
+### Combat Stance
+- **Frames:** 1 (static)
+- **Weapon ready:** Arms extended forward 2-3 pixels
+- **Legs:** Wide stance for stability
 
----
-
-## Modular Customization (For Other Characters)
-
-**Faction variants use SAME body base, swap:**
-
-### Syndicate Enforcer
-- Heavier armor plates (shoulders, chest)
-- Weapon more prominent (rifle instead of sidearm)
-- Helmet/visor instead of bare head
-- Colors: `#5a4a3a` (industrial brown) + `#8b4513` (rust accents)
-
-### Ember Scout  
-- Lighter gear, more pockets
-- Hood instead of bare head
-- Visible improvised repairs (patches, tape)
-- Colors: `#6b5d4f` (earth brown) + `#8a6f47` (sun-faded fabric)
-
-### Lattice Engineer
-- Clean lines, less wear
-- Tech panel on chest (tablet mount)
-- Tool belt instead of weapon
-- Colors: `#4a5a6a` (blue-gray) + `#7a8a9a` (light tech blue)
-
-**You change ~20% of pixels to create distinct characters, keep 80% base**
+### Tech Interaction
+- **Frames:** 2-3
+- **Action:** Arms raised to chest height
+- **Details:** Device glow (2x2 pixels, cyan accent)
 
 ---
 
-## Pixel-Level Construction Guide
+## Palette System
 
-### Starting Template (South-facing idle)
+### Base Tones (Grounded Earth)
+- **Body:** #4A4238 (warm brown-gray)
+- **Clothing:** #2C2824 (dark earth)
+- **Shadows:** #1A1814 (near-black)
 
+### Tech Accents (Focal Points)
+- **LED indicators:** #00FFFF (cyan) - **CRITICAL for readability**
+- **Screen glow:** #1A9B8E (muted teal)
+
+### ⚠️ Contrast Warning (Gemini Observation)
+**Issue:** Grounded palette risks blending with dark industrial/earth-tone floors
+
+**Solutions:**
+1. **Tech accents must be bright enough** to act as focal points
+2. **Optional rim light:** Subtle 1px highlight on top-facing shoulder edges
+3. **Color:** #6B5D52 (lighter than base, separates sprite from floor)
+4. **Application:** Top edge of shoulders, head - suggests overhead light source
+
+---
+
+## Direction System (4-Way)
+
+### North (Moving Up-Right)
+- **Visible:** Back of head, shoulders
+- **Gear:** Backpack silhouette visible
+- **Legs:** Right leg forward
+
+### East (Moving Down-Right)
+- **Visible:** Right profile
+- **Gear:** Sidearm on right thigh, laptop case on left hip
+- **Face:** Right temple scar visible
+
+### South (Moving Down-Left)
+- **Visible:** Front view
+- **Gear:** Both sidearm and laptop case visible
+- **Face:** Full face, both temple scars
+
+### West (Moving Up-Left)
+- **⚠️ DERIVED FROM EAST VIA MIRROR**
+- **Manual Fix Required:** Gear must be repositioned after mirror
+  - Laptop case: Move back to left hip (canonical position)
+  - Sidearm: Move back to right thigh (canonical position)
+- **Reason:** Prevents equipment "swapping sides" in player's mental model
+
+---
+
+## Faction Variants (20% Rule)
+
+| Faction | Silhouette Change | Color Shift | Key Detail | Pixel Budget |
+|---------|-------------------|-------------|------------|--------------|
+| **Cipher (Base)** | Standard | Muted Brown/Gray | Temple scars, drone controller | — |
+| **Syndicate** | +4px shoulders (bulkier) | Industrial rust accents | Visible rifle, visor overlay | ~192px |
+| **Ember Scout** | +6px hood, +8px pouches | Sun-faded earth tones | Repair patches (3-4 pixel clusters) | ~216px |
+| **Lattice** | Angular, clean edges | Tech blue/gray | Chest-mounted tablet (8x6px) | ~180px |
+
+**Modularity Check:** Each variant shares base body layer, only swaps Layer 3 (Gear) and Layer 4 (Detail).
+
+---
+
+## Technical Notes
+
+### Why 4 Directions (Not 8)
+- **Diagonal facings** (NE, SE, SW, NW) require different footprint math
+- 2:1 ratio distorts width on diagonals - creates asymmetry
+- **Time savings:** 4 directions = half the animation frames
+- **Playable build priority:** Polish later if needed
+
+### Rendering Order
+1. Shadow (ground layer, pre-rendered on tile)
+2. Base body (direction-dependent)
+3. Gear (manual flip for West)
+4. Face/detail (rim light if dark floor)
+
+### Future 8-Direction Consideration
+If you eventually need diagonals:
+- Recalculate 2:1 ratio for NE/SE/SW/NW footprints
+- Gear layer will need 8 unique states (can't mirror diagonals)
+- Animation workload increases ~70%
+
+---
+
+## Implementation Workflow
+
+### Phase 1: Cipher Base
+1. Create North walk cycle (4 frames)
+2. Test contact poses for grid alignment
+3. Add rim light if floor blend occurs
+4. Derive East from North (new art)
+5. Derive South from North (new art)
+6. **Mirror East → West, manually fix gear**
+
+### Phase 2: Idle Refinement
+1. Test 0.5s timing
+2. If 1px shift feels jarring, add middle frame
+3. Verify shadow stays grounded during breathing
+
+### Phase 3: Faction Variants
+1. Copy Cipher base layers 1-2
+2. Swap gear layer (Layer 3) per faction
+3. Add faction detail layer (Layer 4)
+4. Test 80/20 rule - if touching >20% pixels, simplify
+
+---
+
+## Gemini Contributions
+- Idle timing analysis (0.8s → 0.5s)
+- West mirroring gear trap identification
+- Color contrast floor blend warning
+- Walk cycle contact pose anti-slide logic
+- 8-direction footprint math complexity note
+
+---
+
+**Version:** 1.1 (Gemini-patched)  
+**Status:** Production-ready for CLI implementation  
+**Next Review:** After first faction variant (Syndicate) test
 ```
-Row 01-08: [empty - headroom]
-Row 09-16: Head (8x8 square, centered)
-Row 17-18: Neck/shoulders
-Row 19-30: Torso + arms
-Row 31-38: Legs  
-Row 39-40: Feet
-Row 41-48: [shadow layer]
-```
-
-**Example ASCII map (S = skin, C = clothing, G = gear, . = transparent):**
-
-```
-........................................
-........................................
-................SSSSSSSS................  [Head]
-................SSSSSSSS................
-................SSSSSSSS................
-..............CCGGGGGGCC................  [Shoulders + backpack top]
-..............CCGGGGGGCC................
-............CCCCGGGGGGCCCC..............  [Torso + backpack]
-............CCCCGGGGGGCCCC..............
-............CCCCGGGGGGCCCC..............
-..............CCCCCCCCCC................  [Waist]
-..............CCGGGGGGCC................  [Hips + gear]
-................CCCCCC..................  [Legs start]
-................CCCCCC..................
-................CCCCCC..................
-................CCCCCC..................
-..................CC....................  [Feet]
-........................................
-......ssssssssssssssssss................  [Shadow]
-........................................
-```
-
----
-
-## Production Workflow
-
-### Phase 1: Base Character (Cipher)
-1. Open Aseprite, create 48x48 canvas
-2. Draw south-facing idle (single frame)
-3. Add layers: shadow → body → clothing → gear → head
-4. Test in-game (static sprite)
-
-**Time estimate:** 1-2 hours
-
-### Phase 2: Idle Animation
-1. Duplicate frame
-2. Shift body 1px
-3. Export as 2-frame animation
-4. Test looping
-
-**Time estimate:** 30 minutes
-
-### Phase 3: Cardinal Directions
-1. Draw east-facing (can mirror for west)
-2. Draw north-facing (back view)
-3. Test movement between facings
-
-**Time estimate:** 1 hour
-
-### Phase 4: Walk Cycle
-1. Animate walk for south (4 frames)
-2. Adapt for east/north
-3. Export sprite sheet
-
-**Time estimate:** 2-3 hours
-
-**Total for playable Cipher:** ~5-6 hours
-
----
-
-## Export Format
-
-**Sprite sheet layout:**
-```
-[Idle S] [Idle E] [Idle N] [Idle W]
-[Walk S frame 1-4] [Walk E frame 1-4] ...
-[Interact S] [Interact E] ...
-```
-
-**Export settings:**
-- Format: PNG (transparent background)
-- No filter/smoothing (keep pixel-perfect)
-- Include JSON metadata for frame positions
-
----
-
-## Testing Checklist
-
-- [ ] Character visible at 1080p resolution from tactical camera
-- [ ] Silhouette readable when zoomed out
-- [ ] Facing direction clear from any angle
-- [ ] Gear identifiable (can you see the laptop case?)
-- [ ] Animation doesn't "float" or "slide"
-- [ ] Colors distinct from background tiles
-- [ ] Matches faction neutral aesthetic
-
----
-
-## Next Character Workflow
-
-Once Cipher works:
-1. Duplicate base body
-2. Swap head (8x8 swap)
-3. Modify gear (change backpack to helmet, etc)
-4. Adjust color palette
-5. Export variant
-
-**Time per variant:** 30-60 minutes
-
----
-## Readability Lock (Design-Binding)
-
-If a sprite cannot be correctly identified at a glance:
-- Facing direction
-- Equipped role (armed, tech, civilian)
-- Faction affiliation (via silhouette + color)
-
-Then the sprite is invalid, regardless of detail quality.
-
-No outlines, glows, or UI markers may be added to compensate.
-Readability must come from shape, contrast, and motion alone.
