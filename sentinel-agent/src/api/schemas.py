@@ -304,28 +304,73 @@ class DialogueOption(BaseModel):
 class DialogueResponse(BaseModel):
     """
     Response with crystallized dialogue.
-    
+
     POST /dialogue returns this with LLM-generated content.
     NPCs may end dialogue autonomously.
     """
     ok: bool = True
     npc_id: str
     state_version: int
-    
+
     # Dialogue content
     npc_response: str
     tone: str = "neutral"
     options: list[DialogueOption] = []
-    
+
     # Dialogue state
     dialogue_ended: bool = False
     end_reason: str | None = None  # "player_choice", "npc_ended", "interrupted"
-    
+
     # State changes from dialogue
     disposition_change: int = 0
     social_energy_cost: int = 0
-    
+
     # Error info
+    error: str | None = None
+
+
+# -----------------------------------------------------------------------------
+# Combat Models
+# -----------------------------------------------------------------------------
+
+class CombatActionRequest(BaseModel):
+    """Request to resolve a combat action."""
+    action: str
+    actor_id: str
+    target_id: str | None = None
+    target_position: Position | None = None
+    round: int = 1
+    state_version: int
+
+
+class CombatActionResponse(BaseModel):
+    """Result of a combat action."""
+    ok: bool = True
+    action: CombatActionRequest
+    hit: bool | None = None
+    injury: str | None = None
+    target_status: str | None = None
+    outcome: str | None = None
+    summary: str | None = None
+    state_version: int
+    error: str | None = None
+
+
+class CombatEndRequest(BaseModel):
+    """Request to end combat and process consequences."""
+    outcome: str
+    rounds: int = 1
+    state_version: int
+
+
+class CombatEndResponse(BaseModel):
+    """Result of ending combat."""
+    ok: bool = True
+    outcome: str
+    faction_impact: dict[str, int] = {}
+    injuries: dict[str, Any] = {}
+    rounds: int
+    state_version: int
     error: str | None = None
 
 
