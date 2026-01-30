@@ -314,16 +314,16 @@ Phase 0: Foundation (Completed ✓)
 
 ---
 
-Phase 1: Backend API Refactor (Est: 2–3 weeks)
+Phase 1: Backend API Refactor (Completed ✓)
 
 Goal: Python becomes stateful REST/WebSocket service
 
 Tasks:
 
-1. Create FastAPI layer wrapping Python engine
+[x] Create FastAPI layer wrapping Python engine
 
 
-2. Endpoints:
+[x] Endpoints:
 
 GET /state – Full game state snapshot
 
@@ -335,23 +335,30 @@ WS /updates – Real-time state stream
 
 
 
-3. Refactor agent to be request-response, not loop-driven
+[x] Refactor agent to be request-response, not loop-driven
 
 
-4. Test harness for API endpoints
+[x] Test harness for API endpoints (25 new tests)
 
 
-5. Preserve existing test coverage
+[x] Preserve existing test coverage (454 tests still passing)
 
 
 
-Success Criteria:
+Success Criteria: ✓
 
-Python tests still pass
+[x] Python tests still pass
 
-Can drive game entirely via HTTP/WebSocket
+[x] Can drive game entirely via HTTP/WebSocket
 
-State persists between requests
+[x] State persists between requests
+
+
+Implementation Notes:
+- API module: sentinel-agent/src/api/
+- Extended endpoints for map, NPCs, patrols, factions, game clock
+- WebSocket with subscription management and patrol simulation scaffolding
+- State versioning for optimistic update conflict detection
 
 
 
