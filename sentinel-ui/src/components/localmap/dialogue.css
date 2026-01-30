@@ -1,0 +1,308 @@
+/*
+ * Dialogue Overlay Styles (Phase 4)
+ * AMOLED theme, map remains visible behind.
+ */
+
+:root {
+  --dialogue-bg: #0a0a0f;
+  --dialogue-panel: #0a0a0f;
+  --dialogue-border: #1a1a2a;
+  --dialogue-text: #c9d1d9;
+  --dialogue-muted: #8b949e;
+  --dialogue-accent-player: #56d4dd;
+  --dialogue-accent-npc: #58a6ff;
+  --dialogue-danger: #f85149;
+  --dialogue-warn: #d29922;
+  --dialogue-success: #3fb950;
+}
+
+.dialogue-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 60%;
+  background: rgba(10, 10, 15, 0.96);
+  border-top: 1px solid var(--dialogue-border);
+  box-shadow: 0 -12px 30px rgba(0, 0, 0, 0.6);
+  transform: translateY(100%);
+  transition: transform 0.35s ease, opacity 0.35s ease;
+  opacity: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.dialogue-overlay.active {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.dialogue-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--dialogue-border);
+}
+
+.dialogue-npc-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dialogue-text);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.dialogue-badges {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.dialogue-faction {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--dialogue-accent-npc);
+  background: rgba(88, 166, 255, 0.1);
+  padding: 2px 8px;
+  border-radius: 2px;
+}
+
+.dialogue-disposition {
+  font-size: 10px;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 2px;
+}
+
+.dialogue-exit {
+  background: none;
+  border: 1px solid var(--dialogue-border);
+  color: var(--dialogue-muted);
+  font-size: 11px;
+  padding: 6px 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.dialogue-exit:hover {
+  color: var(--dialogue-danger);
+  border-color: var(--dialogue-danger);
+}
+
+.dialogue-body {
+  flex: 1;
+  padding: 16px 20px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dialogue-text {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--dialogue-text);
+  min-height: 80px;
+}
+
+.dialogue-text p {
+  margin: 0;
+  display: inline;
+}
+
+.dialogue-cursor {
+  display: inline-block;
+  margin-left: 4px;
+  color: var(--dialogue-accent-npc);
+  animation: cursorBlink 0.9s infinite;
+}
+
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
+}
+
+.dialogue-ended {
+  font-size: 11px;
+  color: var(--dialogue-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.dialogue-error {
+  font-size: 11px;
+  color: var(--dialogue-danger);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.dialogue-memory {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--dialogue-muted);
+}
+
+.dialogue-memory span:first-child {
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.dialogue-memory-tag {
+  padding: 2px 6px;
+  border: 1px solid var(--dialogue-border);
+  border-radius: 2px;
+  color: var(--dialogue-text);
+}
+
+.dialogue-footer {
+  border-top: 1px solid var(--dialogue-border);
+  padding: 12px 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dialogue-energy {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 10px;
+  color: var(--dialogue-muted);
+}
+
+.energy-label {
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.energy-bar {
+  flex: 1;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.energy-fill {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.energy-high { background: var(--dialogue-success); }
+.energy-mid { background: var(--dialogue-warn); }
+.energy-low { background: var(--dialogue-danger); }
+.energy-unknown { background: #6e7681; }
+
+.energy-values {
+  min-width: 60px;
+  text-align: right;
+}
+
+.dialogue-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dialogue-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  padding: 10px 12px;
+  border: 1px solid var(--dialogue-border);
+  background: rgba(88, 166, 255, 0.08);
+  color: var(--dialogue-text);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.dialogue-option:hover {
+  border-color: var(--dialogue-accent-npc);
+  background: rgba(88, 166, 255, 0.15);
+}
+
+.dialogue-option:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.option-text {
+  flex: 1;
+  text-align: left;
+}
+
+.option-cost {
+  font-size: 10px;
+  color: var(--dialogue-accent-player);
+  border: 1px solid rgba(86, 212, 221, 0.4);
+  padding: 2px 6px;
+  border-radius: 2px;
+}
+
+.option-risk {
+  font-size: 10px;
+  color: var(--dialogue-warn);
+  text-transform: none;
+  width: 100%;
+  text-align: left;
+}
+
+.dialogue-empty {
+  font-size: 10px;
+  color: var(--dialogue-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 6px 0;
+}
+
+.tone-neutral { background: rgba(88, 166, 255, 0.1); }
+.tone-aggressive { background: rgba(248, 81, 73, 0.15); border-color: rgba(248, 81, 73, 0.4); }
+.tone-empathetic { background: rgba(86, 212, 221, 0.15); border-color: rgba(86, 212, 221, 0.4); }
+.tone-deceptive { background: rgba(210, 153, 34, 0.15); border-color: rgba(210, 153, 34, 0.4); }
+
+.tone-aggressive:hover { border-color: var(--dialogue-danger); }
+.tone-empathetic:hover { border-color: var(--dialogue-accent-player); }
+.tone-deceptive:hover { border-color: var(--dialogue-warn); }
+
+.disposition-hostile {
+  color: #f85149;
+  background: rgba(248, 81, 73, 0.1);
+}
+
+.disposition-wary {
+  color: #d29922;
+  background: rgba(210, 153, 34, 0.1);
+}
+
+.disposition-neutral {
+  color: #8b949e;
+  background: rgba(139, 148, 158, 0.1);
+}
+
+.disposition-warm {
+  color: #58a6ff;
+  background: rgba(88, 166, 255, 0.1);
+}
+
+.disposition-loyal {
+  color: #3fb950;
+  background: rgba(63, 185, 80, 0.1);
+}
+
+@media (max-width: 900px) {
+  .dialogue-overlay {
+    height: 70%;
+  }
+}

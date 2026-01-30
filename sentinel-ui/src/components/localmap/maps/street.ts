@@ -5,7 +5,7 @@
  * Neutral atmosphere but with patrol presence.
  */
 
-import { TileType, type LocalMapTemplate } from '../types';
+import { TileType, NPCBehaviorState, type LocalMapTemplate } from '../types';
 
 const _ = TileType.FLOOR;
 const W = TileType.WALL;
@@ -59,13 +59,30 @@ export const STREET_MAP: LocalMapTemplate = {
       name: 'Lattice Patrol',
       data: {
         npcId: 'lattice_patrol_1',
-        faction: 'lattice',
+        faction: 'steel_syndicate', // Remapped to steel_syndicate for behavior testing
         disposition: 'neutral',
         patrolRoute: [
           { col: 12, row: 5 },
           { col: 12, row: 14 },
           { col: 8, row: 14 },
           { col: 8, row: 5 },
+        ],
+      },
+    },
+    {
+      id: 'patrol_ember',
+      type: 'npc',
+      position: { col: 16, row: 16 },
+      name: 'Ember Scavenger',
+      data: {
+        npcId: 'ember_scavenger_1',
+        faction: 'ember_colonies',
+        disposition: 'wary',
+        patrolRoute: [
+          { col: 16, row: 16 },
+          { col: 20, row: 16 },
+          { col: 20, row: 12 },
+          { col: 16, row: 12 },
         ],
       },
     },
@@ -92,6 +109,8 @@ export const STREET_MAP: LocalMapTemplate = {
         npcId: 'civilian_1',
         faction: null,
         disposition: 'wary',
+        behaviorState: NPCBehaviorState.ALERT,
+        fleeOnApproach: true,
       },
     },
   ],

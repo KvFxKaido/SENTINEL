@@ -82,7 +82,16 @@ export interface MapObject {
   type: 'npc' | 'item' | 'prop' | 'trigger';
   position: GridPosition;
   name: string;
+  interactionDisabled?: boolean;
   data?: NPCObjectData | ItemObjectData | PropObjectData | TriggerObjectData;
+}
+
+export enum NPCBehaviorState {
+  IDLE = 'idle',
+  BUSY = 'busy',
+  UNAVAILABLE = 'unavailable',
+  AWARE = 'aware',
+  ALERT = 'alert',
 }
 
 export interface NPCObjectData {
@@ -91,6 +100,11 @@ export interface NPCObjectData {
   disposition: string;
   patrolRoute?: GridPosition[];
   facing?: 'north' | 'south' | 'east' | 'west';
+  behaviorState?: NPCBehaviorState;
+  awarenessOf?: string | null;
+  lingerTimer?: number;
+  glanceInterval?: number;
+  fleeOnApproach?: boolean;
 }
 
 export interface ItemObjectData {
@@ -162,6 +176,9 @@ export interface LocalMapTemplate {
   // Lighting & atmosphere
   ambientLight: number;  // 0-1, affects visibility
   atmosphere: 'neutral' | 'tense' | 'hostile' | 'safe';
+
+  // Cold zones suppress interaction feedback
+  coldZones?: ColdZone[];
   
   // Metadata
   author?: string;
@@ -184,6 +201,23 @@ export interface LocalMapState {
   npcPositions: Map<string, Point>;
   playerPosition: Point;
   playerFacing: 'north' | 'south' | 'east' | 'west';
+}
+
+// ============================================================================
+// Cold Zones
+// ============================================================================
+
+export interface ColdZone {
+  id: string;
+  name: string;
+  bounds: {
+    col: number;
+    row: number;
+    width: number;
+    height: number;
+  };
+  suppressPrompts?: boolean;
+  suppressDialogue?: boolean;
 }
 
 // ============================================================================

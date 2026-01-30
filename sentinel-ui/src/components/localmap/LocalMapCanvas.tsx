@@ -10,16 +10,18 @@
  * - Clear visual distinction between observation and commitment
  */
 
-import { useRef, useEffect, useState, useCallback } from 'react';
-import type { 
-  LocalMapTemplate, 
+import { useRef, useEffect, useState } from 'react';
+import type {
+  LocalMapTemplate,
   MapObject,
   MapExit,
   Point,
   GridPosition,
+  NPCObjectData,
 } from './types';
 import {
   TileType,
+  NPCBehaviorState,
   TILE_SIZE,
   TILE_COLORS,
   TILE_PROPERTIES,
@@ -28,6 +30,8 @@ import {
   PLAYER_RADIUS,
   INTERACTION_RANGE,
 } from './types';
+import type { AwarenessState } from './awareness';
+import { getColdZoneAt } from './awareness';
 import {
   checkCollision,
   worldToGrid,
@@ -35,6 +39,8 @@ import {
   euclideanDistance,
   clampToMapBounds,
 } from './collision';
+import type { SimulatedNPC } from './usePatrolSimulation';
+import { AlertState } from './alertSystem';
 
 // ============================================================================
 // Types
@@ -42,12 +48,17 @@ import {
 
 interface LocalMapCanvasProps {
   map: LocalMapTemplate;
+  npcStates?: Map<string, SimulatedNPC>;
   initialPosition?: Point;
   initialFacing?: 'north' | 'south' | 'east' | 'west';
   onExitApproach?: (exit: MapExit) => void;
   onObjectInteract?: (object: MapObject) => void;
   onPositionChange?: (position: Point, gridPos: GridPosition) => void;
+  onIdleChange?: (idleSeconds: number) => void;
+  awarenessState?: Map<string, AwarenessState>;
+  ambientShift?: number;
   paused?: boolean;
+  dimmed?: boolean;
 }
 
 interface InteractionPrompt {
@@ -194,13 +205,52 @@ function drawPlayer(
   ctx.restore();
 }
 
+function drawDetectionCone(
+  ctx: CanvasRenderingContext2D,
+  pos: Point,
+  facing: 'north' | 'south' | 'east' | 'west',
+  alertState: AlertState
+) {
+  const angles = {
+    north: -Math.PI / 2,
+    south: Math.PI / 2,
+    east: 0,
+    west: Math.PI,
+  };
+  const baseAngle = angles[facing];
+  const length = 120;
+  const spread = Math.PI / 3;
+
+  ctx.save();
+  ctx.translate(pos.x, pos.y);
+  
+  // Draw cone
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.arc(0, 0, length, baseAngle - spread/2, baseAngle + spread/2);
+  ctx.lineTo(0, 0);
+  
+  let color = '255, 255, 255';
+  if (alertState === AlertState.INVESTIGATING) color = '255, 200, 0';
+  if (alertState === AlertState.COMBAT) color = '255, 0, 0';
+  
+  ctx.fillStyle = `rgba(${color}, 0.05)`;
+  ctx.fill();
+  
+  ctx.restore();
+}
+
 function drawObject(
   ctx: CanvasRenderingContext2D,
   obj: MapObject,
   isNearby: boolean,
-  isSelected: boolean
+  isSelected: boolean,
+  positionOverride?: Point,
+  facingOverride?: 'north' | 'south' | 'east' | 'west',
+  alertState?: AlertState,
+  alertLevel?: number
 ) {
-  const pos = gridToWorld(obj.position.col, obj.position.row);
+  const pos = positionOverride || gridToWorld(obj.position.col, obj.position.row);
   const radius = 10;
   
   // Determine color based on type
@@ -211,6 +261,11 @@ function drawObject(
     color = ENTITY_COLORS.npc[disposition as keyof typeof ENTITY_COLORS.npc] || ENTITY_COLORS.npc.neutral;
   } else if (obj.type === 'item') {
     color = ENTITY_COLORS.item;
+  }
+
+  // Draw detection cone if NPC
+  if (obj.type === 'npc' && facingOverride && alertState) {
+    drawDetectionCone(ctx, pos, facingOverride, alertState);
   }
   
   // Nearby highlight
@@ -239,16 +294,17 @@ function drawObject(
   ctx.fill();
   
   // NPC facing indicator
-  if (obj.type === 'npc' && obj.data) {
-    const npcData = obj.data as { facing?: string };
-    if (npcData.facing) {
+  if (obj.type === 'npc') {
+    const facing = facingOverride || (obj.data as { facing?: string })?.facing;
+    
+    if (facing) {
       const angles = {
         north: -Math.PI / 2,
         south: Math.PI / 2,
         east: 0,
         west: Math.PI,
       };
-      const angle = angles[npcData.facing as keyof typeof angles] || 0;
+      const angle = angles[facing as keyof typeof angles] || 0;
       
       ctx.save();
       ctx.translate(pos.x, pos.y);
@@ -262,6 +318,17 @@ function drawObject(
       ctx.fill();
       ctx.restore();
     }
+  }
+
+  // Alert State Indicator
+  if (alertState && alertState !== AlertState.PATROLLING) {
+    ctx.fillStyle = alertState === AlertState.COMBAT ? '#f85149' : '#d29922';
+    ctx.font = 'bold 16px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('!', pos.x, pos.y - 15);
+    
+    // Investigation timer ring?
+    // Maybe later
   }
   
   // Label (when nearby)
@@ -406,12 +473,17 @@ function adjustBrightness(hex: string, factor: number): string {
 
 export function LocalMapCanvas({
   map,
+  npcStates,
   initialPosition,
   initialFacing = 'south',
   onExitApproach,
   onObjectInteract,
   onPositionChange,
+  onIdleChange,
+  awarenessState,
+  ambientShift = 0,
   paused = false,
+  dimmed = false,
 }: LocalMapCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const keysPressed = useRef<Set<string>>(new Set());
@@ -423,6 +495,9 @@ export function LocalMapCanvas({
     : { x: map.width * TILE_SIZE / 2, y: map.height * TILE_SIZE / 2 });
   
   const [playerPos, setPlayerPos] = useState<Point>(startPos);
+  const playerPosRef = useRef<Point>(startPos);
+  const lastMoveAtRef = useRef<number>(performance.now());
+  const lastIdleReportRef = useRef<number>(0);
   const [playerFacing, setPlayerFacing] = useState<'north' | 'south' | 'east' | 'west'>(
     initialFacing || (defaultSpawn?.facing as typeof initialFacing) || 'south'
   );
@@ -432,12 +507,36 @@ export function LocalMapCanvas({
   
   const canvasWidth = map.width * TILE_SIZE;
   const canvasHeight = map.height * TILE_SIZE;
+
+  useEffect(() => {
+    playerPosRef.current = playerPos;
+    lastMoveAtRef.current = performance.now();
+  }, [playerPos]);
   
   // Find nearby interactables
   useEffect(() => {
+    const coldZone = getColdZoneAt(map, playerPos);
+    const suppressPrompts = !!coldZone?.suppressPrompts;
+
+    if (suppressPrompts) {
+      setNearbyObjects([]);
+      setNearbyExits([]);
+      setActivePrompt(null);
+      return;
+    }
+
     const nearby: MapObject[] = [];
     for (const obj of map.objects) {
-      const objPos = gridToWorld(obj.position.col, obj.position.row);
+      if (!isObjectInteractable(obj)) continue;
+
+      // Use simulated position for NPCs if available
+      let objPos: Point;
+      if (obj.type === 'npc' && npcStates?.has(obj.id)) {
+        objPos = npcStates.get(obj.id)!.position;
+      } else {
+        objPos = gridToWorld(obj.position.col, obj.position.row);
+      }
+      
       const dist = euclideanDistance(playerPos, objPos);
       if (dist < INTERACTION_RANGE) {
         nearby.push(obj);
@@ -463,7 +562,14 @@ export function LocalMapCanvas({
     let closestPrompt: InteractionPrompt | null = null;
     
     for (const obj of nearby) {
-      const objPos = gridToWorld(obj.position.col, obj.position.row);
+      // Use simulated position for NPCs if available
+      let objPos: Point;
+      if (obj.type === 'npc' && npcStates?.has(obj.id)) {
+        objPos = npcStates.get(obj.id)!.position;
+      } else {
+        objPos = gridToWorld(obj.position.col, obj.position.row);
+      }
+
       const dist = euclideanDistance(playerPos, objPos);
       if (dist < closestDist) {
         closestDist = dist;
@@ -491,7 +597,7 @@ export function LocalMapCanvas({
     }
     
     setActivePrompt(closestPrompt);
-  }, [playerPos, map.objects, map.exits, onExitApproach]);
+  }, [playerPos, map, onExitApproach, npcStates]);
   
   // Notify position changes
   useEffect(() => {
@@ -506,6 +612,7 @@ export function LocalMapCanvas({
     let animationId: number;
     
     function update() {
+      const now = performance.now();
       const keys = keysPressed.current;
       let vx = 0;
       let vy = 0;
@@ -526,14 +633,27 @@ export function LocalMapCanvas({
       if (newFacing) {
         setPlayerFacing(newFacing);
       }
-      
+
+      const currentPos = playerPosRef.current;
+      let nextPos = currentPos;
+
       if (vx !== 0 || vy !== 0) {
-        setPlayerPos(prev => {
-          const targetPos = { x: prev.x + vx, y: prev.y + vy };
-          const clamped = clampToMapBounds(map, targetPos, PLAYER_RADIUS);
-          const collision = checkCollision(map, prev, clamped, PLAYER_RADIUS);
-          return collision.newPosition;
-        });
+        const targetPos = { x: currentPos.x + vx, y: currentPos.y + vy };
+        const clamped = clampToMapBounds(map, targetPos, PLAYER_RADIUS);
+        const collision = checkCollision(map, currentPos, clamped, PLAYER_RADIUS);
+        nextPos = collision.newPosition;
+      }
+
+      if (nextPos.x !== currentPos.x || nextPos.y !== currentPos.y) {
+        playerPosRef.current = nextPos;
+        setPlayerPos(nextPos);
+        lastMoveAtRef.current = now;
+      }
+
+      const idleSeconds = (now - lastMoveAtRef.current) / 1000;
+      if (Math.abs(idleSeconds - lastIdleReportRef.current) >= 0.25) {
+        lastIdleReportRef.current = idleSeconds;
+        onIdleChange?.(idleSeconds);
       }
       
       animationId = requestAnimationFrame(update);
@@ -541,7 +661,7 @@ export function LocalMapCanvas({
     
     animationId = requestAnimationFrame(update);
     return () => cancelAnimationFrame(animationId);
-  }, [map, paused]);
+  }, [map, paused, onIdleChange]);
   
   // Keyboard handlers
   useEffect(() => {
@@ -585,10 +705,13 @@ export function LocalMapCanvas({
     // Clear
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
     
+    const baseAmbient = dimmed ? map.ambientLight * 0.5 : map.ambientLight;
+    const ambientLight = Math.max(0.05, Math.min(1, baseAmbient + ambientShift));
+
     // Draw tiles
     for (let row = 0; row < map.height; row++) {
       for (let col = 0; col < map.width; col++) {
-        drawTile(ctx, col, row, map.tiles[row][col], map.ambientLight);
+        drawTile(ctx, col, row, map.tiles[row][col], ambientLight);
       }
     }
     
@@ -603,7 +726,42 @@ export function LocalMapCanvas({
       const isNearby = nearbyObjects.includes(obj);
       const isSelected = activePrompt?.type === 'object' && 
         (activePrompt.target as MapObject).id === obj.id;
-      drawObject(ctx, obj, isNearby, isSelected);
+        
+      let posOverride: Point | undefined;
+      let facingOverride: 'north' | 'south' | 'east' | 'west' | undefined;
+      let alertState: AlertState | undefined;
+      let alertLevel: number | undefined;
+
+      if (obj.type === 'npc' && npcStates?.has(obj.id)) {
+        const sim = npcStates.get(obj.id)!;
+        const awareness = awarenessState?.get(obj.id);
+        const offset = awareness?.positionOffset;
+        posOverride = offset
+          ? { x: sim.position.x + offset.x, y: sim.position.y + offset.y }
+          : sim.position;
+        facingOverride = awareness?.facingOverride || sim.facing;
+        alertState = sim.alertState;
+        alertLevel = sim.alertLevel;
+      } else if (obj.type === 'npc') {
+        const awareness = awarenessState?.get(obj.id);
+        const offset = awareness?.positionOffset;
+        const basePos = gridToWorld(obj.position.col, obj.position.row);
+        posOverride = offset
+          ? { x: basePos.x + offset.x, y: basePos.y + offset.y }
+          : undefined;
+        facingOverride = awareness?.facingOverride;
+      }
+
+      drawObject(
+        ctx, 
+        obj, 
+        isNearby, 
+        isSelected, 
+        posOverride, 
+        facingOverride, 
+        alertState, 
+        alertLevel
+      );
     }
     
     // Draw player
@@ -614,10 +772,29 @@ export function LocalMapCanvas({
       drawInteractionPrompt(ctx, activePrompt, canvasWidth);
     }
     
+    // Dim overlay
+    if (dimmed) {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+      ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+    }
+
     // Draw map info overlay
     drawMapInfo(ctx, map.name, map.atmosphere, canvasWidth);
     
-  }, [map, playerPos, playerFacing, nearbyObjects, nearbyExits, activePrompt, canvasWidth, canvasHeight]);
+  }, [
+    map,
+    playerPos,
+    playerFacing,
+    nearbyObjects,
+    nearbyExits,
+    activePrompt,
+    canvasWidth,
+    canvasHeight,
+    npcStates,
+    awarenessState,
+    ambientShift,
+    dimmed,
+  ]);
   
   return (
     <canvas
@@ -637,6 +814,31 @@ export function LocalMapCanvas({
 // ============================================================================
 // Helpers
 // ============================================================================
+
+function isObjectInteractable(obj: MapObject): boolean {
+  if (obj.interactionDisabled) return false;
+
+  if (obj.type === 'npc') {
+    const npcData = obj.data as NPCObjectData | undefined;
+    const behavior = npcData?.behaviorState;
+    if (behavior === NPCBehaviorState.BUSY || behavior === NPCBehaviorState.UNAVAILABLE) {
+      return false;
+    }
+    if (npcData?.fleeOnApproach) return false;
+  }
+
+  if (obj.type === 'prop') {
+    const propData = obj.data as { interactable?: boolean } | undefined;
+    if (propData?.interactable === false) return false;
+  }
+
+  if (obj.type === 'item') {
+    const itemData = obj.data as { hidden?: boolean } | undefined;
+    if (itemData?.hidden) return false;
+  }
+
+  return true;
+}
 
 function getObjectAction(obj: MapObject): string {
   switch (obj.type) {

@@ -16,6 +16,7 @@ export type {
   TileProperties,
   MapObject,
   NPCObjectData,
+  NPCBehaviorState,
   ItemObjectData,
   PropObjectData,
   TriggerObjectData,
@@ -23,6 +24,7 @@ export type {
   SpawnPoint,
   LocalMapTemplate,
   LocalMapState,
+  ColdZone,
 } from './types';
 
 export {
