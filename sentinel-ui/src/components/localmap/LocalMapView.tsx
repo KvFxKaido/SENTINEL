@@ -315,9 +315,17 @@ export function LocalMapView({
   onExit,
 }: LocalMapViewProps) {
   const [currentMapId, setCurrentMapId] = useState(initialMapId);
-  const [currentMap, setCurrentMap] = useState<LocalMapTemplate | null>(null);
-  const [spawnPosition, setSpawnPosition] = useState<Point | null>(null);
-  const [spawnFacing, setSpawnFacing] = useState<'north' | 'south' | 'east' | 'west'>('south');
+  const [currentMap, setCurrentMap] = useState<LocalMapTemplate | null>(
+    () => getMapTemplate(initialMapId)
+  );
+  const [spawnPosition, setSpawnPosition] = useState<Point | null>(() => {
+    const spawn = getSpawnPoint(initialMapId, initialSpawnId || 'default');
+    return spawn ? gridToWorld(spawn.col, spawn.row) : null;
+  });
+  const [spawnFacing, setSpawnFacing] = useState<'north' | 'south' | 'east' | 'west'>(() => {
+    const spawn = getSpawnPoint(initialMapId, initialSpawnId || 'default');
+    return (spawn?.facing as 'north' | 'south' | 'east' | 'west') || 'south';
+  });
   
   const [selectedTarget, setSelectedTarget] = useState<MapObject | MapExit | null>(null);
   const [selectedType, setSelectedType] = useState<'object' | 'exit' | null>(null);
@@ -378,8 +386,14 @@ export function LocalMapView({
     targetSpawn: string;
   } | null>(null);
   
-  const [playerGridPos, setPlayerGridPos] = useState<GridPosition>({ col: 0, row: 0 });
-  const [currentPlayerPos, setCurrentPlayerPos] = useState<Point>({ x: 0, y: 0 });
+  const [playerGridPos, setPlayerGridPos] = useState<GridPosition>(() => {
+    const spawn = getSpawnPoint(initialMapId, initialSpawnId || 'default');
+    return spawn ? { col: spawn.col, row: spawn.row } : { col: 0, row: 0 };
+  });
+  const [currentPlayerPos, setCurrentPlayerPos] = useState<Point>(() => {
+    const spawn = getSpawnPoint(initialMapId, initialSpawnId || 'default');
+    return spawn ? gridToWorld(spawn.col, spawn.row) : { x: 0, y: 0 };
+  });
   const [idleSeconds, setIdleSeconds] = useState(0);
   const [mapHighlight, setMapHighlight] = useState<ConsequenceHighlight | null>(null);
   const [, setFactionStanding] = useState<Map<string, number>>(new Map());
@@ -388,12 +402,33 @@ export function LocalMapView({
   
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Load map
+  // Fallback: if requested map doesn't exist, redirect to safehouse
+  useEffect(() => {
+    if (!currentMap && currentMapId !== 'safehouse_main') {
+      const fallback = getMapTemplate('safehouse_main');
+      if (fallback) {
+        const timer = setTimeout(() => {
+          setCurrentMapId('safehouse_main');
+          setCurrentMap(fallback);
+          const spawn = getSpawnPoint('safehouse_main', 'default');
+          if (spawn) {
+            const worldPos = gridToWorld(spawn.col, spawn.row);
+            setSpawnPosition(worldPos);
+            setSpawnFacing((spawn.facing as 'north' | 'south' | 'east' | 'west') || 'south');
+            setCurrentPlayerPos(worldPos);
+          }
+        }, 1200);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [currentMap, currentMapId]);
+
+  // Load map on ID change
   useEffect(() => {
     const map = getMapTemplate(currentMapId);
     if (map) {
       setCurrentMap(map);
-      
+
       // Get spawn position
       const spawn = getSpawnPoint(currentMapId, initialSpawnId || 'default');
       if (spawn) {

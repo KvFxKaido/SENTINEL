@@ -1,55 +1,26 @@
 ---
 import GameLayout from '../layouts/GameLayout.astro';
+import LocalMapPage from '../components/localmap/LocalMapPage';
 ---
 
 <GameLayout title="SENTINEL - Local Map">
-  <div id="localmap-root" class="localmap-page"></div>
+  {/* Install React Refresh stubs before any .tsx modules load.
+      Astro's @astrojs/react integration doesn't inject the Vite
+      React preamble for client:only islands, so .tsx modules throw
+      "@vitejs/plugin-react can't detect preamble" at runtime.
+      These no-op stubs satisfy the check without enabling HMR.
+      MUST appear before the island element in the DOM. */}
+  <script is:inline>
+    if (typeof window !== 'undefined' && !window.$RefreshReg$) {
+      window.$RefreshReg$ = function() {};
+      window.$RefreshSig$ = function() { return function(type) { return type; }; };
+    }
+  </script>
+
+  <div class="localmap-page">
+    <LocalMapPage client:only="react" />
+  </div>
 </GameLayout>
-
-<script>
-  import { LocalMapView } from '../components/localmap';
-
-  // Mount React component
-  import { createElement } from 'react';
-  import { createRoot } from 'react-dom/client';
-
-  const container = document.getElementById('localmap-root');
-  if (container) {
-    const root = createRoot(container);
-    
-    // Get map ID from URL params or default to safehouse
-    const params = new URLSearchParams(window.location.search);
-    const mapId = params.get('map') || 'safehouse_main';
-    const spawnId = params.get('spawn') || undefined;
-
-    const handleMapChange = (newMapId: string) => {
-      // Update URL without reload
-      const newParams = new URLSearchParams(window.location.search);
-      newParams.set('map', newMapId);
-      window.history.replaceState({}, '', `?${newParams.toString()}`);
-    };
-
-    const handleInteraction = (type: string, target: unknown) => {
-      console.log('Interaction:', type, target);
-      // TODO: Send to backend API
-    };
-
-    const handleExit = () => {
-      // Navigate back to main game view
-      window.location.href = '/';
-    };
-
-    root.render(
-      createElement(LocalMapView, {
-        initialMapId: mapId,
-        initialSpawnId: spawnId,
-        onMapChange: handleMapChange,
-        onInteraction: handleInteraction,
-        onExit: handleExit,
-      })
-    );
-  }
-</script>
 
 <style>
   .localmap-page {
