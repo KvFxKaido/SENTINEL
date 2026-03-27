@@ -126,6 +126,9 @@ class CampaignManager:
         self._endgame_system = None
         self._mission_system = None
 
+        # Narrative Scratchpad
+        self._scratchpad = ""
+
     @property
     def leverage(self):
         """Get the leverage system (lazy initialization)."""

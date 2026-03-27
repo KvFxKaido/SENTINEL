@@ -524,6 +524,52 @@ INTERRUPT_SCHEMAS = [
     },
 ]
 
+# Discovery and Session tools
+DISCOVERY_SCHEMAS = [
+    {
+        "name": "explore_lore",
+        "description": "Active discovery tool. Search lore and campaign history for specific keywords, NPCs, or events to ensure narrative continuity.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Topic or entity to look up (e.g., 'Nexus founding', 'Kira Vance\'s previous betrayals')"},
+                "factions": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional list of factions to prioritize"
+                },
+                "depth": {
+                    "type": "string",
+                    "enum": ["standard", "deep"],
+                    "default": "standard",
+                    "description": "Standard returns ~2-4 results; deep returns ~6-8."
+                }
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "name": "update_gm_scratchpad",
+        "description": "Add or update notes in the transient session scratchpad. Use this to track NPC moods, recurring jokes, or short-term narrative vibes.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "content": {"type": "string", "description": "Markdown formatted notes to persist for this session."}
+            },
+            "required": ["content"]
+        }
+    },
+    {
+        "name": "read_gm_scratchpad",
+        "description": "Read the current transient GM session notes to maintain continuity of soft details.",
+        "input_schema": {
+            "type": "object",
+            "properties": {}
+        }
+    }
+]
+
+
 
 def get_all_schemas() -> list[dict]:
     """Get all tool schemas as a flat list."""
@@ -536,7 +582,8 @@ def get_all_schemas() -> list[dict]:
         ENHANCEMENT_SCHEMAS +
         LEVERAGE_SCHEMAS +
         SESSION_SCHEMAS +
-        INTERRUPT_SCHEMAS
+        INTERRUPT_SCHEMAS +
+        DISCOVERY_SCHEMAS
     )
 
 
@@ -971,6 +1018,60 @@ def create_default_registry(manager: "CampaignManager") -> ToolRegistry:
         )
 
     # Session handlers
+    def handle_explore_lore(**kwargs) -> dict:
+        """Active discovery of lore and campaign history."""
+        from ..lore.unified import RetrievalBudget
+        
+        query = kwargs["query"]
+        factions = kwargs.get("factions")
+        depth = kwargs.get("depth", "standard")
+        
+        # Create budget based on requested depth
+        if depth == "deep":
+            budget = RetrievalBudget.deep()
+        else:
+            budget = RetrievalBudget.standard()
+            
+        # Use the agent's unified retriever if available
+        # We assume the orchestrator (agent.py) attaches itself to the manager
+        # or the manager provides access to it.
+        agent = getattr(manager, "agent", None)
+        if not agent:
+            return {"error": "Agent not available for lore search"}
+            
+        result = agent.unified_retriever.query(
+            topic=query,
+            factions=factions,
+            budget=budget
+        )
+        
+        return {
+            "query": query,
+            "lore": result.lore,
+            "campaign": result.campaign,
+            "state": result.faction_state,
+            "summary": f"Found {len(result.lore)} lore chunks and {len(result.campaign)} campaign events."
+        }
+
+
+    def handle_update_gm_scratchpad(**kwargs) -> dict:
+        """Update transient GM session notes."""
+        content = kwargs["content"]
+        manager._scratchpad = content
+        return {
+            "status": "updated",
+            "content_length": len(content),
+            "preview": content[:50] + "..." if len(content) > 50 else content
+        }
+
+    def handle_read_gm_scratchpad(**kwargs) -> dict:
+        """Read current transient GM session notes."""
+        return {
+            "content": manager._scratchpad,
+            "is_empty": not bool(manager._scratchpad.strip())
+        }
+
+
     def handle_set_phase(**kwargs) -> dict:
         return manager.set_phase(phase=kwargs["phase"])
 
@@ -1041,6 +1142,9 @@ def create_default_registry(manager: "CampaignManager") -> ToolRegistry:
         "resolve_leverage": handle_resolve_leverage,
         "set_phase": handle_set_phase,
         "npc_interrupt": handle_npc_interrupt,
+        "explore_lore": handle_explore_lore,
+        "update_gm_scratchpad": handle_update_gm_scratchpad,
+        "read_gm_scratchpad": handle_read_gm_scratchpad,
     })
 
     return registry

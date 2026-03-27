@@ -106,6 +106,10 @@ class SentinelAgent:
                 )
 
         # Tool registry (centralized in src/tools/registry.py)
+        # Link manager back to agent for tool access
+        self.manager.agent = self
+
+
         self.tool_registry = create_default_registry(self.manager)
 
         # Interrupt detector for NPC interrupts
