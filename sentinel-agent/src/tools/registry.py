@@ -541,7 +541,91 @@ DISCOVERY_SCHEMAS = [
                 "depth": {
                     "type": "string",
                     "enum": ["standard", "deep"],
-                    "default": "standard",
+    {
+        "name": "verify_choices",
+        "description": "Validates narrative choices against current game state (faction, background, disposition, energy).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "choices": {
+                    "type": "array",
+                    "description": "List of choices to validate.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "text": {"type": "string"},
+                            "tags": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Tags like [FACTION: Standing], [BACKGROUND: Background], [DISPOSITION+], [LOW ENERGY]"
+                            }
+                        },
+                        "required": ["text", "tags"]
+                    }
+                },
+                "npc_id": {
+                    "type": "string",
+                    "description": "Optional NPC context for [DISPOSITION+]"
+                }
+            },
+            "required": ["choices"]
+        }
+    }
+
+        "name": "verify_choices",
+        "description": "Validates narrative choices against current game state (faction, background, disposition, energy).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+    },
+    {
+        "name": "verify_choices",
+        "description": "Validates narrative choices against current game state (faction, background, disposition, energy).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "choices": {
+                    "type": "array",
+                    "description": "List of choices to validate.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "text": {"type": "string"},
+                            "tags": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Tags like [FACTION: Standing], [BACKGROUND: Background], [DISPOSITION+], [LOW ENERGY]"
+                            }
+                        },
+                        "required": ["text", "tags"]
+                    }
+                },
+                "npc_id": {
+                    "type": "string",
+                    "description": "Optional NPC context for [DISPOSITION+]"
+                }
+            },
+            "required": ["choices"]
+        }
+    },
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "text": {"type": "string"},
+                            "tags": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Tags like [FACTION: Standing], [BACKGROUND: Background], [DISPOSITION+], [LOW ENERGY]"
+                            }
+                        },
+                        "required": ["text", "tags"]
+                    }
+                },
+                "npc_id": {"type": "string", "description": "Optional NPC context for [DISPOSITION+]"}
+            },
+            "required": ["choices"]
+        }
+    },
                     "description": "Standard returns ~2-4 results; deep returns ~6-8."
                 }
             },
@@ -1072,6 +1156,101 @@ def create_default_registry(manager: "CampaignManager") -> ToolRegistry:
         }
 
 
+    def handle_verify_choices(**kwargs) -> dict:
+        """Mechanical Validator for narrative options."""
+        choices = kwargs.get("choices", [])
+        npc_id = kwargs.get("npc_id")
+        
+        if not manager.current:
+            return {"error": "No active campaign targeting tool."}
+            
+        results = []
+        character = manager.current.character
+        factions = manager.current.factions
+        
+        # Context for NPC disposition if provided
+        npc = None
+        npc_disposition = None
+        if npc_id:
+            npc = manager.current.npcs.get(npc_id)
+            if npc:
+                # Get faction standing for effective disposition calc
+                fact_standing = None
+                if npc.faction:
+                    fact_standing = factions.get(npc.faction).standing
+                npc_disposition = npc.get_effective_disposition(fact_standing)
+
+        for choice in choices:
+            text = choice.get("text", "")
+            tags = choice.get("tags", [])
+            is_valid = True
+            errors = []
+            
+            for tag in tags:
+                tag = tag.strip("[]")
+                
+                # [FACTION: Standing]
+                if ":" in tag and any(f.value in tag for f in FactionName):
+                    parts = tag.split(":")
+                    f_name_raw = parts[0].strip()
+                    required_standing = parts[1].strip()
+                    
+                    # Find faction enum
+                    target_f = None
+                    for f in FactionName:
+                        if f.value == f_name_raw:
+                            target_f = f
+                            break
+                    
+                    if target_f:
+                        actual_standing = factions.get(target_f).standing.value
+                        if actual_standing != required_standing:
+                            is_valid = False
+                            errors.append(f"Faction mismatch: {f_name_raw} is {actual_standing}, choice requires {required_standing}.")
+                
+                # [BACKGROUND]
+                elif tag.upper() in [b.name for b in Background] or tag.upper() in [b.value.upper() for b in Background]:
+                    bg_match = False
+                    if character.background.value.upper() == tag.upper():
+                        bg_match = True
+                    if any(e.upper() == tag.upper() for e in character.expertise):
+                        bg_match = True
+                        
+                    if not bg_match:
+                        is_valid = False
+                        errors.append(f"Expertise mismatch: Character is {character.background.value}, choice requires {tag}.")
+
+                # [DISPOSITION+]
+                elif "+" in tag and "DISPOSITION" in tag.upper():
+                    if not npc_disposition:
+                        is_valid = False
+                        errors.append("Disposition check requested but no NPC context provided.")
+                    else:
+                        # Threshold logic using Standing numeric values as proxy for levels
+                        levels = ["hostile", "wary", "neutral", "warm", "loyal"]
+                        req_level = tag.split("+")[0].replace("DISPOSITION", "").strip().lower() or "neutral"
+                        if levels.index(npc_disposition.value) < levels.index(req_level):
+                            is_valid = False
+                            errors.append(f"Relationship too low: {npc.name} is {npc_disposition.value}, choice requires {req_level}+.")
+
+                # [LOW ENERGY]
+                elif "ENERGY" in tag.upper() and "LOW" in tag.upper():
+                    if character.social_energy.current > 25:
+                        is_valid = False
+                        errors.append(f"Energy too high: Current is {character.social_energy.current}%, choice requires Low Energy state (<=25%).")
+
+            results.append({
+                "choice": text,
+                "valid": is_valid,
+                "errors": errors
+            })
+            
+        return {
+            "results": results,
+            "all_valid": all(r["valid"] for r in results)
+        }
+
+
     def handle_set_phase(**kwargs) -> dict:
         return manager.set_phase(phase=kwargs["phase"])
 
@@ -1145,6 +1324,7 @@ def create_default_registry(manager: "CampaignManager") -> ToolRegistry:
         "explore_lore": handle_explore_lore,
         "update_gm_scratchpad": handle_update_gm_scratchpad,
         "read_gm_scratchpad": handle_read_gm_scratchpad,
+        "verify_choices": handle_verify_choices,
     })
 
     return registry
