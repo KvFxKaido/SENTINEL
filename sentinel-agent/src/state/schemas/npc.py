@@ -1,5 +1,6 @@
 from datetime import datetime
-from typing import Literal, dict, list
+from enum import Enum
+from typing import Literal
 from pydantic import BaseModel, Field
 from .base import FactionName, Disposition, Standing, generate_id
 
@@ -89,6 +90,73 @@ class NPC(BaseModel):
         self.personal_standing = max(-100, min(100, self.personal_standing + standing_change))
         self.last_interaction = f"S{session}: {action[:50]}"
         return interaction
+
+    def get_current_modifier(self) -> DispositionModifier | None:
+        """Get behavior modifier for current disposition."""
+        from ...rules.npc import get_disposition_modifier
+        return get_disposition_modifier(self)
+
+    def check_triggers(self, tags: list[str]) -> list[MemoryTrigger]:
+        """Check which triggers fire for given tags."""
+        from ...rules.npc import check_triggers
+        return check_triggers(self, tags)
+
+    def use_leverage(
+        self,
+        action: Literal["threaten", "deploy", "burn"],
+        session: int,
+    ) -> dict:
+        """Use player leverage over this NPC."""
+        if not self.player_leverage:
+            return {"success": False, "error": "No leverage held over this NPC"}
+
+        if self.player_leverage.burned:
+            return {"success": False, "error": "Leverage already burned (exposed publicly)"}
+
+        result: dict = {
+            "success": True,
+            "social_cost": 0,
+            "disposition_change": 0,
+            "creates_thread": False,
+            "error": None,
+        }
+
+        if action == "threaten":
+            result["social_cost"] = 10
+            self.player_leverage.threat_made = True
+            self.player_leverage.used = True
+            self.coerced = True
+
+        elif action == "deploy":
+            result["social_cost"] = 15
+            result["disposition_change"] = -15
+            result["creates_thread"] = True
+            self.player_leverage.deployed = True
+            self.player_leverage.used = True
+            self.coerced = True
+            self.resentment = True
+            self.personal_standing = max(-100, self.personal_standing - 15)
+
+        elif action == "burn":
+            result["social_cost"] = 20
+            result["disposition_change"] = -50
+            result["creates_thread"] = True
+            self.player_leverage.burned = True
+            self.player_leverage.used = True
+            self.coerced = True
+            self.resentment = True
+            self.disposition = Disposition.HOSTILE
+            self.personal_standing = -100
+
+        self.record_interaction(
+            session=session,
+            action=f"Used leverage ({action}): {self.player_leverage.description[:30]}...",
+            outcome="NPC cooperating under duress" if action != "burn" else "NPC publicly exposed",
+            standing_change=result["disposition_change"],
+            tags=["coercion", f"leverage_{action}"],
+        )
+
+        return result
 
     @property
     def can_reach_loyal(self) -> bool:
