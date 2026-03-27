@@ -1,5 +1,7 @@
 from datetime import datetime
-from typing import Literal, dict, list
+from enum import Enum
+from typing import Literal
+from uuid import uuid4
 from pydantic import BaseModel, Field
 from .base import (
     FactionName, 
@@ -190,3 +192,39 @@ class Campaign(BaseModel):
     def save_checkpoint(self) -> None:
         self.saved_at = datetime.now()
         self.meta.updated_at = datetime.now()
+
+class PendingEvent(BaseModel):
+    """An event from an external source (MCP) waiting to be processed."""
+    id: str = Field(default_factory=lambda: str(uuid4())[:8])
+    timestamp: datetime = Field(default_factory=datetime.now)
+    source: Literal["mcp", "external"] = "mcp"
+    event_type: str
+    campaign_id: str
+    payload: dict = Field(default_factory=dict)
+    processed: bool = False
+
+class EventQueue(BaseModel):
+    """Queue of pending events from external sources."""
+    events: list[PendingEvent] = Field(default_factory=list)
+    last_processed: datetime | None = None
+
+    def append(self, event: PendingEvent) -> None:
+        self.events.append(event)
+
+    def get_pending(self, campaign_id: str | None = None) -> list[PendingEvent]:
+        pending = [e for e in self.events if not e.processed]
+        if campaign_id:
+            pending = [e for e in pending if e.campaign_id == campaign_id]
+        return pending
+
+    def mark_processed(self, event_id: str) -> bool:
+        for event in self.events:
+            if event.id == event_id:
+                event.processed = True
+                return True
+        return False
+
+    def clear_processed(self) -> int:
+        original = len(self.events)
+        self.events = [e for e in self.events if not e.processed]
+        return original - len(self.events)

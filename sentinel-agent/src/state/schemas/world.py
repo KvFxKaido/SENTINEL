@@ -1,15 +1,16 @@
-from typing import ClassVar, dict, list
+from typing import ClassVar
 from pydantic import BaseModel, Field
-from .base import ( 
-    FactionName, 
-    Standing, 
-    Region, 
-    RegionConnectivity, 
-    RequirementType, 
-    FavorType, 
-    ThreadSeverity, 
-    generate_id 
+from .base import (
+    FactionName,
+    Standing,
+    Region,
+    RegionConnectivity,
+    RequirementType,
+    FavorType,
+    ThreadSeverity,
+    generate_id
 )
+from .npc import NPC
 
 # Inter-faction relationships: positive = allies, negative = rivals
 FACTION_RELATIONS: dict[tuple[str, str], int] = {
@@ -34,6 +35,26 @@ def get_faction_relation(faction1, faction2):
     if faction1 == faction2: return 0
     key1, key2 = (faction1.value, faction2.value), (faction2.value, faction1.value)
     return FACTION_RELATIONS.get(key1, FACTION_RELATIONS.get(key2, 0))
+
+def get_faction_allies(faction: FactionName, threshold: int = 20) -> list[FactionName]:
+    """Get factions that are allies (relationship >= threshold)."""
+    allies = []
+    for other in FactionName:
+        if other != faction:
+            relation = get_faction_relation(faction, other)
+            if relation >= threshold:
+                allies.append(other)
+    return allies
+
+def get_faction_rivals(faction: FactionName, threshold: int = -20) -> list[FactionName]:
+    """Get factions that are rivals (relationship <= threshold)."""
+    rivals = []
+    for other in FactionName:
+        if other != faction:
+            relation = get_faction_relation(faction, other)
+            if relation <= threshold:
+                rivals.append(other)
+    return rivals
 
 class FactionStanding(BaseModel):
     faction: FactionName
@@ -125,3 +146,48 @@ class AvoidedSituation(BaseModel):
     created_session: int = 0
     surfaced: bool = False
     surfaced_session: int | None = None
+
+class RouteRequirement(BaseModel):
+    """A single requirement for traversing a route."""
+    type: RequirementType
+    faction: FactionName | None = None
+    min_standing: str | None = None
+    vehicle_capability: str | None = None
+    contact_faction: FactionName | None = None
+    story_flag: str | None = None
+    description: str | None = None
+
+class RouteAlternative(BaseModel):
+    """An alternate way to satisfy route requirements."""
+    type: str
+    description: str
+    cost: dict[str, int] | None = None
+    consequence: str | None = None
+
+class NPCRegistry(BaseModel):
+    """NPCs indexed by active/dormant status."""
+    active: list[NPC] = Field(default_factory=list)
+    dormant: list[NPC] = Field(default_factory=list)
+
+    def get(self, npc_id: str) -> NPC | None:
+        """Find NPC by ID in either list."""
+        for npc in self.active + self.dormant:
+            if npc.id == npc_id:
+                return npc
+        return None
+
+    def activate(self, npc_id: str) -> bool:
+        """Move NPC from dormant to active."""
+        for i, npc in enumerate(self.dormant):
+            if npc.id == npc_id:
+                self.active.append(self.dormant.pop(i))
+                return True
+        return False
+
+    def deactivate(self, npc_id: str) -> bool:
+        """Move NPC from active to dormant."""
+        for i, npc in enumerate(self.active):
+            if npc.id == npc_id:
+                self.dormant.append(self.active.pop(i))
+                return True
+        return False
