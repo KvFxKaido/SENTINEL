@@ -541,95 +541,40 @@ DISCOVERY_SCHEMAS = [
                 "depth": {
                     "type": "string",
                     "enum": ["standard", "deep"],
-    {
-        "name": "verify_choices",
-        "description": "Validates narrative choices against current game state (faction, background, disposition, energy).",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "choices": {
-                    "type": "array",
-                    "description": "List of choices to validate.",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "text": {"type": "string"},
-                            "tags": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "Tags like [FACTION: Standing], [BACKGROUND: Background], [DISPOSITION+], [LOW ENERGY]"
-                            }
-                        },
-                        "required": ["text", "tags"]
-                    }
-                },
-                "npc_id": {
-                    "type": "string",
-                    "description": "Optional NPC context for [DISPOSITION+]"
-                }
-            },
-            "required": ["choices"]
-        }
-    }
-
-        "name": "verify_choices",
-        "description": "Validates narrative choices against current game state (faction, background, disposition, energy).",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-    },
-    {
-        "name": "verify_choices",
-        "description": "Validates narrative choices against current game state (faction, background, disposition, energy).",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "choices": {
-                    "type": "array",
-                    "description": "List of choices to validate.",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "text": {"type": "string"},
-                            "tags": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "Tags like [FACTION: Standing], [BACKGROUND: Background], [DISPOSITION+], [LOW ENERGY]"
-                            }
-                        },
-                        "required": ["text", "tags"]
-                    }
-                },
-                "npc_id": {
-                    "type": "string",
-                    "description": "Optional NPC context for [DISPOSITION+]"
-                }
-            },
-            "required": ["choices"]
-        }
-    },
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "text": {"type": "string"},
-                            "tags": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "Tags like [FACTION: Standing], [BACKGROUND: Background], [DISPOSITION+], [LOW ENERGY]"
-                            }
-                        },
-                        "required": ["text", "tags"]
-                    }
-                },
-                "npc_id": {"type": "string", "description": "Optional NPC context for [DISPOSITION+]"}
-            },
-            "required": ["choices"]
-        }
-    },
                     "description": "Standard returns ~2-4 results; deep returns ~6-8."
                 }
             },
             "required": ["query"]
+        }
+    },
+    {
+        "name": "verify_choices",
+        "description": "Validates narrative choices against current game state (faction, background, disposition, energy).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "choices": {
+                    "type": "array",
+                    "description": "List of choices to validate.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "text": {"type": "string"},
+                            "tags": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Tags like [FACTION: Standing], [BACKGROUND: Background], [DISPOSITION+], [LOW ENERGY]"
+                            }
+                        },
+                        "required": ["text", "tags"]
+                    }
+                },
+                "npc_id": {
+                    "type": "string",
+                    "description": "Optional NPC context for [DISPOSITION+]"
+                }
+            },
+            "required": ["choices"]
         }
     },
     {
