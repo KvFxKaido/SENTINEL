@@ -3,7 +3,7 @@ Character YAML and portrait management with campaign isolation.
 
 Each campaign has its own character appearances and portraits:
 - Character YAML: assets/characters/campaigns/{campaign_id}/{name}.yaml
-- Portraits: sentinel-ui/public/assets/portraits/campaigns/{campaign_id}/{name}.png
+- Portraits: assets/portraits/campaigns/{campaign_id}/{name}.png
 
 This enables fully emergent playthroughs where the same NPC name
 can have different appearances across campaigns.
@@ -71,7 +71,7 @@ def get_portraits_dir(campaign_id: str | None = None) -> Path:
         campaign_id: If provided, returns campaign-specific directory.
                     If None, returns legacy global directory.
     """
-    base = _get_project_root() / "sentinel-ui" / "public" / "assets" / "portraits"
+    base = _get_project_root() / "assets" / "portraits"
     if campaign_id:
         return base / "campaigns" / campaign_id
     return base / "npcs"

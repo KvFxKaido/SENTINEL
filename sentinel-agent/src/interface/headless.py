@@ -5,7 +5,7 @@ Provides JSON I/O interface for programmatic control.
 Input: JSON commands via stdin
 Output: JSON events via stdout
 
-This enables embedding SENTINEL in other processes (Deno bridge, testing, etc.)
+This enables embedding SENTINEL in other processes (automated testing, custom frontends, etc.)
 """
 
 import json
