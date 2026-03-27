@@ -1086,10 +1086,6 @@ WHERE faction = "{faction_slug}" OR faction = "{faction_name}"
         project_root = self.wiki_dir.parent
         source = project_root / "assets" / "portraits" / "campaigns" / campaign_id / f"{name_slug}.png"
 
-        # Also check sentinel-ui location
-        if not source.exists():
-            source = project_root / "sentinel-ui" / "public" / "assets" / "portraits" / "campaigns" / campaign_id / f"{name_slug}.png"
-
         if not source.exists():
             logger.debug(f"No character portrait found for {name_slug} in campaign {campaign_id}")
             return False

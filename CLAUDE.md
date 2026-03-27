@@ -45,20 +45,6 @@ SENTINEL/
 │   │   ├── tools/           # Standing, interactions, intel
 │   │   └── data/factions/   # Faction JSON files
 │   └── README.md
-├── sentinel-bridge/         # Deno orchestration layer (Phase 2)
-│   ├── src/
-│   │   ├── process.ts       # Sentinel process manager
-│   │   ├── api.ts           # Local HTTP API
-│   │   ├── types.ts         # Shared TypeScript types
-│   │   └── main.ts          # Entry point
-│   └── README.md
-├── sentinel-ui/             # Astro web interface (Phase 4)
-│   ├── src/
-│   │   ├── layouts/         # Dark tactical theme
-│   │   ├── pages/           # Main game view
-│   │   ├── components/      # UI components
-│   │   └── lib/bridge.ts    # Bridge API client
-│   └── README.md
 ├── lore/                    # World-building documents (novellas)
 └── wiki/                    # Reference encyclopedia (Obsidian vault)
 ```
@@ -90,8 +76,6 @@ The design philosophy is real — these aren't aspirational guidelines, they're 
 | `sentinel-agent/CLAUDE.md` | Dev guide for Claude assistants |
 | `sentinel-agent/GEMINI.md` | Dev guide for Gemini CLI |
 | `sentinel-campaign/README.md` | Campaign MCP server (factions, history, tools) |
-| `sentinel-bridge/README.md` | Deno bridge for UI integration |
-| `sentinel-ui/README.md` | Astro web interface |
 
 ## Game Philosophy
 
@@ -203,24 +187,6 @@ Deploys Codex or Gemini as working agents. Use when:
 - Well-scoped implementation work can be delegated
 - Bulk file operations or repetitive changes needed
 - You want a different implementation approach to compare
-
-### `/playtest` — Automated Bug Hunting
-Deploys Claude as a player to interact with SENTINEL through the bridge API. Use when:
-- After implementing new features or fixing bugs
-- Before releases to catch regressions
-- Testing edge cases systematically
-- Verifying state consistency across game actions
-
-**Requires:** Bridge running at `localhost:3333` with Claude backend.
-
-### `/playtest-web` — Visual UI Testing
-Uses Chrome automation to test the web UI visually. Catches bugs that API testing misses:
-- Layout issues, CSS bugs, responsive breakpoints
-- State display sync (UI not updating after commands)
-- Codec frame styling and NPC rendering
-- Form interaction and accessibility
-
-**Requires:** Bridge at `localhost:3333` + Web UI at `localhost:4321` + Claude in Chrome extension.
 
 **Philosophy:** These aren't just tools for the user to invoke — they're force multipliers. If consulting would improve a decision or deploying would speed up work, do it.
 
