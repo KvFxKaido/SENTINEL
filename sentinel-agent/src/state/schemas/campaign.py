@@ -213,7 +213,7 @@ class EventQueue(BaseModel):
 
     def get_pending(self, campaign_id: str | None = None) -> list[PendingEvent]:
         pending = [e for e in self.events if not e.processed]
-        if campaign_id:
+        if campaign_id is not None:
             pending = [e for e in pending if e.campaign_id == campaign_id]
         return pending
 

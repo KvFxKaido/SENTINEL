@@ -135,7 +135,6 @@ class NPC(BaseModel):
             self.player_leverage.used = True
             self.coerced = True
             self.resentment = True
-            self.personal_standing = max(-100, self.personal_standing - 15)
 
         elif action == "burn":
             result["social_cost"] = 20
@@ -147,6 +146,9 @@ class NPC(BaseModel):
             self.resentment = True
             self.disposition = Disposition.HOSTILE
             self.personal_standing = -100
+
+        else:
+            return {"success": False, "error": f"Unknown leverage action: {action}"}
 
         self.record_interaction(
             session=session,

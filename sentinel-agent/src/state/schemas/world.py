@@ -171,7 +171,10 @@ class NPCRegistry(BaseModel):
 
     def get(self, npc_id: str) -> NPC | None:
         """Find NPC by ID in either list."""
-        for npc in self.active + self.dormant:
+        for npc in self.active:
+            if npc.id == npc_id:
+                return npc
+        for npc in self.dormant:
             if npc.id == npc_id:
                 return npc
         return None
