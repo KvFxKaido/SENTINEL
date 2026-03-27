@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal, dict, list
+from typing import Literal
 from pydantic import BaseModel, Field
 from .base import Background, FactionName, ArcType, ArcStatus, LeverageWeight, generate_id
 
@@ -48,6 +48,16 @@ class SocialEnergy(BaseModel):
         if self.current >= 1: return "Overloaded"
         return "Shutdown"
 
+    @property
+    def narrative_hint(self) -> str:
+        hints = {
+            "Centered": "ready for anything",
+            "Frayed": "edges showing",
+            "Overloaded": "running on fumes",
+            "Shutdown": "need space",
+        }
+        return hints.get(self.state, "")
+
 class LeverageDemand(BaseModel):
     id: str = Field(default_factory=generate_id)
     faction: FactionName
@@ -58,14 +68,18 @@ class LeverageDemand(BaseModel):
     deadline: str | None = None
     deadline_session: int | None = None
     consequences: list[str] = Field(default_factory=list)
+    created_session: int = 0
     weight: LeverageWeight = LeverageWeight.MEDIUM
 
 class Leverage(BaseModel):
     last_called: datetime | None = None
+    pending_obligation: str | None = None
     pending_demand: LeverageDemand | None = None
     compliance_count: int = 0
     resistance_count: int = 0
     weight: LeverageWeight = LeverageWeight.LIGHT
+    hint_count: int = 0
+    last_hint_session: int | None = None
 
 class Enhancement(BaseModel):
     id: str = Field(default_factory=generate_id)
@@ -74,6 +88,8 @@ class Enhancement(BaseModel):
     benefit: str
     cost: str
     leverage: Leverage = Field(default_factory=Leverage)
+    granted_session: int = 0
+    leverage_keywords: list[str] = Field(default_factory=list)
 
 class EstablishingIncident(BaseModel):
     summary: str
