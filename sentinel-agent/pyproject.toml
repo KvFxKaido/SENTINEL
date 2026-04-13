@@ -21,7 +21,7 @@ dependencies = [
 
 [project.optional-dependencies]
 memvid = [
-    "memvid-sdk>=0.1.0",
+    "memvid-sdk>=2.0.159",
 ]
 dev = [
     "pytest>=8.0.0",
@@ -31,7 +31,7 @@ dev = [
     "httpx>=0.26.0",
 ]
 all = [
-    "memvid-sdk>=0.1.0",
+    "memvid-sdk>=2.0.159",
 ]
 
 [project.scripts]
