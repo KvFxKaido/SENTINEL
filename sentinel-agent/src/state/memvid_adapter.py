@@ -44,7 +44,7 @@ def _extract_hits(results: Any) -> list:
         return []
     # Try object attribute first
     if hasattr(results, 'hits'):
-        return _extract_hits(results)
+        return _extract_hits(results.hits)
     # Try dict access
     if isinstance(results, dict):
         return results.get('hits', [])
