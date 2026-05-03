@@ -8,20 +8,20 @@ license = {text = "CC BY-NC 4.0"}
 
 dependencies = [
     "pydantic>=2.0.0",
-    "rich>=13.0.0",
-    "prompt-toolkit>=3.0.0",
-    "tiktoken>=0.5.0",
+    "rich>=15.0.0",
+    "prompt-toolkit>=3.0.52",
+    "tiktoken>=0.12.0",
     "textual>=0.40.0",
     "jinja2>=3.1.0",
     "watchdog>=3.0.0",
     "pyyaml>=6.0.0",
-    "fastapi>=0.109.0",
+    "fastapi>=0.135.3",
     "uvicorn>=0.27.0",
 ]
 
 [project.optional-dependencies]
 memvid = [
-    "memvid-sdk>=0.1.0",
+    "memvid-sdk>=2.0.159",
 ]
 dev = [
     "pytest>=8.0.0",
@@ -31,7 +31,7 @@ dev = [
     "httpx>=0.26.0",
 ]
 all = [
-    "memvid-sdk>=0.1.0",
+    "memvid-sdk>=2.0.159",
 ]
 
 [project.scripts]
