@@ -80,7 +80,7 @@ class HeadlessRunner:
         # Load saved backend preference if "auto" is passed
         if backend == "auto":
             config = load_config(self.campaigns_dir)
-            backend = config.get("backend", "claude")
+            backend = config.get("backend", "auto")
 
         self.manager = CampaignManager(self.campaigns_dir, wiki_dir=self.wiki_dir)
         self.agent = SentinelAgent(

@@ -39,7 +39,7 @@ def main():
     parser.add_argument(
         "--backend",
         default="auto",
-        choices=["auto", "lmstudio", "ollama", "claude", "gemini", "codex"],
+        choices=["auto", "lmstudio", "ollama"],
         help="LLM backend to use (default: auto)",
     )
     parser.add_argument(
