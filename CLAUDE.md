@@ -74,7 +74,6 @@ The design philosophy is real — these aren't aspirational guidelines, they're 
 | `architecture/sentinel_warp_vision.md` | Terminal UI/UX roadmap (Warp + MGS inspired) |
 | `architecture/sentinel_cross_platform_implementation_plan.md` | Cross-platform roadmap (Phases 0-6) |
 | `sentinel-agent/CLAUDE.md` | Dev guide for Claude assistants |
-| `sentinel-agent/GEMINI.md` | Dev guide for Gemini CLI |
 | `sentinel-campaign/README.md` | Campaign MCP server (factions, history, tools) |
 
 ## Game Philosophy
