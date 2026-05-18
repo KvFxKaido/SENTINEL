@@ -11,18 +11,24 @@ from typing import TypedDict
 
 class Config(TypedDict, total=False):
     """User configuration."""
-    backend: str  # lmstudio, claude, openrouter, etc.
+    backend: str  # lmstudio, ollama, auto
     model: str | None  # Model name for LM Studio/Ollama
     animate_banner: bool  # Show animated banner on startup
     show_status_bar: bool  # Show persistent status bar
 
 
 DEFAULT_CONFIG: Config = {
-    "backend": "claude",  # Default to Claude for best experience
+    "backend": "auto",
     "model": None,
     "animate_banner": True,
     "show_status_bar": True,
 }
+
+# Backend names that were removed when SENTINEL went local-only.
+# Existing configs from earlier versions may still reference these; normalize
+# to "auto" on load so SentinelAgent falls back to auto-detection instead of
+# receiving an unsupported backend name.
+_REMOVED_BACKENDS = frozenset({"claude", "gemini", "codex", "kimi", "vibe"})
 
 
 def get_config_path(campaigns_dir: Path | str = "campaigns") -> Path:
@@ -43,6 +49,8 @@ def load_config(campaigns_dir: Path | str = "campaigns") -> Config:
         # Merge with defaults to handle missing keys
         config = DEFAULT_CONFIG.copy()
         config.update(saved)
+        if config.get("backend") in _REMOVED_BACKENDS:
+            config["backend"] = "auto"
         return config
     except (json.JSONDecodeError, IOError):
         return DEFAULT_CONFIG.copy()

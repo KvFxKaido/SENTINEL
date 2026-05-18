@@ -27,7 +27,6 @@ from ..state import CampaignManager, get_event_bus, EventType, GameEvent
 from ..state.schema import Campaign, Standing, Character, DormantThread
 from ..agent import SentinelAgent
 from ..context import StrainTier, format_strain_notice
-from ..llm import CLI_BACKENDS
 from ..llm.base import Message
 from ..tools.hinge_detector import detect_hinge
 from .choices import parse_response, ChoiceBlock
@@ -752,27 +751,6 @@ class ContextBar(Static):
         self.refresh_display()
 
     def refresh_display(self):
-        # Cloud backends (Gemini, Codex, Claude) have massive context — no pressure tracking
-        if self.backend and self.backend in CLI_BACKENDS:
-            display = Text()
-            display.append("CONTEXT ", style=Theme.DIM)
-            display.append("[", style=Theme.ACCENT)
-            display.append("☁ CLOUD", style=f"bold {Theme.ACCENT}")
-            display.append("]", style=Theme.ACCENT)
-            display.append(" ∞ ", style=Theme.ACCENT)
-            display.append("UNLIMITED", style=f"bold {Theme.FRIENDLY}")
-            # Show backend name
-            backend_display = self.backend.upper()
-            if self.backend == "gemini":
-                backend_display = "GEMINI (1M ctx)"
-            elif self.backend == "codex":
-                backend_display = "CODEX (128K+ ctx)"
-            elif self.backend == "claude":
-                backend_display = "CLAUDE (200K ctx)"
-            display.append(f"  │ {backend_display}", style=Theme.DIM)
-            self.update(display)
-            return
-
         # Local backends — show pressure bar and strain tracking
         tier_name, tier_color = self.TIER_DISPLAY.get(
             self.strain_tier, ("NOMINAL", Theme.FRIENDLY)
@@ -2877,7 +2855,7 @@ def main():
         "--backend", "-b",
         type=str,
         default="auto",
-        help="LLM backend to use (auto, lmstudio, ollama, gemini, codex, claude)"
+        help="LLM backend to use (auto, lmstudio, ollama)"
     )
     args = parser.parse_args()
 

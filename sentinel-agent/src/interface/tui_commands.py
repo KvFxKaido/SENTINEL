@@ -894,7 +894,7 @@ def tui_backend(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
     if not args:
         info = app.agent.backend_info if app.agent else {"backend": "none", "available": False}
         log.write(Text.from_markup(f"[{Theme.TEXT}]Current: {info.get('backend', 'none')}[/{Theme.TEXT}]"))
-        log.write(Text.from_markup(f"[{Theme.DIM}]Usage: /backend <lmstudio|ollama|claude|gemini|codex>[/{Theme.DIM}]"))
+        log.write(Text.from_markup(f"[{Theme.DIM}]Usage: /backend <lmstudio|ollama|auto>[/{Theme.DIM}]"))
     else:
         backend = args[0].lower()
         log.write(Text.from_markup(f"[{Theme.DIM}]Switching to {backend}...[/{Theme.DIM}]"))
@@ -908,7 +908,6 @@ def tui_backend(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
         if info["available"]:
             set_backend(backend, campaigns_dir=getattr(app, "campaigns_dir", "campaigns"))
             log.write(Text.from_markup(f"[{Theme.FRIENDLY}]Now using: {info['backend']} ({info['model']})[/{Theme.FRIENDLY}]"))
-            # Refresh context bar to update cloud/local display mode
             app.refresh_all_panels()
         else:
             log.write(Text.from_markup(f"[{Theme.DANGER}]Backend not available[/{Theme.DANGER}]"))

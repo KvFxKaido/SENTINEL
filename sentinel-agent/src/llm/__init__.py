@@ -6,11 +6,6 @@ from typing import Callable, Literal
 from .base import LLMClient, LLMResponse, Message, ToolCall, ToolResult
 from .lmstudio import LMStudioClient
 from .ollama import OllamaClient
-from .kimi import KimiClient, KimiCliClient
-from .claude_code import ClaudeCodeClient
-from .gemini_cli import GeminiCliClient
-from .codex_cli import CodexCliClient
-from .mistral_vibe import MistralVibeClient
 from .skills import parse_skills, format_tools_for_prompt, strip_skill_tags
 
 __all__ = [
@@ -21,19 +16,10 @@ __all__ = [
     "ToolResult",
     "LMStudioClient",
     "OllamaClient",
-    "KimiClient",
-    "KimiCliClient",
-    "ClaudeCodeClient",
-    "GeminiCliClient",
-    "CodexCliClient",
-    "MistralVibeClient",
     "MockLLMClient",
     "create_llm_client",
     "detect_backend",
-    # Backend categories
-    "CLI_BACKENDS",
     "LOCAL_BACKENDS",
-    # Skill system
     "parse_skills",
     "format_tools_for_prompt",
     "strip_skill_tags",
@@ -132,13 +118,8 @@ class MockLLMClient(LLMClient):
 # Backend Detection and Factory
 # -----------------------------------------------------------------------------
 
-BackendType = Literal["lmstudio", "ollama", "kimi", "claude", "gemini", "codex", "vibe", "auto"]
+BackendType = Literal["lmstudio", "ollama", "auto"]
 
-# CLI-based backends with massive context windows (no meaningful pressure tracking)
-# These use existing CLI authentication and have 100K+ token context
-CLI_BACKENDS = frozenset({"claude", "gemini", "codex", "kimi", "vibe"})
-
-# Local backends with finite context (pressure tracking relevant)
 LOCAL_BACKENDS = frozenset({"lmstudio", "ollama"})
 
 
@@ -147,13 +128,9 @@ def detect_backend(
     ollama_url: str = "http://127.0.0.1:11434/v1",
 ) -> tuple[str, LLMClient] | tuple[None, None]:
     """
-    Auto-detect available LLM backend.
+    Auto-detect available local LLM backend.
 
-    Preference order: LM Studio > Ollama > Kimi CLI > Gemini CLI > Codex CLI > Claude Code
-
-    Local backends are preferred over cloud for privacy and cost.
-    API-based backends require authentication but have large context windows.
-    CLI backends use existing CLI authentication.
+    Preference order: LM Studio > Ollama
 
     Returns:
         Tuple of (backend_name, client) or (None, None) if nothing available.
@@ -161,7 +138,6 @@ def detect_backend(
     lmstudio_url = os.environ.get("LMSTUDIO_BASE_URL", lmstudio_url)
     ollama_url = os.environ.get("OLLAMA_BASE_URL", ollama_url)
 
-    # Try LM Studio first (free, local)
     try:
         client = LMStudioClient(base_url=lmstudio_url)
         if client.is_available():
@@ -169,51 +145,10 @@ def detect_backend(
     except Exception:
         pass
 
-    # Try Ollama (free, local)
     try:
         client = OllamaClient(base_url=ollama_url)
         if client.is_available():
             return ("ollama", client)
-    except Exception:
-        pass
-
-    # Try Kimi CLI (uses existing CLI auth, large context)
-    try:
-        client = KimiClient()
-        if client.is_available():
-            return ("kimi", client)
-    except Exception:
-        pass
-
-    # Try Gemini CLI (free tier, 1M context)
-    try:
-        client = GeminiCliClient()
-        if client.is_available():
-            return ("gemini", client)
-    except Exception:
-        pass
-
-    # Try Codex CLI (OpenAI's agentic CLI)
-    try:
-        client = CodexCliClient()
-        if client.is_available():
-            return ("codex", client)
-    except Exception:
-        pass
-
-    # Try Claude Code CLI (uses existing auth)
-    try:
-        client = ClaudeCodeClient()
-        if client.is_available():
-            return ("claude", client)
-    except Exception:
-        pass
-
-    # Try Mistral Vibe CLI (uses existing auth)
-    try:
-        client = MistralVibeClient()
-        if client.is_available():
-            return ("vibe", client)
     except Exception:
         pass
 
@@ -258,46 +193,6 @@ def create_llm_client(
         except Exception as e:
             print(f"Ollama error: {e}")
             return ("ollama", None)
-
-    if backend == "kimi":
-        try:
-            from .kimi import create_kimi_client
-            return ("kimi", create_kimi_client())
-        except Exception as e:
-            print(f"Kimi CLI error: {e}")
-            return ("kimi", None)
-
-    if backend == "claude":
-        try:
-            from .claude_code import create_claude_code_client
-            return ("claude", create_claude_code_client())
-        except Exception as e:
-            print(f"Claude Code error: {e}")
-            return ("claude", None)
-
-    if backend == "gemini":
-        try:
-            from .gemini_cli import create_gemini_cli_client
-            return ("gemini", create_gemini_cli_client())
-        except Exception as e:
-            print(f"Gemini CLI error: {e}")
-            return ("gemini", None)
-
-    if backend == "codex":
-        try:
-            from .codex_cli import create_codex_cli_client
-            return ("codex", create_codex_cli_client())
-        except Exception as e:
-            print(f"Codex CLI error: {e}")
-            return ("codex", None)
-
-    if backend == "vibe":
-        try:
-            from .mistral_vibe import create_mistral_vibe_client
-            return ("vibe", create_mistral_vibe_client())
-        except Exception as e:
-            print(f"Mistral Vibe error: {e}")
-            return ("vibe", None)
 
     print(f"Unknown backend: {backend}")
     return (backend, None)
