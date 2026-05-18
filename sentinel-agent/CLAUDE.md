@@ -364,7 +364,6 @@ When a choice has future implications:
 pydantic>=2.0.0     # State validation
 rich>=13.0.0        # Terminal UI
 prompt-toolkit>=3.0 # Input handling
-anthropic>=0.40.0   # Claude API (optional, pip install -e ".[claude]")
 memvid-sdk>=0.1.0   # Campaign memory (optional, pip install -e ".[memvid]")
 ```
 
@@ -372,44 +371,31 @@ memvid-sdk>=0.1.0   # Campaign memory (optional, pip install -e ".[memvid]")
 
 - Python 3.10+
 - **LM Studio** at localhost:1234 (free, local) — preferred backend
-- OR `ANTHROPIC_API_KEY` for Claude API
+- OR Ollama at localhost:11434
 - CLI works without any LLM for state management testing
 
 ## Backend Selection
 
-The agent auto-detects backends in this order:
+The agent auto-detects local backends in this order:
 1. **LM Studio** (localhost:1234) — free, local, native tool support
 2. **Ollama** (localhost:11434) — free, local, native tool support
-3. **Gemini CLI** — free tier (1M context), uses existing `gemini` auth
-4. **Codex CLI** — OpenAI models (o3, gpt-4o), uses existing `codex` auth
-5. **Claude Code CLI** — uses existing `claude` auth, no API keys needed
 
-Local backends are preferred for privacy and cost. CLI backends (Gemini, Codex, Claude) piggyback on existing CLI authentication — if you're logged in, they just work.
+Hosted-API support is on the roadmap as a follow-up.
 
-Use `/backend <name>` in the CLI to switch manually.
+Use `/backend <name>` in the CLI to switch manually (`lmstudio`, `ollama`, `auto`).
 
 ### Tool Support
 
-All backends support tools, but through different mechanisms:
+Both backends advertise native function calling, but per-model support varies. The skill system (`src/llm/skills.py`) is the fallback path: it injects tool descriptions into the prompt and parses `<tool>{"name": "...", "args": {...}}</tool>` tags from responses, so models without native tool support still work.
 
 | Backend | Tool Mechanism | Context Window |
 |---------|---------------|----------------|
-| LM Studio | Native function calling | Model-dependent (8K-32K) |
-| Ollama | Native function calling | Model-dependent (8K-32K) |
-| Gemini CLI | Skill-based (prompt injection + parsing) | 1M tokens |
-| Codex CLI | Skill-based (prompt injection + parsing) | 128K+ tokens |
-| Claude Code | Skill-based (prompt injection + parsing) | 200K tokens |
-
-The skill system (`src/llm/skills.py`) injects tool descriptions into the prompt and parses `<tool>{"name": "...", "args": {...}}</tool>` tags from responses. This enables full tool support even for CLI-based backends.
-
-### Backend Categories
+| LM Studio | Native (skill-based fallback per model) | Model-dependent (8K-32K) |
+| Ollama | Native (skill-based fallback per model) | Model-dependent (8K-32K) |
 
 ```python
-CLI_BACKENDS = {"claude", "gemini", "codex"}   # Cloud, 100K+ context
-LOCAL_BACKENDS = {"lmstudio", "ollama"}        # Local, finite context
+LOCAL_BACKENDS = {"lmstudio", "ollama"}
 ```
-
-The TUI context bar shows "☁ CLOUD UNLIMITED" for CLI backends instead of pressure tracking, since strain monitoring is meaningless with 100K+ token windows.
 
 ## Local Mode (8B-12B Models)
 
