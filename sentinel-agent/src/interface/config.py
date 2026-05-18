@@ -11,14 +11,14 @@ from typing import TypedDict
 
 class Config(TypedDict, total=False):
     """User configuration."""
-    backend: str  # lmstudio, claude, openrouter, etc.
+    backend: str  # lmstudio, ollama, auto
     model: str | None  # Model name for LM Studio/Ollama
     animate_banner: bool  # Show animated banner on startup
     show_status_bar: bool  # Show persistent status bar
 
 
 DEFAULT_CONFIG: Config = {
-    "backend": "claude",  # Default to Claude for best experience
+    "backend": "auto",
     "model": None,
     "animate_banner": True,
     "show_status_bar": True,
