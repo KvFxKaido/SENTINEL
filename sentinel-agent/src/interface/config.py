@@ -24,6 +24,12 @@ DEFAULT_CONFIG: Config = {
     "show_status_bar": True,
 }
 
+# Backend names that were removed when SENTINEL went local-only.
+# Existing configs from earlier versions may still reference these; normalize
+# to "auto" on load so SentinelAgent falls back to auto-detection instead of
+# receiving an unsupported backend name.
+_REMOVED_BACKENDS = frozenset({"claude", "gemini", "codex", "kimi", "vibe"})
+
 
 def get_config_path(campaigns_dir: Path | str = "campaigns") -> Path:
     """Get path to config file."""
@@ -43,6 +49,8 @@ def load_config(campaigns_dir: Path | str = "campaigns") -> Config:
         # Merge with defaults to handle missing keys
         config = DEFAULT_CONFIG.copy()
         config.update(saved)
+        if config.get("backend") in _REMOVED_BACKENDS:
+            config["backend"] = "auto"
         return config
     except (json.JSONDecodeError, IOError):
         return DEFAULT_CONFIG.copy()
