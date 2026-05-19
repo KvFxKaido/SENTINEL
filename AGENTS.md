@@ -69,14 +69,13 @@ Read the design philosophy before proposing architectural changes — these rule
 - Change **wiki sync behavior**: `sentinel-agent/src/state/wiki_watcher.py` (frontmatter parsing, conflict resolution).
 - Change **faction content**: `sentinel-campaign/src/sentinel_campaign/data/factions/*.json` and `sentinel-campaign/src/sentinel_campaign/data/relationships.json`.
 - Change **MCP behavior**: `sentinel-campaign/src/sentinel_campaign/server.py` and `sentinel-campaign/src/sentinel_campaign/tools/__init__.py`.
-- Add **new LLM backend**: 
+- Add **new LLM backend**:
   - Create backend class in `sentinel-agent/src/llm/your_backend.py` following existing patterns
   - Inherit from `LLMClient`, implement `chat()`, `model_name`, `supports_tools`
   - Add to `sentinel-agent/src/llm/__init__.py` exports and `create_llm_client()` factory
   - Add detection logic to `detect_backend()` if appropriate
-  - Update `CLI_BACKENDS` or `LOCAL_BACKENDS` constants
+  - Update the `LOCAL_BACKENDS` frozenset
   - Add tests in `sentinel-agent/tests/`
-  - Add docs in `sentinel-agent/docs/`
 
 ## Available LLM Backends
 
@@ -84,27 +83,8 @@ Read the design philosophy before proposing architectural changes — these rule
 |---------|------|-------|------|---------|-------|----------|
 | LM Studio | Local | Download + model | Free | Varies | Yes | Privacy, offline |
 | Ollama | Local | Download + model | Free | Varies | Yes | Privacy, offline |
-| Gemini CLI | Cloud CLI | Install CLI | Free tier | 1M | Yes | Large docs, free tier |
-| Codex CLI | Cloud CLI | Install CLI + API | Paid | Varies | Yes | OpenAI models |
-| Claude Code | Cloud CLI | Install CLI | Paid | 200K | Yes | Claude models |
-| Kimi CLI | Cloud CLI | `pip install kimi-cli` | Free tier + paid | Up to 128K | Yes | Chinese language, long context |
-| Mistral Vibe | Cloud CLI | `pip install mistral-vibe` | Paid | 32K-128K | Yes | Codestral, agentic |
 
-### Using CLI Backends
-
-All CLI backends use the same pattern: install the CLI, authenticate once, then SENTINEL uses it automatically.
-
-```bash
-# Kimi CLI
-pip install kimi-cli && kimi  # Login via /setup
-
-# Mistral Vibe
-pip install mistral-vibe && vibe  # Login on first use
-
-# Then run SENTINEL
-python -m src.interface.cli --backend kimi
-python -m src.interface.cli --backend vibe
-```
+Hosted-API support is planned as a follow-up.
 
 ## Practical Constraints (Optimize For These)
 
@@ -129,7 +109,7 @@ python -m src.interface.cli --backend vibe
 
 ## Backend Notes (LLMs)
 
-`sentinel-agent` supports multiple backends and prefers local-first (LM Studio) when available. CLI-wrapped backends (Gemini/Codex CLI) may not support tool calling—avoid relying on tools if testing via those wrappers.
+`sentinel-agent` runs on local backends (LM Studio preferred, Ollama as fallback). Both advertise native tool calling, but support varies per loaded model. `SentinelAgent.generate_response()` only sends tool definitions when the active client reports `supports_tools=True`; if the loaded model doesn't support native tools, the GM runs in text-only mode (no tools are invoked).
 
 ## Key Docs (When Unsure)
 
