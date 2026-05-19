@@ -29,7 +29,7 @@ The design philosophy is postmortem-driven — every rule exists because somethi
         *   `wiki_adapter.py`: Obsidian wiki generation with hardened writes (atomic, serialized, idempotent).
         *   `wiki_watcher.py`: Bi-directional sync — frontmatter edits in Obsidian update game state.
         *   `templates.py`: Jinja2 template engine for wiki pages (user-overridable in `wiki/templates/`).
-    *   **`src/llm/`**: Abstraction layer for LLM providers (Claude, OpenAI, Local).
+    *   **`src/llm/`**: Abstraction layer for local LLM providers (LM Studio, Ollama). Hosted-API support is planned as a follow-up.
     *   **`src/interface/`**: Handles TUI/CLI rendering, glyphs, and user input.
         *   `tui.py`: Primary Textual-based UI with reactive panels and event-driven updates.
 *   **`sentinel-campaign/`**: A specialized MCP server.

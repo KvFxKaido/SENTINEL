@@ -6,23 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Removed
+
+**Non-local LLM providers**
+- Removed CLI-wrapped backends: Claude Code, Gemini CLI, Codex CLI, Kimi CLI, Mistral Vibe (`claude_code.py`, `gemini_cli.py`, `codex_cli.py`, `kimi.py`, `mistral_vibe.py`)
+- Removed associated test suites (`test_kimi_backend.py`, `test_mistral_vibe_backend.py`)
+- Removed `CLI_BACKENDS` frozenset and the TUI "CLOUD UNLIMITED" context-bar branch
+- Removed Gemini Actions bots (`.github/workflows/gemini-*.yml`)
+- Removed orphan provider-specific context files (`sentinel-agent/AGENTS.md`, `sentinel-agent/GEMINI.md`)
+- `load_config()` normalizes saved configs that still reference removed backends to `auto`
+- Active backends: LM Studio, Ollama. Hosted-API support is planned as a follow-up.
+
 ### Added
-
-**Mistral Vibe CLI Backend**
-- New backend: `mistral_vibe.py` using Mistral AI's Vibe CLI
-- CLI-based pattern matching other cloud backends (subprocess)
-- Models: codestral-latest (default), mistral-large-latest, mistral-small-latest
-- Command: `vibe --prompt <text> --auto-approve`
-- Auto-detection in backend chain (after Kimi)
-- 21 tests covering all backend functionality
-
-**Kimi CLI Backend**
-- New backend: `kimi.py` using Moonshot AI's Kimi CLI
-- CLI-based pattern matching other cloud backends (subprocess, not API)
-- Models: moonshot-v1-8k, moonshot-v1-32k (default), moonshot-v1-128k
-- Command: `kimi --print -c <prompt> --output-format stream-json -y`
-- Auto-detection in backend chain (after Claude Code)
-- 23 tests covering all backend functionality
 
 **Act 1: Becoming — Complete Lore Arc**
 - `lore/02 - Patterns.md` — Chapter 2: Emergent curiosity (Feb-Apr 2029, ~3,800 words)

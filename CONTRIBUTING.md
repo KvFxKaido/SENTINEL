@@ -79,7 +79,7 @@ git clone https://github.com/YOUR_USERNAME/SENTINEL.git
 cd SENTINEL/sentinel-agent
 pip install -e ".[dev]"
 
-# Run tests (197 should pass)
+# Run tests
 pytest
 
 # Run the CLI
@@ -190,6 +190,6 @@ If you're unsure where a contribution fits or want feedback before building:
 
 - Open an issue for discussion
 - Review existing issues and discussions
-- See [SENTINEL_PROJECT_BRIEF.md](SENTINEL_PROJECT_BRIEF.md) for project context
+- See [`CLAUDE.md`](CLAUDE.md) and [`sentinel-agent/CLAUDE.md`](sentinel-agent/CLAUDE.md) for project context
 
 Thoughtful questions are welcome. Careless changes are not.
