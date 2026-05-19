@@ -109,7 +109,7 @@ Hosted-API support is planned as a follow-up.
 
 ## Backend Notes (LLMs)
 
-`sentinel-agent` runs on local backends (LM Studio preferred, Ollama as fallback). Both advertise native tool calling, but support varies per loaded model — the skill-based fallback in `src/llm/skills.py` handles models without native tools.
+`sentinel-agent` runs on local backends (LM Studio preferred, Ollama as fallback). Both advertise native tool calling, but support varies per loaded model. `SentinelAgent.generate_response()` only sends tool definitions when the active client reports `supports_tools=True`; if the loaded model doesn't support native tools, the GM runs in text-only mode (no tools are invoked).
 
 ## Key Docs (When Unsure)
 
