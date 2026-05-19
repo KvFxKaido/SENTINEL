@@ -129,7 +129,7 @@ Players choose starting relationships, not membership. You're not "in" a faction
 
 ### AI Game Master
 
-* Local and cloud backends (LM Studio, Ollama, Claude Code, Gemini CLI)
+* Local backends (LM Studio, Ollama)
 * Hot-reloadable prompts with phase-specific guidance
 * Lore retrieval from novellas + campaign memory search
 * `/consult` — get competing perspectives from faction advisors
@@ -209,38 +209,18 @@ SENTINEL auto-generates a campaign wiki as you play:
 
 ## LLM Backends
 
-SENTINEL supports both local and cloud backends.
+SENTINEL runs on local LLM backends. Hosted-API support is planned as a follow-up.
 
 | Backend | Setup |
 |---------|-------|
 | **LM Studio** | Download app, load model, start server (port 1234) |
 | **Ollama** | `ollama pull llama3.2` — runs automatically (port 11434) |
-| **Gemini CLI** | Install [Gemini CLI](https://github.com/google-gemini/gemini-cli), authenticate with Google |
-| **Codex CLI** | Install [Codex CLI](https://github.com/openai/codex), authenticate with OpenAI |
-| **Claude Code** | Install [Claude Code](https://claude.ai/code), authenticate, done |
-| **Kimi CLI** | Install [Kimi CLI](https://github.com/MoonshotAI/kimi-cli), authenticate with Moonshot AI |
-| **Mistral Vibe** | Install [Mistral Vibe](https://github.com/mistralai/mistral-vibe), authenticate with Mistral AI |
 
-The agent auto-detects available backends (LM Studio → Ollama → Kimi CLI → Gemini CLI → Codex CLI → Claude Code → Mistral Vibe).
-
-### Which Backend Should I Use?
-
-| Priority | Recommendation |
-|----------|----------------|
-| Best narrative quality | Claude (via Claude Code) |
-| Best agentic capability | Codex CLI (OpenAI o3/gpt-4o) |
-| Code-focused play | Mistral Vibe (Codestral optimized for coding) |
-| Free + huge context | Gemini CLI (1M tokens, 60 req/min free) |
-| Free + private | LM Studio or Ollama with 14B+ model |
-| Budget hardware | 8B model with `--local` flag |
-| Offline play | Local only |
-| Potato PC | Claude, Codex, Gemini, or Mistral Vibe (offload compute to cloud) |
-
-Local models are fully playable — the mechanics work identically. Claude shines in nuanced NPC interactions, faction politics, and long-term consequence tracking.
+The agent auto-detects available backends (LM Studio → Ollama). Use `/backend <name>` to switch manually (`lmstudio`, `ollama`, `auto`).
 
 ### Local Mode for Small Models
 
-8B-12B models are now playable with the `--local` flag:
+8B-12B models are playable with the `--local` flag:
 
 ```bash
 sentinel --local        # TUI
@@ -253,20 +233,6 @@ Local mode reduces context from ~13K to ~5K tokens by:
 - Exposing only phase-relevant tools (3-12 instead of 19)
 
 This keeps smaller models focused and responsive. You lose some GM flavor text, but core mechanics and narrative quality remain intact.
-
-### How CLI Backends Work
-
-All CLI backends work the same way: we invoke the official CLI tools and let them handle authentication through your existing subscription.
-
-| Backend | CLI Command | Your Subscription |
-|---------|-------------|-------------------|
-| Gemini CLI | `gemini -` (stdin) | Google AI / Gemini Pro |
-| Codex CLI | `codex exec -` (stdin) | OpenAI / ChatGPT Plus |
-| Claude Code | `claude -p -` (print mode) | Anthropic / Claude Pro |
-| Kimi CLI | `kimi -c <prompt>` | Moonshot AI / Kimi |
-| Mistral Vibe | `vibe --prompt <text>` | Mistral AI (free tier available) |
-
-No API keys needed. No tokens extracted. If you're logged into the CLI, SENTINEL just works — using whatever plan you're already paying for.
 
 ## Recommended Setup
 
