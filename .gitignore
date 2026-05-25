@@ -55,6 +55,9 @@ nanobanana-output/
 sentinel-agent/generated_npcs/
 sentinel-agent/test_portrait.py
 
+# Personal
+personal/
+
 # WIP / scratch files
 WARP.md
 
