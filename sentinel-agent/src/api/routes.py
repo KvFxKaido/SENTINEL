@@ -33,6 +33,22 @@ from .server import SentinelAPI
 # Create router for additional endpoints
 router = APIRouter()
 
+
+def get_api() -> SentinelAPI:
+    """Placeholder API dependency for the extended routes.
+
+    The real :class:`SentinelAPI` instance is bound at application-creation
+    time in :func:`src.api.server.create_app` via FastAPI's public
+    ``app.dependency_overrides`` mechanism. Declaring this as a named module
+    function (rather than an inline ``lambda``) gives the override a stable
+    target, so we no longer need to mutate route internals to wire it up.
+    """
+    raise RuntimeError(
+        "SentinelAPI dependency is not configured. "
+        "Build the app through create_app() so the dependency override is applied."
+    )
+
+
 # Load region data for route calculations
 _REGIONS_DATA: dict | None = None
 
@@ -184,7 +200,7 @@ class LocalMapResponse(BaseModel):
 
 
 @router.get("/map", response_model=MapOverviewResponse)
-async def get_map_overview(api: SentinelAPI = Depends(lambda: None)):
+async def get_map_overview(api: SentinelAPI = Depends(get_api)):
     """
     Get world map overview.
     
@@ -221,7 +237,7 @@ async def get_map_overview(api: SentinelAPI = Depends(lambda: None)):
 @router.get("/map/region/{region_id}", response_model=RegionDetailResponse)
 async def get_region_detail(
     region_id: str,
-    api: SentinelAPI = Depends(lambda: None),
+    api: SentinelAPI = Depends(get_api),
 ):
     """
     Get detailed info for a specific region.
@@ -312,7 +328,7 @@ async def get_region_detail(
 @router.get("/map/local", response_model=LocalMapResponse)
 async def get_local_map(
     map_id: str | None = None,
-    api: SentinelAPI = Depends(lambda: None),
+    api: SentinelAPI = Depends(get_api),
 ):
     """
     Get current local map for exploration.
@@ -474,7 +490,7 @@ async def list_npcs(
     region: str | None = None,
     faction: str | None = None,
     visible_only: bool = True,
-    api: SentinelAPI = Depends(lambda: None),
+    api: SentinelAPI = Depends(get_api),
 ):
     """
     List NPCs with optional filtering.
@@ -526,7 +542,7 @@ async def list_npcs(
 @router.get("/npcs/{npc_id}", response_model=NPCDetailResponse)
 async def get_npc_detail(
     npc_id: str,
-    api: SentinelAPI = Depends(lambda: None),
+    api: SentinelAPI = Depends(get_api),
 ):
     """
     Get detailed NPC information.
@@ -601,7 +617,7 @@ class PatrolRouteResponse(BaseModel):
 
 
 @router.get("/patrols", response_model=PatrolStateResponse)
-async def get_patrol_state(api: SentinelAPI = Depends(lambda: None)):
+async def get_patrol_state(api: SentinelAPI = Depends(get_api)):
     """
     Get current patrol state for all NPCs.
     
@@ -659,7 +675,7 @@ async def get_patrol_state(api: SentinelAPI = Depends(lambda: None)):
 @router.get("/patrols/{npc_id}/route", response_model=PatrolRouteResponse)
 async def get_patrol_route(
     npc_id: str,
-    api: SentinelAPI = Depends(lambda: None),
+    api: SentinelAPI = Depends(get_api),
 ):
     """
     Get patrol route for a specific NPC.
@@ -734,7 +750,7 @@ class FactionPressureResponse(BaseModel):
 
 
 @router.get("/factions/pressure", response_model=FactionPressureResponse)
-async def get_faction_pressure(api: SentinelAPI = Depends(lambda: None)):
+async def get_faction_pressure(api: SentinelAPI = Depends(get_api)):
     """
     Get faction pressure state.
     
@@ -804,7 +820,7 @@ class AdvanceTimeRequest(BaseModel):
 
 
 @router.get("/clock", response_model=GameClockResponse)
-async def get_game_clock(api: SentinelAPI = Depends(lambda: None)):
+async def get_game_clock(api: SentinelAPI = Depends(get_api)):
     """
     Get current game time.
 
@@ -833,7 +849,7 @@ async def get_game_clock(api: SentinelAPI = Depends(lambda: None)):
 @router.post("/clock/advance", response_model=GameClockResponse)
 async def advance_game_clock(
     request: AdvanceTimeRequest,
-    api: SentinelAPI = Depends(lambda: None),
+    api: SentinelAPI = Depends(get_api),
 ):
     """
     Advance game time.
@@ -855,7 +871,7 @@ _clock_paused: bool = False
 
 
 @router.post("/clock/pause")
-async def pause_game_clock(api: SentinelAPI = Depends(lambda: None)):
+async def pause_game_clock(api: SentinelAPI = Depends(get_api)):
     """Pause game clock (e.g., during dialogue)."""
     global _clock_paused
     _clock_paused = True
@@ -863,7 +879,7 @@ async def pause_game_clock(api: SentinelAPI = Depends(lambda: None)):
 
 
 @router.post("/clock/resume")
-async def resume_game_clock(api: SentinelAPI = Depends(lambda: None)):
+async def resume_game_clock(api: SentinelAPI = Depends(get_api)):
     """Resume game clock."""
     global _clock_paused
     _clock_paused = False
@@ -884,7 +900,7 @@ class ConsequenceCheckResponse(BaseModel):
 @router.get("/consequences/check", response_model=ConsequenceCheckResponse)
 async def check_consequences(
     mapId: str | None = None,
-    api: SentinelAPI = Depends(lambda: None),
+    api: SentinelAPI = Depends(get_api),
 ):
     """
     Check for pending consequences.
@@ -967,7 +983,7 @@ def _resolve_combat_hit(action: str, actor_id: str, target_id: str | None, round
 @router.post("/combat/action", response_model=CombatActionResponse)
 async def resolve_combat_action(
     request: CombatActionRequest,
-    api: SentinelAPI = Depends(lambda: None),
+    api: SentinelAPI = Depends(get_api),
 ):
     """
     Resolve a combat action.
@@ -1051,7 +1067,7 @@ async def resolve_combat_action(
 @router.post("/combat/end", response_model=CombatEndResponse)
 async def end_combat(
     request: CombatEndRequest,
-    api: SentinelAPI = Depends(lambda: None),
+    api: SentinelAPI = Depends(get_api),
 ):
     """
     End combat and propagate consequences.

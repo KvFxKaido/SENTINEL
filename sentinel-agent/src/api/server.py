@@ -872,15 +872,12 @@ def create_app(
         return app.state.api
     
     # Include additional routes
-    from .routes import router as additional_routes
+    from .routes import router as additional_routes, get_api as routes_get_api
     app.include_router(additional_routes, tags=["extended"])
-    
-    # Override route dependencies to use our API instance
-    for route in additional_routes.routes:
-        if hasattr(route, 'dependant'):
-            for dep in route.dependant.dependencies:
-                if dep.call.__name__ == '<lambda>':
-                    dep.call = get_api
+
+    # Bind the extended routes' API dependency to this app's instance using
+    # FastAPI's public override mechanism, rather than mutating route internals.
+    app.dependency_overrides[routes_get_api] = get_api
     
     # -------------------------------------------------------------------------
     # REST Endpoints

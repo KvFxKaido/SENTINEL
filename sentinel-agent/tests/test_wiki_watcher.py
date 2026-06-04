@@ -2,13 +2,16 @@
 Tests for WikiWatcher syncing wiki frontmatter into campaign state.
 """
 
+import time
 from datetime import datetime
 from pathlib import Path
+
+import pytest
 
 from src.state.manager import CampaignManager
 from src.state.schema import Disposition, FactionName, Standing, NPCAgenda, NPC
 from src.state.store import MemoryCampaignStore
-from src.state.wiki_watcher import WikiWatcher
+from src.state.wiki_watcher import WATCHDOG_AVAILABLE, WikiWatcher
 
 
 def _write_frontmatter(path: Path, lines: list[str]) -> None:
@@ -100,3 +103,51 @@ def test_sync_skips_when_state_newer(tmp_path: Path) -> None:
     watcher.handle_path(npc_file)
 
     assert npc.disposition == Disposition.NEUTRAL
+
+
+def _wait_for(predicate, timeout: float = 5.0, interval: float = 0.05) -> bool:
+    """Poll ``predicate`` until it is truthy or ``timeout`` elapses."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if predicate():
+            return True
+        time.sleep(interval)
+    return bool(predicate())
+
+
+@pytest.mark.skipif(not WATCHDOG_AVAILABLE, reason="watchdog not installed")
+def test_observer_thread_syncs_filesystem_change(tmp_path: Path) -> None:
+    """End-to-end: the real watchdog Observer picks up a write and syncs state.
+
+    Unlike the other tests, this drives the actual background thread
+    (start_watching -> _run -> Observer.schedule/start), so a watchdog
+    version bump that breaks the Observer API surfaces here rather than
+    silently disabling the wiki watcher at runtime.
+    """
+    manager = _make_manager()
+    campaign = manager.create_campaign("Test Campaign")
+    npc = _add_npc(manager, "Cipher")
+    # State predates any wiki edit, so filesystem changes are accepted as newer.
+    campaign.saved_at = datetime.fromtimestamp(0)
+
+    wiki_dir = tmp_path / "wiki"
+    npc_dir = wiki_dir / "campaigns" / campaign.meta.id / "NPCs"
+    npc_dir.mkdir(parents=True)
+
+    watcher = WikiWatcher(manager, wiki_dir=wiki_dir, campaign_id=campaign.meta.id)
+    assert watcher.start_watching() is True
+    try:
+        # Give the observer thread a moment to arm its filesystem watch;
+        # writes that land before the watch is established are missed.
+        time.sleep(0.5)
+        npc_file = npc_dir / "Cipher.md"
+        _write_frontmatter(npc_file, [
+            "type: npc",
+            "disposition: warm",
+        ])
+        synced = _wait_for(lambda: npc.disposition == Disposition.WARM)
+    finally:
+        watcher.stop_watching()
+
+    assert synced, "watcher did not sync disposition from a filesystem event"
+    assert npc.disposition == Disposition.WARM
