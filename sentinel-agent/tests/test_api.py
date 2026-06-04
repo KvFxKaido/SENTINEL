@@ -474,7 +474,7 @@ class TestPerformance:
     def test_action_endpoint_response_time(self, api_with_campaign):
         """Action endpoint should respond quickly."""
         import time
-        
+
         version = 0
         start = time.time()
         for _ in range(10):
@@ -484,6 +484,36 @@ class TestPerformance:
             })
             version = response.json()["state_version"]
         elapsed = time.time() - start
-        
+
         # Should complete 10 actions in under 2 seconds
         assert elapsed < 2.0
+
+
+class TestDependencyWiring:
+    """Tests that the extended routes' API dependency is wired correctly.
+
+    The extended routes declare a named ``get_api`` placeholder dependency
+    that create_app() binds to the real SentinelAPI via
+    ``app.dependency_overrides``. These tests make a wiring regression fail
+    here rather than at the first request to an extended route.
+    """
+
+    def test_create_app_overrides_extended_route_dependency(self, tmp_path):
+        """create_app() must register the override for the routes placeholder."""
+        from src.api.routes import get_api as routes_get_api
+
+        campaigns_dir = tmp_path / "campaigns"
+        campaigns_dir.mkdir()
+        app = create_app(campaigns_dir=str(campaigns_dir), local_mode=True)
+
+        assert routes_get_api in app.dependency_overrides
+
+    def test_extended_route_resolves_injected_api(self, api_client):
+        """An extended route resolves the injected API, not the raising placeholder.
+
+        With no campaign loaded the route returns a handled 400; a 500 would
+        mean the placeholder ran (override not applied).
+        """
+        response = api_client.get("/map")
+        assert response.status_code == 400
+        assert response.json()["detail"] == "No campaign loaded"

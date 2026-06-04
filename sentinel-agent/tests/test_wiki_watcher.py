@@ -3,6 +3,7 @@ Tests for WikiWatcher syncing wiki frontmatter into campaign state.
 """
 
 import time
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
@@ -105,7 +106,11 @@ def test_sync_skips_when_state_newer(tmp_path: Path) -> None:
     assert npc.disposition == Disposition.NEUTRAL
 
 
-def _wait_for(predicate, timeout: float = 5.0, interval: float = 0.05) -> bool:
+def _wait_for(
+    predicate: Callable[[], bool],
+    timeout: float = 5.0,
+    interval: float = 0.05,
+) -> bool:
     """Poll ``predicate`` until it is truthy or ``timeout`` elapses."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -137,15 +142,24 @@ def test_observer_thread_syncs_filesystem_change(tmp_path: Path) -> None:
     watcher = WikiWatcher(manager, wiki_dir=wiki_dir, campaign_id=campaign.meta.id)
     assert watcher.start_watching() is True
     try:
-        # Give the observer thread a moment to arm its filesystem watch;
-        # writes that land before the watch is established are missed.
-        time.sleep(0.5)
+        # Wait for a readiness signal (observer thread running) rather than a
+        # fixed sleep, then re-write the file on each poll. Re-touching means a
+        # write that lands before the inotify watch is fully armed can't make
+        # the test flaky on slow/loaded runners.
+        assert _wait_for(
+            lambda: watcher._observer is not None and watcher._observer.is_alive()
+        ), "observer thread did not start"
+
         npc_file = npc_dir / "Cipher.md"
-        _write_frontmatter(npc_file, [
-            "type: npc",
-            "disposition: warm",
-        ])
-        synced = _wait_for(lambda: npc.disposition == Disposition.WARM)
+
+        def _rewrite_and_check() -> bool:
+            _write_frontmatter(npc_file, [
+                "type: npc",
+                "disposition: warm",
+            ])
+            return npc.disposition == Disposition.WARM
+
+        synced = _wait_for(_rewrite_and_check)
     finally:
         watcher.stop_watching()
 
