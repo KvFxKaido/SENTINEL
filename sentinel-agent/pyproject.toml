@@ -28,7 +28,7 @@ dev = [
     "pytest-asyncio>=0.23.0",
     "pytest-cov>=7.1.0",
     "ruff>=0.1.0",
-    "httpx>=0.26.0",
+    "httpx>=0.28.1",
 ]
 all = [
     "memvid-sdk>=2.0.159",
