@@ -50,7 +50,12 @@ wiki/.obsidian/
 simulations/
 *.json.bak
 assets/portraits/
-assets/characters/
+# assets/characters/ is intentionally TRACKED — Tier 1 source IP (character
+# specs). Un-ignored during the video-game restructure so archiving the repo
+# can never lose it. See architecture/VIDEO_GAME_REUSE_MAP.md.
+# Negation re-includes the campaign-isolated specs that the broad `campaigns/`
+# rule (above) would otherwise re-hide.
+!assets/characters/campaigns/
 nanobanana-output/
 sentinel-agent/generated_npcs/
 sentinel-agent/test_portrait.py

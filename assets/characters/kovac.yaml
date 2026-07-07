@@ -1,0 +1,33 @@
+name: Kovac
+faction: steel_syndicate
+role: logistics coordinator
+gender: masculine
+age: adult
+skin_tone: olive
+build: stocky
+hair_color: black
+hair_length: short
+hair_style: buzz cut
+eye_color: brown
+eye_features: calculating gaze, crow's feet from squinting at manifests
+facial_features:
+  - broad nose
+  - strong jaw
+  - permanent five o'clock shadow
+augmentations:
+  - subtle cybernetic eye implant (left eye, barely visible metallic rim)
+scars:
+  - thin scar across right cheekbone
+tattoos:
+  - Syndicate trade mark on inner wrist (usually hidden)
+other_features:
+  - worn leather jacket with many pockets
+  - cargo pants with reinforced knees
+  - heavy boots suitable for warehouse work
+  - always carries a manifest pad
+default_expression: pragmatic
+notes: >
+  Kovac looks like what he is: a man who moves things from point A to point B
+  and doesn't ask too many questions. His appearance is utilitarian, built for
+  long hours in transit hubs and loading docks. The cybernetic eye helps him
+  scan cargo manifests quickly — efficiency over aesthetics.

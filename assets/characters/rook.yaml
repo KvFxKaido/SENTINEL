@@ -1,0 +1,30 @@
+name: Rook
+type: npc
+faction: ghost_networks
+role: fixer
+
+# Physical appearance
+gender: masculine
+age: adult
+skin_tone: tan
+build: wiry
+
+# Hair
+hair_color: dark brown
+hair_length: short
+hair_style: straight
+
+# Face
+eye_color: hazel
+facial_features:
+  - sharp
+  - gaunt
+
+# Distinguishing marks
+augmentations: null
+scars: thin scar along jawline
+tattoos: null
+other_features: forgettable face by design, eyes constantly scanning exits
+
+# Expression
+default_expression: wary

@@ -1,0 +1,30 @@
+name: Cipher
+type: npc
+faction: nexus
+role: analyst
+
+# Physical appearance
+gender: masculine
+age: adult
+skin_tone: brown
+build: lean
+
+# Hair
+hair_color: black
+hair_length: short
+hair_style: dreadlocks
+
+# Face
+eye_color: augmented
+facial_features:
+  - sharp
+  - high cheekbones
+
+# Distinguishing marks
+augmentations: subtle blue data overlay in eyes, small temple implant
+scars: null
+tattoos: null
+other_features: always wears a data visor
+
+# Expression
+default_expression: neutral
