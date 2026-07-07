@@ -1,7 +1,8 @@
 """Generate all 33 SENTINEL faction portraits via Gemini + NanoBanana."""
 
+import os
+import shutil
 import subprocess
-import time
 from pathlib import Path
 
 PORTRAITS_DIR = Path(__file__).parent
@@ -64,7 +65,15 @@ PORTRAITS = [
     ("ghost_elder", "Portrait of an elder with no distinguishing features and shadow cloak, Ghost Networks faction survivor. Intentionally unmemorable face, presence that fades from memory. Neutral expression, weathered survivor features. Dark atmospheric background dominated by shadows and absence. Comic book style with clean character lines, dramatic lighting. Bust framing, 3/4 angle, codec portrait composition."),
 ]
 
-GEMINI_CMD = r"C:\Users\ishaw\AppData\Roaming\npm\gemini.cmd"
+# Resolve the gemini CLI portably: env override, then PATH, then the original
+# dev machine's install path as a last-resort fallback. Keeps this preserved
+# reference script runnable outside the machine it was authored on.
+GEMINI_CMD = (
+    os.environ.get("GEMINI_CMD")
+    or shutil.which("gemini")
+    or shutil.which("gemini.cmd")
+    or r"C:\Users\ishaw\AppData\Roaming\npm\gemini.cmd"
+)
 
 def generate_portrait(filename: str, prompt: str) -> bool:
     """Generate a single portrait."""
@@ -79,6 +88,8 @@ def generate_portrait(filename: str, prompt: str) -> bool:
     cmd = [GEMINI_CMD, "--yolo", "-e", "nanobanana", full_prompt]
 
     try:
+        # shell=True is required to invoke the Windows .cmd shim; this script is
+        # Windows-oriented as authored. On POSIX, run without shell=True.
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=180, shell=True)
         if output_path.exists():
             print(f"  DONE: {filename}")
