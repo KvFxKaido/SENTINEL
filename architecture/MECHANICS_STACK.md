@@ -389,6 +389,6 @@ Every player action ripples through interconnected systems, creating emergent na
 ## See Also
 
 - `AGENT_ARCHITECTURE.md` — Detailed technical design
-- `design-philosophy.md` — Non-negotiable principles
+- Root `CLAUDE.md` § Design Philosophy (condensed) — Non-negotiable principles
 - `sentinel-agent/CLAUDE.md` — Development guide
 - `Archive/OBSIDIAN_INTEGRATION.md` — Wiki implementation history

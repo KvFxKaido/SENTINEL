@@ -59,11 +59,21 @@ Before diving into code, understand who you're working with:
 
 | Resource | Location | Purpose |
 |----------|----------|---------|
-| Design philosophy | `architecture/design-philosophy.md` | Non-negotiable design principles |
+| Design philosophy | Condensed below | Non-negotiable design principles |
 | Personal context | `.claude/personal.md` | Shawn's preferences, communication style (gitignored) |
 | MCP resource | `gm://designer` | Query personal context programmatically |
 
-The design philosophy is real — these aren't aspirational guidelines, they're postmortem-driven rules. Read it before proposing architectural changes.
+### Design Philosophy (condensed)
+
+Postmortem-driven rules, not aspirational guidelines — every one exists because something broke. Read before proposing architectural changes. (Full original: `git show a57f918^:architecture/design-philosophy.md`.)
+
+1. **Shared state must be visible** — if you can't tell what changed, the system is hiding something
+2. **Capability changes require consent** — expanding what the system can touch is an ethical event, not a UX detail
+3. **Convenience never overrides clarity** — honest and awkward beats pleasant and misleading; no silent fallbacks
+4. **Fewer features beat fractured coherence** — one clear way to do common things; justify complexity before building it
+5. **If it feels impressive, it's probably hiding something** — boring is correct; explicit over implicit
+
+Ship a feature only if its state is visible, its failure modes are legible, and users can tell what the system observed. Break these rules never by accident — "it's inconvenient" isn't a trade-off.
 
 ## Key Documents
 

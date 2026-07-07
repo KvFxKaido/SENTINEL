@@ -38,7 +38,7 @@ Zero translation needed. This is the material that would take a year to recreate
 | **Game design doc** | `architecture/Sentinel 2D.md` | The GDD. Council-reviewed, design-binding. Commitment gate, safehouse anchor, map-as-proposal turn loop, hybrid combat |
 | Art direction | `architecture/Isometric Sprite System.md`, `Isometric Animation Rules.md`, `Mobile Sprite Sketching Checklist.md`, `sentinel_visual_roadmap.md` | Sprite and animation production rules |
 | Audio direction | `architecture/sentinel_sound_roadmap.md` | Sound design plan |
-| Design invariants | *removed from tree* — recover via `git show a57f918^:architecture/design-philosophy.md` | Postmortem-driven principles, deleted in May 2026 cleanup but preserved in git history (which an archived repo keeps) |
+| Design invariants | `CLAUDE.md` § Design Philosophy (condensed) | Postmortem-driven principles; the full original doc was retired in May 2026, the condensed version is the living one |
 | Character appearance specs | `assets/characters/` — **gitignored, local-only** | ⚠️ Not in the repo. Export manually before winding down the working machine, or archiving preserves nothing |
 
 ## Tier 2 — Transfers as Blueprint (port the logic, not the code)
@@ -92,11 +92,11 @@ This layer did its job: it let the systems and content get playtested without an
    archiving the repo does not capture them.
 2. **Archive this repo** (GitHub → Settings → Archive). Read-only, browsable forever,
    no more dependency-bump noise. Do not delete anything — git history preserves even
-   removed docs like design-philosophy.md.
+   retired docs.
 3. **Start a fresh engine-native repo** for the video game.
 4. **Founding documents** of the new repo: `architecture/Sentinel 2D.md`, `core/`,
-   the faction and region JSON data, and the design philosophy doc (recover it from
-   history: `git show a57f918^:architecture/design-philosophy.md`).
+   the faction and region JSON data, and the condensed design philosophy from
+   `CLAUDE.md`.
 5. **Port Tier 2 systems** against the Python reference implementations, tests first.
 6. **Decide Tier 3 early** — AI-driven NPC dialogue is an architectural fork, not a
    feature flag. The MCP server is ready if the answer is yes.
