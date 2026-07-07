@@ -1,0 +1,27 @@
+name: Kira Vance
+faction: nexus
+role: contact
+gender: feminine
+age: adult
+skin_tone: medium
+build: lean
+hair_color: silver
+hair_length: short
+hair_style: asymmetric undercut
+eye_color: grey
+eye_features: subtle data overlay HUD visible in low light
+facial_features:
+  - sharp jawline
+  - high cheekbones
+  - thin lips
+augmentations:
+  - neural interface port behind left ear
+  - fingertip sensor pads (barely visible metallic sheen)
+other_features:
+  - small geometric tattoo on neck (Nexus cipher)
+  - always has a micro-earpiece
+default_expression: wary
+notes: >
+  Kira runs information between Nexus cells. She's careful, professional,
+  and never reveals more than necessary. The silver hair is a statement -
+  she's not hiding, but you'll never find her if she doesn't want to be found.

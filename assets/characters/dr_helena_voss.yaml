@@ -1,0 +1,30 @@
+name: Dr. Helena Voss
+faction: architects
+role: archivist
+gender: feminine
+age: middle-aged
+skin_tone: fair
+build: slight
+hair_color: grey streaked with white
+hair_length: medium
+hair_style: pulled back in a practical bun
+eye_color: pale blue
+eye_features: reading glasses with thin silver frames
+facial_features:
+  - fine lines around eyes
+  - high forehead
+  - sharp intelligent gaze
+augmentations:
+  - subtle hearing enhancement (nearly invisible)
+scars: null
+tattoos: null
+other_features:
+  - always wears a pre-Collapse lab coat (pristine condition)
+  - antique data tablet holstered at hip
+  - small Architects insignia pin on collar
+default_expression: thoughtful
+notes: >
+  Dr. Voss represents the Architects' commitment to preserving knowledge.
+  Her appearance is deliberately professional — a living reminder of the
+  world before the Collapse. The pristine lab coat is a statement: some
+  standards don't bend to circumstance.
