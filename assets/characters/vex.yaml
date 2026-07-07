@@ -1,0 +1,30 @@
+name: Vex
+type: npc
+faction: steel_syndicate
+role: enforcer
+
+# Physical appearance
+gender: masculine
+age: adult
+skin_tone: light
+build: athletic
+
+# Hair
+hair_color: brown
+hair_length: very short
+hair_style: straight
+
+# Face
+eye_color: augmented
+facial_features:
+  - strong jaw
+  - scarred
+
+# Distinguishing marks
+augmentations: glowing blue cybernetic right eye, reinforced knuckles
+scars: jagged scar across left cheek, smaller nicks on brow
+tattoos: Steel Syndicate gear symbol on neck
+other_features: permanent scowl, intimidating presence
+
+# Expression
+default_expression: stern

@@ -1,10 +1,12 @@
 # SENTINEL → Video Game Reuse Map
 
-> **Status:** Reference document for the video game pivot
+> **Status:** Repo structure map — what's live, what's reference, what transfers
 > **Date:** July 2026
-> **Context:** This repo is being wound down as an active project. It is not dead weight —
-> it is the pre-production corpus for the SENTINEL video game. This document maps what
-> transfers, in what form, and what stays behind.
+> **Context:** This repo is being **restructured in place**, not retired. Active
+> tabletop-tool development has wound down, but the repo stays live as the
+> pre-production corpus for the SENTINEL video game: source IP plus a runnable
+> reference implementation. This document maps what transfers, in what form, and
+> what is kept as reference rather than ported.
 
 ---
 
@@ -39,7 +41,8 @@ Zero translation needed. This is the material that would take a year to recreate
 | Art direction | `architecture/Isometric Sprite System.md`, `Isometric Animation Rules.md`, `Mobile Sprite Sketching Checklist.md`, `sentinel_visual_roadmap.md` | Sprite and animation production rules |
 | Audio direction | `architecture/sentinel_sound_roadmap.md` | Sound design plan |
 | Design invariants | `CLAUDE.md` § Design Philosophy (condensed) | Postmortem-driven principles; the full original doc was retired in May 2026, the condensed version is the living one |
-| Character appearance specs | `assets/characters/` — **gitignored, local-only** | ⚠️ Not in the repo. Export manually before winding down the working machine, or archiving preserves nothing |
+| Character appearance specs | `assets/characters/` — **now tracked** | ✅ Promoted from gitignored local-only to tracked source IP during the restructure. Safe in git history |
+| Character portraits + generator | `assets/portraits/` — **now tracked** | ✅ 14 curated PNGs + `generate_all.py`, committed directly (~20MB, archive-safe, no LFS dependency). Only lossily reproducible, so kept verbatim |
 
 ## Tier 2 — Transfers as Blueprint (port the logic, not the code)
 
@@ -87,16 +90,20 @@ This layer did its job: it let the systems and content get playtested without an
 
 ## Recommended Path
 
-1. **Export gitignored local assets first** — `assets/characters/` and `assets/portraits/`
-   exist only on the working machine. Copy them somewhere durable before anything else;
-   archiving the repo does not capture them.
-2. **Archive this repo** (GitHub → Settings → Archive). Read-only, browsable forever,
-   no more dependency-bump noise. Do not delete anything — git history preserves even
-   retired docs.
-3. **Start a fresh engine-native repo** for the video game.
-4. **Founding documents** of the new repo: `architecture/Sentinel 2D.md`, `core/`,
-   the faction and region JSON data, and the condensed design philosophy from
+1. **Source IP is preserved in git** ✅ *(done)* — `assets/characters/` and
+   `assets/portraits/` were promoted from gitignored local-only files to tracked
+   source IP. Archiving or cloning the repo now captures the full corpus. The
+   dependency-bump noise was stopped by removing `.github/dependabot.yml`.
+2. **Keep this repo live, restructured in place** — *not* archived. A read-only
+   archive would break step 5 (the Tier 2 reference implementation must stay
+   runnable to port against). One repo, one history: reference and rewrite side
+   by side. Retired presentation-layer code stays in git history, not deleted.
+3. **Add the engine-native project as a top-level sibling** here (e.g. `game/`)
+   when it starts — a new directory in this repo, not a fresh repo.
+4. **Founding documents** for the game: `architecture/Sentinel 2D.md`, `core/`,
+   the faction and region JSON data, and the condensed design philosophy in
    `CLAUDE.md`.
-5. **Port Tier 2 systems** against the Python reference implementations, tests first.
+5. **Port Tier 2 systems** against the Python reference implementations, tests
+   first. The repo staying live is what keeps this reference executable.
 6. **Decide Tier 3 early** — AI-driven NPC dialogue is an architectural fork, not a
    feature flag. The MCP server is ready if the answer is yes.

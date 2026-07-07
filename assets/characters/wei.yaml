@@ -1,0 +1,33 @@
+name: Wei
+faction: ember_colonies
+role: community liaison
+gender: feminine
+age: young
+skin_tone: warm brown
+build: athletic
+hair_color: black
+hair_length: long
+hair_style: braided with ember-orange thread woven through
+eye_color: dark brown
+eye_features: warm and observant
+facial_features:
+  - round face
+  - high cheekbones
+  - easy smile lines
+augmentations: null
+scars:
+  - faded burn scar on left forearm (colony fire survivor)
+tattoos:
+  - small ember symbol behind right ear
+other_features:
+  - practical clothing in earth tones
+  - handmade bracelet of woven wire and glass beads
+  - usually has dirt under fingernails from garden work
+  - carries a worn messenger bag
+default_expression: warm
+notes: >
+  Wei embodies the Ember Colonies' spirit of resilience and community.
+  She survived a colony fire as a child, and the experience shaped her into
+  someone who builds connections rather than walls. The orange thread in her
+  hair is an Ember tradition — a reminder that they carry their lost homes
+  with them.

@@ -1,0 +1,30 @@
+name: Elder Kara
+type: npc
+faction: ember_colonies
+role: elder
+
+# Physical appearance
+gender: feminine
+age: elder
+skin_tone: medium
+build: stocky
+
+# Hair
+hair_color: grey
+hair_length: medium
+hair_style: tied back
+
+# Face
+eye_color: brown
+facial_features:
+  - weathered
+  - soft
+
+# Distinguishing marks
+augmentations: null
+scars: old burn scars on hands and forearms
+tattoos: null
+other_features: deep laugh lines, calloused hands from years of work
+
+# Expression
+default_expression: warm
