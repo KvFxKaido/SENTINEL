@@ -332,6 +332,22 @@ def _build_person_descriptor(gender: str, skin_tone: str, age_desc: str) -> str:
         return gender_noun
 
 
+def _as_text(value) -> str:
+    """Coerce a spec field into a flat, comma-joined string.
+
+    Character specs use both scalar and sequence forms for appearance fields
+    (e.g. ``augmentations``, ``scars``, ``tattoos``, ``facial_features`` may be
+    a single string or a YAML list). Normalize either into one string so the
+    description assembly never joins a list into ``parts`` (which would raise
+    ``TypeError``) and never char-splits a plain string.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, (list, tuple)):
+        return ", ".join(_as_text(item) for item in value if _as_text(item))
+    return str(value).strip()
+
+
 def build_portrait_description(character: dict) -> str:
     """Build a detailed portrait description from character data."""
     parts = []
@@ -379,26 +395,15 @@ def build_portrait_description(character: dict) -> str:
             parts.append(f"{eye_color} eyes")
 
     # Facial features
-    facial = character.get("facial_features", [])
+    facial = _as_text(character.get("facial_features", ""))
     if facial:
-        parts.append(", ".join(facial))
+        parts.append(facial)
 
-    # Distinguishing marks
-    scars = character.get("scars", "")
-    if scars:
-        parts.append(scars)
-
-    augments = character.get("augmentations", "")
-    if augments:
-        parts.append(augments)
-
-    tattoos = character.get("tattoos", "")
-    if tattoos:
-        parts.append(tattoos)
-
-    other = character.get("other_features", "")
-    if other:
-        parts.append(other)
+    # Distinguishing marks — each field may be a string or a YAML list
+    for field in ("scars", "augmentations", "tattoos", "other_features"):
+        text = _as_text(character.get(field, ""))
+        if text:
+            parts.append(text)
 
     # Expression
     expression = character.get("default_expression", "neutral")
