@@ -1,0 +1,23 @@
+name: Yusuf Okonkwo
+faction: lattice
+role: infrastructure technician
+gender: masculine
+age: adult
+skin_tone: dark
+build: average
+hair_color: black
+hair_length: short
+hair_style: close-cropped
+eye_color: brown
+facial_features:
+  - tired eyes
+  - slight stubble
+  - worried brow
+augmentations: []
+scars: small burn scar on left hand from electrical work
+tattoos: null
+other_features:
+  - Lattice work jumpsuit
+  - tool belt with diagnostic equipment
+  - ID badge he constantly fidgets with
+default_expression: wary
