@@ -13,7 +13,7 @@ Before proposing changes, understand the design constraints:
 
 | Resource | Location | Purpose |
 |----------|----------|---------|
-| Design philosophy | `architecture/design-philosophy.md` | Non-negotiable design principles |
+| Design philosophy | `CLAUDE.md` § Design Philosophy (condensed) | Non-negotiable design principles |
 | Personal context | `.claude/personal.md` | Shawn's preferences (gitignored) |
 | MCP resource | `gm://designer` | Query context via sentinel-campaign MCP |
 
