@@ -15,7 +15,7 @@ Before making changes, understand the constraints:
 
 | Resource | Location | Purpose |
 |----------|----------|---------|
-| Design philosophy | `architecture/design-philosophy.md` | Non-negotiable principles (postmortem-driven) |
+| Design philosophy | `CLAUDE.md` § Design Philosophy (condensed) | Non-negotiable principles (postmortem-driven) |
 | Personal context | `.claude/personal.md` | Shawn's preferences (gitignored) |
 | MCP resource | `gm://designer` | Query context via sentinel-campaign MCP |
 
