@@ -38,8 +38,8 @@ Zero translation needed. This is the material that would take a year to recreate
 | **Game design doc** | `architecture/Sentinel 2D.md` | The GDD. Council-reviewed, design-binding. Commitment gate, safehouse anchor, map-as-proposal turn loop, hybrid combat |
 | Art direction | `architecture/Isometric Sprite System.md`, `Isometric Animation Rules.md`, `Mobile Sprite Sketching Checklist.md`, `sentinel_visual_roadmap.md` | Sprite and animation production rules |
 | Audio direction | `architecture/sentinel_sound_roadmap.md` | Sound design plan |
-| Design invariants | `architecture/design-philosophy.md` | Postmortem-driven principles. Keeps the video game from becoming a different game |
-| Character appearance specs | `assets/characters/` + portrait pipeline | Concept-art pipeline for sprite production |
+| Design invariants | *removed from tree* — recover via `git show a57f918^:architecture/design-philosophy.md` | Postmortem-driven principles, deleted in May 2026 cleanup but preserved in git history (which an archived repo keeps) |
+| Character appearance specs | `assets/characters/` — **gitignored, local-only** | ⚠️ Not in the repo. Export manually before winding down the working machine, or archiving preserves nothing |
 
 ## Tier 2 — Transfers as Blueprint (port the logic, not the code)
 
@@ -56,7 +56,7 @@ These are deterministic rules. In an engine-native rewrite (Godot/GDScript, C#, 
 Python serves as the **reference implementation** and its tests as the spec. Porting against
 a working reference is dramatically cheaper than designing these systems again.
 
-Likewise `src/state/schemas/` (character, npc, world, campaign, action, event, turn_result):
+Likewise `sentinel-agent/src/state/schemas/` (character, npc, world, campaign, action, event, turn_result):
 these Pydantic models are the save-game schema, translatable to any serialization format.
 
 ## Tier 3 — Transfers Only If NPCs Stay AI-Driven
@@ -67,7 +67,7 @@ If the video game keeps LLM-driven NPC dialogue and consequence narration:
 - `sentinel-agent/prompts/` — GM personality, mechanics reference, condensed local-model variants
 - `sentinel-agent/src/agent.py` — tool definitions and orchestration patterns
 - `sentinel-campaign/` MCP server — faction tools, standing, intel; MCP is client-agnostic, so this transfers close to intact
-- `architecture/npc_codec_prototype.py` — codec-style NPC conversation prototype
+- `sentinel-agent/src/interface/codec.py` — codec-style NPC conversation implementation (design notes in `architecture/sentinel_visual_roadmap.md`)
 
 If dialogue goes fully scripted instead, this tier is sunk cost — but the *content* inside
 the prompts (faction voice, disposition tone rules) still feeds the writing.
@@ -76,10 +76,10 @@ the prompts (faction voice, disposition tone rules) still feeds the writing.
 
 Presentation layer built for the terminal-tool era:
 
-- `src/interface/tui.py`, `tui_commands.py` — Textual TUI
-- `src/state/wiki_watcher.py`, `wiki_adapter.py` — Obsidian bi-directional sync
-- `src/state/event_bus.py` — TUI reactivity wiring
-- `src/interface/commands.py` — CLI
+- `sentinel-agent/src/interface/tui.py`, `tui_commands.py` — Textual TUI
+- `sentinel-agent/src/state/wiki_watcher.py`, `wiki_adapter.py` — Obsidian bi-directional sync
+- `sentinel-agent/src/state/event_bus.py` — TUI reactivity wiring
+- `sentinel-agent/src/interface/commands.py` — CLI
 
 This layer did its job: it let the systems and content get playtested without an engine.
 
@@ -87,11 +87,16 @@ This layer did its job: it let the systems and content get playtested without an
 
 ## Recommended Path
 
-1. **Archive this repo** (GitHub → Settings → Archive). Read-only, browsable forever,
-   no more dependency-bump noise. Do not delete anything.
-2. **Start a fresh engine-native repo** for the video game.
-3. **Founding documents** of the new repo: `architecture/Sentinel 2D.md`, `core/`,
-   the faction and region JSON data, and `design-philosophy.md`.
-4. **Port Tier 2 systems** against the Python reference implementations, tests first.
-5. **Decide Tier 3 early** — AI-driven NPC dialogue is an architectural fork, not a
+1. **Export gitignored local assets first** — `assets/characters/` and `assets/portraits/`
+   exist only on the working machine. Copy them somewhere durable before anything else;
+   archiving the repo does not capture them.
+2. **Archive this repo** (GitHub → Settings → Archive). Read-only, browsable forever,
+   no more dependency-bump noise. Do not delete anything — git history preserves even
+   removed docs like design-philosophy.md.
+3. **Start a fresh engine-native repo** for the video game.
+4. **Founding documents** of the new repo: `architecture/Sentinel 2D.md`, `core/`,
+   the faction and region JSON data, and the design philosophy doc (recover it from
+   history: `git show a57f918^:architecture/design-philosophy.md`).
+5. **Port Tier 2 systems** against the Python reference implementations, tests first.
+6. **Decide Tier 3 early** — AI-driven NPC dialogue is an architectural fork, not a
    feature flag. The MCP server is ready if the answer is yes.
