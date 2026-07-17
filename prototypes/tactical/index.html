@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SENTINEL — Tactical Encounter Prototype</title>
+<style>
+  :root {
+    --bg: #070a08;
+    --panel: #0c120d;
+    --line: #1d2b20;
+    --green: #46e07a;
+    --green-dim: #2a7a4a;
+    --amber: #ffb347;
+    --cyan: #5ccfff;
+    --red: #ff5c5c;
+    --text: #b8d8c0;
+    --text-dim: #5e7a66;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--text); font-family: "SF Mono", "Cascadia Mono", Consolas, Menlo, monospace; }
+  body { display: flex; justify-content: center; padding: 16px; min-height: 100vh; }
+  #app { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; max-width: 1040px; }
+  #left { position: relative; }
+  canvas { display: block; border: 1px solid var(--line); background: #0a0e0b; image-rendering: pixelated; }
+  /* subtle scanlines */
+  #left::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,0.16) 0 1px, transparent 1px 3px);
+    mix-blend-mode: multiply;
+  }
+  #panel { width: 320px; display: flex; flex-direction: column; gap: 10px; }
+  .box { background: var(--panel); border: 1px solid var(--line); padding: 10px 12px; }
+  .box h2 { font-size: 11px; letter-spacing: 2px; color: var(--text-dim); font-weight: normal; margin-bottom: 8px; }
+  #turnbar { display: flex; justify-content: space-between; align-items: center; font-size: 13px; letter-spacing: 1px; }
+  #turnbar .op { color: var(--cyan); }
+  #turnbar .ho { color: var(--red); }
+  #seed { color: var(--text-dim); font-size: 11px; }
+  .unitrow { display: flex; justify-content: space-between; font-size: 12px; padding: 3px 4px; cursor: pointer; border-left: 2px solid transparent; }
+  .unitrow.sel { border-left-color: var(--green); background: rgba(70,224,122,0.06); }
+  .unitrow.dead { color: var(--text-dim); text-decoration: line-through; cursor: default; }
+  .unitrow .hp { color: var(--green-dim); }
+  .unitrow .ow { color: var(--amber); }
+  #shotinfo { font-size: 12px; line-height: 1.6; min-height: 92px; }
+  #shotinfo .pct { font-size: 22px; color: var(--green); }
+  #shotinfo .flank { color: var(--amber); }
+  #shotinfo .dim { color: var(--text-dim); }
+  #actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  button {
+    font-family: inherit; font-size: 12px; letter-spacing: 1px; cursor: pointer;
+    background: #101a12; color: var(--text); border: 1px solid var(--line); padding: 7px 10px;
+  }
+  button:hover:not(:disabled) { border-color: var(--green-dim); color: var(--green); }
+  button:disabled { opacity: 0.35; cursor: default; }
+  button.armed { border-color: var(--amber); color: var(--amber); }
+  #log { font-size: 11px; line-height: 1.7; height: 170px; overflow-y: auto; color: var(--text-dim); }
+  #log .op { color: var(--cyan); } #log .ho { color: var(--red); }
+  #log .hit { color: var(--green); } #log .miss { color: var(--text-dim); }
+  #log .sys { color: var(--amber); }
+  #briefing { font-size: 11px; line-height: 1.6; color: var(--text-dim); }
+  #briefing b { color: var(--text); font-weight: normal; }
+  kbd { border: 1px solid var(--line); padding: 0 4px; font-size: 10px; color: var(--text); }
+  #overlay {
+    position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center;
+    background: rgba(4,6,5,0.88); text-align: center; gap: 14px; z-index: 5;
+  }
+  #overlay.show { display: flex; }
+  #overlay h1 { font-size: 26px; letter-spacing: 6px; font-weight: normal; }
+  #overlay h1.win { color: var(--green); } #overlay h1.loss { color: var(--red); }
+  #overlay p { font-size: 12px; color: var(--text-dim); max-width: 380px; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="left">
+    <canvas id="cv" width="560" height="560"></canvas>
+    <div id="overlay">
+      <h1 id="ovtitle"></h1>
+      <p id="ovtext"></p>
+      <div>
+        <button id="ovreplay">REPLAY SEED [shift+R]</button>
+        <button id="ovnew">NEW ENCOUNTER [R]</button>
+      </div>
+    </div>
+  </div>
+  <div id="panel">
+    <div class="box" id="turnbar"><span id="turnlabel"></span><span id="seed"></span></div>
+    <div class="box">
+      <h2>SQUAD</h2>
+      <div id="roster"></div>
+    </div>
+    <div class="box">
+      <h2>FIRING SOLUTION</h2>
+      <div id="shotinfo"><span class="dim">select an operative — hover a hostile</span></div>
+    </div>
+    <div class="box">
+      <div id="actions">
+        <button id="btnShoot">SHOOT [F]</button>
+        <button id="btnOw">OVERWATCH [Y]</button>
+        <button id="btnEnd">END TURN [⏎]</button>
+      </div>
+    </div>
+    <div class="box">
+      <h2>COMMS LOG</h2>
+      <div id="log"></div>
+    </div>
+    <div class="box" id="briefing">
+      <b>KESTREL YARD — LATTICE RELAY STATION</b><br>
+      A Steel Syndicate crew is stripping the relay for parts.
+      Lattice wants them gone before the grid sector browns out.
+      No reinforcements. No extraction timer. Just the yard.<br><br>
+      <kbd>click</kbd> select / move &nbsp; <kbd>tab</kbd> next unit &nbsp;
+      <kbd>F</kbd> shoot &nbsp; <kbd>Y</kbd> overwatch &nbsp; <kbd>⏎</kbd> end turn<br>
+      ▪ low crate = half cover (−20 to be hit) &nbsp; █ wall = full cover (−40, blocks sight)
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   SENTINEL tactical slice — one encounter, replayable.
+   Deterministic: every roll comes from a seeded RNG. The seed is
+   shown in the top bar; shift+R replays the exact same encounter.
+   ============================================================ */
+
+const W = 10, H = 10, TILE = 56;
+const FLOOR = 0, HALF = 1, FULL = 2;
+
+// ---- seeded rng -------------------------------------------------
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+var seed, rng;
+function newSeed() { return (Math.floor(performance.now() * 1000) ^ (Math.random() * 0xffffffff)) >>> 0; }
+function roll100() { return Math.floor(rng() * 100) + 1; }
+function rollRange(lo, hi) { return lo + Math.floor(rng() * (hi - lo + 1)); }
+
+// ---- map --------------------------------------------------------
+// hand-authored: walls (█) split the yard, crates (▪) seed the lanes
+const MAP_SRC = [
+  "..........",
+  "..▪...█...",
+  ".....▪█.▪.",
+  ".█▪.......",
+  ".█...▪....",
+  "....▪...█.",
+  ".......▪█.",
+  ".▪.█▪.....",
+  "...█...▪..",
+  "..........",
+];
+var map = [];
+function buildMap() {
+  map = MAP_SRC.map(row => [...row].map(c => c === "█" ? FULL : c === "▪" ? HALF : FLOOR));
+}
+const inBounds = (x, y) => x >= 0 && x < W && y >= 0 && y < H;
+const passable = (x, y) => inBounds(x, y) && map[y][x] === FLOOR;
+
+// ---- units ------------------------------------------------------
+var units = [];
+function makeUnits() {
+  units = [
+    { id: 0, side: "op", name: "VESPER", x: 1, y: 9, hp: 10, maxHp: 10, aim: 75, mobility: 4, ap: 2, overwatch: false, alive: true },
+    { id: 1, side: "op", name: "KOA",    x: 4, y: 9, hp: 10, maxHp: 10, aim: 75, mobility: 4, ap: 2, overwatch: false, alive: true },
+    { id: 2, side: "op", name: "SABLE",  x: 7, y: 9, hp: 10, maxHp: 10, aim: 75, mobility: 4, ap: 2, overwatch: false, alive: true },
+    { id: 3, side: "ho", name: "SYN-1",  x: 2, y: 0, hp: 8,  maxHp: 8,  aim: 65, mobility: 4, ap: 2, overwatch: false, alive: true },
+    { id: 4, side: "ho", name: "SYN-2",  x: 5, y: 0, hp: 8,  maxHp: 8,  aim: 65, mobility: 4, ap: 2, overwatch: false, alive: true },
+    { id: 5, side: "ho", name: "SYN-3",  x: 8, y: 0, hp: 8,  maxHp: 8,  aim: 65, mobility: 4, ap: 2, overwatch: false, alive: true },
+  ];
+}
+const unitAt = (x, y) => units.find(u => u.alive && u.x === x && u.y === y);
+const living = side => units.filter(u => u.alive && u.side === side);
+
+// ---- state ------------------------------------------------------
+var turn = "op";          // "op" | "ho"
+var selectedId = null;
+var targetMode = false;   // shoot mode armed
+var busy = false;         // input locked during animation / AI
+var gameOver = null;      // null | "win" | "loss"
+var hoverTile = null;
+var tracers = [];         // transient shot lines {x0,y0,x1,y1,hit,until}
+
+// ---- line of sight (Bresenham; FULL blocks, endpoints excluded) --
+function los(x0, y0, x1, y1) {
+  let dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0);
+  let sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1, err = dx + dy;
+  let x = x0, y = y0;
+  while (true) {
+    if (!(x === x0 && y === y0) && !(x === x1 && y === y1) && map[y][x] === FULL) return false;
+    if (x === x1 && y === y1) return true;
+    const e2 = 2 * err;
+    if (e2 >= dy) { err += dy; x += sx; }
+    if (e2 <= dx) { err += dx; y += sy; }
+  }
+}
+
+// ---- cover ------------------------------------------------------
+// Cover objects orthogonally adjacent to the defender protect against
+// attackers on that side (positive dot with the attacker direction).
+function coverBonus(def, att) {
+  let best = 0;
+  const vx = att.x - def.x, vy = att.y - def.y;
+  for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+    const nx = def.x + dx, ny = def.y + dy;
+    if (!inBounds(nx, ny) || map[ny][nx] === FLOOR) continue;
+    if (dx * vx + dy * vy > 0) best = Math.max(best, map[ny][nx] === FULL ? 40 : 20);
+  }
+  return best;
+}
+
+// ---- firing solution -------------------------------------------
+function solution(att, def) {
+  if (!los(att.x, att.y, def.x, def.y)) return null;
+  const dist = Math.hypot(def.x - att.x, def.y - att.y);
+  const range = dist <= 3 ? Math.round((3 - dist) * 4) : -Math.round((dist - 3) * 4);
+  const cover = coverBonus(def, att);
+  const pct = Math.max(5, Math.min(95, att.aim + range - cover));
+  const critPct = cover === 0 ? 45 : 15;
+  return { pct, base: att.aim, range, cover, flanked: cover === 0, critPct };
+}
+
+// ---- movement (BFS, 4-directional) ------------------------------
+function reachable(u, maxCost) {
+  const cost = new Map(), parent = new Map();
+  const key = (x, y) => x + "," + y;
+  cost.set(key(u.x, u.y), 0);
+  const q = [[u.x, u.y]];
+  while (q.length) {
+    const [x, y] = q.shift();
+    const c = cost.get(key(x, y));
+    if (c >= maxCost) continue;
+    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      const nx = x + dx, ny = y + dy, k = key(nx, ny);
+      if (!passable(nx, ny) || unitAt(nx, ny) || cost.has(k)) continue;
+      cost.set(k, c + 1); parent.set(k, [x, y]); q.push([nx, ny]);
+    }
+  }
+  return { cost, parent };
+}
+function pathTo(parent, x, y) {
+  const path = [];
+  let cur = [x, y];
+  while (cur) { path.unshift(cur); cur = parent.get(cur[0] + "," + cur[1]); }
+  return path.slice(1); // drop start tile
+}
+
+// ---- tiny synth audio (no assets) -------------------------------
+var AC = null;
+function beep(freq, dur, type = "square", gain = 0.04) {
+  try {
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(gain, AC.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, AC.currentTime + dur);
+    o.connect(g); g.connect(AC.destination);
+    o.start(); o.stop(AC.currentTime + dur);
+  } catch (e) { /* audio is flavor, never load-bearing */ }
+}
+const sfx = {
+  select: () => beep(880, 0.05, "square", 0.02),
+  fire:   () => { beep(160, 0.12, "sawtooth", 0.05); beep(90, 0.18, "sawtooth", 0.04); },
+  hit:    () => beep(220, 0.15, "triangle", 0.06),
+  miss:   () => beep(520, 0.08, "sine", 0.03),
+  down:   () => { beep(140, 0.3, "sawtooth", 0.06); setTimeout(() => beep(70, 0.4, "sawtooth", 0.05), 90); },
+  turn:   () => { beep(440, 0.07); setTimeout(() => beep(660, 0.09), 90); },
+};
+
+// ---- log --------------------------------------------------------
+const logEl = document.getElementById("log");
+function log(html) {
+  const d = document.createElement("div");
+  d.innerHTML = html;
+  logEl.appendChild(d);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+const tag = u => `<span class="${u.side}">${u.name}</span>`;
+
+// ---- combat -----------------------------------------------------
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function fireShot(att, def, aimMod = 0, label = "") {
+  const sol = solution(att, def);
+  if (!sol) return false;
+  const pct = Math.max(5, Math.min(95, sol.pct + aimMod));
+  sfx.fire();
+  tracers.push({ x0: att.x, y0: att.y, x1: def.x, y1: def.y, until: performance.now() + 260 });
+  draw();
+  await sleep(280);
+  const r = roll100();
+  if (r <= pct) {
+    let dmg = rollRange(3, 5);
+    const crit = roll100() <= sol.critPct;
+    if (crit) dmg += 3;
+    def.hp = Math.max(0, def.hp - dmg);
+    sfx.hit();
+    log(`${tag(att)} ${label}hits ${tag(def)} — <span class="hit">${dmg} dmg${crit ? " CRIT" : ""}</span> (${pct}%, rolled ${r})`);
+    if (def.hp === 0) {
+      def.alive = false;
+      def.overwatch = false;
+      sfx.down();
+      log(`${tag(def)} is <span class="${def.side === "op" ? "ho" : "hit"}">down</span>.`);
+    }
+  } else {
+    sfx.miss();
+    log(`${tag(att)} ${label}misses ${tag(def)} (${pct}%, rolled ${r})`);
+  }
+  draw(); syncPanel();
+  checkEnd();
+  return true;
+}
+
+// overwatch: fires once per watcher at the first hostile step it sees
+async function overwatchCheck(mover) {
+  const watchers = units.filter(u => u.alive && u.overwatch && u.side !== mover.side);
+  for (const w of watchers) {
+    if (!mover.alive) break;
+    if (los(w.x, w.y, mover.x, mover.y)) {
+      w.overwatch = false;
+      log(`${tag(w)} <span class="sys">overwatch triggered</span>`);
+      await fireShot(w, mover, -15, "reaction-");
+    }
+  }
+}
+
+async function animateMove(u, path) {
+  for (const [x, y] of path) {
+    u.x = x; u.y = y;
+    draw();
+    await sleep(70);
+    await overwatchCheck(u);
+    if (!u.alive || gameOver) break;
+  }
+}
+
+function checkEnd() {
+  if (gameOver) return;
+  if (living("ho").length === 0) endGame("win");
+  else if (living("op").length === 0) endGame("loss");
+}
+
+function endGame(result) {
+  gameOver = result;
+  const ov = document.getElementById("overlay");
+  const t = document.getElementById("ovtitle"), p = document.getElementById("ovtext");
+  if (result === "win") {
+    t.textContent = "YARD CLEARED"; t.className = "win";
+    p.textContent = "The relay hums back to life. Lattice will remember this — and so will the Syndicate. (That part comes later. For now: it just feels good to replay.)";
+  } else {
+    t.textContent = "SQUAD LOST"; t.className = "loss";
+    p.textContent = "The yard goes quiet. The Syndicate finishes stripping the relay by dawn. Same seed, better angles — try again.";
+  }
+  ov.classList.add("show");
+}
+
+// ---- player actions ---------------------------------------------
+function selected() { return units.find(u => u.id === selectedId && u.alive); }
+
+function selectUnit(u) {
+  if (!u || u.side !== "op" || !u.alive) return;
+  selectedId = u.id; targetMode = false;
+  sfx.select();
+  draw(); syncPanel();
+}
+
+function cycleSelect() {
+  const ops = living("op").filter(u => u.ap > 0);
+  const pool = ops.length ? ops : living("op");
+  if (!pool.length) return;
+  const i = pool.findIndex(u => u.id === selectedId);
+  selectUnit(pool[(i + 1) % pool.length]);
+}
+
+async function tryMove(u, x, y) {
+  const { cost, parent } = reachable(u, u.mobility * u.ap);
+  const c = cost.get(x + "," + y);
+  if (c === undefined || c === 0) return;
+  busy = true;
+  u.ap -= c <= u.mobility ? 1 : 2;
+  targetMode = false;
+  await animateMove(u, pathTo(parent, x, y));
+  busy = false;
+  draw(); syncPanel();
+  autoAdvance();
+}
+
+async function tryShoot(att, def) {
+  if (!solution(att, def)) return;
+  busy = true;
+  att.ap = 0;            // firing ends the unit's activation
+  targetMode = false;
+  await fireShot(att, def);
+  busy = false;
+  draw(); syncPanel();
+  autoAdvance();
+}
+
+function setOverwatch(u) {
+  u.overwatch = true;
+  u.ap = 0;
+  log(`${tag(u)} sets <span class="sys">overwatch</span>`);
+  sfx.select();
+  draw(); syncPanel();
+  autoAdvance();
+}
+
+function autoAdvance() {
+  if (gameOver || turn !== "op") return;
+  const cur = selected();
+  if (cur && cur.ap > 0) return;
+  const next = living("op").find(u => u.ap > 0);
+  if (next) selectUnit(next);
+}
+
+// ---- enemy turn -------------------------------------------------
+function bestShotFrom(u) {
+  let best = null;
+  for (const t of living("op")) {
+    const sol = solution(u, t);
+    if (!sol) continue;
+    if (!best || sol.pct > best.sol.pct || (sol.pct === best.sol.pct && t.hp < best.target.hp)) {
+      best = { target: t, sol };
+    }
+  }
+  return best;
+}
+
+function bestMoveTile(u) {
+  // score reachable tiles: want LOS + good shot, cover from nearest threat, closing distance
+  const { cost, parent } = reachable(u, u.mobility);
+  let best = null;
+  const ops = living("op");
+  if (!ops.length) return null;
+  for (const k of cost.keys()) {
+    const [x, y] = k.split(",").map(Number);
+    if (x === u.x && y === u.y) continue;
+    const ghost = { ...u, x, y };
+    const near = ops.reduce((a, b) =>
+      Math.hypot(a.x - x, a.y - y) < Math.hypot(b.x - x, b.y - y) ? a : b);
+    const dist = Math.hypot(near.x - x, near.y - y);
+    const shot = bestShotFrom(ghost);
+    let score = -dist * 2 + coverBonus(ghost, near) * 0.6;
+    score += shot ? shot.sol.pct * 0.5 : -25;
+    if (!best || score > best.score) best = { x, y, score, parent };
+  }
+  return best;
+}
+
+async function enemyTurn() {
+  busy = true;
+  turn = "ho";
+  sfx.turn();
+  log(`<span class="sys">— HOSTILE TURN —</span>`);
+  syncPanel(); draw();
+  await sleep(400);
+
+  for (const u of units.filter(v => v.side === "ho")) {
+    if (!u.alive || gameOver) continue;
+    u.ap = 2; u.overwatch = false;
+    let guard = 0;
+    while (u.ap > 0 && u.alive && !gameOver && guard++ < 4) {
+      const shot = bestShotFrom(u);
+      const threshold = u.ap === 2 ? 45 : 30;
+      if (shot && shot.sol.pct >= threshold) {
+        u.ap = 0;
+        await fireShot(u, shot.target);
+        break;
+      }
+      const mv = bestMoveTile(u);
+      if (mv) {
+        u.ap -= 1;
+        await animateMove(u, pathTo(mv.parent, mv.x, mv.y));
+      } else if (shot) {
+        u.ap = 0;
+        await fireShot(u, shot.target);
+      } else {
+        u.overwatch = true; u.ap = 0;
+        log(`${tag(u)} sets <span class="sys">overwatch</span>`);
+      }
+      await sleep(150);
+    }
+    await sleep(200);
+  }
+
+  if (!gameOver) {
+    turn = "op";
+    for (const u of living("op")) { u.ap = 2; u.overwatch = false; }
+    sfx.turn();
+    log(`<span class="sys">— OPERATIVE TURN —</span>`);
+    const first = living("op")[0];
+    if (first) selectedId = first.id;
+  }
+  busy = false;
+  draw(); syncPanel();
+}
+
+function endPlayerTurn() {
+  if (busy || gameOver || turn !== "op") return;
+  for (const u of living("op")) u.ap = 0;
+  enemyTurn();
+}
+
+// ---- rendering --------------------------------------------------
+const cv = document.getElementById("cv");
+const cx = cv.getContext("2d");
+
+function tileCenter(x, y) { return [x * TILE + TILE / 2, y * TILE + TILE / 2]; }
+
+function draw() {
+  cx.clearRect(0, 0, cv.width, cv.height);
+
+  // grid + terrain
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const px = x * TILE, py = y * TILE;
+    cx.strokeStyle = "#131c15";
+    cx.strokeRect(px + 0.5, py + 0.5, TILE, TILE);
+    if (map[y][x] === FULL) {
+      cx.fillStyle = "#25352a";
+      cx.fillRect(px + 4, py + 4, TILE - 8, TILE - 8);
+      cx.strokeStyle = "#3d5a46";
+      cx.strokeRect(px + 4.5, py + 4.5, TILE - 9, TILE - 9);
+    } else if (map[y][x] === HALF) {
+      cx.fillStyle = "#1a2a1e";
+      cx.fillRect(px + 10, py + 18, TILE - 20, TILE - 26);
+      cx.strokeStyle = "#33513c";
+      cx.strokeRect(px + 10.5, py + 18.5, TILE - 21, TILE - 27);
+    }
+  }
+
+  // movement range for selected operative
+  const u = selected();
+  if (u && turn === "op" && !busy && !targetMode && u.ap > 0) {
+    const { cost } = reachable(u, u.mobility * u.ap);
+    for (const k of cost.keys()) {
+      const [x, y] = k.split(",").map(Number);
+      if (x === u.x && y === u.y) continue;
+      const c = cost.get(k);
+      cx.fillStyle = c <= u.mobility ? "rgba(92,207,255,0.10)" : "rgba(255,179,71,0.09)";
+      cx.fillRect(x * TILE + 2, y * TILE + 2, TILE - 4, TILE - 4);
+    }
+  }
+
+  // hover highlight
+  if (hoverTile && !busy) {
+    cx.strokeStyle = "rgba(70,224,122,0.5)";
+    cx.strokeRect(hoverTile[0] * TILE + 1.5, hoverTile[1] * TILE + 1.5, TILE - 3, TILE - 3);
+  }
+
+  // tracers
+  const now = performance.now();
+  tracers = tracers.filter(t => t.until > now);
+  for (const t of tracers) {
+    const [ax, ay] = tileCenter(t.x0, t.y0), [bx, by] = tileCenter(t.x1, t.y1);
+    cx.strokeStyle = "rgba(255,220,120,0.85)";
+    cx.lineWidth = 2;
+    cx.beginPath(); cx.moveTo(ax, ay); cx.lineTo(bx, by); cx.stroke();
+    cx.lineWidth = 1;
+  }
+  if (tracers.length) requestAnimationFrame(draw);
+
+  // units
+  for (const v of units) {
+    if (!v.alive) continue;
+    const [ux, uy] = tileCenter(v.x, v.y);
+    const col = v.side === "op" ? "#5ccfff" : "#ff5c5c";
+    // selection ring
+    if (v.id === selectedId) {
+      cx.strokeStyle = "#46e07a";
+      cx.beginPath(); cx.arc(ux, uy, TILE * 0.38, 0, 7); cx.stroke();
+    }
+    // body
+    cx.fillStyle = v.side === "op" ? "#0e2a38" : "#381012";
+    cx.strokeStyle = col;
+    cx.beginPath(); cx.arc(ux, uy, TILE * 0.28, 0, 7); cx.fill(); cx.stroke();
+    cx.fillStyle = col;
+    cx.font = "10px monospace"; cx.textAlign = "center";
+    cx.fillText(v.name[0] + (v.side === "ho" ? v.name.slice(-1) : ""), ux, uy + 3);
+    // hp pips
+    const pw = (TILE - 16) / v.maxHp;
+    for (let i = 0; i < v.maxHp; i++) {
+      cx.fillStyle = i < v.hp ? (v.side === "op" ? "#46e07a" : "#ff8a5c") : "#22301f";
+      cx.fillRect(v.x * TILE + 8 + i * pw, v.y * TILE + TILE - 9, pw - 1, 4);
+    }
+    // overwatch marker
+    if (v.overwatch) {
+      cx.fillStyle = "#ffb347";
+      cx.font = "11px monospace";
+      cx.fillText("◉", v.x * TILE + TILE - 10, v.y * TILE + 13);
+    }
+    // ap pips (operatives on their turn)
+    if (v.side === "op" && turn === "op") {
+      for (let i = 0; i < v.ap; i++) {
+        cx.fillStyle = "#46e07a";
+        cx.fillRect(v.x * TILE + 8 + i * 7, v.y * TILE + 6, 5, 5);
+      }
+    }
+  }
+
+  // hit% labels over hostiles when shoot mode armed
+  if (targetMode && u) {
+    for (const t of living("ho")) {
+      const sol = solution(u, t);
+      const [tx2, ty2] = tileCenter(t.x, t.y);
+      // flip the label below the unit when it would clip off the top edge
+      const ly = ty2 - TILE * 0.62 < 12 ? ty2 + TILE * 0.62 + 4 : ty2 - TILE * 0.62;
+      cx.font = "12px monospace"; cx.textAlign = "center";
+      if (sol) {
+        cx.fillStyle = "#070a08";
+        cx.fillRect(tx2 - 22, ly - 11, 44, 15);
+        cx.fillStyle = sol.flanked ? "#ffb347" : "#46e07a";
+        cx.fillText(sol.pct + "%" + (sol.flanked ? "!" : ""), tx2, ly + 1);
+      } else {
+        cx.fillStyle = "#070a08";
+        cx.fillRect(tx2 - 22, ly - 11, 44, 15);
+        cx.fillStyle = "#5e7a66";
+        cx.fillText("no LOS", tx2, ly + 1);
+      }
+    }
+  }
+}
+
+// ---- panel ------------------------------------------------------
+function syncPanel() {
+  document.getElementById("turnlabel").innerHTML = gameOver
+    ? (gameOver === "win" ? '<span class="op">MISSION COMPLETE</span>' : '<span class="ho">MISSION FAILED</span>')
+    : (turn === "op" ? '<span class="op">▶ OPERATIVE TURN</span>' : '<span class="ho">▶ HOSTILE TURN</span>');
+  document.getElementById("seed").textContent = "seed " + seed.toString(16);
+
+  const roster = document.getElementById("roster");
+  roster.innerHTML = "";
+  for (const v of units.filter(x => x.side === "op")) {
+    const d = document.createElement("div");
+    d.className = "unitrow" + (v.id === selectedId ? " sel" : "") + (v.alive ? "" : " dead");
+    d.innerHTML = `<span>${v.name}</span><span>${v.overwatch ? '<span class="ow">◉OW</span> ' : ""}` +
+      `<span class="hp">${v.alive ? v.hp + "/" + v.maxHp : "KIA"}</span>` +
+      (v.alive && turn === "op" ? ` <span>${"·".repeat(v.ap)}</span>` : "") + `</span>`;
+    if (v.alive) d.onclick = () => { if (!busy && turn === "op") selectUnit(v); };
+    roster.appendChild(d);
+  }
+
+  const u = selected();
+  const can = u && turn === "op" && !busy && !gameOver && u.ap > 0;
+  document.getElementById("btnShoot").disabled = !can;
+  document.getElementById("btnShoot").className = targetMode ? "armed" : "";
+  document.getElementById("btnOw").disabled = !can;
+  document.getElementById("btnEnd").disabled = busy || gameOver !== null || turn !== "op";
+}
+
+function showSolution(att, def) {
+  const el = document.getElementById("shotinfo");
+  if (!att || !def) {
+    el.innerHTML = '<span class="dim">select an operative — hover a hostile</span>';
+    return;
+  }
+  const sol = solution(att, def);
+  if (!sol) {
+    el.innerHTML = `${tag(att)} → ${tag(def)}<br><span class="dim">no line of sight</span>`;
+    return;
+  }
+  el.innerHTML =
+    `${tag(att)} → ${tag(def)} &nbsp; <span class="pct">${sol.pct}%</span>` +
+    (sol.flanked ? ' <span class="flank">FLANKED</span>' : "") + "<br>" +
+    `<span class="dim">base aim</span> ${sol.base} &nbsp; ` +
+    `<span class="dim">range</span> ${sol.range >= 0 ? "+" : ""}${sol.range} &nbsp; ` +
+    `<span class="dim">cover</span> −${sol.cover}<br>` +
+    `<span class="dim">crit chance</span> ${sol.critPct}% &nbsp; <span class="dim">dmg</span> 3–5 (+3 crit)`;
+}
+
+// ---- input ------------------------------------------------------
+function tileFromEvent(e) {
+  const r = cv.getBoundingClientRect();
+  const x = Math.floor((e.clientX - r.left) / (r.width / W));
+  const y = Math.floor((e.clientY - r.top) / (r.height / H));
+  return inBounds(x, y) ? [x, y] : null;
+}
+
+cv.addEventListener("mousemove", e => {
+  hoverTile = tileFromEvent(e);
+  const u = selected();
+  if (u && hoverTile) {
+    const t = unitAt(hoverTile[0], hoverTile[1]);
+    if (t && t.side === "ho") showSolution(u, t);
+  }
+  if (!busy) draw();
+});
+cv.addEventListener("mouseleave", () => { hoverTile = null; if (!busy) draw(); });
+
+cv.addEventListener("click", e => {
+  if (busy || gameOver || turn !== "op") return;
+  const t = tileFromEvent(e);
+  if (!t) return;
+  const [x, y] = t;
+  const clicked = unitAt(x, y);
+  const u = selected();
+
+  if (clicked && clicked.side === "op") { selectUnit(clicked); return; }
+  if (!u) return;
+
+  if (clicked && clicked.side === "ho") {
+    if (targetMode || u.ap > 0) tryShoot(u, clicked);
+    return;
+  }
+  if (!targetMode && u.ap > 0) tryMove(u, x, y);
+});
+
+document.addEventListener("keydown", e => {
+  if (gameOver) {
+    if (e.key === "r") restart(true);
+    if (e.key === "R") restart(false);
+    return;
+  }
+  if (busy || turn !== "op") return;
+  const u = selected();
+  switch (e.key) {
+    case "Tab": e.preventDefault(); cycleSelect(); break;
+    case "f": case "F":
+      if (u && u.ap > 0) { targetMode = !targetMode; draw(); syncPanel(); }
+      break;
+    case "y": case "Y":
+      if (u && u.ap > 0) setOverwatch(u);
+      break;
+    case "Enter": endPlayerTurn(); break;
+    case "Escape": targetMode = false; draw(); syncPanel(); break;
+    case "r": restart(true); break;
+    case "R": restart(false); break;
+  }
+});
+
+document.getElementById("btnShoot").onclick = () => { targetMode = !targetMode; draw(); syncPanel(); };
+document.getElementById("btnOw").onclick = () => { const u = selected(); if (u) setOverwatch(u); };
+document.getElementById("btnEnd").onclick = endPlayerTurn;
+document.getElementById("ovnew").onclick = () => restart(true);
+document.getElementById("ovreplay").onclick = () => restart(false);
+
+// ---- lifecycle --------------------------------------------------
+function restart(fresh) {
+  if (fresh) seed = newSeed();
+  rng = mulberry32(seed);
+  buildMap();
+  makeUnits();
+  turn = "op"; selectedId = 0; targetMode = false; busy = false; gameOver = null; tracers = [];
+  logEl.innerHTML = "";
+  document.getElementById("overlay").classList.remove("show");
+  log('<span class="sys">— KESTREL YARD — clear the Syndicate crew —</span>');
+  log('<span class="sys">— OPERATIVE TURN —</span>');
+  draw(); syncPanel();
+}
+
+seed = newSeed();
+restart(false);
+</script>
+</body>
+</html>
