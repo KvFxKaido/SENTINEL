@@ -185,6 +185,7 @@ var busy = false;         // input locked during animation / AI
 var gameOver = null;      // null | "win" | "loss"
 var hoverTile = null;
 var tracers = [];         // transient shot lines {x0,y0,x1,y1,hit,until}
+var gen = 0;              // restart generation — stale async turns check this and bail
 
 // ---- line of sight (Bresenham; FULL blocks, endpoints excluded) --
 function los(x0, y0, x1, y1) {
@@ -286,6 +287,7 @@ const tag = u => `<span class="${u.side}">${u.name}</span>`;
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 async function fireShot(att, def, aimMod = 0, label = "") {
+  const g = gen;
   const sol = solution(att, def);
   if (!sol) return false;
   const pct = Math.max(5, Math.min(95, sol.pct + aimMod));
@@ -293,6 +295,7 @@ async function fireShot(att, def, aimMod = 0, label = "") {
   tracers.push({ x0: att.x, y0: att.y, x1: def.x, y1: def.y, until: performance.now() + 260 });
   draw();
   await sleep(280);
+  if (g !== gen) return false;  // restarted mid-shot: don't touch the fresh RNG stream
   const r = roll100();
   if (r <= pct) {
     let dmg = rollRange(3, 5);
@@ -330,12 +333,14 @@ async function overwatchCheck(mover) {
 }
 
 async function animateMove(u, path) {
+  const g = gen;
   for (const [x, y] of path) {
     u.x = x; u.y = y;
     draw();
     await sleep(70);
+    if (g !== gen) return;
     await overwatchCheck(u);
-    if (!u.alive || gameOver) break;
+    if (g !== gen || !u.alive || gameOver) break;
   }
 }
 
@@ -366,6 +371,7 @@ function selectUnit(u) {
   if (!u || u.side !== "op" || !u.alive) return;
   selectedId = u.id; targetMode = false;
   sfx.select();
+  showSolution(null, null);
   draw(); syncPanel();
 }
 
@@ -391,7 +397,7 @@ async function tryMove(u, x, y) {
 }
 
 async function tryShoot(att, def) {
-  if (!solution(att, def)) return;
+  if (att.ap <= 0 || !solution(att, def)) return;
   busy = true;
   att.ap = 0;            // firing ends the unit's activation
   targetMode = false;
@@ -402,8 +408,10 @@ async function tryShoot(att, def) {
 }
 
 function setOverwatch(u) {
+  if (u.ap <= 0) return;
   u.overwatch = true;
   u.ap = 0;
+  targetMode = false;
   log(`${tag(u)} sets <span class="sys">overwatch</span>`);
   sfx.select();
   draw(); syncPanel();
@@ -452,25 +460,50 @@ function bestMoveTile(u) {
   return best;
 }
 
+function nearestOp(u) {
+  const ops = living("op");
+  if (!ops.length) return null;
+  return ops.reduce((a, b) =>
+    Math.hypot(a.x - u.x, a.y - u.y) < Math.hypot(b.x - u.x, b.y - u.y) ? a : b);
+}
+
 async function enemyTurn() {
+  const g = gen;
   busy = true;
   turn = "ho";
+  targetMode = false;
   sfx.turn();
   log(`<span class="sys">— HOSTILE TURN —</span>`);
   syncPanel(); draw();
   await sleep(400);
+  if (g !== gen) return;
 
   for (const u of units.filter(v => v.side === "ho")) {
+    if (g !== gen) return;
     if (!u.alive || gameOver) continue;
     u.ap = 2; u.overwatch = false;
     let guard = 0;
-    while (u.ap > 0 && u.alive && !gameOver && guard++ < 4) {
+    while (u.ap > 0 && u.alive && !gameOver && g === gen && guard++ < 4) {
       const shot = bestShotFrom(u);
-      const threshold = u.ap === 2 ? 45 : 30;
-      if (shot && shot.sol.pct >= threshold) {
+      if (shot && shot.sol.pct >= 45) {
         u.ap = 0;
         await fireShot(u, shot.target);
         break;
+      }
+      // second action, no confident shot: hold in cover on overwatch
+      // rather than potshotting; only fire marginal shots when caught in the open
+      if (u.ap === 1) {
+        const near = nearestOp(u);
+        if (near && coverBonus(u, near) > 0) {
+          u.overwatch = true; u.ap = 0;
+          log(`${tag(u)} sets <span class="sys">overwatch</span>`);
+          break;
+        }
+        if (shot && shot.sol.pct >= 30) {
+          u.ap = 0;
+          await fireShot(u, shot.target);
+          break;
+        }
       }
       const mv = bestMoveTile(u);
       if (mv) {
@@ -487,6 +520,7 @@ async function enemyTurn() {
     }
     await sleep(200);
   }
+  if (g !== gen) return;
 
   if (!gameOver) {
     turn = "op";
@@ -689,7 +723,7 @@ cv.addEventListener("mousemove", e => {
   }
   if (!busy) draw();
 });
-cv.addEventListener("mouseleave", () => { hoverTile = null; if (!busy) draw(); });
+cv.addEventListener("mouseleave", () => { hoverTile = null; showSolution(null, null); if (!busy) draw(); });
 
 cv.addEventListener("click", e => {
   if (busy || gameOver || turn !== "op") return;
@@ -703,19 +737,17 @@ cv.addEventListener("click", e => {
   if (!u) return;
 
   if (clicked && clicked.side === "ho") {
-    if (targetMode || u.ap > 0) tryShoot(u, clicked);
+    if (u.ap > 0) tryShoot(u, clicked);
     return;
   }
   if (!targetMode && u.ap > 0) tryMove(u, x, y);
 });
 
 document.addEventListener("keydown", e => {
-  if (gameOver) {
-    if (e.key === "r") restart(true);
-    if (e.key === "R") restart(false);
-    return;
-  }
-  if (busy || turn !== "op") return;
+  // restart works from anywhere — mid-animation, hostile turn, game over
+  if (e.key === "r") { restart(true); return; }
+  if (e.key === "R") { restart(false); return; }
+  if (gameOver || busy || turn !== "op") return;
   const u = selected();
   switch (e.key) {
     case "Tab": e.preventDefault(); cycleSelect(); break;
@@ -727,8 +759,6 @@ document.addEventListener("keydown", e => {
       break;
     case "Enter": endPlayerTurn(); break;
     case "Escape": targetMode = false; draw(); syncPanel(); break;
-    case "r": restart(true); break;
-    case "R": restart(false); break;
   }
 });
 
@@ -740,12 +770,14 @@ document.getElementById("ovreplay").onclick = () => restart(false);
 
 // ---- lifecycle --------------------------------------------------
 function restart(fresh) {
+  gen++;   // abandon any in-flight animation or AI turn
   if (fresh) seed = newSeed();
   rng = mulberry32(seed);
   buildMap();
   makeUnits();
   turn = "op"; selectedId = 0; targetMode = false; busy = false; gameOver = null; tracers = [];
   logEl.innerHTML = "";
+  showSolution(null, null);
   document.getElementById("overlay").classList.remove("show");
   log('<span class="sys">— KESTREL YARD — clear the Syndicate crew —</span>');
   log('<span class="sys">— OPERATIVE TURN —</span>');

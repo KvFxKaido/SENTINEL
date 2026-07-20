@@ -17,7 +17,7 @@ python3 -m http.server -d prototypes/tactical 8080
 - Half cover (−20 to be hit) and full cover (−40, blocks line of sight)
 - Directional cover: standing behind a crate only helps against fire from that side — flanked targets are marked and eat a 45% crit chance
 - Visible hit percentages with the full breakdown (base aim / range / cover)
-- Simple enemy AI: takes shots ≥45%, otherwise advances toward cover with sightlines; sets overwatch when it has nothing better to do
+- Simple enemy AI: fires at ≥45%, or ≥30% when caught in the open after moving; otherwise advances toward cover with sightlines and holds overwatch once it gets there
 - Win, lose, restart
 
 ## Determinism
