@@ -637,9 +637,15 @@ const SPRITES = {
   wall:  bakeSprite(WALL_SPRITE, SPRITE_PALETTES.wall),
 };
 
-// 2-frame idle bob, 0.5s per frame; shadows stay anchored to the ground
-var animFrame = 0;
-setInterval(() => { animFrame ^= 1; if (!document.hidden) draw(); }, 500);
+// 2-frame idle bob, 0.5s per frame; shadows stay anchored to the ground.
+// Driven by rAF with elapsed-time frame selection so hidden tabs hold no
+// recurring timer — the browser pauses rAF when the page isn't visible.
+var animFrame = 0, animLast = 0;
+function animTick(t) {
+  if (t - animLast >= 500) { animLast = t; animFrame ^= 1; draw(); }
+  requestAnimationFrame(animTick);
+}
+requestAnimationFrame(animTick);
 
 // ---- rendering --------------------------------------------------
 const cv = document.getElementById("cv");
