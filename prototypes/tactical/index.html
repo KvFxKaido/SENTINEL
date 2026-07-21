@@ -540,9 +540,117 @@ function endPlayerTurn() {
   enemyTurn();
 }
 
+// ---- pixel sprites ----------------------------------------------
+// 16x16 grids scaled x3 to 48px (the doc's target sprite size), authored
+// as strings like the map — no image assets. Palette keys per sprite.
+const OP_SPRITE = [
+  "................",
+  ".....BBBBB......",
+  "....BHHHHHB.....",
+  "....BALLAAB.....",
+  "....BSSSSSB.....",
+  ".....BBBBB......",
+  "...JJJBBBJJJ....",
+  "..JJBJJJJJBJJ...",
+  "..JHBJAAAJBHJ...",
+  "..JJBJJJJJBJJ...",
+  "..GGGGGGGGGGG...",
+  "...JBBJJJBBJ....",
+  "....BBB.BBB.....",
+  "....BB...BB.....",
+  "...BBB...BBB....",
+  "................",
+];
+const HO_SPRITE = [
+  "................",
+  "....BBBBBBB.....",
+  "...BHHHHHHHB....",
+  "...BAAAAAAAB....",
+  "...BBSSSSSBB....",
+  "....BBBBBBB.....",
+  "..JJJJBBBJJJJ...",
+  ".JJBJJJJJJJBJJ..",
+  ".JHBJJAAAJJBHJ..",
+  ".JJBJJJJJJJBJJ..",
+  ".GGGGGGGGGGGGG..",
+  "..JJBBJJJBBJJ...",
+  "....BBB.BBB.....",
+  "....BB...BB.....",
+  "...BBBB.BBBB....",
+  "................",
+];
+const CRATE_SPRITE = [
+  "................",
+  "................",
+  "................",
+  "................",
+  "................",
+  "..LLLLLLLLLLLL..",
+  ".LHHHHHHHHHHHHL.",
+  ".LBBBBBBBBBBBBL.",
+  ".LHJJJJHJJJJHJL.",
+  ".LHJJJJHJJJJHJL.",
+  ".LBBBBBBBBBBBBL.",
+  ".LHJJJJHJJJJHJL.",
+  ".LHJJJJHJJJJHJL.",
+  ".LBBBBBBBBBBBBL.",
+  ".LLLLLLLLLLLLLL.",
+  "................",
+];
+const WALL_SPRITE = [
+  "LLLLLLLLLLLLLLLL",
+  "LHHHHHHHHHHHHHHL",
+  "LBBBBBBBGBBBBBBL",
+  "LBBBBBBBGBBBBBBL",
+  "LGGGGGGGGGGGGGGL",
+  "LBBBGBBBBBBGBBBL",
+  "LBBBGBBBBBBGBBBL",
+  "LGGGGGGGGGGGGGGL",
+  "LBBBBBBGBBBBBBBL",
+  "LBBBBBBGBBBBBBBL",
+  "LGGGGGGGGGGGGGGL",
+  "LBBGBBBBBBBGBBBL",
+  "LBBGBBBBBBBGBBBL",
+  "LGGGGGGGGGGGGGGL",
+  "LBBBBBBBBBBBBBBL",
+  "LLLLLLLLLLLLLLLL",
+];
+const SPRITE_PALETTES = {
+  op:    { B: "#22303a", H: "#48606f", A: "#5ccfff", L: "#bdefff", S: "#d4a574", J: "#31424e", G: "#151a1e" },
+  ho:    { B: "#38221f", H: "#5f3a33", A: "#ff5c5c", L: "#ffd0c0", S: "#b08968", J: "#4d2e28", G: "#151a1e" },
+  crate: { L: "#3d5a46", H: "#2f4737", B: "#243627", J: "#1c2b20" },
+  wall:  { L: "#465e4d", H: "#54705c", B: "#2b3a30", G: "#1c2820" },
+};
+function bakeSprite(grid, pal) {
+  const c = document.createElement("canvas");
+  c.width = 16; c.height = 16;
+  const g = c.getContext("2d");
+  grid.forEach((row, y) => [...row].forEach((ch, x) => {
+    if (pal[ch]) { g.fillStyle = pal[ch]; g.fillRect(x, y, 1, 1); }
+  }));
+  return c;
+}
+const SPRITES = {
+  op:    bakeSprite(OP_SPRITE, SPRITE_PALETTES.op),
+  ho:    bakeSprite(HO_SPRITE, SPRITE_PALETTES.ho),
+  crate: bakeSprite(CRATE_SPRITE, SPRITE_PALETTES.crate),
+  wall:  bakeSprite(WALL_SPRITE, SPRITE_PALETTES.wall),
+};
+
+// 2-frame idle bob, 0.5s per frame; shadows stay anchored to the ground.
+// Driven by rAF with elapsed-time frame selection so hidden tabs hold no
+// recurring timer — the browser pauses rAF when the page isn't visible.
+var animFrame = 0, animLast = 0;
+function animTick(t) {
+  if (t - animLast >= 500) { animLast = t; animFrame ^= 1; draw(); }
+  requestAnimationFrame(animTick);
+}
+requestAnimationFrame(animTick);
+
 // ---- rendering --------------------------------------------------
 const cv = document.getElementById("cv");
 const cx = cv.getContext("2d");
+cx.imageSmoothingEnabled = false;
 
 function tileCenter(x, y) { return [x * TILE + TILE / 2, y * TILE + TILE / 2]; }
 
@@ -555,15 +663,9 @@ function draw() {
     cx.strokeStyle = "#131c15";
     cx.strokeRect(px + 0.5, py + 0.5, TILE, TILE);
     if (map[y][x] === FULL) {
-      cx.fillStyle = "#25352a";
-      cx.fillRect(px + 4, py + 4, TILE - 8, TILE - 8);
-      cx.strokeStyle = "#3d5a46";
-      cx.strokeRect(px + 4.5, py + 4.5, TILE - 9, TILE - 9);
+      cx.drawImage(SPRITES.wall, px + 4, py + 4, 48, 48);
     } else if (map[y][x] === HALF) {
-      cx.fillStyle = "#1a2a1e";
-      cx.fillRect(px + 10, py + 18, TILE - 20, TILE - 26);
-      cx.strokeStyle = "#33513c";
-      cx.strokeRect(px + 10.5, py + 18.5, TILE - 21, TILE - 27);
+      cx.drawImage(SPRITES.crate, px + 4, py + 4, 48, 48);
     }
   }
 
@@ -575,8 +677,11 @@ function draw() {
       const [x, y] = k.split(",").map(Number);
       if (x === u.x && y === u.y) continue;
       const c = cost.get(k);
-      cx.fillStyle = c <= u.mobility ? "rgba(92,207,255,0.10)" : "rgba(255,179,71,0.09)";
+      const dash = c > u.mobility;
+      cx.fillStyle = dash ? "rgba(255,179,71,0.05)" : "rgba(92,207,255,0.06)";
       cx.fillRect(x * TILE + 2, y * TILE + 2, TILE - 4, TILE - 4);
+      cx.strokeStyle = dash ? "rgba(255,179,71,0.30)" : "rgba(92,207,255,0.30)";
+      cx.strokeRect(x * TILE + 3.5, y * TILE + 3.5, TILE - 7, TILE - 7);
     }
   }
 
@@ -601,20 +706,26 @@ function draw() {
   // units
   for (const v of units) {
     if (!v.alive) continue;
-    const [ux, uy] = tileCenter(v.x, v.y);
-    const col = v.side === "op" ? "#5ccfff" : "#ff5c5c";
-    // selection ring
+    const [ux] = tileCenter(v.x, v.y);
+    // selection brackets on the tile corners
     if (v.id === selectedId) {
-      cx.strokeStyle = "#46e07a";
-      cx.beginPath(); cx.arc(ux, uy, TILE * 0.38, 0, 7); cx.stroke();
+      const px = v.x * TILE, py = v.y * TILE, s = 10;
+      cx.strokeStyle = "#46e07a"; cx.lineWidth = 2;
+      cx.beginPath();
+      cx.moveTo(px + 3, py + 3 + s); cx.lineTo(px + 3, py + 3); cx.lineTo(px + 3 + s, py + 3);
+      cx.moveTo(px + TILE - 3 - s, py + 3); cx.lineTo(px + TILE - 3, py + 3); cx.lineTo(px + TILE - 3, py + 3 + s);
+      cx.moveTo(px + 3, py + TILE - 3 - s); cx.lineTo(px + 3, py + TILE - 3); cx.lineTo(px + 3 + s, py + TILE - 3);
+      cx.moveTo(px + TILE - 3 - s, py + TILE - 3); cx.lineTo(px + TILE - 3, py + TILE - 3); cx.lineTo(px + TILE - 3, py + TILE - 3 - s);
+      cx.stroke(); cx.lineWidth = 1;
     }
-    // body
-    cx.fillStyle = v.side === "op" ? "#0e2a38" : "#381012";
-    cx.strokeStyle = col;
-    cx.beginPath(); cx.arc(ux, uy, TILE * 0.28, 0, 7); cx.fill(); cx.stroke();
-    cx.fillStyle = col;
-    cx.font = "10px monospace"; cx.textAlign = "center";
-    cx.fillText(v.name[0] + (v.side === "ho" ? v.name.slice(-1) : ""), ux, uy + 3);
+    // ground shadow, anchored — does not bob with the sprite
+    cx.fillStyle = "rgba(0,0,0,0.4)";
+    cx.beginPath();
+    cx.ellipse(ux, v.y * TILE + TILE - 10, 11, 4, 0, 0, 7);
+    cx.fill();
+    // sprite with de-synced 2-frame idle bob
+    const bob = (animFrame + v.id) % 2;
+    cx.drawImage(SPRITES[v.side], v.x * TILE + 4, v.y * TILE + 1 + bob, 48, 48);
     // hp pips
     const pw = (TILE - 16) / v.maxHp;
     for (let i = 0; i < v.maxHp; i++) {
