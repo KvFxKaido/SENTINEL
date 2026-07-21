@@ -96,12 +96,12 @@ Circuit adds no new currencies — it adds a **spotlight** to the existing ones.
 
 | Existing system | Circuit hook |
 |---|---|
-| **Enhancements / Leverage** (`systems/leverage.py`) | Sponsorship. Accepting sponsor gear mid-season is accepting leverage; the call-in comes at the worst possible bracket |
+| **Enhancements / Leverage** (`sentinel-agent/src/systems/leverage.py`) | Sponsorship. Accepting sponsor gear mid-season is accepting leverage; the call-in comes at the worst possible bracket |
 | **Hinge Moments** | The arena manufactures them on camera: the downed opponent who yields, the twist the showrunner offers you live |
 | **NPC Disposition** | Opponents are NPCs with memory. The fighter you spared meets you again — in the bracket or outside it |
 | **Dormant Threads** | "The crowd remembers the yield you refused" — queue it, surface it seasons later |
-| **Favors** (`systems/favors.py`) | Corner crew: calling in a favor gets you a cutman, a scout report on your opponent, a venue map |
-| **Job Board** (`systems/jobs.py`) | Matches are a job type. Stakes vary: purse, safe passage, debt clearance, a faction dropping a grudge |
+| **Favors** (`sentinel-agent/src/systems/favors.py`) | Corner crew: calling in a favor gets you a cutman, a scout report on your opponent, a venue map |
+| **Job Board** (`sentinel-agent/src/systems/jobs.py`) | Matches are a job type. Stakes vary: purse, safe passage, debt clearance, a faction dropping a grudge |
 | **Social Energy** | The interview is the second fight. Post-match obligations drain the same pool the match did |
 | **Regions / Vehicles** | The Circuit tours. Venues have regional character and hosting factions; getting there is the existing travel game |
 | **Witnesses MCP data** | Match records are wiki events (`log_wiki_event`) — the campaign wiki grows a fight history organically |
