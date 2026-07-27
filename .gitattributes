@@ -1,0 +1,6 @@
+# Normalize all text files to LF, regardless of checkout platform.
+* text=auto eol=lf
+
+# Windows batch files require CRLF to execute correctly.
+*.cmd text eol=crlf
+*.bat text eol=crlf
