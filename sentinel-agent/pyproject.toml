@@ -15,8 +15,6 @@ dependencies = [
     "jinja2>=3.1.0",
     "watchdog>=6.0.0",
     "pyyaml>=6.0.3",
-    "fastapi>=0.136.3",
-    "uvicorn>=0.27.0",
 ]
 
 [project.optional-dependencies]
@@ -28,7 +26,6 @@ dev = [
     "pytest-asyncio>=0.23.0",
     "pytest-cov>=7.1.0",
     "ruff>=0.1.0",
-    "httpx>=0.26.0",
 ]
 all = [
     "memvid-sdk>=2.0.159",

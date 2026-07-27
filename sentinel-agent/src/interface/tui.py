@@ -2847,11 +2847,6 @@ def main():
         help="Use local mode (optimized for 8B-12B models)"
     )
     parser.add_argument(
-        "--headless",
-        action="store_true",
-        help="Run in headless mode (JSON I/O via stdin/stdout)"
-    )
-    parser.add_argument(
         "--backend", "-b",
         type=str,
         default="auto",
@@ -2859,12 +2854,8 @@ def main():
     )
     args = parser.parse_args()
 
-    if args.headless:
-        from .headless import run_headless
-        run_headless(backend=args.backend, local_mode=args.local)
-    else:
-        app = SentinelTUI(local_mode=args.local)
-        app.run()
+    app = SentinelTUI(local_mode=args.local)
+    app.run()
 
 
 if __name__ == "__main__":
