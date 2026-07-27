@@ -96,9 +96,12 @@ unmodified, MIT.
 - **Floor is one `InstancedMesh`.** 100 tiles, one draw call. The movement
   range, hover highlight and cover callout are all per-instance colours, so
   no geometry is created or destroyed as state changes.
-- **Picking raycasts the floor, not the world.** `instanceId` *is* the tile
-  index, so there is no screen-to-grid maths, and a click that lands on a
-  wall still resolves to the tile beneath it — matching 2D behaviour exactly.
+- **Picking is units-first, then the floor.** Unit bodies resolve to their
+  own tile — at 30° elevation a body projects above its tile, so floor-only
+  picking would send a click on a visible chest to the tile behind it.
+  Everything else falls to the floor `InstancedMesh`, whose `instanceId`
+  *is* the tile index — no screen-to-grid maths, and a click on a wall
+  still resolves to the tile beneath it, matching 2D behaviour.
 - **`draw()` kept its name.** Every call site from the 2D version still calls
   `draw()`; it now just sets a dirty flag that the frame loop reconciles.
   That is the immediate-mode → retained-mode shift, isolated to one function.

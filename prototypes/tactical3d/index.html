@@ -485,6 +485,7 @@ function buildUnits() {
     const body = new THREE.Mesh(bodyGeo, bodyMat);
     body.position.y = 0.47;
     body.castShadow = true;
+    body.userData.unit = u;   // picking resolves body hits to this unit's tile
     g.add(body);
 
     // X-ray silhouette. Full-cover walls are 1.5 tall and will hide a unit
@@ -548,9 +549,13 @@ function makeTracerMesh(t) {
 }
 
 // ---- picking -------------------------------------------------------
-// Raycasting the floor InstancedMesh returns an instanceId, which is the
-// tile index directly — no screen-to-grid maths, and clicks that land on a
-// wall still resolve to the tile beneath it, matching the 2D behaviour.
+// Units are picked before the floor: at 30° elevation a unit's body
+// projects well above its own tile, so a floor-only raycast would resolve
+// a click on a visible chest to the tile *behind* the model (caught in
+// review on #60). Body hits resolve to the unit's tile; everything else
+// falls through to the floor InstancedMesh, whose instanceId is the tile
+// index directly — so clicks on walls still resolve to the tile beneath,
+// matching the 2D behaviour.
 const raycaster = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
 function tileFromEvent(e) {
@@ -558,8 +563,15 @@ function tileFromEvent(e) {
   ndc.x = ((e.clientX - r.left) / r.width) * 2 - 1;
   ndc.y = -((e.clientY - r.top) / r.height) * 2 + 1;
   raycaster.setFromCamera(ndc, camera);
-  const hit = raycaster.intersectObject(floor, false)[0];
-  if (!hit || hit.instanceId === undefined) return null;
+  const bodies = [];
+  for (const u of S.units) if (u.alive && u._obj) bodies.push(u._obj.userData.body);
+  const hit = raycaster.intersectObjects([floor, ...bodies], false)[0];
+  if (!hit) return null;
+  if (hit.object !== floor) {
+    const u = hit.object.userData.unit;
+    return u ? [u.x, u.y] : null;
+  }
+  if (hit.instanceId === undefined) return null;
   const i = hit.instanceId;
   return [i % W, Math.floor(i / W)];
 }

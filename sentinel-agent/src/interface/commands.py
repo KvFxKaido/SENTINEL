@@ -7,7 +7,6 @@ Each command function takes (manager, agent, args) and returns:
 - backend_name string for /backend command
 """
 
-import os
 import sys
 from rich.table import Table
 from rich.panel import Panel
@@ -15,14 +14,11 @@ from rich.prompt import Prompt
 
 
 def _is_interactive() -> bool:
-    """Check if we're running in an interactive terminal (not headless).
+    """Check if we're running in an interactive terminal.
 
-    Returns False if:
-    - SENTINEL_HEADLESS env var is set (bridge/headless mode)
-    - stdin or stdout are not TTYs
+    Returns False when stdin or stdout is not a TTY (piped or scripted
+    invocation) — prompts are skipped and list-style fallbacks used.
     """
-    if os.environ.get("SENTINEL_HEADLESS"):
-        return False
     return sys.stdin.isatty() and sys.stdout.isatty()
 
 from ..state import CampaignManager, Character, Background
