@@ -4,3 +4,10 @@
 # Windows batch files require CRLF to execute correctly.
 *.cmd text eol=crlf
 *.bat text eol=crlf
+
+# Image assets must never be EOL-normalized.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
