@@ -3595,15 +3595,12 @@ def cmd_wiki(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
 # -----------------------------------------------------------------------------
 
 def cmd_simulate(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
-    """Run simulations and explore hypothetical scenarios.
+    """Explore hypothetical scenarios without committing.
 
     Usage:
-        /simulate [turns] [persona]     - Run AI vs AI simulation
         /simulate preview <action>      - Preview consequences of an action
         /simulate npc <name> <approach> - Predict NPC reaction
         /simulate whatif <query>        - Explore alternate past choices
-
-    Personas: cautious, opportunist, principled, chaotic
     """
     if not args:
         _show_simulate_help()
@@ -3619,17 +3616,13 @@ def cmd_simulate(manager: CampaignManager, agent: SentinelAgent, args: list[str]
     elif subcommand == "whatif":
         return _simulate_whatif(manager, agent, args[1:])
     else:
-        # Default: run AI vs AI simulation
-        return _simulate_run(manager, agent, args)
+        _show_simulate_help()
+        return
 
 
 def _show_simulate_help():
     """Show simulate command help."""
     console.print(f"\n[bold {THEME['primary']}]◈ SIMULATION MODES ◈[/bold {THEME['primary']}]\n")
-
-    console.print(f"[bold {THEME['accent']}]/simulate [turns] [persona][/bold {THEME['accent']}]")
-    console.print(f"  [{THEME['dim']}]Run AI vs AI simulation for testing[/{THEME['dim']}]")
-    console.print(f"  [{THEME['dim']}]Personas: cautious, opportunist, principled, chaotic[/{THEME['dim']}]\n")
 
     console.print(f"[bold {THEME['accent']}]/simulate preview <action>[/bold {THEME['accent']}]")
     console.print(f"  [{THEME['dim']}]Preview potential consequences without committing[/{THEME['dim']}]")
@@ -3642,74 +3635,6 @@ def _show_simulate_help():
     console.print(f"[bold {THEME['accent']}]/simulate whatif <query>[/bold {THEME['accent']}]")
     console.print(f"  [{THEME['dim']}]Explore how past choices might have gone differently[/{THEME['dim']}]")
     console.print(f"  [{THEME['dim']}]Example: /simulate whatif helped Ember instead[/{THEME['dim']}]\n")
-
-
-def _simulate_run(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
-    """Run AI vs AI simulation (original behavior)."""
-    from pathlib import Path
-    from ..simulation import AIPlayer, PERSONAS, run_simulation, SimulationTranscript
-    from ..simulation.runner import create_simulation_character
-
-    # Parse arguments
-    turns = 5  # default
-    persona = "cautious"  # default
-
-    for arg in args:
-        if arg.isdigit():
-            turns = int(arg)
-        elif arg in PERSONAS:
-            persona = arg
-
-    # Validate backend
-    if not agent.client:
-        console.print("[red]No LLM backend available. Cannot run simulation.[/red]")
-        return
-
-    # Ensure campaign exists
-    if not manager.current:
-        console.print(f"[{THEME['secondary']}]Creating simulation campaign...[/{THEME['secondary']}]")
-        manager.create_campaign(f"Simulation ({persona})")
-
-    # Ensure character exists
-    if not manager.current.characters:
-        console.print(f"[{THEME['secondary']}]Creating simulation character...[/{THEME['secondary']}]")
-        character = create_simulation_character(manager, persona)
-    else:
-        character = manager.current.characters[0]
-
-    # Show simulation header
-    console.print()
-    console.print(Panel(
-        f"[{THEME['accent']}]{g('moment')} SIMULATION[/{THEME['accent']}]: "
-        f"{turns} turns, persona: [bold]{persona}[/bold]\n"
-        f"Character: {character.name} ({character.background.value})",
-        border_style=THEME['primary'],
-    ))
-    console.print()
-
-    # Create AI player
-    player = AIPlayer(agent.client, persona=persona, character=character)
-
-    # Run simulation with progress display
-    console.print(f"[{THEME['secondary']}]Running simulation...[/{THEME['secondary']}]")
-    console.print()
-
-    try:
-        transcript = run_simulation(agent, player, turns, manager)
-    except Exception as e:
-        console.print(f"[red]Simulation error: {e}[/red]")
-        return
-
-    # Display transcript
-    _display_simulation_transcript(transcript)
-
-    # Save transcript
-    simulations_dir = Path("simulations")
-    filepath = transcript.save(simulations_dir)
-    console.print(f"\n[{THEME['secondary']}]Transcript saved: {filepath}[/{THEME['secondary']}]")
-
-    # Save campaign state
-    manager.save_campaign()
 
 
 def _simulate_preview(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
@@ -3829,50 +3754,6 @@ def _simulate_whatif(manager: CampaignManager, agent: SentinelAgent, args: list[
 
     console.print(f"\n[{THEME['dim']}]This is speculative. The road not taken remains unknown.[/{THEME['dim']}]")
     console.print(f"[{THEME['dim']}]Your actual choices have shaped who you are.[/{THEME['dim']}]")
-
-
-def _display_simulation_transcript(transcript: "SimulationTranscript"):
-    """Display simulation transcript in terminal."""
-    from rich.rule import Rule
-    from rich.markdown import Markdown
-
-    current_turn = 0
-
-    for turn in transcript.turns:
-        if turn.role == "gm":
-            current_turn = turn.turn_number
-            console.print(Rule(f"Turn {current_turn}", style=THEME['secondary']))
-            console.print()
-            console.print(f"[bold {THEME['primary']}][GM][/bold {THEME['primary']}]")
-            console.print(turn.content)
-            console.print()
-
-            if turn.choices_presented:
-                for i, choice in enumerate(turn.choices_presented, 1):
-                    console.print(f"  [{THEME['secondary']}]{i}.[/{THEME['secondary']}] {choice}")
-                console.print()
-
-        else:  # player
-            console.print(
-                f"[bold {THEME['accent']}][PLAYER ({transcript.persona})][/bold {THEME['accent']}]"
-            )
-            console.print(turn.content)
-            console.print()
-
-    # Summary panel
-    stats = transcript.player_stats
-    summary_lines = [
-        f"Turns: {len([t for t in transcript.turns if t.role == 'gm'])}",
-        f"Improvisations: {stats.get('improvisations', 0)}",
-        f"Enhancements accepted: {stats.get('enhancements_accepted', 0)}",
-        f"Offers refused: {stats.get('offers_refused', 0)}",
-    ]
-
-    console.print(Panel(
-        f"[{THEME['accent']}]{g('moment')} SIMULATION COMPLETE[/{THEME['accent']}]\n" +
-        " | ".join(summary_lines),
-        border_style=THEME['primary'],
-    ))
 
 
 # -----------------------------------------------------------------------------
