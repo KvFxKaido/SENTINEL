@@ -1,13 +1,26 @@
-# Tactical Encounter Prototype
+# Tactical Encounter Prototype — 2D
 
 One tactical encounter that feels good enough to replay twice. That's the whole scope.
 
-**Run it:** open `index.html` in a browser. No build step, no dependencies, no install.
+The rules live in [`../tactical-core/`](../tactical-core/) and are shared with
+the three.js renderer in [`../tactical3d/`](../tactical3d/). This file only
+draws and takes input.
+
+**Run it:**
 
 ```bash
-# or serve it, if you prefer
-python3 -m http.server -d prototypes/tactical 8080
+python -m http.server -d prototypes 8080
+# then open http://localhost:8080/tactical/
 ```
+
+The server root is `prototypes/`, not this folder — `index.html` imports
+`../tactical-core/rules.js` and has to be able to reach it.
+
+> **This no longer opens from `file://`.** It used to, and that was a real
+> property worth having. It was traded for a single tested source of truth
+> for the rules: two copies of the AI and the RNG order were going to drift,
+> and determinism is a design-binding invariant. Nothing else changed — still
+> no npm, no bundler, no build step. Append `?seed=deadbeef` to pin a board.
 
 ## What's in the box
 
@@ -27,6 +40,10 @@ bar. `shift+R` replays the exact same encounter — same rolls in the same order
 so a loss can be re-attempted as a puzzle: same seed, better angles. `R` deals a
 new encounter. This mirrors the engine invariant in `architecture/Sentinel 2D.md`:
 determinism and turn authority win.
+
+This is now enforced rather than hoped for: `../tactical-core/rules.test.js`
+replays golden transcripts headlessly and runs in CI. A stray random draw
+fails the build.
 
 ## Controls
 

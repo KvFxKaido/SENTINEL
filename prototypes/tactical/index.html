@@ -68,6 +68,8 @@
   #overlay h1 { font-size: 26px; letter-spacing: 6px; font-weight: normal; }
   #overlay h1.win { color: var(--green); } #overlay h1.loss { color: var(--red); }
   #overlay p { font-size: 12px; color: var(--text-dim); max-width: 380px; line-height: 1.6; }
+  #boot { font-size: 12px; color: var(--red); padding: 10px 0; display: none; }
+  #boot.show { display: block; }
 </style>
 </head>
 <body>
@@ -113,142 +115,45 @@
       <kbd>F</kbd> shoot &nbsp; <kbd>Y</kbd> overwatch &nbsp; <kbd>⏎</kbd> end turn<br>
       ▪ low crate = half cover (−20 to be hit) &nbsp; █ wall = full cover (−40, blocks sight)
     </div>
+    <div class="box" id="boot"></div>
   </div>
 </div>
 
-<script>
+<script type="module">
 "use strict";
 /* ============================================================
-   SENTINEL tactical slice — one encounter, replayable.
-   Deterministic: every roll comes from a seeded RNG. The seed is
-   shown in the top bar; shift+R replays the exact same encounter.
+   SENTINEL tactical slice — 2D renderer.
+
+   The rules live in ../tactical-core/rules.js, shared with the 3D build
+   and with the headless test suite. This file only draws and takes input.
+
+   Kept alongside the 3D build on purpose: two renderers over one rules
+   module is the cheapest ongoing proof that the rules really are
+   renderer-agnostic. This one is also immediate-mode — draw() repaints
+   the world from state on every call — which is the direct contrast with
+   the retained-mode scene graph in tactical3d/.
    ============================================================ */
 
-const W = 10, H = 10, TILE = 56;
-const FLOOR = 0, HALF = 1, FULL = 2;
+import {
+  S, W, H, FLOOR, HALF, FULL,
+  bindIO, restart as rulesRestart, formatEvent,
+  selected, living, unitAt, solution, reachable,
+  selectUnit, cycleSelect, tryMove, tryShoot, setOverwatch, endPlayerTurn,
+} from "../tactical-core/rules.js";
 
-// ---- seeded rng -------------------------------------------------
-function mulberry32(a) {
-  return function () {
-    a |= 0; a = (a + 0x6D2B79F5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-var seed, rng;
-function newSeed() { return (Math.floor(performance.now() * 1000) ^ (Math.random() * 0xffffffff)) >>> 0; }
-function roll100() { return Math.floor(rng() * 100) + 1; }
-function rollRange(lo, hi) { return lo + Math.floor(rng() * (hi - lo + 1)); }
+const TILE = 56;
 
-// ---- map --------------------------------------------------------
-// hand-authored: walls (█) split the yard, crates (▪) seed the lanes
-const MAP_SRC = [
-  "..........",
-  "..▪...█...",
-  ".....▪█.▪.",
-  ".█▪.......",
-  ".█...▪....",
-  "....▪...█.",
-  ".......▪█.",
-  ".▪.█▪.....",
-  "...█...▪..",
-  "..........",
-];
-var map = [];
-function buildMap() {
-  map = MAP_SRC.map(row => [...row].map(c => c === "█" ? FULL : c === "▪" ? HALF : FLOOR));
-}
-const inBounds = (x, y) => x >= 0 && x < W && y >= 0 && y < H;
-const passable = (x, y) => inBounds(x, y) && map[y][x] === FLOOR;
-
-// ---- units ------------------------------------------------------
-var units = [];
-function makeUnits() {
-  units = [
-    { id: 0, side: "op", name: "VESPER", x: 1, y: 9, hp: 10, maxHp: 10, aim: 75, mobility: 4, ap: 2, overwatch: false, alive: true },
-    { id: 1, side: "op", name: "KOA",    x: 4, y: 9, hp: 10, maxHp: 10, aim: 75, mobility: 4, ap: 2, overwatch: false, alive: true },
-    { id: 2, side: "op", name: "SABLE",  x: 7, y: 9, hp: 10, maxHp: 10, aim: 75, mobility: 4, ap: 2, overwatch: false, alive: true },
-    { id: 3, side: "ho", name: "SYN-1",  x: 2, y: 0, hp: 8,  maxHp: 8,  aim: 65, mobility: 4, ap: 2, overwatch: false, alive: true },
-    { id: 4, side: "ho", name: "SYN-2",  x: 5, y: 0, hp: 8,  maxHp: 8,  aim: 65, mobility: 4, ap: 2, overwatch: false, alive: true },
-    { id: 5, side: "ho", name: "SYN-3",  x: 8, y: 0, hp: 8,  maxHp: 8,  aim: 65, mobility: 4, ap: 2, overwatch: false, alive: true },
-  ];
-}
-const unitAt = (x, y) => units.find(u => u.alive && u.x === x && u.y === y);
-const living = side => units.filter(u => u.alive && u.side === side);
-
-// ---- state ------------------------------------------------------
-var turn = "op";          // "op" | "ho"
-var selectedId = null;
-var targetMode = false;   // shoot mode armed
-var busy = false;         // input locked during animation / AI
-var gameOver = null;      // null | "win" | "loss"
+// ---- renderer-owned state ---------------------------------------
 var hoverTile = null;
-var tracers = [];         // transient shot lines {x0,y0,x1,y1,hit,until}
-var gen = 0;              // restart generation — stale async turns check this and bail
+var tracers = [];        // transient shot lines {x0,y0,x1,y1,until}
+var curSeed = 0;
 
-// ---- line of sight (Bresenham; FULL blocks, endpoints excluded) --
-function los(x0, y0, x1, y1) {
-  let dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0);
-  let sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1, err = dx + dy;
-  let x = x0, y = y0;
-  while (true) {
-    if (!(x === x0 && y === y0) && !(x === x1 && y === y1) && map[y][x] === FULL) return false;
-    if (x === x1 && y === y1) return true;
-    const e2 = 2 * err;
-    if (e2 >= dy) { err += dy; x += sx; }
-    if (e2 <= dx) { err += dx; y += sy; }
-  }
-}
-
-// ---- cover ------------------------------------------------------
-// Cover objects orthogonally adjacent to the defender protect against
-// attackers on that side (positive dot with the attacker direction).
-function coverBonus(def, att) {
-  let best = 0;
-  const vx = att.x - def.x, vy = att.y - def.y;
-  for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
-    const nx = def.x + dx, ny = def.y + dy;
-    if (!inBounds(nx, ny) || map[ny][nx] === FLOOR) continue;
-    if (dx * vx + dy * vy > 0) best = Math.max(best, map[ny][nx] === FULL ? 40 : 20);
-  }
-  return best;
-}
-
-// ---- firing solution -------------------------------------------
-function solution(att, def) {
-  if (!los(att.x, att.y, def.x, def.y)) return null;
-  const dist = Math.hypot(def.x - att.x, def.y - att.y);
-  const range = dist <= 3 ? Math.round((3 - dist) * 4) : -Math.round((dist - 3) * 4);
-  const cover = coverBonus(def, att);
-  const pct = Math.max(5, Math.min(95, att.aim + range - cover));
-  const critPct = cover === 0 ? 45 : 15;
-  return { pct, base: att.aim, range, cover, flanked: cover === 0, critPct };
-}
-
-// ---- movement (BFS, 4-directional) ------------------------------
-function reachable(u, maxCost) {
-  const cost = new Map(), parent = new Map();
-  const key = (x, y) => x + "," + y;
-  cost.set(key(u.x, u.y), 0);
-  const q = [[u.x, u.y]];
-  while (q.length) {
-    const [x, y] = q.shift();
-    const c = cost.get(key(x, y));
-    if (c >= maxCost) continue;
-    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
-      const nx = x + dx, ny = y + dy, k = key(nx, ny);
-      if (!passable(nx, ny) || unitAt(nx, ny) || cost.has(k)) continue;
-      cost.set(k, c + 1); parent.set(k, [x, y]); q.push([nx, ny]);
-    }
-  }
-  return { cost, parent };
-}
-function pathTo(parent, x, y) {
-  const path = [];
-  let cur = [x, y];
-  while (cur) { path.unshift(cur); cur = parent.get(cur[0] + "," + cur[1]); }
-  return path.slice(1); // drop start tile
+function newSeed() { return (Math.floor(performance.now() * 1000) ^ (Math.random() * 0xffffffff)) >>> 0; }
+// ?seed=1a2b3c pins the opening encounter. `R` still deals fresh.
+function initialSeed() {
+  const q = new URLSearchParams(location.search).get("seed");
+  if (q !== null) { const n = parseInt(q, 16); if (Number.isFinite(n)) return n >>> 0; }
+  return newSeed();
 }
 
 // ---- tiny synth audio (no assets) -------------------------------
@@ -273,85 +178,41 @@ const sfx = {
   turn:   () => { beep(440, 0.07); setTimeout(() => beep(660, 0.09), 90); },
 };
 
-// ---- log --------------------------------------------------------
+// ---- comms log --------------------------------------------------
 const logEl = document.getElementById("log");
+const wrapHTML = (text, cls) => `<span class="${cls}">${text}</span>`;
 function log(html) {
   const d = document.createElement("div");
   d.innerHTML = html;
   logEl.appendChild(d);
   logEl.scrollTop = logEl.scrollHeight;
 }
-const tag = u => `<span class="${u.side}">${u.name}</span>`;
 
-// ---- combat -----------------------------------------------------
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function onEvent(ev) {
+  const line = formatEvent(ev, wrapHTML);
+  if (line !== null) log(line);
 
-async function fireShot(att, def, aimMod = 0, label = "") {
-  const g = gen;
-  const sol = solution(att, def);
-  if (!sol) return false;
-  const pct = Math.max(5, Math.min(95, sol.pct + aimMod));
-  sfx.fire();
-  tracers.push({ x0: att.x, y0: att.y, x1: def.x, y1: def.y, until: performance.now() + 260 });
-  draw();
-  await sleep(280);
-  if (g !== gen) return false;  // restarted mid-shot: don't touch the fresh RNG stream
-  const r = roll100();
-  if (r <= pct) {
-    let dmg = rollRange(3, 5);
-    const crit = roll100() <= sol.critPct;
-    if (crit) dmg += 3;
-    def.hp = Math.max(0, def.hp - dmg);
-    sfx.hit();
-    log(`${tag(att)} ${label}hits ${tag(def)} — <span class="hit">${dmg} dmg${crit ? " CRIT" : ""}</span> (${pct}%, rolled ${r})`);
-    if (def.hp === 0) {
-      def.alive = false;
-      def.overwatch = false;
-      sfx.down();
-      log(`${tag(def)} is <span class="${def.side === "op" ? "ho" : "hit"}">down</span>.`);
-    }
-  } else {
-    sfx.miss();
-    log(`${tag(att)} ${label}misses ${tag(def)} (${pct}%, rolled ${r})`);
-  }
-  draw(); syncPanel();
-  checkEnd();
-  return true;
-}
-
-// overwatch: fires once per watcher at the first hostile step it sees
-async function overwatchCheck(mover) {
-  const watchers = units.filter(u => u.alive && u.overwatch && u.side !== mover.side);
-  for (const w of watchers) {
-    if (!mover.alive) break;
-    if (los(w.x, w.y, mover.x, mover.y)) {
-      w.overwatch = false;
-      log(`${tag(w)} <span class="sys">overwatch triggered</span>`);
-      await fireShot(w, mover, -15, "reaction-");
-    }
+  switch (ev.type) {
+    case "reset":
+      logEl.innerHTML = "";
+      tracers = [];
+      showSolution(null, null);
+      document.getElementById("overlay").classList.remove("show");
+      break;
+    case "fire":
+      sfx.fire();
+      tracers.push({ x0: ev.att.x, y0: ev.att.y, x1: ev.def.x, y1: ev.def.y, until: performance.now() + 260 });
+      break;
+    case "shot":   ev.hit ? sfx.hit() : sfx.miss(); break;
+    case "down":   sfx.down(); break;
+    case "turn":   sfx.turn(); break;
+    case "select": sfx.select(); showSolution(null, null); break;
+    case "overwatch-set": if (ev.unit.side === "op") sfx.select(); break;
+    case "end":    showEnd(ev.result); break;
   }
 }
 
-async function animateMove(u, path) {
-  const g = gen;
-  for (const [x, y] of path) {
-    u.x = x; u.y = y;
-    draw();
-    await sleep(70);
-    if (g !== gen) return;
-    await overwatchCheck(u);
-    if (g !== gen || !u.alive || gameOver) break;
-  }
-}
-
-function checkEnd() {
-  if (gameOver) return;
-  if (living("ho").length === 0) endGame("win");
-  else if (living("op").length === 0) endGame("loss");
-}
-
-function endGame(result) {
-  gameOver = result;
+function showEnd(result) {
   const ov = document.getElementById("overlay");
   const t = document.getElementById("ovtitle"), p = document.getElementById("ovtext");
   if (result === "win") {
@@ -364,181 +225,11 @@ function endGame(result) {
   ov.classList.add("show");
 }
 
-// ---- player actions ---------------------------------------------
-function selected() { return units.find(u => u.id === selectedId && u.alive); }
-
-function selectUnit(u) {
-  if (!u || u.side !== "op" || !u.alive) return;
-  selectedId = u.id; targetMode = false;
-  sfx.select();
-  showSolution(null, null);
-  draw(); syncPanel();
-}
-
-function cycleSelect() {
-  const ops = living("op").filter(u => u.ap > 0);
-  const pool = ops.length ? ops : living("op");
-  if (!pool.length) return;
-  const i = pool.findIndex(u => u.id === selectedId);
-  selectUnit(pool[(i + 1) % pool.length]);
-}
-
-async function tryMove(u, x, y) {
-  const { cost, parent } = reachable(u, u.mobility * u.ap);
-  const c = cost.get(x + "," + y);
-  if (c === undefined || c === 0) return;
-  busy = true;
-  u.ap -= c <= u.mobility ? 1 : 2;
-  targetMode = false;
-  await animateMove(u, pathTo(parent, x, y));
-  busy = false;
-  draw(); syncPanel();
-  autoAdvance();
-}
-
-async function tryShoot(att, def) {
-  if (att.ap <= 0 || !solution(att, def)) return;
-  busy = true;
-  att.ap = 0;            // firing ends the unit's activation
-  targetMode = false;
-  await fireShot(att, def);
-  busy = false;
-  draw(); syncPanel();
-  autoAdvance();
-}
-
-function setOverwatch(u) {
-  if (u.ap <= 0) return;
-  u.overwatch = true;
-  u.ap = 0;
-  targetMode = false;
-  log(`${tag(u)} sets <span class="sys">overwatch</span>`);
-  sfx.select();
-  draw(); syncPanel();
-  autoAdvance();
-}
-
-function autoAdvance() {
-  if (gameOver || turn !== "op") return;
-  const cur = selected();
-  if (cur && cur.ap > 0) return;
-  const next = living("op").find(u => u.ap > 0);
-  if (next) selectUnit(next);
-}
-
-// ---- enemy turn -------------------------------------------------
-function bestShotFrom(u) {
-  let best = null;
-  for (const t of living("op")) {
-    const sol = solution(u, t);
-    if (!sol) continue;
-    if (!best || sol.pct > best.sol.pct || (sol.pct === best.sol.pct && t.hp < best.target.hp)) {
-      best = { target: t, sol };
-    }
-  }
-  return best;
-}
-
-function bestMoveTile(u) {
-  // score reachable tiles: want LOS + good shot, cover from nearest threat, closing distance
-  const { cost, parent } = reachable(u, u.mobility);
-  let best = null;
-  const ops = living("op");
-  if (!ops.length) return null;
-  for (const k of cost.keys()) {
-    const [x, y] = k.split(",").map(Number);
-    if (x === u.x && y === u.y) continue;
-    const ghost = { ...u, x, y };
-    const near = ops.reduce((a, b) =>
-      Math.hypot(a.x - x, a.y - y) < Math.hypot(b.x - x, b.y - y) ? a : b);
-    const dist = Math.hypot(near.x - x, near.y - y);
-    const shot = bestShotFrom(ghost);
-    let score = -dist * 2 + coverBonus(ghost, near) * 0.6;
-    score += shot ? shot.sol.pct * 0.5 : -25;
-    if (!best || score > best.score) best = { x, y, score, parent };
-  }
-  return best;
-}
-
-function nearestOp(u) {
-  const ops = living("op");
-  if (!ops.length) return null;
-  return ops.reduce((a, b) =>
-    Math.hypot(a.x - u.x, a.y - u.y) < Math.hypot(b.x - u.x, b.y - u.y) ? a : b);
-}
-
-async function enemyTurn() {
-  const g = gen;
-  busy = true;
-  turn = "ho";
-  targetMode = false;
-  sfx.turn();
-  log(`<span class="sys">— HOSTILE TURN —</span>`);
-  syncPanel(); draw();
-  await sleep(400);
-  if (g !== gen) return;
-
-  for (const u of units.filter(v => v.side === "ho")) {
-    if (g !== gen) return;
-    if (!u.alive || gameOver) continue;
-    u.ap = 2; u.overwatch = false;
-    let guard = 0;
-    while (u.ap > 0 && u.alive && !gameOver && g === gen && guard++ < 4) {
-      const shot = bestShotFrom(u);
-      if (shot && shot.sol.pct >= 45) {
-        u.ap = 0;
-        await fireShot(u, shot.target);
-        break;
-      }
-      // second action, no confident shot: hold in cover on overwatch
-      // rather than potshotting; only fire marginal shots when caught in the open
-      if (u.ap === 1) {
-        const near = nearestOp(u);
-        if (near && coverBonus(u, near) > 0) {
-          u.overwatch = true; u.ap = 0;
-          log(`${tag(u)} sets <span class="sys">overwatch</span>`);
-          break;
-        }
-        if (shot && shot.sol.pct >= 30) {
-          u.ap = 0;
-          await fireShot(u, shot.target);
-          break;
-        }
-      }
-      const mv = bestMoveTile(u);
-      if (mv) {
-        u.ap -= 1;
-        await animateMove(u, pathTo(mv.parent, mv.x, mv.y));
-      } else if (shot) {
-        u.ap = 0;
-        await fireShot(u, shot.target);
-      } else {
-        u.overwatch = true; u.ap = 0;
-        log(`${tag(u)} sets <span class="sys">overwatch</span>`);
-      }
-      await sleep(150);
-    }
-    await sleep(200);
-  }
-  if (g !== gen) return;
-
-  if (!gameOver) {
-    turn = "op";
-    for (const u of living("op")) { u.ap = 2; u.overwatch = false; }
-    sfx.turn();
-    log(`<span class="sys">— OPERATIVE TURN —</span>`);
-    const first = living("op")[0];
-    if (first) selectedId = first.id;
-  }
-  busy = false;
-  draw(); syncPanel();
-}
-
-function endPlayerTurn() {
-  if (busy || gameOver || turn !== "op") return;
-  for (const u of living("op")) u.ap = 0;
-  enemyTurn();
-}
+bindIO({
+  sleep: ms => new Promise(r => setTimeout(r, ms)),
+  emit: onEvent,
+  changed: () => { draw(); syncPanel(); },
+});
 
 // ---- pixel sprites ----------------------------------------------
 // 16x16 grids scaled x3 to 48px (the doc's target sprite size), authored
@@ -655,6 +346,7 @@ cx.imageSmoothingEnabled = false;
 function tileCenter(x, y) { return [x * TILE + TILE / 2, y * TILE + TILE / 2]; }
 
 function draw() {
+  if (!S.map.length) return;
   cx.clearRect(0, 0, cv.width, cv.height);
 
   // grid + terrain
@@ -662,16 +354,16 @@ function draw() {
     const px = x * TILE, py = y * TILE;
     cx.strokeStyle = "#131c15";
     cx.strokeRect(px + 0.5, py + 0.5, TILE, TILE);
-    if (map[y][x] === FULL) {
+    if (S.map[y][x] === FULL) {
       cx.drawImage(SPRITES.wall, px + 4, py + 4, 48, 48);
-    } else if (map[y][x] === HALF) {
+    } else if (S.map[y][x] === HALF) {
       cx.drawImage(SPRITES.crate, px + 4, py + 4, 48, 48);
     }
   }
 
   // movement range for selected operative
   const u = selected();
-  if (u && turn === "op" && !busy && !targetMode && u.ap > 0) {
+  if (u && S.turn === "op" && !S.busy && !S.targetMode && u.ap > 0) {
     const { cost } = reachable(u, u.mobility * u.ap);
     for (const k of cost.keys()) {
       const [x, y] = k.split(",").map(Number);
@@ -686,7 +378,7 @@ function draw() {
   }
 
   // hover highlight
-  if (hoverTile && !busy) {
+  if (hoverTile && !S.busy) {
     cx.strokeStyle = "rgba(70,224,122,0.5)";
     cx.strokeRect(hoverTile[0] * TILE + 1.5, hoverTile[1] * TILE + 1.5, TILE - 3, TILE - 3);
   }
@@ -704,11 +396,11 @@ function draw() {
   if (tracers.length) requestAnimationFrame(draw);
 
   // units
-  for (const v of units) {
+  for (const v of S.units) {
     if (!v.alive) continue;
     const [ux] = tileCenter(v.x, v.y);
     // selection brackets on the tile corners
-    if (v.id === selectedId) {
+    if (v.id === S.selectedId) {
       const px = v.x * TILE, py = v.y * TILE, s = 10;
       cx.strokeStyle = "#46e07a"; cx.lineWidth = 2;
       cx.beginPath();
@@ -739,7 +431,7 @@ function draw() {
       cx.fillText("◉", v.x * TILE + TILE - 10, v.y * TILE + 13);
     }
     // ap pips (operatives on their turn)
-    if (v.side === "op" && turn === "op") {
+    if (v.side === "op" && S.turn === "op") {
       for (let i = 0; i < v.ap; i++) {
         cx.fillStyle = "#46e07a";
         cx.fillRect(v.x * TILE + 8 + i * 7, v.y * TILE + 6, 5, 5);
@@ -748,21 +440,19 @@ function draw() {
   }
 
   // hit% labels over hostiles when shoot mode armed
-  if (targetMode && u) {
+  if (S.targetMode && u) {
     for (const t of living("ho")) {
       const sol = solution(u, t);
       const [tx2, ty2] = tileCenter(t.x, t.y);
       // flip the label below the unit when it would clip off the top edge
       const ly = ty2 - TILE * 0.62 < 12 ? ty2 + TILE * 0.62 + 4 : ty2 - TILE * 0.62;
       cx.font = "12px monospace"; cx.textAlign = "center";
+      cx.fillStyle = "#070a08";
+      cx.fillRect(tx2 - 22, ly - 11, 44, 15);
       if (sol) {
-        cx.fillStyle = "#070a08";
-        cx.fillRect(tx2 - 22, ly - 11, 44, 15);
         cx.fillStyle = sol.flanked ? "#ffb347" : "#46e07a";
         cx.fillText(sol.pct + "%" + (sol.flanked ? "!" : ""), tx2, ly + 1);
       } else {
-        cx.fillStyle = "#070a08";
-        cx.fillRect(tx2 - 22, ly - 11, 44, 15);
         cx.fillStyle = "#5e7a66";
         cx.fillText("no LOS", tx2, ly + 1);
       }
@@ -772,29 +462,29 @@ function draw() {
 
 // ---- panel ------------------------------------------------------
 function syncPanel() {
-  document.getElementById("turnlabel").innerHTML = gameOver
-    ? (gameOver === "win" ? '<span class="op">MISSION COMPLETE</span>' : '<span class="ho">MISSION FAILED</span>')
-    : (turn === "op" ? '<span class="op">▶ OPERATIVE TURN</span>' : '<span class="ho">▶ HOSTILE TURN</span>');
-  document.getElementById("seed").textContent = "seed " + seed.toString(16);
+  document.getElementById("turnlabel").innerHTML = S.gameOver
+    ? (S.gameOver === "win" ? '<span class="op">MISSION COMPLETE</span>' : '<span class="ho">MISSION FAILED</span>')
+    : (S.turn === "op" ? '<span class="op">▶ OPERATIVE TURN</span>' : '<span class="ho">▶ HOSTILE TURN</span>');
+  document.getElementById("seed").textContent = "seed " + S.seed.toString(16);
 
   const roster = document.getElementById("roster");
   roster.innerHTML = "";
-  for (const v of units.filter(x => x.side === "op")) {
+  for (const v of S.units.filter(x => x.side === "op")) {
     const d = document.createElement("div");
-    d.className = "unitrow" + (v.id === selectedId ? " sel" : "") + (v.alive ? "" : " dead");
+    d.className = "unitrow" + (v.id === S.selectedId ? " sel" : "") + (v.alive ? "" : " dead");
     d.innerHTML = `<span>${v.name}</span><span>${v.overwatch ? '<span class="ow">◉OW</span> ' : ""}` +
       `<span class="hp">${v.alive ? v.hp + "/" + v.maxHp : "KIA"}</span>` +
-      (v.alive && turn === "op" ? ` <span>${"·".repeat(v.ap)}</span>` : "") + `</span>`;
-    if (v.alive) d.onclick = () => { if (!busy && turn === "op") selectUnit(v); };
+      (v.alive && S.turn === "op" ? ` <span>${"·".repeat(v.ap)}</span>` : "") + `</span>`;
+    if (v.alive) d.onclick = () => { if (!S.busy && S.turn === "op") selectUnit(v); };
     roster.appendChild(d);
   }
 
   const u = selected();
-  const can = u && turn === "op" && !busy && !gameOver && u.ap > 0;
+  const can = u && S.turn === "op" && !S.busy && !S.gameOver && u.ap > 0;
   document.getElementById("btnShoot").disabled = !can;
-  document.getElementById("btnShoot").className = targetMode ? "armed" : "";
+  document.getElementById("btnShoot").className = S.targetMode ? "armed" : "";
   document.getElementById("btnOw").disabled = !can;
-  document.getElementById("btnEnd").disabled = busy || gameOver !== null || turn !== "op";
+  document.getElementById("btnEnd").disabled = S.busy || S.gameOver !== null || S.turn !== "op";
 }
 
 function showSolution(att, def) {
@@ -804,12 +494,13 @@ function showSolution(att, def) {
     return;
   }
   const sol = solution(att, def);
+  const name = u => `<span class="${u.side}">${u.name}</span>`;
   if (!sol) {
-    el.innerHTML = `${tag(att)} → ${tag(def)}<br><span class="dim">no line of sight</span>`;
+    el.innerHTML = `${name(att)} → ${name(def)}<br><span class="dim">no line of sight</span>`;
     return;
   }
   el.innerHTML =
-    `${tag(att)} → ${tag(def)} &nbsp; <span class="pct">${sol.pct}%</span>` +
+    `${name(att)} → ${name(def)} &nbsp; <span class="pct">${sol.pct}%</span>` +
     (sol.flanked ? ' <span class="flank">FLANKED</span>' : "") + "<br>" +
     `<span class="dim">base aim</span> ${sol.base} &nbsp; ` +
     `<span class="dim">range</span> ${sol.range >= 0 ? "+" : ""}${sol.range} &nbsp; ` +
@@ -822,7 +513,7 @@ function tileFromEvent(e) {
   const r = cv.getBoundingClientRect();
   const x = Math.floor((e.clientX - r.left) / (r.width / W));
   const y = Math.floor((e.clientY - r.top) / (r.height / H));
-  return inBounds(x, y) ? [x, y] : null;
+  return (x >= 0 && x < W && y >= 0 && y < H) ? [x, y] : null;
 }
 
 cv.addEventListener("mousemove", e => {
@@ -832,12 +523,12 @@ cv.addEventListener("mousemove", e => {
     const t = unitAt(hoverTile[0], hoverTile[1]);
     if (t && t.side === "ho") showSolution(u, t);
   }
-  if (!busy) draw();
+  if (!S.busy) draw();
 });
-cv.addEventListener("mouseleave", () => { hoverTile = null; showSolution(null, null); if (!busy) draw(); });
+cv.addEventListener("mouseleave", () => { hoverTile = null; showSolution(null, null); if (!S.busy) draw(); });
 
 cv.addEventListener("click", e => {
-  if (busy || gameOver || turn !== "op") return;
+  if (S.busy || S.gameOver || S.turn !== "op") return;
   const t = tileFromEvent(e);
   if (!t) return;
   const [x, y] = t;
@@ -851,29 +542,29 @@ cv.addEventListener("click", e => {
     if (u.ap > 0) tryShoot(u, clicked);
     return;
   }
-  if (!targetMode && u.ap > 0) tryMove(u, x, y);
+  if (!S.targetMode && u.ap > 0) tryMove(u, x, y);
 });
 
 document.addEventListener("keydown", e => {
   // restart works from anywhere — mid-animation, hostile turn, game over
   if (e.key === "r") { restart(true); return; }
   if (e.key === "R") { restart(false); return; }
-  if (gameOver || busy || turn !== "op") return;
+  if (S.gameOver || S.busy || S.turn !== "op") return;
   const u = selected();
   switch (e.key) {
     case "Tab": e.preventDefault(); cycleSelect(); break;
     case "f": case "F":
-      if (u && u.ap > 0) { targetMode = !targetMode; draw(); syncPanel(); }
+      if (u && u.ap > 0) { S.targetMode = !S.targetMode; draw(); syncPanel(); }
       break;
     case "y": case "Y":
       if (u && u.ap > 0) setOverwatch(u);
       break;
     case "Enter": endPlayerTurn(); break;
-    case "Escape": targetMode = false; draw(); syncPanel(); break;
+    case "Escape": S.targetMode = false; draw(); syncPanel(); break;
   }
 });
 
-document.getElementById("btnShoot").onclick = () => { targetMode = !targetMode; draw(); syncPanel(); };
+document.getElementById("btnShoot").onclick = () => { S.targetMode = !S.targetMode; draw(); syncPanel(); };
 document.getElementById("btnOw").onclick = () => { const u = selected(); if (u) setOverwatch(u); };
 document.getElementById("btnEnd").onclick = endPlayerTurn;
 document.getElementById("ovnew").onclick = () => restart(true);
@@ -881,22 +572,28 @@ document.getElementById("ovreplay").onclick = () => restart(false);
 
 // ---- lifecycle --------------------------------------------------
 function restart(fresh) {
-  gen++;   // abandon any in-flight animation or AI turn
-  if (fresh) seed = newSeed();
-  rng = mulberry32(seed);
-  buildMap();
-  makeUnits();
-  turn = "op"; selectedId = 0; targetMode = false; busy = false; gameOver = null; tracers = [];
-  logEl.innerHTML = "";
-  showSolution(null, null);
-  document.getElementById("overlay").classList.remove("show");
-  log('<span class="sys">— KESTREL YARD — clear the Syndicate crew —</span>');
-  log('<span class="sys">— OPERATIVE TURN —</span>');
-  draw(); syncPanel();
+  if (fresh) curSeed = newSeed();
+  rulesRestart(curSeed);       // emits reset → mission → turn back through onEvent
 }
 
-seed = newSeed();
+curSeed = initialSeed();
 restart(false);
+cv.dataset.booted = "1";
+</script>
+<script>
+// Modules fail silently from file:// — say so out loud rather than showing
+// a blank canvas and letting the user guess.
+window.addEventListener("load", () => {
+  if (document.getElementById("cv").dataset.booted) return;
+  const b = document.getElementById("boot");
+  b.className = "box show";
+  b.innerHTML = location.protocol === "file:"
+    ? "This build imports its rules as an ES module, which browsers block over " +
+      "<code>file://</code>. Serve the folder instead:<br><br>" +
+      "<code>python -m http.server -d prototypes 8080</code><br><br>" +
+      "then open <code>localhost:8080/tactical/</code>."
+    : "Failed to start — check the browser console.";
+});
 </script>
 </body>
 </html>
