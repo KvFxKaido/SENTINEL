@@ -89,3 +89,22 @@ jobs:
         working-directory: sentinel-agent
         run: ruff check src/ tests/ --select=E,F,W
         continue-on-error: true
+
+  # The tactical prototype's rules layer. Determinism and turn authority are
+  # design-binding invariants (architecture/Sentinel 2D.md), and the golden
+  # transcripts here were captured from the running build — so a stray random
+  # draw fails the build instead of quietly making shift+R meaningless.
+  tactical-rules:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Run rules tests
+        working-directory: prototypes/tactical-core
+        run: node --test

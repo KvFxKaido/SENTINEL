@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SENTINEL — Tactical Encounter Prototype (3D)</title>
+<style>
+  :root {
+    --bg: #070a08;
+    --panel: #0c120d;
+    --line: #1d2b20;
+    --green: #46e07a;
+    --green-dim: #2a7a4a;
+    --amber: #ffb347;
+    --cyan: #5ccfff;
+    --red: #ff5c5c;
+    --text: #b8d8c0;
+    --text-dim: #5e7a66;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--text); font-family: "SF Mono", "Cascadia Mono", Consolas, Menlo, monospace; }
+  body { display: flex; justify-content: center; padding: 16px; min-height: 100vh; }
+  #app { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; max-width: 1040px; }
+  #left { position: relative; }
+  /* explicit CSS size: the drawing buffer is resized independently so the
+     pixel-crunch toggle can render below 1:1 and let the browser upscale */
+  canvas#cv { display: block; width: 700px; height: 445px; border: 1px solid var(--line); background: #0a0e0b; image-rendering: pixelated; }
+  /* subtle scanlines */
+  #left::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,0.16) 0 1px, transparent 1px 3px);
+    mix-blend-mode: multiply;
+  }
+  /* world-space labels projected onto the canvas (hit % in shoot mode) */
+  #labels { position: absolute; inset: 0; pointer-events: none; z-index: 4; }
+  #labels div {
+    position: absolute; transform: translate(-50%, -50%);
+    font-size: 12px; line-height: 15px; padding: 0 5px;
+    background: rgba(7,10,8,0.92); border: 1px solid var(--line); white-space: nowrap;
+  }
+  #panel { width: 320px; display: flex; flex-direction: column; gap: 10px; }
+  .box { background: var(--panel); border: 1px solid var(--line); padding: 10px 12px; }
+  .box h2 { font-size: 11px; letter-spacing: 2px; color: var(--text-dim); font-weight: normal; margin-bottom: 8px; }
+  #turnbar { display: flex; justify-content: space-between; align-items: center; font-size: 13px; letter-spacing: 1px; }
+  #turnbar .op { color: var(--cyan); }
+  #turnbar .ho { color: var(--red); }
+  #seed { color: var(--text-dim); font-size: 11px; }
+  .unitrow { display: flex; justify-content: space-between; font-size: 12px; padding: 3px 4px; cursor: pointer; border-left: 2px solid transparent; }
+  .unitrow.sel { border-left-color: var(--green); background: rgba(70,224,122,0.06); }
+  .unitrow.dead { color: var(--text-dim); text-decoration: line-through; cursor: default; }
+  .unitrow .hp { color: var(--green-dim); }
+  .unitrow .ow { color: var(--amber); }
+  #shotinfo { font-size: 12px; line-height: 1.6; min-height: 92px; }
+  #shotinfo .pct { font-size: 22px; color: var(--green); }
+  #shotinfo .flank { color: var(--amber); }
+  #shotinfo .dim { color: var(--text-dim); }
+  #actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  button {
+    font-family: inherit; font-size: 12px; letter-spacing: 1px; cursor: pointer;
+    background: #101a12; color: var(--text); border: 1px solid var(--line); padding: 7px 10px;
+  }
+  button:hover:not(:disabled) { border-color: var(--green-dim); color: var(--green); }
+  button:disabled { opacity: 0.35; cursor: default; }
+  button.armed { border-color: var(--amber); color: var(--amber); }
+  #log { font-size: 11px; line-height: 1.7; height: 170px; overflow-y: auto; color: var(--text-dim); }
+  #log .op { color: var(--cyan); } #log .ho { color: var(--red); }
+  #log .hit { color: var(--green); } #log .miss { color: var(--text-dim); }
+  #log .sys { color: var(--amber); }
+  #briefing { font-size: 11px; line-height: 1.6; color: var(--text-dim); }
+  #briefing b { color: var(--text); font-weight: normal; }
+  kbd { border: 1px solid var(--line); padding: 0 4px; font-size: 10px; color: var(--text); }
+  #overlay {
+    position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center;
+    background: rgba(4,6,5,0.88); text-align: center; gap: 14px; z-index: 5;
+  }
+  #overlay.show { display: flex; }
+  #overlay h1 { font-size: 26px; letter-spacing: 6px; font-weight: normal; }
+  #overlay h1.win { color: var(--green); } #overlay h1.loss { color: var(--red); }
+  #overlay p { font-size: 12px; color: var(--text-dim); max-width: 380px; line-height: 1.6; }
+  #boot { font-size: 12px; color: var(--red); padding: 10px 0; display: none; }
+  #boot.show { display: block; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="left">
+    <canvas id="cv"></canvas>
+    <div id="labels"></div>
+    <div id="overlay">
+      <h1 id="ovtitle"></h1>
+      <p id="ovtext"></p>
+      <div>
+        <button id="ovreplay">REPLAY SEED [shift+R]</button>
+        <button id="ovnew">NEW ENCOUNTER [R]</button>
+      </div>
+    </div>
+  </div>
+  <div id="panel">
+    <div class="box" id="turnbar"><span id="turnlabel"></span><span id="seed"></span></div>
+    <div class="box">
+      <h2>SQUAD</h2>
+      <div id="roster"></div>
+    </div>
+    <div class="box">
+      <h2>FIRING SOLUTION</h2>
+      <div id="shotinfo"><span class="dim">select an operative — hover a hostile</span></div>
+    </div>
+    <div class="box">
+      <div id="actions">
+        <button id="btnShoot">SHOOT [F]</button>
+        <button id="btnOw">OVERWATCH [Y]</button>
+        <button id="btnEnd">END TURN [⏎]</button>
+      </div>
+    </div>
+    <div class="box">
+      <h2>COMMS LOG</h2>
+      <div id="log"></div>
+    </div>
+    <div class="box" id="briefing">
+      <b>KESTREL YARD — LATTICE RELAY STATION</b><br>
+      A Steel Syndicate crew is stripping the relay for parts.
+      Lattice wants them gone before the grid sector browns out.
+      No reinforcements. No extraction timer. Just the yard.<br><br>
+      <kbd>click</kbd> select / move &nbsp; <kbd>tab</kbd> next unit &nbsp;
+      <kbd>F</kbd> shoot &nbsp; <kbd>Y</kbd> overwatch &nbsp; <kbd>⏎</kbd> end turn<br>
+      <kbd>Q</kbd>/<kbd>E</kbd> rotate camera &nbsp; <kbd>P</kbd> pixel crunch &nbsp;
+      <kbd>R</kbd>/<kbd>shift+R</kbd> new / replay seed<br>
+      ▪ low crate = half cover (−20 to be hit) &nbsp; █ wall = full cover (−40, blocks sight)<br>
+      cover only helps against fire from <b>that side</b> — rotate to read the angle
+    </div>
+    <div class="box" id="boot"></div>
+  </div>
+</div>
+
+<script type="module">
+"use strict";
+/* ============================================================
+   SENTINEL tactical slice — 3D renderer.
+
+   The rules live in ../tactical-core/rules.js and are shared with the 2D
+   build and with the headless test suite. Nothing in this file decides
+   anything about the game: it reads S, it calls actions, and it reacts to
+   events. If a rule needs changing it does not get changed here.
+
+   The 2D build was immediate-mode — draw() repainted the world from state
+   on every call. three.js is retained-mode: the scene graph is built once
+   and mutated. draw() kept its name and every call site, but now it only
+   marks the scene dirty; syncScene() does the reconciling.
+   ============================================================ */
+
+import * as THREE from "./vendor/three.module.js";
+import {
+  S, W, H, FLOOR, HALF, FULL,
+  bindIO, restart as rulesRestart, formatEvent,
+  selected, living, unitAt, solution, los, reachable, coveringTiles,
+  selectUnit, cycleSelect, tryMove, tryShoot, setOverwatch, endPlayerTurn,
+} from "../tactical-core/rules.js";
+
+// ---- renderer-owned state --------------------------------------
+// Transient presentation only. Anything the rules need to know lives in S.
+var hoverTile = null;
+var tracers = [];        // {x0,y0,x1,y1,until,mesh?}
+var curSeed = 0;
+
+function newSeed() { return (Math.floor(performance.now() * 1000) ^ (Math.random() * 0xffffffff)) >>> 0; }
+// ?seed=1a2b3c pins the opening encounter so a specific board can be replayed,
+// shared, or diffed against the headless rules test. `R` still deals fresh.
+function initialSeed() {
+  const q = new URLSearchParams(location.search).get("seed");
+  if (q !== null) { const n = parseInt(q, 16); if (Number.isFinite(n)) return n >>> 0; }
+  return newSeed();
+}
+
+// ---- tiny synth audio (no assets) -------------------------------
+var AC = null;
+function beep(freq, dur, type = "square", gain = 0.04) {
+  try {
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(gain, AC.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, AC.currentTime + dur);
+    o.connect(g); g.connect(AC.destination);
+    o.start(); o.stop(AC.currentTime + dur);
+  } catch (e) { /* audio is flavor, never load-bearing */ }
+}
+const sfx = {
+  select: () => beep(880, 0.05, "square", 0.02),
+  fire:   () => { beep(160, 0.12, "sawtooth", 0.05); beep(90, 0.18, "sawtooth", 0.04); },
+  hit:    () => beep(220, 0.15, "triangle", 0.06),
+  miss:   () => beep(520, 0.08, "sine", 0.03),
+  down:   () => { beep(140, 0.3, "sawtooth", 0.06); setTimeout(() => beep(70, 0.4, "sawtooth", 0.05), 90); },
+  turn:   () => { beep(440, 0.07); setTimeout(() => beep(660, 0.09), 90); },
+};
+
+// ---- comms log --------------------------------------------------
+const logEl = document.getElementById("log");
+const labelsEl = document.getElementById("labels");
+// The wrap the shared formatter uses to produce coloured HTML. The headless
+// test passes identity instead, which is why the test can assert against
+// exactly the text a player reads here.
+const wrapHTML = (text, cls) => `<span class="${cls}">${text}</span>`;
+
+function log(html) {
+  const d = document.createElement("div");
+  d.innerHTML = html;
+  logEl.appendChild(d);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function clearTracers() {
+  for (const tr of tracers) {
+    if (tr.mesh) { scene.remove(tr.mesh); tr.mesh.geometry.dispose(); tr.mesh.material.dispose(); }
+  }
+  tracers = [];
+}
+
+function onEvent(ev) {
+  const line = formatEvent(ev, wrapHTML);
+  if (line !== null) log(line);
+
+  switch (ev.type) {
+    case "reset":
+      logEl.innerHTML = "";
+      clearTracers();
+      labelsEl.innerHTML = "";
+      buildTerrain();
+      buildUnits();
+      showSolution(null, null);
+      document.getElementById("overlay").classList.remove("show");
+      break;
+    case "fire":
+      sfx.fire();
+      tracers.push({ x0: ev.att.x, y0: ev.att.y, x1: ev.def.x, y1: ev.def.y, until: performance.now() + 260 });
+      break;
+    case "shot":   ev.hit ? sfx.hit() : sfx.miss(); break;
+    case "down":   sfx.down(); break;
+    case "turn":   sfx.turn(); break;
+    case "select": sfx.select(); showSolution(null, null); break;
+    // the AI sets overwatch constantly; only chirp for the player's own
+    case "overwatch-set": if (ev.unit.side === "op") sfx.select(); break;
+    case "end":    showEnd(ev.result); break;
+  }
+}
+
+function showEnd(result) {
+  const ov = document.getElementById("overlay");
+  const t = document.getElementById("ovtitle"), p = document.getElementById("ovtext");
+  if (result === "win") {
+    t.textContent = "YARD CLEARED"; t.className = "win";
+    p.textContent = "The relay hums back to life. Lattice will remember this — and so will the Syndicate. (That part comes later. For now: it just feels good to replay.)";
+  } else {
+    t.textContent = "SQUAD LOST"; t.className = "loss";
+    p.textContent = "The yard goes quiet. The Syndicate finishes stripping the relay by dawn. Same seed, better angles — try again.";
+  }
+  ov.classList.add("show");
+}
+
+bindIO({
+  sleep: ms => new Promise(r => setTimeout(r, ms)),
+  emit: onEvent,
+  changed: () => { draw(); syncPanel(); },
+});
+
+/* ============================================================
+   RENDERER
+   Grid (x, y) maps to world (x, ·, z): grid y becomes world Z, and the
+   board is centred on the origin so the camera can orbit around it.
+   ============================================================ */
+
+// A 10×10 board seen at 2:1 dimetric projects to roughly 14.1 wide by 7.1
+// tall in world units, so a square viewport would waste half its height.
+// The canvas is sized to that ratio instead and the frustum follows it —
+// stretching the frustum to fit a square would break the 2:1 projection.
+const VIEW_W = 700, VIEW_H = 445;
+const gx = x => x - (W - 1) / 2;
+const gz = y => y - (H - 1) / 2;
+const tileWorld = (x, y, h = 0) => new THREE.Vector3(gx(x), h, gz(y));
+
+// Terrain is separated by value, not hue — that keeps the only saturated
+// things on screen the transient overlays, which are the actionable ones.
+const COL = {
+  tile:      [0x17231a, 0x131e16],     // checkerboard base
+  range:     0x235a72,                 // reachable with 1 AP
+  dash:      0x5f4718,                 // reachable only by spending 2
+  hover:     0x2f7a4c,
+  covering:  0x6a4a1a,                 // cover currently shielding a target
+  op:        0x5ccfff,
+  ho:        0xff5c5c,
+  crate:     0x6d8a72,                 // half cover: short and light
+  wall:      0x33463a,                 // full cover: tall and dark
+};
+
+const canvas = document.getElementById("cv");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setSize(VIEW_W, VIEW_H, false);   // false: leave the CSS size alone
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFShadowMap;
+
+// Rendering below 1:1 and letting `image-rendering: pixelated` upscale gives
+// the 48px sprite crunch the art doc asks for, without a sprite pipeline.
+var crunch = true;
+function applyCrunch() {
+  renderer.setPixelRatio(crunch ? 0.6 : Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(VIEW_W, VIEW_H, false);
+}
+applyCrunch();
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x070a08);
+
+// 2:1 dimetric — 45° azimuth, 30° elevation — is the projection the sprite
+// doc specifies (2 horizontal : 1 vertical). An orthographic camera at that
+// angle reproduces it exactly, and rotation stays on 90° steps so the board
+// never reads at an off-axis angle.
+const ELEV = 30 * Math.PI / 180;
+const CAM_DIST = 20;
+const HALF_W = 8.0, HALF_H = HALF_W * VIEW_H / VIEW_W;
+const camera = new THREE.OrthographicCamera(-HALF_W, HALF_W, HALF_H, -HALF_H, 0.1, 100);
+var camAz = Math.PI / 4;        // current azimuth (radians)
+var camAzTarget = Math.PI / 4;  // snap target
+function placeCamera() {
+  camera.position.set(
+    Math.cos(ELEV) * Math.sin(camAz) * CAM_DIST,
+    Math.sin(ELEV) * CAM_DIST,
+    Math.cos(ELEV) * Math.cos(camAz) * CAM_DIST
+  );
+  camera.lookAt(0, 0, 0);
+}
+placeCamera();
+
+// Ambient is kept deliberately low: shadows are what make the directional
+// cover rule legible, and a bright fill washes them out entirely.
+scene.add(new THREE.AmbientLight(0x8fb8a0, 0.5));
+scene.add(new THREE.HemisphereLight(0x9fd8c0, 0x0a1410, 0.35));
+const sun = new THREE.DirectionalLight(0xdff0e2, 2.4);
+sun.position.set(7, 7.5, 5);           // low enough to throw a readable shadow
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.camera.left = -9; sun.shadow.camera.right = 9;
+sun.shadow.camera.top = 9;   sun.shadow.camera.bottom = -9;
+sun.shadow.camera.near = 1;  sun.shadow.camera.far = 30;
+sun.shadow.camera.updateProjectionMatrix();
+sun.shadow.bias = -0.0015;
+scene.add(sun);
+
+// A solid slab under the tiles so the 0.02 seams read as grid lines on a
+// deck rather than as gaps punched through to the void.
+const baseGeo = new THREE.BoxGeometry(W + 0.1, 0.12, H + 0.1);
+const base = new THREE.Mesh(baseGeo, new THREE.MeshStandardMaterial({ color: 0x0c130d, roughness: 1 }));
+base.position.y = -0.12;
+base.receiveShadow = true;
+scene.add(base);
+
+// ---- floor: one InstancedMesh, 100 tiles, per-instance colour -----
+// The movement overlay, hover highlight and cover callout are all just
+// instance colours — no geometry churn, one draw call for the whole board.
+const floorGeo = new THREE.BoxGeometry(0.98, 0.06, 0.98);
+const floorMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, metalness: 0.0 });
+const floor = new THREE.InstancedMesh(floorGeo, floorMat, W * H);
+floor.receiveShadow = true;
+floor.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+{
+  const dummy = new THREE.Object3D();
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    dummy.position.set(gx(x), -0.03, gz(y));
+    dummy.updateMatrix();
+    floor.setMatrixAt(y * W + x, dummy.matrix);
+  }
+  floor.instanceMatrix.needsUpdate = true;
+}
+scene.add(floor);
+
+// ---- terrain (walls + crates) -------------------------------------
+const terrainGroup = new THREE.Group();
+scene.add(terrainGroup);
+const wallGeo  = new THREE.BoxGeometry(0.94, 1.5, 0.94);
+const crateGeo = new THREE.BoxGeometry(0.78, 0.46, 0.78);
+const wallMat  = new THREE.MeshStandardMaterial({ color: COL.wall,  roughness: 0.85 });
+const crateMat = new THREE.MeshStandardMaterial({ color: COL.crate, roughness: 0.8 });
+
+// Geometries and materials reused across rebuilds must survive disposal —
+// every reset tears the unit and terrain groups down, and disposing a shared
+// BufferGeometry once kills every later rebuild that uses it.
+const SHARED = new Set([wallGeo, crateGeo, wallMat, crateMat]);
+
+function disposeGroup(group) {
+  for (const child of [...group.children]) {
+    group.remove(child);
+    child.traverse(o => {
+      if (o.geometry && !SHARED.has(o.geometry)) o.geometry.dispose();
+      const mats = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+      for (const m of mats) {
+        if (SHARED.has(m)) continue;
+        if (m.map) m.map.dispose();
+        m.dispose();
+      }
+    });
+  }
+}
+
+function buildTerrain() {
+  disposeGroup(terrainGroup);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const t = S.map[y][x];
+    if (t === FLOOR) continue;
+    const m = t === FULL
+      ? new THREE.Mesh(wallGeo, wallMat)
+      : new THREE.Mesh(crateGeo, crateMat);
+    m.position.copy(tileWorld(x, y, t === FULL ? 0.75 : 0.23));
+    m.castShadow = true;
+    m.receiveShadow = true;
+    terrainGroup.add(m);
+  }
+}
+
+// ---- units --------------------------------------------------------
+const unitGroup = new THREE.Group();
+scene.add(unitGroup);
+const bodyGeo   = new THREE.CapsuleGeometry(0.22, 0.5, 4, 12);
+const packGeo   = new THREE.BoxGeometry(0.28, 0.26, 0.16);
+const ringGeo   = new THREE.TorusGeometry(0.42, 0.032, 8, 28);
+const owGeo     = new THREE.OctahedronGeometry(0.12);
+const ringMat   = new THREE.MeshBasicMaterial({ color: 0x46e07a });
+const owMat     = new THREE.MeshBasicMaterial({ color: 0xffb347 });
+for (const r of [bodyGeo, packGeo, ringGeo, owGeo, ringMat, owMat]) SHARED.add(r);
+
+// HP/AP live on a canvas-textured Sprite: sprites always face the camera,
+// so the readout survives rotation with no billboarding code.
+const BADGE_W = 160, BADGE_H = 44;
+function makeBadge(u) {
+  const c = document.createElement("canvas");
+  c.width = BADGE_W; c.height = BADGE_H;
+  const tex = new THREE.CanvasTexture(c);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
+  spr.scale.set(1.15, 1.15 * BADGE_H / BADGE_W, 1);
+  spr.position.y = 1.06;
+  spr.renderOrder = 10;
+  u._badge = c; u._badgeTex = tex;
+  return spr;
+}
+// A segmented bar rather than N discrete pips: at pixel-crunch resolution a
+// 10-pip row collapses into an unreadable dashed smear, but a filled bar with
+// tick marks survives downsampling and still shows exact HP.
+function drawBadge(u) {
+  const c = u._badge, g = c.getContext("2d");
+  g.clearRect(0, 0, c.width, c.height);
+
+  const bw = 132, bh = 14, bx = (c.width - bw) / 2, by = 24;
+  g.fillStyle = "#050807";
+  g.fillRect(bx - 2, by - 2, bw + 4, bh + 4);
+  g.fillStyle = "#1b2a1d";
+  g.fillRect(bx, by, bw, bh);
+  g.fillStyle = u.side === "op" ? "#46e07a" : "#ff6b52";
+  g.fillRect(bx, by, Math.round(bw * (u.hp / u.maxHp)), bh);
+  g.fillStyle = "rgba(5,8,7,0.85)";
+  for (let i = 1; i < u.maxHp; i++) g.fillRect(bx + Math.round(bw * i / u.maxHp), by, 2, bh);
+
+  if (u.side === "op" && S.turn === "op" && u.ap > 0) {
+    const pw = 22, gap = 6;
+    const apW = u.ap * (pw + gap) - gap;
+    let ax = (c.width - apW) / 2;
+    for (let i = 0; i < u.ap; i++) {
+      g.fillStyle = "#050807";
+      g.fillRect(ax + i * (pw + gap) - 2, 2, pw + 4, 14);
+      g.fillStyle = "#46e07a";
+      g.fillRect(ax + i * (pw + gap), 4, pw, 10);
+    }
+  }
+  u._badgeTex.needsUpdate = true;
+}
+
+function buildUnits() {
+  disposeGroup(unitGroup);
+  for (const u of S.units) {
+    const g = new THREE.Group();
+
+    const bodyMat = new THREE.MeshStandardMaterial({
+      color: u.side === "op" ? COL.op : COL.ho,
+      roughness: 0.55, metalness: 0.1,
+      emissive: u.side === "op" ? 0x0b2634 : 0x2a0c0c, emissiveIntensity: 0.7,
+    });
+    const body = new THREE.Mesh(bodyGeo, bodyMat);
+    body.position.y = 0.47;
+    body.castShadow = true;
+    body.userData.unit = u;   // picking resolves body hits to this unit's tile
+    g.add(body);
+
+    // X-ray silhouette. Full-cover walls are 1.5 tall and will hide a unit
+    // standing behind them — a problem the top-down build could not have.
+    // Toggled on only when the unit is actually occluded (see the frame
+    // loop), so a hidden unit reads as a silhouette rather than as an HP
+    // bar floating over nothing.
+    const ghost = new THREE.Mesh(bodyGeo, new THREE.MeshBasicMaterial({
+      color: u.side === "op" ? COL.op : COL.ho,
+      transparent: true, opacity: 0.33, depthTest: false, depthWrite: false,
+    }));
+    ghost.position.y = 0.47;
+    ghost.renderOrder = 5;
+    ghost.visible = false;
+    g.add(ghost);
+
+    // shoulder pack — gives the capsule a facing so rotation reads
+    const pack = new THREE.Mesh(packGeo, new THREE.MeshStandardMaterial({ color: 0x1b2630, roughness: 0.9 }));
+    pack.position.set(0, 0.6, -0.2);
+    pack.castShadow = true;
+    g.add(pack);
+
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.02;
+    ring.visible = false;
+    g.add(ring);
+
+    const ow = new THREE.Mesh(owGeo, owMat);
+    ow.position.y = 1.3;
+    ow.visible = false;
+    g.add(ow);
+
+    const badge = makeBadge(u);
+    g.add(badge);
+
+    g.userData = { unit: u, body, ghost, pack, ring, ow, badge };
+    u._obj = g;
+    unitGroup.add(g);
+    drawBadge(u);
+  }
+}
+
+// ---- tracers -------------------------------------------------------
+// WebGL line width is clamped to 1px on virtually every platform, so a
+// thin cylinder is the honest way to get a visible tracer.
+function makeTracerMesh(t) {
+  const a = tileWorld(t.x0, t.y0, 0.62);
+  const b = tileWorld(t.x1, t.y1, 0.62);
+  const dir = new THREE.Vector3().subVectors(b, a);
+  const len = dir.length();
+  if (len < 1e-4) return null;
+  const geo = new THREE.CylinderGeometry(0.022, 0.022, len, 6);
+  geo.translate(0, len / 2, 0);          // move origin to the base
+  const mat = new THREE.MeshBasicMaterial({ color: 0xffdc78, transparent: true, opacity: 0.9 });
+  const m = new THREE.Mesh(geo, mat);
+  m.position.copy(a);
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+  scene.add(m);
+  return m;
+}
+
+// ---- picking -------------------------------------------------------
+// Units are picked before the floor: at 30° elevation a unit's body
+// projects well above its own tile, so a floor-only raycast would resolve
+// a click on a visible chest to the tile *behind* the model (caught in
+// review on #60). Body hits resolve to the unit's tile; everything else
+// falls through to the floor InstancedMesh, whose instanceId is the tile
+// index directly — so clicks on walls still resolve to the tile beneath,
+// matching the 2D behaviour.
+const raycaster = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+function tileFromEvent(e) {
+  const r = canvas.getBoundingClientRect();
+  ndc.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+  ndc.y = -((e.clientY - r.top) / r.height) * 2 + 1;
+  raycaster.setFromCamera(ndc, camera);
+  const bodies = [];
+  for (const u of S.units) if (u.alive && u._obj) bodies.push(u._obj.userData.body);
+  const hit = raycaster.intersectObjects([floor, ...bodies], false)[0];
+  if (!hit) return null;
+  if (hit.object !== floor) {
+    const u = hit.object.userData.unit;
+    return u ? [u.x, u.y] : null;
+  }
+  if (hit.instanceId === undefined) return null;
+  const i = hit.instanceId;
+  return [i % W, Math.floor(i / W)];
+}
+
+// ---- scene sync ----------------------------------------------------
+// draw() keeps its name and every call site, but it no longer paints: it
+// flags the scene as stale and the rAF loop reconciles.
+var sceneDirty = true;
+function draw() { sceneDirty = true; }
+
+const tileColor = new THREE.Color();
+
+function syncScene() {
+  const u = selected();
+  const colors = new Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    colors[y * W + x] = COL.tile[(x + y) & 1];
+  }
+
+  if (u && S.turn === "op" && !S.busy && !S.targetMode && u.ap > 0) {
+    const { cost } = reachable(u, u.mobility * u.ap);
+    for (const k of cost.keys()) {
+      const [x, y] = k.split(",").map(Number);
+      if (x === u.x && y === u.y) continue;
+      colors[y * W + x] = cost.get(k) > u.mobility ? COL.dash : COL.range;
+    }
+  }
+
+  // in shoot mode, light the cover that is actually protecting each hostile
+  // — the directional rule is the point, so make it a thing you can see
+  if (S.targetMode && u) {
+    for (const t of living("ho")) {
+      if (!los(u.x, u.y, t.x, t.y)) continue;
+      for (const [cx2, cy2] of coveringTiles(t, u)) colors[cy2 * W + cx2] = COL.covering;
+    }
+  }
+
+  if (hoverTile && !S.busy) colors[hoverTile[1] * W + hoverTile[0]] = COL.hover;
+
+  for (let i = 0; i < W * H; i++) {
+    tileColor.setHex(colors[i]);
+    floor.setColorAt(i, tileColor);
+  }
+  if (floor.instanceColor) floor.instanceColor.needsUpdate = true;
+
+  for (const v of S.units) {
+    const o = v._obj;
+    if (!o) continue;
+    o.visible = v.alive;
+    if (!v.alive) continue;
+    o.position.set(gx(v.x), 0, gz(v.y));
+    o.userData.ring.visible = (v.id === S.selectedId && S.turn === "op");
+    o.userData.ow.visible = v.overwatch;
+    drawBadge(v);
+  }
+
+  sceneDirty = false;
+}
+
+// hit% readouts: project the unit's world position to canvas pixels. The
+// same maths works at any camera angle, which is why these are HTML and not
+// baked into the scene.
+const projV = new THREE.Vector3();
+function syncLabels() {
+  const u = selected();
+  if (!S.targetMode || !u || S.gameOver) { labelsEl.innerHTML = ""; return; }
+  const r = canvas.getBoundingClientRect();
+  const wanted = living("ho");
+  while (labelsEl.children.length > wanted.length) labelsEl.lastChild.remove();
+  while (labelsEl.children.length < wanted.length) labelsEl.appendChild(document.createElement("div"));
+  wanted.forEach((t, i) => {
+    const el = labelsEl.children[i];
+    const sol = solution(u, t);
+    projV.copy(tileWorld(t.x, t.y, 1.5)).project(camera);
+    el.style.left = ((projV.x * 0.5 + 0.5) * r.width) + "px";
+    el.style.top = ((-projV.y * 0.5 + 0.5) * r.height) + "px";
+    if (sol) {
+      el.textContent = sol.pct + "%" + (sol.flanked ? "!" : "");
+      el.style.color = sol.flanked ? "#ffb347" : "#46e07a";
+    } else {
+      el.textContent = "no LOS";
+      el.style.color = "#5e7a66";
+    }
+  });
+}
+
+// ---- frame loop ----------------------------------------------------
+// The 2D build repainted only on state change and hand-rolled a 500ms idle
+// bob. A real frame loop makes continuous motion free, so the bob, the
+// overwatch spin, tracer fade and camera easing all live here.
+const timer = new THREE.Timer();       // Clock is deprecated as of r18x
+const viewDir = new THREE.Vector3();
+const chest = new THREE.Vector3();
+const occRay = new THREE.Raycaster();
+const OCC_BACK = 25;                   // ray start distance behind the unit
+
+function frame() {
+  requestAnimationFrame(frame);
+  timer.update();
+  const t = timer.getElapsed();
+
+  // camera easing toward the 90° snap target
+  if (Math.abs(camAzTarget - camAz) > 1e-4) {
+    camAz += (camAzTarget - camAz) * 0.18;
+    placeCamera();
+  }
+
+  if (sceneDirty) syncScene();
+
+  // tracer lifetime + fade
+  const now = performance.now();
+  for (let i = tracers.length - 1; i >= 0; i--) {
+    const tr = tracers[i];
+    if (!tr.mesh && !tr.spawned) { tr.mesh = makeTracerMesh(tr); tr.spawned = true; }
+    const left = tr.until - now;
+    if (left <= 0) {
+      if (tr.mesh) { scene.remove(tr.mesh); tr.mesh.geometry.dispose(); tr.mesh.material.dispose(); }
+      tracers.splice(i, 1);
+    } else if (tr.mesh) {
+      tr.mesh.material.opacity = Math.min(1, left / 220) * 0.9;
+    }
+  }
+
+  // idle bob, overwatch spin, occlusion test
+  camera.getWorldDirection(viewDir);
+  for (const v of S.units) {
+    if (!v.alive || !v._obj) continue;
+    const d = v._obj.userData;
+    const bob = Math.sin(t * 2.2 + v.id * 1.7) * 0.022;
+    d.body.position.y = 0.47 + bob;
+    d.ghost.position.y = 0.47 + bob;
+    d.pack.position.y = 0.6 + bob;
+    if (d.ow.visible) { d.ow.rotation.y = t * 1.6; d.ow.position.y = 1.3 + Math.sin(t * 2) * 0.05; }
+
+    // Walk the camera ray backwards from well behind the unit: if terrain
+    // stops it before it arrives, the unit is hidden and the ghost goes on.
+    chest.set(gx(v.x), 0.55, gz(v.y));
+    occRay.set(chest.clone().addScaledVector(viewDir, -OCC_BACK), viewDir);
+    const blocked = occRay.intersectObjects(terrainGroup.children, false);
+    d.ghost.visible = blocked.length > 0 && blocked[0].distance < OCC_BACK - 0.3;
+  }
+
+  syncLabels();
+  renderer.render(scene, camera);
+}
+
+// ---- panel ------------------------------------------------------
+function syncPanel() {
+  document.getElementById("turnlabel").innerHTML = S.gameOver
+    ? (S.gameOver === "win" ? '<span class="op">MISSION COMPLETE</span>' : '<span class="ho">MISSION FAILED</span>')
+    : (S.turn === "op" ? '<span class="op">▶ OPERATIVE TURN</span>' : '<span class="ho">▶ HOSTILE TURN</span>');
+  document.getElementById("seed").textContent = "seed " + S.seed.toString(16);
+
+  const roster = document.getElementById("roster");
+  roster.innerHTML = "";
+  for (const v of S.units.filter(x => x.side === "op")) {
+    const d = document.createElement("div");
+    d.className = "unitrow" + (v.id === S.selectedId ? " sel" : "") + (v.alive ? "" : " dead");
+    d.innerHTML = `<span>${v.name}</span><span>${v.overwatch ? '<span class="ow">◉OW</span> ' : ""}` +
+      `<span class="hp">${v.alive ? v.hp + "/" + v.maxHp : "KIA"}</span>` +
+      (v.alive && S.turn === "op" ? ` <span>${"·".repeat(v.ap)}</span>` : "") + `</span>`;
+    if (v.alive) d.onclick = () => { if (!S.busy && S.turn === "op") selectUnit(v); };
+    roster.appendChild(d);
+  }
+
+  const u = selected();
+  const can = u && S.turn === "op" && !S.busy && !S.gameOver && u.ap > 0;
+  document.getElementById("btnShoot").disabled = !can;
+  document.getElementById("btnShoot").className = S.targetMode ? "armed" : "";
+  document.getElementById("btnOw").disabled = !can;
+  document.getElementById("btnEnd").disabled = S.busy || S.gameOver !== null || S.turn !== "op";
+}
+
+function showSolution(att, def) {
+  const el = document.getElementById("shotinfo");
+  if (!att || !def) {
+    el.innerHTML = '<span class="dim">select an operative — hover a hostile</span>';
+    return;
+  }
+  const sol = solution(att, def);
+  const name = u => `<span class="${u.side}">${u.name}</span>`;
+  if (!sol) {
+    el.innerHTML = `${name(att)} → ${name(def)}<br><span class="dim">no line of sight</span>`;
+    return;
+  }
+  el.innerHTML =
+    `${name(att)} → ${name(def)} &nbsp; <span class="pct">${sol.pct}%</span>` +
+    (sol.flanked ? ' <span class="flank">FLANKED</span>' : "") + "<br>" +
+    `<span class="dim">base aim</span> ${sol.base} &nbsp; ` +
+    `<span class="dim">range</span> ${sol.range >= 0 ? "+" : ""}${sol.range} &nbsp; ` +
+    `<span class="dim">cover</span> −${sol.cover}<br>` +
+    `<span class="dim">crit chance</span> ${sol.critPct}% &nbsp; <span class="dim">dmg</span> 3–5 (+3 crit)`;
+}
+
+// ---- input ------------------------------------------------------
+canvas.addEventListener("mousemove", e => {
+  hoverTile = tileFromEvent(e);
+  const u = selected();
+  if (u && hoverTile) {
+    const t = unitAt(hoverTile[0], hoverTile[1]);
+    if (t && t.side === "ho") showSolution(u, t);
+  }
+  if (!S.busy) draw();
+});
+canvas.addEventListener("mouseleave", () => { hoverTile = null; showSolution(null, null); if (!S.busy) draw(); });
+
+canvas.addEventListener("click", e => {
+  if (S.busy || S.gameOver || S.turn !== "op") return;
+  const t = tileFromEvent(e);
+  if (!t) return;
+  const [x, y] = t;
+  const clicked = unitAt(x, y);
+  const u = selected();
+
+  if (clicked && clicked.side === "op") { selectUnit(clicked); return; }
+  if (!u) return;
+
+  if (clicked && clicked.side === "ho") {
+    if (u.ap > 0) tryShoot(u, clicked);
+    return;
+  }
+  if (!S.targetMode && u.ap > 0) tryMove(u, x, y);
+});
+
+document.addEventListener("keydown", e => {
+  // restart works from anywhere — mid-animation, hostile turn, game over
+  if (e.key === "r") { restart(true); return; }
+  if (e.key === "R") { restart(false); return; }
+  // camera + display controls are never gated on turn state
+  if (e.key === "q" || e.key === "Q") { camAzTarget += Math.PI / 2; return; }
+  if (e.key === "e" || e.key === "E") { camAzTarget -= Math.PI / 2; return; }
+  if (e.key === "p" || e.key === "P") { crunch = !crunch; applyCrunch(); return; }
+  if (S.gameOver || S.busy || S.turn !== "op") return;
+  const u = selected();
+  switch (e.key) {
+    case "Tab": e.preventDefault(); cycleSelect(); break;
+    case "f": case "F":
+      if (u && u.ap > 0) { S.targetMode = !S.targetMode; draw(); syncPanel(); }
+      break;
+    case "y": case "Y":
+      if (u && u.ap > 0) setOverwatch(u);
+      break;
+    case "Enter": endPlayerTurn(); break;
+    case "Escape": S.targetMode = false; draw(); syncPanel(); break;
+  }
+});
+
+document.getElementById("btnShoot").onclick = () => { S.targetMode = !S.targetMode; draw(); syncPanel(); };
+document.getElementById("btnOw").onclick = () => { const u = selected(); if (u) setOverwatch(u); };
+document.getElementById("btnEnd").onclick = endPlayerTurn;
+document.getElementById("ovnew").onclick = () => restart(true);
+document.getElementById("ovreplay").onclick = () => restart(false);
+
+// ---- lifecycle --------------------------------------------------
+function restart(fresh) {
+  if (fresh) curSeed = newSeed();
+  rulesRestart(curSeed);       // emits reset → mission → turn back through onEvent
+}
+
+curSeed = initialSeed();
+restart(false);
+frame();
+canvas.dataset.booted = "1";   // the boot-check script below reads this
+</script>
+<script>
+// Modules fail silently from file:// — say so out loud rather than showing
+// a black canvas and letting the user guess.
+window.addEventListener("load", () => {
+  if (document.getElementById("cv").dataset.booted) return;
+  const b = document.getElementById("boot");
+  b.className = "box show";
+  b.innerHTML = location.protocol === "file:"
+    ? "This build loads three.js as an ES module, which browsers block over " +
+      "<code>file://</code>. Serve the folder instead — double-click " +
+      "<code>serve.cmd</code>, or run:<br><br>" +
+      "<code>python -m http.server -d prototypes 8080</code><br><br>" +
+      "then open <code>localhost:8080/tactical3d/</code>."
+    : "The renderer failed to start. Check the browser console — most likely " +
+      "<code>vendor/three.module.js</code> is missing or the machine has no WebGL2.";
+});
+</script>
+</body>
+</html>
