@@ -46,6 +46,31 @@ jobs:
           file: sentinel-agent/coverage.xml
           fail_ci_if_error: false
 
+  # Primary development happens on Windows; Ubuntu-only CI misses
+  # path-separator and line-ending bugs in path-heavy code (wiki sync,
+  # campaign saves, portrait assets).
+  test-windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        working-directory: sentinel-agent
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run tests
+        working-directory: sentinel-agent
+        run: |
+          pytest tests/ -v --tb=short
+
   lint:
     runs-on: ubuntu-latest
 
