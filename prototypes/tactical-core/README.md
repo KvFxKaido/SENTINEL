@@ -43,16 +43,42 @@ restart(seed)         deal an encounter
                       → emits reset, mission, turn
 
 tryMove, tryShoot, setOverwatch, selectUnit, cycleSelect, endPlayerTurn
+tryFinish, spare      the two halves of the yield decision (see below)
 los, coverBonus, coveringTiles, solution, reachable, pathTo
+MORALE                start value and drain amounts, exported for tuning
 formatEvent(ev, wrap) one formatter, two skins
 ```
 
 The rules never call the renderer. They emit events — `fire`, `shot`, `down`,
-`overwatch-set`, `overwatch-trigger`, `turn`, `select`, `reset`, `end` — and
-the host decides what a shot looks and sounds like. `formatEvent` takes a
-`wrap(text, class)` so the browser gets coloured HTML and the test gets plain
-text from the same code path. That is why the test can assert against exactly
-the words a player reads in the comms log.
+`overwatch-set`, `overwatch-trigger`, `turn`, `select`, `reset`, `end`,
+`yield`, `yield-decision`, `finish`, `spared` — and the host decides what a
+shot looks and sounds like. `formatEvent` takes a `wrap(text, class)` so the
+browser gets coloured HTML and the test gets plain text from the same code
+path. That is why the test can assert against exactly the words a player
+reads in the comms log.
+
+## Yield states
+
+Hostiles carry morale (`sentinel_circuit_design.md` §5, roadmap step 1). It
+only moves down, and only for things a fighter can see: a landed hit, a
+squadmate dropping, a squadmate quitting. At zero the fighter yields —
+deterministically, no roll, because a collapse the player can see coming is
+one they can play around, or play for. Operatives have no morale; the
+player's people don't quit under the player.
+
+When every hostile still standing has yielded, the fight is settled but the
+match holds (`S.decision`): the only verbs left are `spare()` — accept every
+yield, end the match — and `tryFinish(att, def)` — an execution, no roll, no
+miss. Mid-fight, finishing a lone yielder is also legal; it costs the
+activation, needs line of sight, and drains the morale of everyone who
+watched. Which ending you chose stays visible on the corpse: `yielded`
+remains true on a finished fighter, and both renderers read it back for the
+end screen.
+
+Notably, adding this mechanic did **not** re-capture the golden transcripts:
+morale reacts to damage and never draws from the RNG, and in a no-input
+playout the hostiles are never damaged. The goldens passing untouched is the
+draw-order rule below doing its job in the other direction.
 
 ## Rules for changing this file
 

@@ -126,7 +126,8 @@
       <kbd>Q</kbd>/<kbd>E</kbd> rotate camera &nbsp; <kbd>P</kbd> pixel crunch &nbsp;
       <kbd>R</kbd>/<kbd>shift+R</kbd> new / replay seed<br>
       ▪ low crate = half cover (−20 to be hit) &nbsp; █ wall = full cover (−40, blocks sight)<br>
-      cover only helps against fire from <b>that side</b> — rotate to read the angle
+      cover only helps against fire from <b>that side</b> — rotate to read the angle<br>
+      the amber bar is morale — break it and they yield. What you do next is watched.
     </div>
     <div class="box" id="boot"></div>
   </div>
@@ -153,7 +154,7 @@ import {
   S, W, H, FLOOR, HALF, FULL,
   bindIO, restart as rulesRestart, formatEvent,
   selected, living, unitAt, solution, los, reachable, coveringTiles,
-  selectUnit, cycleSelect, tryMove, tryShoot, setOverwatch, endPlayerTurn,
+  selectUnit, cycleSelect, tryMove, tryShoot, tryFinish, spare, setOverwatch, endPlayerTurn,
 } from "../tactical-core/rules.js";
 
 // ---- renderer-owned state --------------------------------------
@@ -191,6 +192,7 @@ const sfx = {
   miss:   () => beep(520, 0.08, "sine", 0.03),
   down:   () => { beep(140, 0.3, "sawtooth", 0.06); setTimeout(() => beep(70, 0.4, "sawtooth", 0.05), 90); },
   turn:   () => { beep(440, 0.07); setTimeout(() => beep(660, 0.09), 90); },
+  yield:  () => { beep(660, 0.1, "sine", 0.04); setTimeout(() => beep(440, 0.18, "sine", 0.04), 110); },
 };
 
 // ---- comms log --------------------------------------------------
@@ -235,6 +237,9 @@ function onEvent(ev) {
       break;
     case "shot":   ev.hit ? sfx.hit() : sfx.miss(); break;
     case "down":   sfx.down(); break;
+    case "finish": sfx.down(); break;
+    case "yield":  sfx.yield(); break;
+    case "yield-decision": sfx.turn(); break;
     case "turn":   sfx.turn(); break;
     case "select": sfx.select(); showSolution(null, null); break;
     // the AI sets overwatch constantly; only chirp for the player's own
@@ -246,9 +251,16 @@ function onEvent(ev) {
 function showEnd(result) {
   const ov = document.getElementById("overlay");
   const t = document.getElementById("ovtitle"), p = document.getElementById("ovtext");
+  // yielded stays true on the dead — that is how the ending knows what you did
+  const spared   = S.units.filter(u => u.side === "ho" && u.alive && u.yielded).length;
+  const finished = S.units.filter(u => u.side === "ho" && !u.alive && u.yielded).length;
   if (result === "win") {
     t.textContent = "YARD CLEARED"; t.className = "win";
-    p.textContent = "The relay hums back to life. Lattice will remember this — and so will the Syndicate. (That part comes later. For now: it just feels good to replay.)";
+    p.textContent =
+      spared && finished ? "Some walked, some didn't. The yard saw which was which, and so did the ones who walked." :
+      spared             ? "They yielded and you let it stand. The relay hums back to life — and the Syndicate owes you a strange kind of debt." :
+      finished           ? "They yielded. You finished it anyway. The relay hums back to life, and the yard remembers how." :
+      "The relay hums back to life. Lattice will remember this — and so will the Syndicate. (That part comes later. For now: it just feels good to replay.)";
   } else {
     t.textContent = "SQUAD LOST"; t.className = "loss";
     p.textContent = "The yard goes quiet. The Syndicate finishes stripping the relay by dawn. Same seed, better angles — try again.";
@@ -448,7 +460,10 @@ function drawBadge(u) {
   const c = u._badge, g = c.getContext("2d");
   g.clearRect(0, 0, c.width, c.height);
 
-  const bw = 132, bh = 14, bx = (c.width - bw) / 2, by = 24;
+  // hostiles carry a second, amber bar: morale. The yield threshold has to
+  // be visible, or "they might quit" is a secret instead of a tactic.
+  const ho = u.morale !== undefined;
+  const bw = 132, bh = ho ? 12 : 14, bx = (c.width - bw) / 2, by = ho ? 20 : 24;
   g.fillStyle = "#050807";
   g.fillRect(bx - 2, by - 2, bw + 4, bh + 4);
   g.fillStyle = "#1b2a1d";
@@ -458,7 +473,25 @@ function drawBadge(u) {
   g.fillStyle = "rgba(5,8,7,0.85)";
   for (let i = 1; i < u.maxHp; i++) g.fillRect(bx + Math.round(bw * i / u.maxHp), by, 2, bh);
 
-  if (u.side === "op" && S.turn === "op" && u.ap > 0) {
+  if (ho) {
+    const my = 36, mh = 5;
+    g.fillStyle = "#050807";
+    g.fillRect(bx - 2, my - 2, bw + 4, mh + 4);
+    g.fillStyle = "#241d10";
+    g.fillRect(bx, my, bw, mh);
+    g.fillStyle = "#ffb347";
+    g.fillRect(bx, my, Math.round(bw * (u.morale / u.maxMorale)), mh);
+  }
+
+  if (u.yielded) {
+    g.fillStyle = "#050807";
+    g.fillRect(c.width / 2 - 34, 0, 68, 17);
+    g.fillStyle = "#ffb347";
+    g.font = "13px monospace";
+    g.textAlign = "center";
+    g.fillText("YIELDS", c.width / 2, 13);
+    g.textAlign = "start";
+  } else if (u.side === "op" && S.turn === "op" && u.ap > 0) {
     const pw = 22, gap = 6;
     const apW = u.ap * (pw + gap) - gap;
     let ax = (c.width - apW) / 2;
@@ -591,7 +624,7 @@ function syncScene() {
     colors[y * W + x] = COL.tile[(x + y) & 1];
   }
 
-  if (u && S.turn === "op" && !S.busy && !S.targetMode && u.ap > 0) {
+  if (u && S.turn === "op" && !S.busy && !S.targetMode && !S.decision && u.ap > 0) {
     const { cost } = reachable(u, u.mobility * u.ap);
     for (const k of cost.keys()) {
       const [x, y] = k.split(",").map(Number);
@@ -625,6 +658,12 @@ function syncScene() {
     o.position.set(gx(v.x), 0, gz(v.y));
     o.userData.ring.visible = (v.id === S.selectedId && S.turn === "op");
     o.userData.ow.visible = v.overwatch;
+    // a yielded fighter kneels: shorter, dimmer, holding still (frame loop
+    // stops their bob and lowers the body to match the squashed capsule)
+    const kneel = !!v.yielded;
+    o.userData.body.scale.y = kneel ? 0.6 : 1;
+    o.userData.ghost.scale.y = kneel ? 0.6 : 1;
+    o.userData.body.material.emissiveIntensity = kneel ? 0.15 : 0.7;
     drawBadge(v);
   }
 
@@ -637,17 +676,25 @@ function syncScene() {
 const projV = new THREE.Vector3();
 function syncLabels() {
   const u = selected();
-  if (!S.targetMode || !u || S.gameOver) { labelsEl.innerHTML = ""; return; }
+  // active in shoot mode as before, and during the decision — where every
+  // label reads FINISH, because a finish is a choice, not a number
+  const active = !S.gameOver && (S.decision || (S.targetMode && u));
+  if (!active) { labelsEl.innerHTML = ""; return; }
   const r = canvas.getBoundingClientRect();
   const wanted = living("ho");
   while (labelsEl.children.length > wanted.length) labelsEl.lastChild.remove();
   while (labelsEl.children.length < wanted.length) labelsEl.appendChild(document.createElement("div"));
   wanted.forEach((t, i) => {
     const el = labelsEl.children[i];
-    const sol = solution(u, t);
     projV.copy(tileWorld(t.x, t.y, 1.5)).project(camera);
     el.style.left = ((projV.x * 0.5 + 0.5) * r.width) + "px";
     el.style.top = ((-projV.y * 0.5 + 0.5) * r.height) + "px";
+    if (t.yielded) {
+      el.textContent = "FINISH";
+      el.style.color = "#e8e8e8";
+      return;
+    }
+    const sol = solution(u, t);
     if (sol) {
       el.textContent = sol.pct + "%" + (sol.flanked ? "!" : "");
       el.style.color = sol.flanked ? "#ffb347" : "#46e07a";
@@ -700,10 +747,12 @@ function frame() {
   for (const v of S.units) {
     if (!v.alive || !v._obj) continue;
     const d = v._obj.userData;
-    const bob = Math.sin(t * 2.2 + v.id * 1.7) * 0.022;
-    d.body.position.y = 0.47 + bob;
-    d.ghost.position.y = 0.47 + bob;
-    d.pack.position.y = 0.6 + bob;
+    const kneel = !!v.yielded;
+    const bob = kneel ? 0 : Math.sin(t * 2.2 + v.id * 1.7) * 0.022;
+    const baseY = kneel ? 0.30 : 0.47;
+    d.body.position.y = baseY + bob;
+    d.ghost.position.y = baseY + bob;
+    d.pack.position.y = (kneel ? 0.42 : 0.6) + bob;
     if (d.ow.visible) { d.ow.rotation.y = t * 1.6; d.ow.position.y = 1.3 + Math.sin(t * 2) * 0.05; }
 
     // Walk the camera ray backwards from well behind the unit: if terrain
@@ -722,6 +771,7 @@ function frame() {
 function syncPanel() {
   document.getElementById("turnlabel").innerHTML = S.gameOver
     ? (S.gameOver === "win" ? '<span class="op">MISSION COMPLETE</span>' : '<span class="ho">MISSION FAILED</span>')
+    : S.decision ? '<span style="color:var(--amber)">▶ THEY YIELD — YOUR CALL</span>'
     : (S.turn === "op" ? '<span class="op">▶ OPERATIVE TURN</span>' : '<span class="ho">▶ HOSTILE TURN</span>');
   document.getElementById("seed").textContent = "seed " + S.seed.toString(16);
 
@@ -738,10 +788,12 @@ function syncPanel() {
   }
 
   const u = selected();
-  const can = u && S.turn === "op" && !S.busy && !S.gameOver && u.ap > 0;
+  const can = u && S.turn === "op" && !S.busy && !S.gameOver && !S.decision && u.ap > 0;
   document.getElementById("btnShoot").disabled = !can;
   document.getElementById("btnShoot").className = S.targetMode ? "armed" : "";
   document.getElementById("btnOw").disabled = !can;
+  // during the decision the end-turn button becomes the mercy button
+  document.getElementById("btnEnd").textContent = S.decision ? "SPARE THEM [⏎]" : "END TURN [⏎]";
   document.getElementById("btnEnd").disabled = S.busy || S.gameOver !== null || S.turn !== "op";
 }
 
@@ -751,8 +803,15 @@ function showSolution(att, def) {
     el.innerHTML = '<span class="dim">select an operative — hover a hostile</span>';
     return;
   }
-  const sol = solution(att, def);
   const name = u => `<span class="${u.side}">${u.name}</span>`;
+  if (def.yielded) {
+    el.innerHTML = `${name(att)} → ${name(def)}<br>` +
+      (!S.decision && !los(att.x, att.y, def.x, def.y)
+        ? '<span class="dim">yielded — no line of sight to finish</span>'
+        : '<span class="dim">yielded — a finish is a choice, not a roll</span>');
+    return;
+  }
+  const sol = solution(att, def);
   if (!sol) {
     el.innerHTML = `${name(att)} → ${name(def)}<br><span class="dim">no line of sight</span>`;
     return;
@@ -790,6 +849,7 @@ canvas.addEventListener("click", e => {
   if (!u) return;
 
   if (clicked && clicked.side === "ho") {
+    if (clicked.yielded) { tryFinish(u, clicked); return; }
     if (u.ap > 0) tryShoot(u, clicked);
     return;
   }
@@ -809,19 +869,19 @@ document.addEventListener("keydown", e => {
   switch (e.key) {
     case "Tab": e.preventDefault(); cycleSelect(); break;
     case "f": case "F":
-      if (u && u.ap > 0) { S.targetMode = !S.targetMode; draw(); syncPanel(); }
+      if (u && u.ap > 0 && !S.decision) { S.targetMode = !S.targetMode; draw(); syncPanel(); }
       break;
     case "y": case "Y":
       if (u && u.ap > 0) setOverwatch(u);
       break;
-    case "Enter": endPlayerTurn(); break;
+    case "Enter": S.decision ? spare() : endPlayerTurn(); break;
     case "Escape": S.targetMode = false; draw(); syncPanel(); break;
   }
 });
 
 document.getElementById("btnShoot").onclick = () => { S.targetMode = !S.targetMode; draw(); syncPanel(); };
 document.getElementById("btnOw").onclick = () => { const u = selected(); if (u) setOverwatch(u); };
-document.getElementById("btnEnd").onclick = endPlayerTurn;
+document.getElementById("btnEnd").onclick = () => { S.decision ? spare() : endPlayerTurn(); };
 document.getElementById("ovnew").onclick = () => restart(true);
 document.getElementById("ovreplay").onclick = () => restart(false);
 

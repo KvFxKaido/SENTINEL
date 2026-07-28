@@ -54,6 +54,10 @@ proves itself:
 - What if missed shots alter the map?
 - What if **social energy** is the morale system — depletion, not death, ends fights?
 - What if positioning creates team abilities instead of aim bonuses?
-- What if hostiles surrender, and what you do next is a **hinge moment**?
+- ~~What if hostiles surrender, and what you do next is a **hinge moment**?~~
+  **Built.** Hostiles yield on morale, and the spare/finish call is the
+  match's last move (Circuit roadmap step 1 — see `tactical-core/`).
 
-The last two are where this stops being a clone.
+That one was where this stopped being a clone. Depletion-not-death now exists
+for hostiles; whether it becomes **social energy** on the player's side is
+still open.

@@ -31,6 +31,7 @@ The server root is `prototypes/`, not this folder — `index.html` imports
 - Directional cover: standing behind a crate only helps against fire from that side — flanked targets are marked and eat a 45% crit chance
 - Visible hit percentages with the full breakdown (base aim / range / cover)
 - Simple enemy AI: fires at ≥45%, or ≥30% when caught in the open after moving; otherwise advances toward cover with sightlines and holds overwatch once it gets there
+- Hostile morale (the amber bar): landed hits, downed squadmates and watching a mate quit all drain it; at zero the fighter yields. When every hostile standing has yielded, the match holds for the spare/finish call
 - Win, lose, restart
 
 ## Determinism
@@ -49,11 +50,11 @@ fails the build.
 
 | Input | Action |
 |-------|--------|
-| click | select operative / move / shoot hostile |
+| click | select operative / move / shoot hostile / finish a yielded hostile |
 | `Tab` | cycle to next operative with AP |
 | `F` | toggle shoot mode (shows hit % over every hostile) |
 | `Y` | overwatch (ends unit's activation) |
-| `Enter` | end turn |
+| `Enter` | end turn — or **spare them**, once every hostile has yielded |
 | `R` / `shift+R` | new encounter / replay same seed |
 
 ## Deliberately not here
@@ -68,6 +69,8 @@ SENTINEL rather than XCOM-flavored — come after the chassis proves itself:
 - What if missed shots alter the map?
 - What if **social energy** is the morale system — depletion, not death, ends fights?
 - What if positioning creates team abilities instead of aim bonuses?
-- What if hostiles surrender, and what you do next is a **hinge moment**?
+- ~~What if hostiles surrender, and what you do next is a **hinge moment**?~~
+  **Built** — hostiles yield on morale, and spare-or-finish is the match's
+  last move.
 
-The last two are where this stops being a clone. But first: replay it twice.
+That one was where this stopped being a clone. But first: replay it twice.
