@@ -12,8 +12,6 @@ dependencies = [
     "prompt-toolkit>=3.0.52",
     "tiktoken>=0.12.0",
     "textual>=0.40.0",
-    "jinja2>=3.1.0",
-    "watchdog>=6.0.0",
     "pyyaml>=6.0.3",
 ]
 

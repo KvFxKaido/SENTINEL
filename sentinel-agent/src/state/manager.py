@@ -34,8 +34,6 @@ from .schema import (
 )
 from .store import CampaignStore, JsonCampaignStore, EventQueueStore
 from .memvid_adapter import MemvidAdapter, create_memvid_adapter, MEMVID_AVAILABLE
-from .wiki_adapter import WikiAdapter, create_wiki_adapter
-from .wiki_watcher import WikiWatcher
 from .event_bus import get_event_bus, EventType
 from .character_yaml import generate_stubs_for_campaign, sync_portraits
 
@@ -80,8 +78,6 @@ class CampaignManager:
         store: CampaignStore | Path | str = "campaigns",
         event_queue: EventQueueStore | None = None,
         enable_memvid: bool = True,
-        enable_wiki: bool = True,
-        wiki_dir: str | Path = "wiki",
     ):
         """
         Initialize with a store.
@@ -90,8 +86,6 @@ class CampaignManager:
             store: CampaignStore instance, or path for JsonCampaignStore
             event_queue: Optional EventQueueStore for MCP event processing
             enable_memvid: Whether to enable memvid memory (requires memvid-sdk)
-            enable_wiki: Whether to enable wiki event logging
-            wiki_dir: Path to wiki directory for event logging
         """
         if isinstance(store, (Path, str)):
             # Backwards compatible: path creates JsonCampaignStore
@@ -112,12 +106,6 @@ class CampaignManager:
         self._enable_memvid = enable_memvid and MEMVID_AVAILABLE
         self._memvid: MemvidAdapter | None = None
         self._turn_counter: int = 0  # Track turns within session
-
-        # Wiki adapter (lazily initialized per campaign)
-        self._enable_wiki = enable_wiki
-        self._wiki_dir = Path(wiki_dir)
-        self._wiki: WikiAdapter | None = None
-        self._wiki_watcher: WikiWatcher | None = None
 
         # Game systems (lazily initialized)
         self._leverage_system = None
@@ -195,45 +183,6 @@ class CampaignManager:
     def memvid(self) -> MemvidAdapter | None:
         """Access the memvid adapter (may be None if disabled)."""
         return self._memvid
-
-    # -------------------------------------------------------------------------
-    # Wiki Integration
-    # -------------------------------------------------------------------------
-
-    def _init_wiki_for_campaign(self, campaign_id: str) -> None:
-        """Initialize wiki adapter for a campaign."""
-        if self._enable_wiki:
-            self._wiki = create_wiki_adapter(
-                campaign_id,
-                wiki_dir=self._wiki_dir,
-                enabled=True,
-            )
-            self._wiki_watcher = WikiWatcher(
-                manager=self,
-                wiki_dir=self._wiki_dir,
-                campaign_id=campaign_id,
-            )
-            self._wiki_watcher.start_watching()
-        else:
-            self._wiki = None
-            self._wiki_watcher = None
-
-    def _close_wiki(self) -> None:
-        """Close current wiki adapter."""
-        if self._wiki_watcher:
-            self._wiki_watcher.stop_watching()
-            self._wiki_watcher = None
-        self._wiki = None
-
-    @property
-    def wiki(self) -> WikiAdapter | None:
-        """Access the wiki adapter (may be None if disabled)."""
-        return self._wiki
-
-    @property
-    def wiki_watcher(self) -> WikiWatcher | None:
-        """Access the wiki watcher (may be None if disabled/unavailable)."""
-        return self._wiki_watcher
 
     def record_turn(
         self,
@@ -360,17 +309,6 @@ class CampaignManager:
                 context=context,
             )
 
-        # Also save to wiki (auto-creates NPC page on first encounter)
-        if self._wiki:
-            self._wiki.save_npc_interaction(
-                npc=npc,
-                player_action=player_action,
-                npc_reaction=npc_reaction,
-                disposition_change=standing_change,
-                session=session,
-                context=context,
-            )
-
         return {
             "npc_id": npc_id,
             "npc_name": npc.name,
@@ -483,7 +421,6 @@ class CampaignManager:
 
         # Close any existing adapters
         self._close_memvid()
-        self._close_wiki()
 
         self.current = campaign
         self._cache[meta.id] = campaign
@@ -522,7 +459,6 @@ class CampaignManager:
 
             # Close any existing adapters
             self._close_memvid()
-            self._close_wiki()
 
             # Run migrations if needed
             migrated = self._migrate_campaign(campaign)
@@ -539,7 +475,6 @@ class CampaignManager:
 
             # Initialize adapters for this campaign
             self._init_memvid_for_campaign(campaign.meta.id)
-            self._init_wiki_for_campaign(campaign.meta.id)
 
             # Emit event for UI updates
             get_event_bus().emit(
@@ -795,21 +730,6 @@ class CampaignManager:
                 except ValueError:
                     pass  # Invalid faction name
 
-            # Also save to wiki
-            if self._wiki:
-                from .schema import FactionName
-                try:
-                    faction_enum = FactionName(faction)
-                    self._wiki.save_faction_shift(
-                        faction=faction_enum,
-                        from_standing="Unknown",
-                        to_standing="Unknown",
-                        cause=f"{summary} (via MCP)",
-                        session=session,
-                    )
-                except ValueError:
-                    pass  # Invalid faction name
-
         # Future: handle other event types here
         # elif event.event_type == "npc_update":
         #     ...
@@ -837,9 +757,9 @@ class CampaignManager:
 
         This is the user-facing action (/save command) that:
         - Marks campaign as persisted
-        - Initializes memvid and wiki adapters
+        - Initializes the memvid adapter
         - Generates character YAML stubs for new NPCs
-        - Syncs portraits to web UI and wiki
+        - Syncs portraits to web UI and the wiki vault
         - Writes to disk
 
         Campaigns remain ephemeral (in-memory only) until this is called.
@@ -855,7 +775,6 @@ class CampaignManager:
             self.current.persisted_ = True
             # Initialize adapters now that campaign is persisted
             self._init_memvid_for_campaign(self.current.meta.id)
-            self._init_wiki_for_campaign(self.current.meta.id)
 
         # Generate character YAML stubs for NPCs without them
         # This enables portrait generation via /portrait skill
@@ -933,21 +852,6 @@ class CampaignManager:
         self.current.meta.session_count += 1
         self.current.session = session_state
         self.save_campaign()
-
-        # Update character wiki page at session start
-        self.update_character_wiki()
-
-    def update_character_wiki(self) -> bool:
-        """Update the player character's wiki page."""
-        if not self.current or not self.wiki:
-            return False
-
-        if not self.current.characters:
-            return False
-
-        # Update the first (player) character
-        character = self.current.characters[0]
-        return self.wiki.save_character_page(character, self.current)
 
     def end_session(
         self,
@@ -1593,16 +1497,6 @@ class CampaignManager:
                 session=self.current.meta.session_count,
             )
 
-        # Save to wiki
-        if self._wiki:
-            self._wiki.save_faction_shift(
-                faction=faction,
-                from_standing=before.value,
-                to_standing=after.value,
-                cause=reason,
-                session=self.current.meta.session_count,
-            )
-
         # Calculate and apply cascade effects
         cascades = []
         if apply_cascades and abs(delta) >= 1:
@@ -1829,15 +1723,6 @@ class CampaignManager:
                 dormant_threads_created=dormant_threads_created,
             )
 
-        # Save to wiki
-        if self._wiki:
-            self._wiki.save_hinge_moment(
-                hinge,
-                session=self.current.meta.session_count,
-                immediate_effects=immediate_effects,
-                dormant_threads_created=dormant_threads_created,
-            )
-
         return self.log_history(
             type=HistoryType.HINGE,
             summary=f"HINGE: {choice}",
@@ -1878,10 +1763,6 @@ class CampaignManager:
         if self._memvid:
             self._memvid.save_dormant_thread(thread)
 
-        # Save to wiki
-        if self._wiki:
-            self._wiki.save_dormant_thread(thread)
-
         self.save_campaign()
 
         # Emit event for UI updates
@@ -1915,14 +1796,6 @@ class CampaignManager:
                     summary=f"THREAD ACTIVATED: {activated.consequence}",
                     is_permanent=activated.severity == "major",
                 )
-
-                # Log thread triggering to wiki
-                if self._wiki:
-                    self._wiki.save_thread_triggered(
-                        thread=activated,
-                        session=self.current.meta.session_count,
-                        outcome=activation_context,
-                    )
 
                 self.save_campaign()
                 get_event_bus().emit(
