@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SENTINEL — Sprite Proportion Audition (Cipher, 32px)</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #070a08; color: #b8d8c0; font-family: "SF Mono", "Cascadia Mono", Consolas, Menlo, monospace; }
+  body { display: flex; flex-wrap: wrap; gap: 24px; justify-content: center; padding: 28px; }
+  .card { background: #0c120d; border: 1px solid #1d2b20; padding: 16px 20px; text-align: center; }
+  .card h1 { font-size: 12px; letter-spacing: 3px; font-weight: normal; color: #46e07a; margin-bottom: 4px; }
+  .card h2 { font-size: 10px; letter-spacing: 1px; font-weight: normal; color: #5e7a66; margin-bottom: 14px; }
+  .row { display: flex; gap: 18px; align-items: flex-end; justify-content: center; }
+  canvas { image-rendering: pixelated; background: #0a0e0b; border: 1px solid #1d2b20; }
+  .zl { font-size: 9px; color: #3d5245; margin-top: 4px; }
+  .note { width: 100%; text-align: center; font-size: 10px; color: #5e7a66; letter-spacing: 1px; }
+</style>
+</head>
+<body>
+<div class="note">CIPHER — 32×32, one palette, one ground line. Pick the body the gear layers will multiply.</div>
+<div class="card" id="card-a">
+  <h1>SYSTEM A — FFT</h1>
+  <h2>~2.3 heads · reads emotion</h2>
+  <div class="row"></div>
+</div>
+<div class="card" id="card-b">
+  <h1>SYSTEM B — MILITARY</h1>
+  <h2>~3.6 heads · reads role</h2>
+  <div class="row"></div>
+</div>
+
+<script type="module">
+import { CIPHER_PAL, CIPHER_A, CIPHER_B, validate } from "./cipher_sprites.js";
+
+const bad = validate();
+if (bad.length) document.querySelector(".note").textContent = "GRID ERRORS: " + bad.join(" · ");
+
+function bake(grid) {
+  const c = document.createElement("canvas");
+  c.width = 32; c.height = 32;
+  const g = c.getContext("2d");
+  grid.forEach((row, y) => [...row].forEach((ch, x) => {
+    if (CIPHER_PAL[ch]) { g.fillStyle = CIPHER_PAL[ch]; g.fillRect(x, y, 1, 1); }
+  }));
+  return c;
+}
+
+function show(cardId, grid) {
+  const src = bake(grid);
+  const row = document.querySelector(`#${cardId} .row`);
+  for (const z of [8, 3, 1]) {
+    const wrap = document.createElement("div");
+    const c = document.createElement("canvas");
+    c.width = 32 * z; c.height = 32 * z;
+    const g = c.getContext("2d");
+    g.imageSmoothingEnabled = false;
+    g.drawImage(src, 0, 0, c.width, c.height);
+    wrap.appendChild(c);
+    const l = document.createElement("div");
+    l.className = "zl";
+    l.textContent = z + "×";
+    wrap.appendChild(l);
+    row.appendChild(wrap);
+  }
+}
+
+show("card-a", CIPHER_A);
+show("card-b", CIPHER_B);
+</script>
+</body>
+</html>
