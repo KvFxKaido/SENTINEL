@@ -112,23 +112,22 @@ keep-earning clause (prototypes/README) comes due. Current lean: keep it —
 cheapest determinism cross-check, and the immediate-mode teaching contrast —
 but the question is now live.
 
-## The palette fork (open — designer's call)
+## The palette (decided: phosphor)
 
-Current identity is green-phosphor terminal (`sentinel_warp_vision.md`). SRW J
-is navy cockpit chrome. Options:
+**Decided (2026-07-28):** green-phosphor terminal, everywhere. Settled by the
+side-by-side in `mocks/fighter_sheet.html` — kept as the record of the
+decision: same markup, two skins. The chrome sheet reads as a broadcast
+graphic; the phosphor sheet reads as intel on your own rig — and SENTINEL is
+played from your side of the glass. It just feels tactical.
 
-1. **Diegetic split (leaning):** the Circuit's broadcast overlay — fight cards,
-   fighter sheets, the tactical layer — wears navy chrome with beveled cells
-   and hex watermark, because in-fiction it *is* a different device: the feed,
-   not your rig. Comms, campaign, and log surfaces keep green phosphor. Two
-   devices, two skins, no muddle.
-2. **Full switch** to chrome — cleanest, but abandons an identity the vision
-   doc argues for.
-3. **Structure only** — adopt the cells/tabs/density/bevels grammar but keep
-   the phosphor palette everywhere.
+The fiction squares itself: the feed exists, but the player is the fighter,
+not the audience. Whatever the network airs, you see it re-encoded through
+your own equipment. The broadcast is a register of *content* — fight cards,
+tale of the tape, odds, the Witness certification line — never a palette.
 
-Whichever way this lands, the *structural* language above (cells, tabs,
-outlines, density) applies unchanged.
+The structural grammar above survives whole: beveled labeled cells, physical
+tabs, hex watermark (phosphor tint, low contrast), outlined type, density as
+respect. SRW J's structure wearing SENTINEL's color.
 
 ## Concrete next uses
 
