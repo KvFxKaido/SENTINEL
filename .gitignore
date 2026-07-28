@@ -92,3 +92,6 @@ tmpclaude-*
 
 .gemini/
 gha-creds-*.json
+
+# Cloudflare Workers local state
+.wrangler/
