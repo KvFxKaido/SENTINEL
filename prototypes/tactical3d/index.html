@@ -475,7 +475,7 @@ function disposeGroup(group) {
       const mats = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
       for (const m of mats) {
         if (SHARED.has(m)) continue;
-        if (m.map) m.map.dispose();
+        if (m.map && !SHARED.has(m.map)) m.map.dispose();   // sprite textures are shared; badge textures are not
         m.dispose();
       }
     });
@@ -498,15 +498,82 @@ function buildTerrain() {
 }
 
 // ---- units --------------------------------------------------------
+// The 2.5D turn (art_direction_gba_tactics.md, "The view"): units are the
+// 2D build's hand-authored 16×16 pixel sprites, baked to NearestFilter
+// textures and stood upright on billboarded quads. The environment stays
+// 3D — rotate-to-read-cover, occlusion and terrain shadows all survive —
+// while characters get sprite craft instead of capsule geometry.
 const unitGroup = new THREE.Group();
 scene.add(unitGroup);
-const bodyGeo   = new THREE.CapsuleGeometry(0.22, 0.5, 4, 12);
-const packGeo   = new THREE.BoxGeometry(0.28, 0.26, 0.16);
+
+const OP_SPRITE = [
+  "................",
+  ".....BBBBB......",
+  "....BHHHHHB.....",
+  "....BALLAAB.....",
+  "....BSSSSSB.....",
+  ".....BBBBB......",
+  "...JJJBBBJJJ....",
+  "..JJBJJJJJBJJ...",
+  "..JHBJAAAJBHJ...",
+  "..JJBJJJJJBJJ...",
+  "..GGGGGGGGGGG...",
+  "...JBBJJJBBJ....",
+  "....BBB.BBB.....",
+  "....BB...BB.....",
+  "...BBB...BBB....",
+  "................",
+];
+const HO_SPRITE = [
+  "................",
+  "....BBBBBBB.....",
+  "...BHHHHHHHB....",
+  "...BAAAAAAAB....",
+  "...BBSSSSSBB....",
+  "....BBBBBBB.....",
+  "..JJJJBBBJJJJ...",
+  ".JJBJJJJJJJBJJ..",
+  ".JHBJJAAAJJBHJ..",
+  ".JJBJJJJJJJBJJ..",
+  ".GGGGGGGGGGGGG..",
+  "..JJBBJJJBBJJ...",
+  "....BBB.BBB.....",
+  "....BB...BB.....",
+  "...BBBB.BBBB....",
+  "................",
+];
+const SPRITE_PALETTES = {
+  op: { B: "#22303a", H: "#48606f", A: "#5ccfff", L: "#bdefff", S: "#d4a574", J: "#31424e", G: "#151a1e" },
+  ho: { B: "#38221f", H: "#5f3a33", A: "#ff5c5c", L: "#ffd0c0", S: "#b08968", J: "#4d2e28", G: "#151a1e" },
+};
+function bakeSpriteTexture(grid, pal) {
+  const c = document.createElement("canvas");
+  c.width = 16; c.height = 16;
+  const g = c.getContext("2d");
+  grid.forEach((row, y) => [...row].forEach((ch, x) => {
+    if (pal[ch]) { g.fillStyle = pal[ch]; g.fillRect(x, y, 1, 1); }
+  }));
+  const tex = new THREE.CanvasTexture(c);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.generateMipmaps = false;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+const SPRITE_TEX = {
+  op: bakeSpriteTexture(OP_SPRITE, SPRITE_PALETTES.op),
+  ho: bakeSpriteTexture(HO_SPRITE, SPRITE_PALETTES.ho),
+};
+
+const spriteGeo = new THREE.PlaneGeometry(0.92, 0.92);
+spriteGeo.translate(0, 0.46, 0);           // feet at the origin, standing on the tile
+const blobGeo   = new THREE.CircleGeometry(0.30, 20);
+const blobMat   = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.38 });
 const ringGeo   = new THREE.TorusGeometry(0.42, 0.032, 8, 28);
 const owGeo     = new THREE.OctahedronGeometry(0.12);
 const ringMat   = new THREE.MeshBasicMaterial({ color: 0x46e07a });
 const owMat     = new THREE.MeshBasicMaterial({ color: 0xffb347 });
-for (const r of [bodyGeo, packGeo, ringGeo, owGeo, ringMat, owMat]) SHARED.add(r);
+for (const r of [spriteGeo, blobGeo, blobMat, ringGeo, owGeo, ringMat, owMat, SPRITE_TEX.op, SPRITE_TEX.ho]) SHARED.add(r);
 
 // HP/AP live on a canvas-textured Sprite: sprites always face the camera,
 // so the readout survives rotation with no billboarding code.
@@ -581,36 +648,36 @@ function buildUnits() {
   for (const u of S.units) {
     const g = new THREE.Group();
 
-    const bodyMat = new THREE.MeshStandardMaterial({
-      color: u.side === "op" ? COL.op : COL.ho,
-      roughness: 0.55, metalness: 0.1,
-      emissive: u.side === "op" ? 0x0b2634 : 0x2a0c0c, emissiveIntensity: 0.7,
-    });
-    const body = new THREE.Mesh(bodyGeo, bodyMat);
-    body.position.y = 0.47;
-    body.castShadow = true;
-    body.userData.unit = u;   // picking resolves body hits to this unit's tile
-    g.add(body);
+    // Billboarded sprite quad. alphaTest instead of blending keeps the
+    // edges crisp with no transparency sorting; the material is unlit
+    // because the sprite palette already encodes its own shading.
+    const spr = new THREE.Mesh(spriteGeo, new THREE.MeshBasicMaterial({
+      map: SPRITE_TEX[u.side],
+      alphaTest: 0.5,
+    }));
+    spr.userData.unit = u;   // picking resolves quad hits to this unit's tile
+    g.add(spr);
 
     // X-ray silhouette. Full-cover walls are 1.5 tall and will hide a unit
     // standing behind them — a problem the top-down build could not have.
     // Toggled on only when the unit is actually occluded (see the frame
-    // loop), so a hidden unit reads as a silhouette rather than as an HP
-    // bar floating over nothing.
-    const ghost = new THREE.Mesh(bodyGeo, new THREE.MeshBasicMaterial({
-      color: u.side === "op" ? COL.op : COL.ho,
-      transparent: true, opacity: 0.33, depthTest: false, depthWrite: false,
+    // loop). It is the sprite itself, translucent, not a proxy shape.
+    const ghost = new THREE.Mesh(spriteGeo, new THREE.MeshBasicMaterial({
+      map: SPRITE_TEX[u.side],
+      transparent: true, opacity: 0.35, alphaTest: 0.05,
+      depthTest: false, depthWrite: false,
     }));
-    ghost.position.y = 0.47;
     ghost.renderOrder = 5;
     ghost.visible = false;
     g.add(ghost);
 
-    // shoulder pack — gives the capsule a facing so rotation reads
-    const pack = new THREE.Mesh(packGeo, new THREE.MeshStandardMaterial({ color: 0x1b2630, roughness: 0.9 }));
-    pack.position.set(0, 0.6, -0.2);
-    pack.castShadow = true;
-    g.add(pack);
+    // Grounded blob shadow. A flat quad's cast shadow would swing as the
+    // camera rotates, and the load-bearing shadows here are the terrain's —
+    // units just need to feel planted.
+    const blob = new THREE.Mesh(blobGeo, blobMat);
+    blob.rotation.x = -Math.PI / 2;
+    blob.position.y = 0.012;
+    g.add(blob);
 
     const ring = new THREE.Mesh(ringGeo, ringMat);
     ring.rotation.x = -Math.PI / 2;
@@ -626,7 +693,7 @@ function buildUnits() {
     const badge = makeBadge(u);
     g.add(badge);
 
-    g.userData = { unit: u, body, ghost, pack, ring, ow, badge };
+    g.userData = { unit: u, spr, ghost, ring, ow, badge };
     u._obj = g;
     unitGroup.add(g);
     drawBadge(u);
@@ -668,7 +735,7 @@ function tileFromEvent(e) {
   ndc.y = -((e.clientY - r.top) / r.height) * 2 + 1;
   raycaster.setFromCamera(ndc, camera);
   const bodies = [];
-  for (const u of S.units) if (u.alive && u._obj) bodies.push(u._obj.userData.body);
+  for (const u of S.units) if (u.alive && u._obj) bodies.push(u._obj.userData.spr);
   const hit = raycaster.intersectObjects([floor, ...bodies], false)[0];
   if (!hit) return null;
   if (hit.object !== floor) {
@@ -726,15 +793,23 @@ function syncScene() {
     if (!o) continue;
     o.visible = v.alive;
     if (!v.alive) continue;
-    o.position.set(gx(v.x), 0, gz(v.y));
+    // one facing + horizontal flip on movement — facing isn't a rule, so
+    // the sprite only mirrors to acknowledge travel direction
+    const nx = gx(v.x);
+    if (o.userData.placed && Math.abs(nx - o.position.x) > 1e-6) {
+      const flip = nx < o.position.x ? -1 : 1;
+      o.userData.spr.scale.x = flip;
+      o.userData.ghost.scale.x = flip;
+    }
+    o.position.set(nx, 0, gz(v.y));
+    o.userData.placed = true;
     o.userData.ring.visible = (v.id === S.selectedId && S.turn === "op");
     o.userData.ow.visible = v.overwatch;
-    // a yielded fighter kneels: shorter, dimmer, holding still (frame loop
-    // stops their bob and lowers the body to match the squashed capsule)
+    // a yielded fighter reads through state, not posture — sprites don't
+    // kneel until they earn a dedicated frame: dimmed, still, badged
     const kneel = !!v.yielded;
-    o.userData.body.scale.y = kneel ? 0.6 : 1;
-    o.userData.ghost.scale.y = kneel ? 0.6 : 1;
-    o.userData.body.material.emissiveIntensity = kneel ? 0.15 : 0.7;
+    o.userData.spr.material.color.setScalar(kneel ? 0.5 : 1);
+    o.userData.ghost.material.opacity = kneel ? 0.2 : 0.35;
     drawBadge(v);
   }
 
@@ -818,12 +893,14 @@ function frame() {
   for (const v of S.units) {
     if (!v.alive || !v._obj) continue;
     const d = v._obj.userData;
-    const kneel = !!v.yielded;
-    const bob = kneel ? 0 : Math.sin(t * 2.2 + v.id * 1.7) * 0.022;
-    const baseY = kneel ? 0.30 : 0.47;
-    d.body.position.y = baseY + bob;
-    d.ghost.position.y = baseY + bob;
-    d.pack.position.y = (kneel ? 0.42 : 0.6) + bob;
+    // vertical billboard: swivel around Y to face the camera azimuth, never
+    // tilt back toward the elevated camera — a tilted sprite reads as
+    // leaning cardboard, a standing one reads as a person on a tile
+    d.spr.rotation.y = camAz;
+    d.ghost.rotation.y = camAz;
+    const bob = v.yielded ? 0 : Math.sin(t * 2.2 + v.id * 1.7) * 0.022;
+    d.spr.position.y = bob;
+    d.ghost.position.y = bob;
     if (d.ow.visible) { d.ow.rotation.y = t * 1.6; d.ow.position.y = 1.3 + Math.sin(t * 2) * 0.05; }
 
     // Walk the camera ray backwards from well behind the unit: if terrain

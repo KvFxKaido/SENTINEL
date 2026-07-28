@@ -39,9 +39,12 @@ Not spectacle. Two specific things:
   marker. Here the crate is physically on one side of the unit, it casts a
   shadow, and in shoot mode the tile that is *currently* shielding each
   hostile lights amber. You can also rotate the board and look.
-- **No sprite pipeline.** `Isometric Sprite System.md` concedes that 64×64
-  four-direction walk cycles are unsustainable for a solo dev. Primitives
-  rotate for free.
+- **Sprites without a sprite pipeline.** `Isometric Sprite System.md` concedes
+  that 64×64 four-direction walk cycles are unsustainable for a solo dev.
+  Units here are the 2D build's authored 16×16 sprites on Y-billboarded
+  quads — one facing plus a horizontal flip — while the environment stays
+  primitive geometry that rotates for free. That is the 2.5D shape
+  `architecture/art_direction_gba_tactics.md` commits to ("The view").
 
 ## What it cost
 
@@ -117,6 +120,13 @@ unmodified, MIT.
 - **`draw()` kept its name.** Every call site from the 2D version still calls
   `draw()`; it now just sets a dirty flag that the frame loop reconciles.
   That is the immediate-mode → retained-mode shift, isolated to one function.
+- **Units are vertical billboards, not camera-facing sprites.** A
+  `THREE.Sprite` tilts back toward the 30°-elevated camera and reads as
+  leaning cardboard; a vertical quad swiveling around Y only stays standing
+  on its tile, and swivels smoothly through the eased 90° camera rotations.
+  Unit shadows are grounded blobs — a flat quad's cast shadow would swing as
+  the camera rotates, and the load-bearing shadows here are the terrain's.
+  The occlusion ghost is the sprite itself, translucent, not a proxy shape.
 - **Tracers are cylinders, not lines.** WebGL clamps line width to 1px on
   effectively every platform.
 - **HP is a segmented bar, not pips.** Ten discrete pips smear into an
