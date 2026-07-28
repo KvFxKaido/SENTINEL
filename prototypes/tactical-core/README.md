@@ -46,6 +46,7 @@ tryMove, tryShoot, setOverwatch, selectUnit, cycleSelect, endPlayerTurn
 tryFinish, spare      the two halves of the yield decision (see below)
 los, coverBonus, coveringTiles, solution, reachable, pathTo
 MORALE                start value and drain amounts, exported for tuning
+RATING                crowd-meter deltas and payout rate, exported for tuning
 formatEvent(ev, wrap) one formatter, two skins
 ```
 
@@ -84,6 +85,24 @@ Notably, adding this mechanic did **not** re-capture the golden transcripts:
 morale reacts to damage and never draws from the RNG, and in a no-input
 playout the hostiles are never damaged. The goldens passing untouched is the
 draw-order rule below doing its job in the other direction.
+
+## Rating
+
+The crowd meter (`sentinel_circuit_design.md` §5, roadmap step 2): 0–100,
+squad-level, visible on the panel, paid out as purse at match end whether
+you won or not. Landed player fire builds it — itemized for flash (crit,
+long shot, flanked target, shooting from the open). The player's overwatch
+and unspent AP bleed it; the AI's choices never move it. Anyone going down
+pays +3, including your own people: "playing to the crowd versus keeping
+your people safe" is the design's named loop, and that line is it. Yields
+pay, finishes pay more, sparing costs — mercy is priced in purse, and what
+it buys lives in systems this module doesn't know about.
+
+Rating survives the golden transcripts by the same discipline as morale,
+plus one more trick: rating changes are events but **never log lines**, so
+the meter moves underneath the pre-meter transcripts without disturbing a
+byte. Deltas live in the exported `RATING` table; tuning them is free until
+they interlock with ammo (Circuit doc §6, gated on this prototype).
 
 ## Rules for changing this file
 

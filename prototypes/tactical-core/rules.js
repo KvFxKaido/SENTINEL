@@ -56,6 +56,7 @@ export const S = {
   busy: false,         // input locked during animation / AI
   gameOver: null,      // null | "win" | "loss"
   decision: false,     // every living hostile has yielded — match holds for spare/finish
+  rating: 50,          // crowd meter, 0–100 — pays out at match end (sentinel_circuit_design.md §5)
   gen: 0,              // restart generation — stale async turns check this and bail
 };
 
@@ -175,6 +176,38 @@ export function pathTo(parent, x, y) {
   return path.slice(1); // drop start tile
 }
 
+// ---- rating -----------------------------------------------------
+// The crowd meter (sentinel_circuit_design.md §5): flashy, risky play
+// builds it, safe play bleeds it, and it pays out at match end whether
+// you won or not — a watchable loss still sells. Deliberately the
+// opposite of XCOM's incentive structure: the Circuit pays you to be
+// worth watching, and makes you decide what that costs.
+//
+// Same discipline as morale: pure arithmetic on events that already
+// happen — no RNG draws — and rating events are never log lines, so the
+// golden transcripts captured before the meter existed replay untouched.
+// The meter is visible on the panel, not in the comms log.
+//
+// The knife in the numbers: ANY down is +3, including your own people.
+// Blood is content. "Playing to the crowd versus keeping your people
+// safe" is the design's named loop, and this is it, running live.
+export const RATING = {
+  start: 50,
+  hit: 2, crit: 2, longShot: 2, flank: 2, open: 1,   // landed op fire, itemized
+  overwatch: -2,       // the player's turtle verb; the AI's overwatch is not your meter
+  stalledAp: -1,       // per unspent AP at end of turn — stalling isn't content
+  down: 3,             // anyone. the crowd did not come for chess
+  yield: 2, finish: 4, spare: -2,                    // mercy costs purse
+  pursePerPoint: 10,   // credits per rating point at match end
+};
+
+function addRating(delta) {
+  if (S.gameOver || delta === 0) return;
+  S.rating = Math.max(0, Math.min(100, S.rating + delta));
+  io.emit({ type: "rating", delta, total: S.rating });
+  io.changed();
+}
+
 // ---- morale -----------------------------------------------------
 // Hostiles fight for a purse, not a cause (sentinel_circuit_design.md §5:
 // "surrender, on camera"). Morale only moves down, and only for things a
@@ -202,6 +235,7 @@ function unitYields(u) {
   u.overwatch = false;
   u.ap = 0;
   io.emit({ type: "yield", unit: u });
+  addRating(RATING.yield);   // someone breaking on camera is content
   // one fighter quitting makes it easier for the next to quit
   for (const v of living("ho")) if (v !== u) drainMorale(v, MORALE.mateYield);
   checkEnd();
@@ -224,10 +258,20 @@ async function fireShot(att, def, aimMod = 0, label = "") {
     if (crit) dmg += 3;
     def.hp = Math.max(0, def.hp - dmg);
     io.emit({ type: "shot", hit: true, att, def, dmg, crit, pct, roll: r, label });
+    // the crowd scores the player's marksmanship, itemized for flash:
+    // distance, a flanked target, standing in the open to take the shot
+    if (att.side === "op") {
+      addRating(RATING.hit
+        + (crit ? RATING.crit : 0)
+        + (sol.range < 0 ? RATING.longShot : 0)
+        + (sol.flanked ? RATING.flank : 0)
+        + (coverBonus(att, def) === 0 ? RATING.open : 0));
+    }
     if (def.hp === 0) {
       def.alive = false;
       def.overwatch = false;
       io.emit({ type: "down", unit: def });
+      addRating(RATING.down);   // anyone's blood — including yours
       // the drain no-ops for operatives, who have no morale to lose
       for (const v of living(def.side)) drainMorale(v, MORALE.mateDown);
     } else {
@@ -286,7 +330,9 @@ function checkEnd() {
 
 function endGame(result) {
   S.gameOver = result;
-  io.emit({ type: "end", result });
+  // the payout: rating converts to purse whether you won or not — a
+  // watchable loss still sells (sentinel_circuit_design.md §5)
+  io.emit({ type: "end", result, rating: S.rating, purse: S.rating * RATING.pursePerPoint });
   io.changed();   // spare() ends the match with no action following — the panel must not go stale
 }
 
@@ -357,6 +403,7 @@ export async function tryFinish(att, def) {
   def.hp = 0;
   def.alive = false;
   io.emit({ type: "finish", att, def });
+  addRating(RATING.finish);   // the crowd came for a finish
   // a surrendered mate dying breaks the ones still fighting — heard as much as seen
   for (const v of living("ho")) drainMorale(v, MORALE.mateDown);
   S.busy = false;
@@ -369,6 +416,7 @@ export async function tryFinish(att, def) {
 export function spare() {
   if (!S.decision || S.gameOver || S.busy) return;
   io.emit({ type: "spared", units: living("ho").filter(u => u.yielded) });
+  addRating(RATING.spare);   // mercy costs purse — what it buys lives elsewhere
   endGame("win");
 }
 
@@ -378,6 +426,9 @@ export function setOverwatch(u) {
   u.ap = 0;
   S.targetMode = false;
   io.emit({ type: "overwatch-set", unit: u });
+  // the player's turtle verb bleeds the meter; the AI holding an angle is
+  // not the player's show (enemy overwatch is set directly in enemyTurn)
+  if (u.side === "op") addRating(RATING.overwatch);
   io.changed();
   autoAdvance();
 }
@@ -500,6 +551,9 @@ export async function enemyTurn() {
 
 export function endPlayerTurn() {
   if (S.busy || S.gameOver || S.decision || S.turn !== "op") return;
+  // unspent AP is dead air — the crowd bleeds off while you stall
+  const stalled = living("op").reduce((n, u) => n + u.ap, 0);
+  if (stalled > 0) addRating(RATING.stalledAp * stalled);
   for (const u of living("op")) u.ap = 0;
   return enemyTurn();
 }
@@ -511,7 +565,7 @@ export function restart(seed) {
   S.rng = mulberry32(S.seed);
   buildMap();
   makeUnits();
-  S.turn = "op"; S.selectedId = 0; S.targetMode = false; S.busy = false; S.gameOver = null; S.decision = false;
+  S.turn = "op"; S.selectedId = 0; S.targetMode = false; S.busy = false; S.gameOver = null; S.decision = false; S.rating = RATING.start;
   io.emit({ type: "reset" });
   io.emit({ type: "mission" });
   io.emit({ type: "turn", side: "op" });
@@ -550,6 +604,9 @@ export function formatEvent(ev, wrap = t => t) {
     case "spared":
       return `${ev.units.map(u => n(u)).join(", ")} ${wrap("spared", "sys")} — they walk.`;
     default:
-      return null;   // fire / select / reset / end are not log lines
+      return null;   // fire / select / reset / end / rating are not log lines
+      // (rating deliberately so: the meter lives on the panel, and keeping
+      // it out of the log is what lets the pre-meter golden transcripts
+      // replay untouched)
   }
 }
