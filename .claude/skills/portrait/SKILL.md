@@ -1,6 +1,6 @@
 ---
 name: portrait
-description: Generate character portraits using Gemini NanoBanana. Reads from character YAML and calls gemini directly with full guardrails.
+description: Generate character portraits using the Antigravity CLI (agy) image tool. Reads from character YAML and builds explicit prompts with full guardrails.
 allowed-tools: Bash, Read, Glob, Write
 user-invocable: true
 proactive: false
@@ -8,7 +8,10 @@ proactive: false
 
 # Portrait Generation
 
-Generate character portraits using Gemini's NanoBanana extension. Reads character appearance from YAML files and builds explicit prompts with all guardrails to prevent style drift.
+Generate character portraits using the Antigravity CLI (`agy`), whose agent has
+a built-in `generate_image` tool. (The previous Gemini CLI + NanoBanana path is
+retired.) Reads character appearance from YAML files and builds explicit
+prompts with all guardrails to prevent style drift.
 
 **Portraits are campaign-specific** - each campaign has its own portrait set in `portraits/campaigns/{campaign_id}/`.
 
@@ -26,8 +29,8 @@ Generate character portraits using Gemini's NanoBanana extension. Reads characte
 1. **Determine current campaign ID** from bridge API or config
 2. Read the character YAML from campaign-specific folder (fall back to global)
 3. Build an explicit prompt with all guardrails
-4. Call `gemini --yolo -e nanobanana` directly via Bash
-5. Handle the nanobanana-output fallback if needed
+4. Call `agy -p "<prompt>" --add-dir <target dir> --dangerously-skip-permissions`
+5. Handle the scratch-directory fallback if needed
 6. Report success with the file path
 
 ## Step 0: Get Current Campaign ID
@@ -68,10 +71,12 @@ Modern post-apocalyptic cyberpunk aesthetic. NOT fantasy, NOT medieval, NOT anim
 Dark atmospheric background with [FACTION_COLOR] accent lighting.
 High detail, dramatic rim lighting, shallow depth of field.
 Bust framing, 3/4 angle, looking slightly off-camera.
-Save the image to C:\dev\SENTINEL\sentinel-ui\public\assets\portraits\campaigns\{campaign_id}\{name}.png
+Use your generate_image tool. Save the file to exactly this absolute path: C:\dev\SENTINEL\sentinel-ui\public\assets\portraits\campaigns\{campaign_id}\{name}.png - do not save it anywhere else. Do not ask for confirmation.
 ```
 
-**NOTE**: Always use the campaign-specific path for saving.
+**NOTE**: Always use the campaign-specific path for saving. The "exactly this
+absolute path" phrasing matters — without it the agy agent saves into its own
+scratch workspace instead (see Step 4).
 
 ### Person Descriptor Mapping (CRITICAL)
 
@@ -125,20 +130,33 @@ mkdir -p "C:/dev/SENTINEL/sentinel-ui/public/assets/portraits/campaigns/{campaig
 Then run the generation:
 
 ```bash
-gemini --yolo -e nanobanana "Generate a portrait image: [FULL_PROMPT]"
+agy -p "[FULL_PROMPT]" --add-dir "C:/dev/SENTINEL/sentinel-ui/public/assets/portraits/campaigns/{campaign_id}" --dangerously-skip-permissions --model gemini-3.6-flash-medium
 ```
 
 Use a 3-minute timeout (180000ms).
 
+Invocation notes (each of these was learned the hard way):
+
+- **The prompt goes immediately after `-p`; every flag comes after the
+  prompt.** With flags placed before `-p`, the agent has been observed
+  treating the flag text as the topic and chatting about it instead of
+  working.
+- **`--add-dir` with the target directory is mandatory** — it grants the
+  agent write access outside its own workspace. Without it, the image lands
+  in the scratch directory no matter what the prompt says.
+- `--model gemini-3.6-flash-medium` is enough: the CLI model only
+  orchestrates the call; `generate_image` does the actual image work.
+
 ## Step 4: Handle Output
 
-NanoBanana sometimes saves to `nanobanana-output/` instead of the requested path.
+The agy agent sometimes saves to its scratch workspace instead of the
+requested path (always, if `--add-dir` was omitted).
 
 1. Check if file exists at `sentinel-ui/public/assets/portraits/campaigns/{campaign_id}/{name}.png`
-2. If not, check `nanobanana-output/` for recent PNG files
+2. If not, check `~/.gemini/antigravity-cli/scratch/` for recent PNG files
 3. Move the most recent one to the correct location:
    ```bash
-   mv "C:/dev/SENTINEL/nanobanana-output/[filename].png" "C:/dev/SENTINEL/sentinel-ui/public/assets/portraits/campaigns/{campaign_id}/{name}.png"
+   mv ~/.gemini/antigravity-cli/scratch/[filename].png "C:/dev/SENTINEL/sentinel-ui/public/assets/portraits/campaigns/{campaign_id}/{name}.png"
    ```
 
 ## Step 5: Report Result
@@ -175,16 +193,30 @@ Nexus analyst survivor. Data visors, sensor arrays, sleek tech fabric.
 Dark atmospheric background with blue (#00A8E8) accent lighting.
 High detail, dramatic rim lighting, shallow depth of field.
 Bust framing, 3/4 angle, looking slightly off-camera.
-Save the image to C:\dev\SENTINEL\sentinel-ui\public\assets\portraits\campaigns\cipher\cipher.png
+Use your generate_image tool. Save the file to exactly this absolute path: C:\dev\SENTINEL\sentinel-ui\public\assets\portraits\campaigns\cipher\cipher.png - do not save it anywhere else. Do not ask for confirmation.
 ```
 
 ## Error Handling
 
 - **No campaign loaded**: Ask user to load a campaign first with `/load <name>`
 - **YAML not found**: Ask user if they want to create one with `/portrait create {name}`
-- **Gemini not available**: Report error, suggest checking Gemini CLI installation
+- **agy not available**: Report error; the CLI lives at
+  `%LOCALAPPDATA%\agy\bin\agy.exe` — suggest `agy update`, or launching `agy`
+  interactively once if the failure looks like expired auth
 - **Generation fails**: Show error output, suggest retrying
 - **Wrong style generated**: Regenerate with stronger guardrails (add more NOT constraints)
+
+## Style Note (future)
+
+The default style above is photorealistic-cinematic, matching the existing
+`sentinel-ui` portrait set. The GBA-tactics art direction names an alternative
+target (full rationale in `architecture/art_direction_gba_tactics.md`, landed
+via PR #65): *"GBA-era tactical RPG portrait, hard cel shading, 1px outline,
+limited palette, quantized"*. Do not
+switch styles unprompted — mixing the two in one campaign's portrait set is
+worse than either. If the user asks for the GBA style, replace the first two
+lines of the prompt structure with that descriptor and keep every other
+guardrail.
 
 ## Creating New Characters
 
