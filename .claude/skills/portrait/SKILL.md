@@ -153,10 +153,10 @@ The agy agent sometimes saves to its scratch workspace instead of the
 requested path (always, if `--add-dir` was omitted).
 
 1. Check if file exists at `sentinel-ui/public/assets/portraits/campaigns/{campaign_id}/{name}.png`
-2. If not, check `C:/Users/ishaw/.gemini/antigravity-cli/scratch/` for recent PNG files
+2. If not, check `~/.gemini/antigravity-cli/scratch/` for recent PNG files
 3. Move the most recent one to the correct location:
    ```bash
-   mv "C:/Users/ishaw/.gemini/antigravity-cli/scratch/[filename].png" "C:/dev/SENTINEL/sentinel-ui/public/assets/portraits/campaigns/{campaign_id}/{name}.png"
+   mv ~/.gemini/antigravity-cli/scratch/[filename].png "C:/dev/SENTINEL/sentinel-ui/public/assets/portraits/campaigns/{campaign_id}/{name}.png"
    ```
 
 ## Step 5: Report Result
@@ -209,9 +209,10 @@ Use your generate_image tool. Save the file to exactly this absolute path: C:\de
 ## Style Note (future)
 
 The default style above is photorealistic-cinematic, matching the existing
-`sentinel-ui` portrait set. `architecture/art_direction_gba_tactics.md` names
-an alternative target for the GBA-tactics direction: *"GBA-era tactical RPG
-portrait, hard cel shading, 1px outline, limited palette, quantized"*. Do not
+`sentinel-ui` portrait set. The GBA-tactics art direction names an alternative
+target (full rationale in `architecture/art_direction_gba_tactics.md`, landed
+via PR #65): *"GBA-era tactical RPG portrait, hard cel shading, 1px outline,
+limited palette, quantized"*. Do not
 switch styles unprompted — mixing the two in one campaign's portrait set is
 worse than either. If the user asks for the GBA style, replace the first two
 lines of the prompt structure with that descriptor and keep every other
