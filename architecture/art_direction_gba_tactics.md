@@ -68,6 +68,50 @@ covers the other half: what the sprites and the UI themselves should do.
 - **Density is respect.** If a sheet needs scrolling at prototype resolution,
   the sheet is wrong, not the resolution.
 
+## The view: 2.5D
+
+**Decided (2026-07-28):** the tactical view's target is 2.5D — 2D sprites that
+always face the camera, standing in simple 3D environments. This is the
+Final Fantasy Tactics / Tactics Ogre chassis and its HD-2D revival
+(Octopath, Triangle Strategy), and it is the only version of this that is
+sustainable solo: characters get hand-authored sprite craft, environments
+stay primitive geometry forever.
+
+Why it fits this project specifically:
+
+- **Everything the 3D port bought survives.** Rotate-to-read-cover, real
+  terrain occlusion, walls casting the shadows that make directional cover
+  legible — all environment, all still 3D. Billboarding removes only the part
+  3D was worst at: characters with identity.
+- **The sprite language above applies unmodified.** Silhouette-first outlined
+  sprites are 2D craft; billboards let that craft stand inside the yard.
+- **The LCD display mode is the unifier.** 2.5D's classic failure is crisp
+  geometry clashing with chunky sprites; the post pass quantizes both to the
+  same texel grid. HD-2D needs bloom and depth-of-field for this; a 350×222
+  render target does it for free.
+
+Implementation rules:
+
+- **Y-axis billboarding, never full camera-facing.** A sprite that tilts back
+  toward an elevated camera reads as leaning cardboard. Vertical quad, feet
+  anchored to the tile, swivels around Y only. During eased camera rotation
+  the swivel is continuous — a free moment where 2.5D looks better than
+  either parent.
+- **One facing + horizontal flip** until facing exists as a *rule*. Art never
+  leads mechanics.
+- **Blob shadows for units, real shadows for terrain.** A flat quad's cast
+  shadow rotates with the camera; the load-bearing shadows are terrain's.
+- **Occlusion ghost is the sprite itself,** translucent, not a proxy shape.
+- **Poses are frames.** Yield, down, fire — each is a sprite frame when it
+  earns one ("few frames, strong poses"); until then, tint and badges carry
+  state.
+
+Open consequence: once `tactical3d/` wears the same authored sprites as
+`tactical/`, the two renderers converge visually and the 2D build's
+keep-earning clause (prototypes/README) comes due. Current lean: keep it —
+cheapest determinism cross-check, and the immediate-mode teaching contrast —
+but the question is now live.
+
 ## The palette fork (open — designer's call)
 
 Current identity is green-phosphor terminal (`sentinel_warp_vision.md`). SRW J
