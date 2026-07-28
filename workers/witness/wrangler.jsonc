@@ -1,0 +1,12 @@
+{
+  // sentinel-witness — the Witness record as deployed infrastructure.
+  // One rules module, three runtimes: the browser plays it, node --test
+  // guards it, and this Worker certifies it — same bytes in all three.
+  "name": "sentinel-witness",
+  "main": "worker.js",
+  "compatibility_date": "2026-07-28",
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  }
+}
