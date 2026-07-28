@@ -434,6 +434,25 @@ test("yield economy pays out at the end, clamped at the ceiling", async () => {
   assert.equal(end.purse, S.rating * RATING.pursePerPoint);
 });
 
+test("rating events report the applied delta, never the requested one", async () => {
+  const cap = captureEvents();
+  const { v, s2 } = await driveToDecision(cap);
+  S.rating = 98;
+  const before = cap.events.length;
+  await tryFinish(v, s2);
+  const ev = cap.events.slice(before).find(e => e.type === "rating");
+  assert.equal(ev.delta, 2, "the ceiling ate half the finish — the event must say so");
+  assert.equal(ev.total, 100);
+
+  const cap2 = captureEvents();
+  restart(1);
+  S.rating = 0;
+  setOverwatch(living("op")[0]);
+  assert.ok(!cap2.events.some(e => e.type === "rating"),
+    "a change the clamp fully ate is not an event");
+  assert.equal(S.rating, 0);
+});
+
 test("the floor is zero, and restart resets the meter", async () => {
   captureEvents();
   restart(1);

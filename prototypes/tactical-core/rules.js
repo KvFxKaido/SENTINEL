@@ -203,8 +203,14 @@ export const RATING = {
 
 function addRating(delta) {
   if (S.gameOver || delta === 0) return;
-  S.rating = Math.max(0, Math.min(100, S.rating + delta));
-  io.emit({ type: "rating", delta, total: S.rating });
+  // emit what actually happened, not what was asked for: at the clamp
+  // bounds the applied delta shrinks, and a change the clamp fully ate is
+  // not an event — consumers that sum deltas must never drift from total
+  const next = Math.max(0, Math.min(100, S.rating + delta));
+  const applied = next - S.rating;
+  if (applied === 0) return;
+  S.rating = next;
+  io.emit({ type: "rating", delta: applied, total: S.rating });
   io.changed();
 }
 
