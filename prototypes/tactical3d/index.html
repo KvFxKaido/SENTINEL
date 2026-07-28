@@ -24,7 +24,7 @@
   #left { position: relative; }
   /* explicit CSS size: the drawing buffer is resized independently so the
      pixel-crunch toggle can render below 1:1 and let the browser upscale */
-  canvas#cv { display: block; width: 700px; height: 445px; border: 1px solid var(--line); background: #0a0e0b; image-rendering: pixelated; }
+  canvas#cv { display: block; width: 700px; height: 444px; border: 1px solid var(--line); background: #0a0e0b; image-rendering: pixelated; }
   /* subtle scanlines */
   #left::after {
     content: ""; position: absolute; inset: 0; pointer-events: none;
@@ -123,7 +123,7 @@
       No reinforcements. No extraction timer. Just the yard.<br><br>
       <kbd>click</kbd> select / move &nbsp; <kbd>tab</kbd> next unit &nbsp;
       <kbd>F</kbd> shoot &nbsp; <kbd>Y</kbd> overwatch &nbsp; <kbd>⏎</kbd> end turn<br>
-      <kbd>Q</kbd>/<kbd>E</kbd> rotate camera &nbsp; <kbd>P</kbd> pixel crunch &nbsp;
+      <kbd>Q</kbd>/<kbd>E</kbd> rotate camera &nbsp; <kbd>P</kbd> display: LCD / crunch / clean &nbsp;
       <kbd>R</kbd>/<kbd>shift+R</kbd> new / replay seed<br>
       ▪ low crate = half cover (−20 to be hit) &nbsp; █ wall = full cover (−40, blocks sight)<br>
       cover only helps against fire from <b>that side</b> — rotate to read the angle<br>
@@ -284,7 +284,7 @@ bindIO({
 // tall in world units, so a square viewport would waste half its height.
 // The canvas is sized to that ratio instead and the frustum follows it —
 // stretching the frustum to fit a square would break the 2:1 projection.
-const VIEW_W = 700, VIEW_H = 445;
+const VIEW_W = 700, VIEW_H = 444;   // even on both axes so the LCD target divides cleanly
 const gx = x => x - (W - 1) / 2;
 const gz = y => y - (H - 1) / 2;
 const tileWorld = (x, y, h = 0) => new THREE.Vector3(gx(x), h, gz(y));
@@ -309,14 +309,85 @@ renderer.setSize(VIEW_W, VIEW_H, false);   // false: leave the CSS size alone
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
 
-// Rendering below 1:1 and letting `image-rendering: pixelated` upscale gives
-// the 48px sprite crunch the art doc asks for, without a sprite pipeline.
-var crunch = true;
-function applyCrunch() {
-  renderer.setPixelRatio(crunch ? 0.6 : Math.min(window.devicePixelRatio, 2));
+// Three display treatments, cycled with P:
+//   lcd    — GBA handheld look: the scene renders to a low-res target, then a
+//            post pass draws every texel as a discrete LCD cell (dark seams
+//            between cells) and applies handheld color: desaturated, warmed,
+//            shadows lifted because an LCD panel never reaches true black.
+//            Modeled on RetroArch's lcd-grid-v2 + gba-color treatment.
+//   crunch — the original trick: render below 1:1, let CSS upscale pixelated.
+//   clean  — native resolution, no treatment.
+const DISPLAY_MODES = ["lcd", "crunch", "clean"];
+var displayMode = "lcd";
+
+// The LCD target is deliberately GBA-coarse. Badges stay legible because the
+// grid pass darkens seams instead of dropping samples. Exactly half the CSS
+// canvas on both axes (the canvas was resized 445→444 to make that true —
+// caught in review on the first pass, which claimed 2× against an odd
+// height), and LCD mode snaps the device pixel ratio to an integer, so each
+// texel maps to a clean 2×2 (4×4 at DPR 2) framebuffer cell. Non-integer
+// scales make the seams beat against the pixel grid as moiré. Fractional
+// display DPRs still rescale the finished canvas uniformly — that is
+// browser-level and hits all canvas content equally.
+const LCD_W = 350, LCD_H = 222;
+const lcdTarget = new THREE.WebGLRenderTarget(LCD_W, LCD_H, {
+  minFilter: THREE.NearestFilter,
+  magFilter: THREE.NearestFilter,
+});
+lcdTarget.texture.generateMipmaps = false;
+
+const postScene = new THREE.Scene();
+const postCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+const postMaterial = new THREE.ShaderMaterial({
+  uniforms: {
+    tex: { value: lcdTarget.texture },
+    texSize: { value: new THREE.Vector2(LCD_W, LCD_H) },
+  },
+  vertexShader: /* glsl */ `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = vec4(position.xy, 0.0, 1.0);
+    }
+  `,
+  fragmentShader: /* glsl */ `
+    varying vec2 vUv;
+    uniform sampler2D tex;
+    uniform vec2 texSize;
+    void main() {
+      vec3 c = texture2D(tex, vUv).rgb;
+      // handheld color: pull toward luma, warm the whites, lift the floor
+      float l = dot(c, vec3(0.299, 0.587, 0.114));
+      c = mix(vec3(l), c, 0.84);
+      c *= vec3(1.05, 1.01, 0.93);
+      c = c * 1.04 + 0.016;
+      // LCD cell seams: darken near every texel border
+      vec2 f = fract(vUv * texSize);
+      vec2 e = min(f, 1.0 - f);
+      float g = smoothstep(0.0, 0.30, e.x) * smoothstep(0.0, 0.30, e.y);
+      c *= mix(0.70, 1.0, g);
+      gl_FragColor = vec4(c, 1.0);
+      #include <colorspace_fragment>
+    }
+  `,
+  depthTest: false,
+  depthWrite: false,
+});
+postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), postMaterial));
+
+function applyDisplayMode() {
+  // lcd renders the post quad at full resolution — the grid IS the pixels,
+  // so the canvas itself must not be additionally crunched. The ratio is
+  // snapped to an integer in lcd mode so texels stay integer framebuffer
+  // cells even on fractional-DPR displays.
+  const dpr = Math.min(window.devicePixelRatio, 2);
+  renderer.setPixelRatio(
+    displayMode === "crunch" ? 0.6 :
+    displayMode === "lcd" ? Math.max(1, Math.round(dpr)) : dpr
+  );
   renderer.setSize(VIEW_W, VIEW_H, false);
 }
-applyCrunch();
+applyDisplayMode();
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x070a08);
@@ -764,7 +835,14 @@ function frame() {
   }
 
   syncLabels();
-  renderer.render(scene, camera);
+  if (displayMode === "lcd") {
+    renderer.setRenderTarget(lcdTarget);
+    renderer.render(scene, camera);
+    renderer.setRenderTarget(null);
+    renderer.render(postScene, postCamera);
+  } else {
+    renderer.render(scene, camera);
+  }
 }
 
 // ---- panel ------------------------------------------------------
@@ -863,7 +941,11 @@ document.addEventListener("keydown", e => {
   // camera + display controls are never gated on turn state
   if (e.key === "q" || e.key === "Q") { camAzTarget += Math.PI / 2; return; }
   if (e.key === "e" || e.key === "E") { camAzTarget -= Math.PI / 2; return; }
-  if (e.key === "p" || e.key === "P") { crunch = !crunch; applyCrunch(); return; }
+  if (e.key === "p" || e.key === "P") {
+    displayMode = DISPLAY_MODES[(DISPLAY_MODES.indexOf(displayMode) + 1) % DISPLAY_MODES.length];
+    applyDisplayMode();
+    return;
+  }
   if (S.gameOver || S.busy || S.turn !== "op") return;
   const u = selected();
   switch (e.key) {
