@@ -1,11 +1,13 @@
 # The Circuit — Sanctioned Combat in SENTINEL
 
-> **Version:** 0.2 (Design exploration)
-> **Date:** July 27, 2026
+> **Version:** 0.3 (Design exploration)
+> **Date:** July 28, 2026
 > **Status:** Proposal — not yet design-binding
 > **Prototype:** `prototypes/tactical/` + `prototypes/tactical3d/` over the
-> shared `prototypes/tactical-core/` rules module (#56/#57, #60)
-> **Changes in 0.2:** adds §6 — loot, cosmetics, and false colors
+> shared `prototypes/tactical-core/` rules module (#56/#57, #60, #62, #66)
+> **Changes in 0.3:** gear slots — the slot/register split, drape and patch
+> inert by law, two weapons with ammo (numbers gated on the ratings
+> prototype). **Changes in 0.2:** adds §6 — loot, cosmetics, and false colors
 
 ---
 
@@ -159,6 +161,46 @@ The completionist failure mode — grind all eleven factions, collect
 everything, owe nobody — is structurally impossible when access tracks
 *current* standing. That is intended. An account you finish is not a
 squad you answer for.
+
+### Gear slots — where verbs go, where statements go
+
+Two orthogonal systems. **Slots** say where things go and what sprite
+layers render. **Registers** (below) say what the world reads. Any visible
+item can sit in any register; verbs can only live in some slots.
+
+| Slot | Carries | Family |
+|---|---|---|
+| **Head** | verbs | sensing and information — the visor that reads intent a turn further |
+| **Torso** | verbs | defense and geometry — where sponsor rigs mount, which means where leverage physically attaches |
+| **Legs** | verbs | movement — dash profile, silent steps |
+| **Drape** (cape, scarf, hood) | never verbs | pure social surface |
+| **Patch** (insignia) | never verbs | claim surface (see below) |
+| **Primary** | verbs + ammo | the loud verbs |
+| **Sidearm** | verbs | the floor |
+
+The load-bearing rule: **drape and patch are mechanically inert by law.**
+The drape is the biggest silhouette change a fighter can make — the
+loudest thing you can wear — and it does *nothing*, except change how the
+world treats you. A cape in Covenant white over real standing is colors
+worn honestly; the same cape without the standing is fraud; a cape in no
+faction's cloth is just a really good cape. The two most socially loud
+slots being mechanically silent makes cosmetic power creep impossible by
+architecture instead of by discipline.
+
+Every slot is a sprite layer. That is rule #1 (shared state must be
+visible) applied to equipment: if gear changed verbs invisibly, the board
+would lie. What a fighter can do is readable from what they are wearing.
+
+**Weapons differ by verb, never by DPS tier.** The primary carries a
+small clip at yard scale, and reloading costs the activation. The sidearm
+never reloads — short, weak, always there: agency when dry, at tempo
+cost. And **overwatch spends ammo**, which gives the turtle a fuel gauge.
+The rating meter punishes safe play from the crowd side; ammo punishes it
+from the logistics side. Two halves of one anti-turtle argument, which is
+why the numbers (clip sizes, reload economy, sidearm profile) wait for
+the ratings prototype and land with roadmap steps 2–3. Loadout choice
+against a known opponent belongs to the pre-match card — that decision
+*is* the tale of the tape.
 
 ### Cosmetics come in three registers
 
