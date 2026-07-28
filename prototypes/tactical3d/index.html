@@ -564,6 +564,15 @@ const SPRITE_TEX = {
   op: bakeSpriteTexture(OP_SPRITE, SPRITE_PALETTES.op),
   ho: bakeSpriteTexture(HO_SPRITE, SPRITE_PALETTES.ho),
 };
+// Opacity masks for picking: mesh raycasting tests the quad's triangles and
+// ignores the material's alphaTest, so without this the whole 0.92×0.92
+// plane would be clickable — transparent corners included (caught in
+// review). The mask makes the sprite's silhouette the hit area.
+const bakeMask = (grid, pal) => grid.map(row => [...row].map(ch => !!pal[ch]));
+const SPRITE_MASK = {
+  op: bakeMask(OP_SPRITE, SPRITE_PALETTES.op),
+  ho: bakeMask(HO_SPRITE, SPRITE_PALETTES.ho),
+};
 
 const spriteGeo = new THREE.PlaneGeometry(0.92, 0.92);
 spriteGeo.translate(0, 0.46, 0);           // feet at the origin, standing on the tile
@@ -736,15 +745,22 @@ function tileFromEvent(e) {
   raycaster.setFromCamera(ndc, camera);
   const bodies = [];
   for (const u of S.units) if (u.alive && u._obj) bodies.push(u._obj.userData.spr);
-  const hit = raycaster.intersectObjects([floor, ...bodies], false)[0];
-  if (!hit) return null;
-  if (hit.object !== floor) {
+  // walk the sorted hits: a sprite hit only counts on an opaque texel, so
+  // clicks through a sprite's transparent corners fall to what's behind
+  for (const hit of raycaster.intersectObjects([floor, ...bodies], false)) {
+    if (hit.object === floor) {
+      if (hit.instanceId === undefined) return null;
+      const i = hit.instanceId;
+      return [i % W, Math.floor(i / W)];
+    }
     const u = hit.object.userData.unit;
-    return u ? [u.x, u.y] : null;
+    if (!u || !hit.uv) continue;
+    const mask = SPRITE_MASK[u.side];
+    const col = Math.min(15, Math.floor(hit.uv.x * 16));
+    const row = Math.min(15, Math.floor((1 - hit.uv.y) * 16));
+    if (mask[row][col]) return [u.x, u.y];
   }
-  if (hit.instanceId === undefined) return null;
-  const i = hit.instanceId;
-  return [i % W, Math.floor(i / W)];
+  return null;
 }
 
 // ---- scene sync ----------------------------------------------------
@@ -794,14 +810,22 @@ function syncScene() {
     o.visible = v.alive;
     if (!v.alive) continue;
     // one facing + horizontal flip on movement — facing isn't a rule, so
-    // the sprite only mirrors to acknowledge travel direction
-    const nx = gx(v.x);
-    if (o.userData.placed && Math.abs(nx - o.position.x) > 1e-6) {
-      const flip = nx < o.position.x ? -1 : 1;
-      o.userData.spr.scale.x = flip;
-      o.userData.ghost.scale.x = flip;
+    // the sprite only mirrors to acknowledge travel direction. The delta is
+    // projected onto the camera-right axis so the mirror follows *screen*
+    // direction whatever the current 90° rotation (world-X alone points the
+    // wrong way after Q/E — caught in review); facing is preserved when the
+    // move is straight toward or away from the camera.
+    const nx = gx(v.x), nz = gz(v.y);
+    if (o.userData.placed) {
+      const rightward = (nx - o.position.x) * Math.cos(camAzTarget)
+                      - (nz - o.position.z) * Math.sin(camAzTarget);
+      if (Math.abs(rightward) > 1e-3) {
+        const flip = rightward < 0 ? -1 : 1;
+        o.userData.spr.scale.x = flip;
+        o.userData.ghost.scale.x = flip;
+      }
     }
-    o.position.set(nx, 0, gz(v.y));
+    o.position.set(nx, 0, nz);
     o.userData.placed = true;
     o.userData.ring.visible = (v.id === S.selectedId && S.turn === "op");
     o.userData.ow.visible = v.overwatch;
