@@ -21,6 +21,15 @@ covers the other half: what the sprites and the UI themselves should do.
 
 ## Sprite language
 
+- **Proportions are law (decided 2026-07-28): System A** — FFT-ish, ~2.3
+  heads on a 32×32 canvas, displayed 1.10 world units tall in the yard,
+  feet-anchored. Chosen by audition against a squat-military alternative
+  (~3.6 heads): at combat distance identity lives in the head, and the head
+  needs the pixels; gear reads through silhouette, which the drape slot
+  owns anyway. Display size audited at three heights — +20% won: presence
+  without out-growing the 1.5-tall walls that make cover height readable.
+  Reference specimen: **Cipher**, `mocks/cipher_sprites.js` (the audition
+  file is the decision record — both bodies, one palette, one ground line).
 - **Silhouette first.** A unit must read from its outer shape alone — at map
   scale the silhouette IS the design. Detail lives inside the outline and never
   breaks it.
