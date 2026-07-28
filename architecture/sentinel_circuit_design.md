@@ -209,6 +209,11 @@ could read you — a Witness recorder, a hosting-faction official, an NPC
 who remembers you (`check_triggers`). Walking in anyway is a decision
 made with open eyes.
 
+A Witness recorder on the card deserves particular respect. Witnesses
+rarely expose anyone live — but false colors worn on a recorded card are
+*in the record*, and Witnesses publish. Exposure by record is not
+dodged, only deferred, possibly by seasons.
+
 | Faction | Response to being impersonated |
 |---|---|
 | Covenant | Oath-breaking. Standing drops hard; sanctioned cards close |
@@ -220,13 +225,23 @@ made with open eyes.
 A mask plus false colors is the complete identity laundry — which is a
 Ghost Networks service, purchasable, with strings.
 
-### Trophies have provenance
+### Trophies have provenance — in grades
 
-Every match has a seed and a Witness record. A trophy cosmetic references
-both: the jacket is *from the night you refused the yield at the drained
-reservoir*, and anyone can rewatch what it cost (`log_wiki_event`,
-memvid). The squad's look accumulates history the way their dossiers do —
-cosmetics as a legible record of what they survived and what they chose.
+Every match has a seed, but a seed alone reconstructs the deal, not the
+play: replaying what happened requires the input log too. That pair is
+precisely what a **Witness record is** — seed plus the moves as made,
+which determinism turns into a perfect reconstruction. You are literally
+watching the feed, because the feed is the match.
+
+Not every card is recorded. Sanction usually brings a recorder;
+backwater cards often fight unwatched. So provenance has grades: a
+trophy from a recorded match is **certified** — the jacket is *from the
+night you refused the yield at the drained reservoir*, and anyone can
+rewatch what it cost (`log_wiki_event`, memvid). A trophy from an
+unrecorded match is a claim like any other, which in this game is not
+nothing. The squad's look accumulates history the way their dossiers
+do — cosmetics as a legible record of what they survived and what they
+chose, exactly as legible as the record itself.
 
 ### Prototype implications
 
@@ -289,7 +304,9 @@ and access stay play-gated, or the allegiance layer is dead on arrival.
 
 ## 9. Prototype Roadmap
 
-Building on `prototypes/tactical/` in order of leverage:
+Building on the shared `prototypes/tactical-core/` rules module (rendered
+by `tactical/` and `tactical3d/`), in order of leverage — rule changes land
+in the core under its golden-transcript tests, never in a renderer:
 
 1. **Yield states** — hostiles surrender below a morale threshold; add the
    spare/finish choice and log it (hinge moment plumbing can come later)
@@ -299,7 +316,10 @@ Building on `prototypes/tactical/` in order of leverage:
 4. **Showrunner twists** — between-round events drawn from a small deck,
    announced on the feed before they resolve
 5. **Campaign wiring** — matches as a job type; results into wiki events,
-   disposition changes, and dormant threads
+   disposition changes, and dormant threads. Includes persisting match
+   input transcripts: the seed reconstructs only the opening deal, and a
+   Witness record (seed + input log) is what makes replay-as-provenance
+   real rather than promised
 
 Steps 1–2 are weekend-sized against the existing prototype. Step 5 is where
 the Circuit stops being a prototype and becomes SENTINEL.
