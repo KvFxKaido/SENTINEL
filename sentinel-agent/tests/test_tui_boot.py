@@ -8,6 +8,7 @@ makes really mounting it cheap enough to do everywhere.
 """
 
 import pytest
+from textual.worker import WorkerCancelled
 
 from src.interface.tui import SentinelTUI
 
@@ -18,3 +19,14 @@ async def test_tui_boots_and_wires_the_manager():
     async with app.run_test() as pilot:
         await pilot.pause()
         assert app.manager is not None
+        # The startup animation runs as a worker that sleeps before querying
+        # widgets. Cancel it while the screen is still mounted, or the
+        # teardown race surfaces as WorkerFailed/NoMatches on slow runners
+        # (flaked on Windows CI). Only the cancellation itself is absorbed —
+        # a worker that genuinely crashed still fails the test.
+        app.workers.cancel_all()
+        for worker in list(app.workers):
+            try:
+                await worker.wait()
+            except WorkerCancelled:
+                pass
