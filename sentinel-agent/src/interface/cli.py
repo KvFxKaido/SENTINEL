@@ -63,7 +63,6 @@ def main():
     prompts_dir = Path(__file__).parent.parent.parent / "prompts"
     campaigns_dir = Path("campaigns")
     lore_dir = base_dir / "lore"
-    wiki_dir = base_dir / "wiki" if (base_dir / "wiki").exists() else Path("wiki")
 
     # Load saved config (backend, model, banner preference, status bar)
     config = load_config(campaigns_dir)
@@ -82,7 +81,7 @@ def main():
     # Show banner
     show_banner(animate=animate_banner)
 
-    manager = CampaignManager(campaigns_dir, wiki_dir=wiki_dir)
+    manager = CampaignManager(campaigns_dir)
 
     # Initialize command registry and completer
     register_all_commands()
