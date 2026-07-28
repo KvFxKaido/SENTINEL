@@ -18,10 +18,7 @@ SENTINEL/
 │   │   ├── state/
 │   │   │   ├── schema.py         # Pydantic models (source of truth)
 │   │   │   ├── manager.py        # Campaign CRUD + delegation
-│   │   │   ├── event_bus.py      # Pub/sub for reactive TUI updates
-│   │   │   ├── wiki_adapter.py   # Wiki page generation
-│   │   │   ├── wiki_watcher.py   # Bi-directional sync
-│   │   │   └── templates.py      # Jinja2 template engine
+│   │   │   └── event_bus.py      # Pub/sub for reactive TUI updates
 │   │   ├── systems/              # Domain logic modules
 │   │   │   ├── jobs.py           # Job board, templates, lifecycle
 │   │   │   ├── favors.py         # NPC favor system
@@ -129,7 +126,7 @@ See `core/SENTINEL Playbook — Core Rules.md` for complete rules. Summary:
 | **Job Board** | Faction-specific jobs by location/standing; `/jobs` to browse |
 | **Endgame** | Player-initiated conclusion; readiness tracks hinges/arcs/threads/factions |
 | **Memvid** | Optional semantic search over campaign history; `/timeline` |
-| **Wiki** | Auto-generated Obsidian wiki; bi-directional sync with game state |
+| **Wiki** | Reference encyclopedia (Obsidian vault), read by lore retrieval and the campaign MCP server |
 
 Character appearances and portraits are campaign-isolated: `assets/characters/campaigns/{id}/{name}.yaml`
 

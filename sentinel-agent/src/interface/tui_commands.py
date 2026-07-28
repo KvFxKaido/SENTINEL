@@ -171,41 +171,14 @@ def tui_char(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
 
     Supports:
         /char quick   - Create default character (Cipher, Survivor)
-        /char export  - Export character sheet to markdown
         /char edit    - Edit character (requires CLI)
-        /char wiki    - Update character's wiki page
         /char         - Interactive creation (requires CLI)
     """
     from ..state.schema import Character, Background, SocialEnergy
-    from .commands import _char_export, EDITABLE_CHAR_FIELDS
+    from .commands import EDITABLE_CHAR_FIELDS
 
     if not app.manager.current:
         log.write(Text.from_markup(f"[{Theme.WARNING}]Load or create a campaign first[/{Theme.WARNING}]"))
-        return
-
-    # /char wiki - update wiki page
-    if args and args[0].lower() == "wiki":
-        if not app.manager.current.characters:
-            log.write(Text.from_markup(f"[{Theme.WARNING}]Create a character first[/{Theme.WARNING}]"))
-            return
-        if app.manager.update_character_wiki():
-            char = app.manager.current.characters[0]
-            log.write(Text.from_markup(f"[{Theme.ACCENT}]{g('success')}[/{Theme.ACCENT}] Updated wiki page for {char.name}"))
-            if app.manager.wiki:
-                wiki_path = app.manager.wiki.overlay_dir / "Characters" / f"{char.name}.md"
-                log.write(Text.from_markup(f"[{Theme.DIM}]{wiki_path}[/{Theme.DIM}]"))
-        else:
-            log.write(Text.from_markup(f"[{Theme.WARNING}]Wiki not enabled or update failed[/{Theme.WARNING}]"))
-        return
-
-    # /char export - export character sheet
-    if args and args[0].lower() == "export":
-        success, message = _char_export(app.manager)
-        if success:
-            log.write(Text.from_markup(f"[{Theme.ACCENT}]{g('success')}[/{Theme.ACCENT}] Exported character sheet"))
-            log.write(Text.from_markup(f"[{Theme.DIM}]{message}[/{Theme.DIM}]"))
-        else:
-            log.write(Text.from_markup(f"[{Theme.WARNING}]{message}[/{Theme.WARNING}]"))
         return
 
     # /char edit - show fields or direct to CLI for interactive edit
@@ -806,8 +779,6 @@ def tui_help(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
         f"  [{Theme.ACCENT}]/timeline[/{Theme.ACCENT}] [query] - Campaign memory (memvid)\n"
         f"  [{Theme.ACCENT}]/lore[/{Theme.ACCENT}] [query] - Search lore\n"
         f"  [{Theme.ACCENT}]/simulate[/{Theme.ACCENT}] - Explore hypotheticals\n"
-        f"  [{Theme.ACCENT}]/wiki[/{Theme.ACCENT}] [page] - Campaign wiki/timeline\n"
-        f"  [{Theme.ACCENT}]/compare[/{Theme.ACCENT}] - Cross-campaign analysis\n"
         f"\n[bold {Theme.TEXT}]System:[/bold {Theme.TEXT}]\n"
         f"  [{Theme.ACCENT}]/backend[/{Theme.ACCENT}] [name] - Switch LLM backend\n"
         f"  [{Theme.ACCENT}]/model[/{Theme.ACCENT}] [name] - Switch model\n"
@@ -1395,75 +1366,6 @@ def tui_timeline(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
                 log.write(Text.from_markup(f"  • {r.get('summary', r.get('text', ''))[:60]}..."))
         else:
             log.write(Text.from_markup(f"[{Theme.DIM}]No matches found[/{Theme.DIM}]"))
-
-
-# -----------------------------------------------------------------------------
-# Wiki Commands
-# -----------------------------------------------------------------------------
-
-def tui_wiki(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
-    """View campaign wiki."""
-    from .shared import get_wiki_timeline, get_wiki_page_overlay
-    from .glyphs import sanitize_for_terminal
-
-    if not app.manager or not app.manager.current:
-        log.write(Text.from_markup(f"[{Theme.WARNING}]No campaign loaded[/{Theme.WARNING}]"))
-        return
-
-    wiki_dir = getattr(app.manager, '_wiki_dir', 'wiki')
-
-    if not args:
-        result = get_wiki_timeline(app.manager, wiki_dir=str(wiki_dir))
-        if not result:
-            log.write(Text.from_markup(f"[{Theme.WARNING}]Could not load wiki timeline[/{Theme.WARNING}]"))
-            return
-
-        log.write(Text.from_markup(f"[bold {Theme.TEXT}]Campaign Wiki[/bold {Theme.TEXT}]"))
-        log.write(Text.from_markup(f"[{Theme.DIM}]{result['campaign_name']}[/{Theme.DIM}]"))
-
-        if not result['events']:
-            log.write(Text.from_markup(f"\n[{Theme.DIM}]{result.get('message', 'No events recorded yet.')}[/{Theme.DIM}]"))
-            log.write(Text.from_markup(f"[{Theme.DIM}]Events are auto-logged during play.[/{Theme.DIM}]"))
-            return
-
-        log.write(Text.from_markup(f"\n[{Theme.ACCENT}]Timeline ({result['event_count']} events)[/{Theme.ACCENT}]"))
-
-        for event in result['events'][-15:]:
-            if "[HINGE]" in event:
-                color = Theme.DANGER
-                icon = g('hinge')
-            elif "[FACTION]" in event:
-                color = Theme.ACCENT
-                icon = g('faction')
-            elif "[THREAD]" in event:
-                color = Theme.WARNING
-                icon = g('thread')
-            elif "[MISSION]" in event:
-                color = Theme.TEXT
-                icon = g('mission')
-            else:
-                color = Theme.DIM
-                icon = g('bullet')
-
-            event_text = sanitize_for_terminal(event)
-            log.write(Text.from_markup(f"  [{color}]{icon}[/{color}] {event_text}"))
-
-        log.write(Text.from_markup(f"\n[{Theme.DIM}]/wiki <page> for specific page overlay[/{Theme.DIM}]"))
-    else:
-        page = " ".join(args)
-        result = get_wiki_page_overlay(app.manager, page, wiki_dir=str(wiki_dir))
-
-        if not result or not result['exists']:
-            log.write(Text.from_markup(f"[{Theme.DIM}]No campaign overlay for '{page}'[/{Theme.DIM}]"))
-            return
-
-        log.write(Text.from_markup(f"[bold {Theme.TEXT}]Wiki Overlay: {page}[/bold {Theme.TEXT}]"))
-        log.write(Text.from_markup(f"[{Theme.DIM}]Campaign-specific additions[/{Theme.DIM}]\n"))
-
-        content = sanitize_for_terminal(result['content'])
-        lines = content.split('\n')
-        for line in lines[:30]:
-            log.write(Text.from_markup(f"  {line}"))
 
 
 def tui_compress(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
@@ -2895,90 +2797,6 @@ def tui_retire(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
 
 
 # -----------------------------------------------------------------------------
-# Compare Command
-# -----------------------------------------------------------------------------
-
-def tui_compare(app: "SENTINELApp", log: "RichLog", args: list[str]) -> None:
-    """Cross-campaign comparison."""
-    from pathlib import Path
-    import sys
-
-    wiki_dir = Path(getattr(app.manager, '_wiki_dir', 'wiki')) if app.manager else Path('wiki')
-
-    # Try to import and run the comparison script
-    scripts_dir = Path(__file__).parent.parent.parent / "scripts"
-    if scripts_dir.exists():
-        sys.path.insert(0, str(scripts_dir))
-
-    try:
-        from compare_campaigns import discover_campaigns, generate_report
-
-        log.write(Text.from_markup(f"[{Theme.DIM}]Scanning campaigns...[/{Theme.DIM}]"))
-
-        campaigns = discover_campaigns(wiki_dir)
-
-        if not campaigns:
-            log.write(Text.from_markup(f"[{Theme.WARNING}]No campaigns with events found[/{Theme.WARNING}]"))
-            log.write(Text.from_markup(f"[{Theme.DIM}]Play some sessions to generate wiki events[/{Theme.DIM}]"))
-            return
-
-        log.write(Text.from_markup(f"[bold {Theme.TEXT}]Cross-Campaign Analysis[/bold {Theme.TEXT}]"))
-        log.write(Text.from_markup(f"[{Theme.DIM}]{len(campaigns)} campaign(s) analyzed[/{Theme.DIM}]\n"))
-
-        # Campaign overview
-        log.write(Text.from_markup(f"[{Theme.ACCENT}]Campaigns:[/{Theme.ACCENT}]"))
-        for c in sorted(campaigns, key=lambda x: x.sessions, reverse=True):
-            log.write(Text.from_markup(
-                f"  [{Theme.TEXT}]{c.id}[/{Theme.TEXT}]: "
-                f"{c.sessions} sessions, {len(c.hinges)} hinges, {len(c.faction_shifts)} shifts"
-            ))
-
-        # Faction standings comparison
-        all_factions: set[str] = set()
-        for c in campaigns:
-            for shift in c.faction_shifts:
-                all_factions.add(shift.faction)
-
-        if all_factions and len(campaigns) > 1:
-            log.write(Text.from_markup(f"\n[{Theme.ACCENT}]Faction Divergence:[/{Theme.ACCENT}]"))
-
-            for faction in sorted(all_factions):
-                standings = []
-                for c in campaigns:
-                    standing = c.final_standings.get(faction, "Neutral")
-                    standings.append(f"{c.id}:{standing}")
-
-                unique = set(s.split(":")[1] for s in standings)
-                if len(unique) == 1:
-                    icon = f"[{Theme.WARNING}]![/{Theme.WARNING}]"  # Convergent
-                else:
-                    icon = f"[{Theme.FRIENDLY}]~[/{Theme.FRIENDLY}]"  # Divergent
-
-                log.write(Text.from_markup(f"  {icon} [{Theme.TEXT}]{faction}[/{Theme.TEXT}]: {', '.join(standings)}"))
-
-        elif all_factions:
-            log.write(Text.from_markup(f"\n[{Theme.ACCENT}]Final Standings:[/{Theme.ACCENT}]"))
-            c = campaigns[0]
-            for faction in sorted(all_factions):
-                standing = c.final_standings.get(faction, "Neutral")
-                log.write(Text.from_markup(f"  [{Theme.TEXT}]{faction}[/{Theme.TEXT}]: {standing}"))
-
-        # Write full report
-        meta_dir = wiki_dir / "campaigns" / "_meta"
-        meta_dir.mkdir(exist_ok=True)
-        report = generate_report(campaigns, wiki_dir)
-        report_path = meta_dir / "comparison_report.md"
-        report_path.write_text(report, encoding="utf-8")
-
-        log.write(Text.from_markup(f"\n[{Theme.DIM}]Full report: {report_path}[/{Theme.DIM}]"))
-
-    except ImportError as e:
-        log.write(Text.from_markup(f"[{Theme.DANGER}]Could not load comparison script: {e}[/{Theme.DANGER}]"))
-    except Exception as e:
-        log.write(Text.from_markup(f"[{Theme.DANGER}]Comparison failed: {e}[/{Theme.DANGER}]"))
-
-
-# -----------------------------------------------------------------------------
 # Registration
 # -----------------------------------------------------------------------------
 
@@ -3019,10 +2837,7 @@ def register_tui_handlers() -> None:
     set_tui_handler("/summary", tui_summary)
     set_tui_handler("/timeline", tui_timeline)
 
-    # Wiki
-    set_tui_handler("/wiki", tui_wiki)
     set_tui_handler("/compress", tui_compress)
-    set_tui_handler("/compare", tui_compare)
 
     # Simulation
     set_tui_handler("/simulate", tui_simulate)

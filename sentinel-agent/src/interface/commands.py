@@ -725,38 +725,11 @@ def cmd_char(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
         /char quick         - Create default character (Cipher, Survivor)
         /char edit          - List editable fields
         /char edit <field>  - Edit a character field
-        /char export        - Export character sheet to markdown
-        /char wiki          - Update character's wiki page
     """
     from ..state.schema import SocialEnergy
 
     if not manager.current:
         console.print("[yellow]Load or create a campaign first[/yellow]")
-        return
-
-    # Wiki mode: update character wiki page
-    if args and args[0].lower() == "wiki":
-        if not manager.current.characters:
-            console.print(f"[{THEME['warning']}]Create a character first[/{THEME['warning']}]")
-            return
-        if manager.update_character_wiki():
-            char = manager.current.characters[0]
-            console.print(f"[{THEME['accent']}]{g('success')}[/{THEME['accent']}] Updated wiki page for {char.name}")
-            if manager.wiki:
-                wiki_path = manager.wiki.overlay_dir / "Characters" / f"{char.name}.md"
-                console.print(f"[{THEME['dim']}]{wiki_path}[/{THEME['dim']}]")
-        else:
-            console.print(f"[{THEME['warning']}]Wiki not enabled or update failed[/{THEME['warning']}]")
-        return
-
-    # Export mode: generate markdown character sheet
-    if args and args[0].lower() == "export":
-        success, message = _char_export(manager)
-        if success:
-            console.print(f"[{THEME['accent']}]{g('success')}[/{THEME['accent']}] Exported character sheet")
-            console.print(f"[{THEME['dim']}]{message}[/{THEME['dim']}]")
-        else:
-            console.print(f"[{THEME['warning']}]{message}[/{THEME['warning']}]")
         return
 
     # Edit mode: modify existing character fields
@@ -943,144 +916,6 @@ def _char_edit(manager: CampaignManager, field: str, value: str | None) -> str |
 
     manager.save()
     return None
-
-
-def _char_export(manager: CampaignManager) -> tuple[bool, str]:
-    """
-    Export character to markdown. Returns (success, message).
-    """
-    from pathlib import Path
-    from ..state.templates import TemplateEngine, DEFAULT_TEMPLATES
-    from ..state.schema import Background
-
-    if not manager.current or not manager.current.characters:
-        return False, "No character to export"
-
-    char = manager.current.characters[0]
-    campaign = manager.current
-
-    # Build context for template
-    background_descriptions = {
-        Background.CARETAKER: "Healer, protector — the one who keeps others alive",
-        Background.SURVIVOR: "Endured the worst, still standing",
-        Background.OPERATIVE: "Trained for missions, intel, shadows",
-        Background.TECHNICIAN: "Keeps the machines running",
-        Background.PILGRIM: "Seeker, wanderer, searching for meaning",
-        Background.WITNESS: "Observer, recorder, keeper of truth",
-        Background.GHOST: "Erased, forgotten, never officially existed",
-    }
-
-    # Load appearance data if exists
-    appearance_data = None
-    char_yaml_path = Path(f"assets/characters/campaigns/{campaign.meta.id}/{char.name.lower().replace(' ', '_')}.yaml")
-    if char_yaml_path.exists():
-        try:
-            import yaml
-            appearance_data = yaml.safe_load(char_yaml_path.read_text(encoding="utf-8"))
-        except Exception:
-            pass
-
-    # Build faction standings
-    factions = []
-    for faction, standing in campaign.faction_standings.items():
-        factions.append({
-            "name": faction.replace("_", " ").title(),
-            "standing": standing.level.value,
-            "notes": "",
-        })
-
-    # Build hinges
-    hinges = []
-    for h in char.hinge_history:
-        hinges.append({
-            "session": h.session,
-            "title": h.choice,
-            "consequence": h.what_shifted or h.choice,
-            "choice": h.choice,
-        })
-
-    # Build enhancements
-    enhancements = []
-    for e in char.enhancements:
-        enhancements.append({
-            "name": e.name,
-            "source_faction": e.source_faction.value if hasattr(e.source_faction, 'value') else str(e.source_faction),
-            "description": e.description,
-            "leverage_cost": e.leverage_description or "—",
-        })
-
-    # Build refused enhancements
-    refused = []
-    for r in char.refused_enhancements:
-        refused.append({
-            "name": r.name,
-            "source_faction": r.source_faction.value if hasattr(r.source_faction, 'value') else str(r.source_faction),
-            "benefit": r.benefit,
-            "reason": r.reason,
-        })
-
-    # Build arcs
-    arcs = []
-    for a in char.arcs:
-        arcs.append({
-            "title": a.arc_type.value.replace("_", " ").title(),
-            "arc_type": a.arc_type.value,
-            "description": a.description or "",
-            "status": a.status,
-            "detected_session": a.detected_session,
-            "strength": a.strength,
-        })
-
-    # Template context
-    context = {
-        "name": char.name,
-        "name_slug": char.name.lower().replace(" ", "_").replace("'", ""),
-        "callsign": char.callsign,
-        "pronouns": char.pronouns,
-        "age": char.age,
-        "appearance": char.appearance,
-        "appearance_data": appearance_data,
-        "background": char.background.value,
-        "background_desc": background_descriptions.get(char.background, ""),
-        "backgrounds": [b.value for b in Background],
-        "survival_note": char.survival_note,
-        "campaign_id": campaign.meta.id,
-        "session_count": campaign.session_count,
-        "aligned_faction": char.aligned_faction.value if char.aligned_faction else None,
-        "social_energy": char.social_energy.current,
-        "energy_track": char.social_energy.name,
-        "restorers": char.social_energy.restorers,
-        "drains": char.social_energy.drains,
-        "establishing_incident": {
-            "description": char.establishing_incident.summary,
-            "location": getattr(char.establishing_incident, 'location', 'Unknown'),
-            "costs": getattr(char.establishing_incident, 'costs', 'Unknown'),
-        } if char.establishing_incident else None,
-        "factions": factions,
-        "hinges": hinges,
-        "enhancements": enhancements,
-        "refused_enhancements": refused,
-        "credits": char.credits,
-        "gear": [{"name": g.name, "description": g.description} for g in char.gear],
-        "vehicles": [{"name": v.name, "type": v.type} for v in char.vehicles],
-        "arcs": arcs,
-        "reflections": None,  # Could be filled from debrief data
-    }
-
-    # Render template
-    engine = TemplateEngine()
-    content = engine.render("character.md.j2", context)
-
-    # Ensure exports directory exists
-    exports_dir = Path(manager.campaigns_dir) / "exports"
-    exports_dir.mkdir(exist_ok=True)
-
-    # Write file
-    filename = f"{char.name.lower().replace(' ', '_')}_sheet.md"
-    export_path = exports_dir / filename
-    export_path.write_text(content, encoding="utf-8")
-
-    return True, str(export_path)
 
 
 def cmd_npc(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
@@ -2374,24 +2209,6 @@ def cmd_debrief(manager: CampaignManager, agent: SentinelAgent, args: list[str])
     console.print(f"\n[{THEME['accent']}]Session {session_num} complete.[/{THEME['accent']}]")
     console.print(f"[{THEME['dim']}]Social energy reset. Chronicle updated. Campaign saved.[/{THEME['dim']}]")
 
-    # Auto-save to wiki as daily note
-    if manager.wiki and manager.wiki.is_enabled:
-        reflections_dict = None
-        if reflection_lines:
-            reflections_dict = {
-                "cost": cost,
-                "learned": learned,
-                "would_refuse": refuse,
-            }
-        wiki_path = manager.wiki.save_session_summary(summary_data, reflections_dict)
-        if wiki_path:
-            console.print(f"[{THEME['dim']}]Wiki daily note: {wiki_path.name}[/{THEME['dim']}]")
-
-        # Flush any buffered wiki writes
-        pending = manager.wiki.flush_buffer()
-        if pending > 0:
-            console.print(f"[{THEME['warning']}]Warning: {pending} wiki writes still pending[/{THEME['warning']}]")
-
     # Offer to export summary
     export = Prompt.ask(f"\n[{THEME['dim']}]Export summary to markdown?[/{THEME['dim']}]", choices=["y", "n"], default="n")
     if export == "y":
@@ -3488,102 +3305,6 @@ def _search_timeline_unified(agent: SentinelAgent, query: str):
 
     if not has_results:
         console.print(f"[{THEME['dim']}]No matches found.[/{THEME['dim']}]")
-
-
-# -----------------------------------------------------------------------------
-# Wiki Commands
-# -----------------------------------------------------------------------------
-
-def cmd_wiki(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
-    """View campaign wiki timeline and page overlays.
-
-    Usage:
-        /wiki              - Show campaign event timeline
-        /wiki <page>       - Show overlay for a specific page (e.g., Nexus)
-
-    The wiki timeline shows significant campaign events:
-    - Hinge moments (irreversible choices)
-    - Faction standing changes
-    - Dormant threads created
-
-    Events are auto-logged during play and persist across sessions.
-    """
-    from .shared import get_wiki_timeline, get_wiki_page_overlay
-
-    if not manager.current:
-        console.print(f"[{THEME['warning']}]No campaign loaded[/{THEME['warning']}]")
-        return
-
-    # Determine wiki_dir from manager if available
-    wiki_dir = getattr(manager, '_wiki_dir', 'wiki')
-
-    if not args:
-        # Show timeline
-        result = get_wiki_timeline(manager, wiki_dir=str(wiki_dir))
-
-        if not result:
-            console.print(f"[{THEME['warning']}]Could not load wiki timeline[/{THEME['warning']}]")
-            return
-
-        console.print(f"\n[bold {THEME['primary']}]◈ CAMPAIGN WIKI ◈[/bold {THEME['primary']}]")
-        console.print(f"[{THEME['dim']}]{result['campaign_name']} ({result['campaign_id'][:8]})[/{THEME['dim']}]\n")
-
-        if not result['events']:
-            console.print(f"[{THEME['dim']}]{result.get('message', 'No events recorded yet.')}[/{THEME['dim']}]")
-            console.print(f"\n[{THEME['dim']}]Events are auto-logged during play:[/{THEME['dim']}]")
-            console.print(f"  [{THEME['secondary']}]{g('bullet')}[/{THEME['secondary']}] Hinge moments (irreversible choices)")
-            console.print(f"  [{THEME['secondary']}]{g('bullet')}[/{THEME['secondary']}] Faction standing changes")
-            console.print(f"  [{THEME['secondary']}]{g('bullet')}[/{THEME['secondary']}] Dormant threads queued")
-            return
-
-        # Show events grouped by type
-        console.print(f"[bold {THEME['accent']}]Timeline ({result['event_count']} events)[/bold {THEME['accent']}]\n")
-
-        for event in result['events']:
-            # Color-code by type
-            if "[HINGE]" in event:
-                color = THEME['danger']
-                icon = g('hinge')
-            elif "[FACTION]" in event:
-                color = THEME['accent']
-                icon = g('faction')
-            elif "[THREAD]" in event:
-                color = THEME['warning']
-                icon = g('thread')
-            elif "[NPC]" in event:
-                color = THEME['secondary']
-                icon = g('npc')
-            else:
-                color = THEME['text']
-                icon = g('bullet')
-
-            console.print(f"  [{color}]{icon}[/{color}] {event}")
-
-        console.print(f"\n[{THEME['dim']}]Use /wiki <page> to see campaign changes to a specific page[/{THEME['dim']}]")
-        return
-
-    # Show specific page overlay
-    page = " ".join(args)
-    result = get_wiki_page_overlay(manager, page, wiki_dir=str(wiki_dir))
-
-    if not result:
-        console.print(f"[{THEME['warning']}]Could not load wiki page[/{THEME['warning']}]")
-        return
-
-    if not result['exists']:
-        console.print(f"[{THEME['dim']}]No campaign overlay exists for '{page}'[/{THEME['dim']}]")
-        console.print(f"[{THEME['dim']}]Overlays are created when campaign events affect a page.[/{THEME['dim']}]")
-        return
-
-    console.print(f"\n[bold {THEME['primary']}]◈ WIKI OVERLAY: {page} ◈[/bold {THEME['primary']}]")
-    console.print(f"[{THEME['dim']}]Campaign-specific additions to canon[/{THEME['dim']}]\n")
-
-    # Display content with markdown-like formatting
-    from rich.markdown import Markdown
-    from rich.panel import Panel
-
-    md = Markdown(result['content'])
-    console.print(Panel(md, border_style=THEME['dim']))
 
 
 # -----------------------------------------------------------------------------
@@ -4700,7 +4421,6 @@ def create_commands(manager: CampaignManager, agent: SentinelAgent, conversation
         "/threads": cmd_consequences,  # Alias
         "/simulate": cmd_simulate,
         "/timeline": cmd_timeline,
-        "/wiki": cmd_wiki,
         "/context": cmd_context,
         # Context control commands
         "/checkpoint": cmd_checkpoint,
@@ -4802,8 +4522,6 @@ def register_all_commands():
                      aliases=["/consequences"])
     register_command("/timeline", "Search campaign memory", CommandCategory.INFO,
                      handler=cmd_timeline, available_when=has_campaign)
-    register_command("/wiki", "View campaign wiki", CommandCategory.INFO,
-                     handler=cmd_wiki, available_when=has_campaign)
     register_command("/context", "Show context debug info", CommandCategory.INFO,
                      handler=cmd_context, available_when=has_campaign)
 
