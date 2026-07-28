@@ -76,15 +76,16 @@ so the board never sits at an off-axis angle.
 
 `P` cycles three display treatments:
 
-- **LCD** (default) — the scene renders to a 350×223 target, then a post pass
+- **LCD** (default) — the scene renders to a 350×222 target, then a post pass
   draws every texel as a discrete LCD cell with darkened seams and applies
   handheld color: desaturated toward luma, warmed, shadows lifted because a
   real LCD never reaches true black. Modeled on RetroArch's
   `lcd-grid-v2` + `gba-color` treatment (the shader stack that makes GBA
   tactics games look right on modern screens — the direct inspiration was
   Super Robot Wars J under exactly that stack). The target is exactly half
-  the CSS canvas so each texel lands on a clean 2×2 cell; non-integer scales
-  turn the seams into moiré.
+  the 700×444 canvas and the mode snaps device pixel ratio to an integer, so
+  each texel lands on a clean 2×2 (4×4 at DPR 2) cell — non-integer scales
+  turn the seams into moiré, which is also why the canvas height is even.
 - **crunch** — the original trick: render at 0.6× and let
   `image-rendering: pixelated` upscale. A pixel look without a pixel pipeline.
 - **clean** — native resolution, no treatment.
