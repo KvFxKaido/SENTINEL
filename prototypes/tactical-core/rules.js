@@ -55,6 +55,7 @@ export const S = {
   targetMode: false,   // shoot mode armed
   busy: false,         // input locked during animation / AI
   gameOver: null,      // null | "win" | "loss"
+  decision: false,     // every living hostile has yielded — match holds for spare/finish
   gen: 0,              // restart generation — stale async turns check this and bail
 };
 
@@ -84,6 +85,12 @@ function makeUnits() {
     { id: 4, side: "ho", name: "SYN-2",  x: 5, y: 0, hp: 8,  maxHp: 8,  aim: 65, mobility: 4, ap: 2, overwatch: false, alive: true },
     { id: 5, side: "ho", name: "SYN-3",  x: 8, y: 0, hp: 8,  maxHp: 8,  aim: 65, mobility: 4, ap: 2, overwatch: false, alive: true },
   ];
+  // Only hostiles carry morale. The player's operatives don't quit under
+  // the player — they hold or they fall; conceding is a player verb, and
+  // it doesn't exist yet.
+  for (const u of S.units) {
+    if (u.side === "ho") { u.morale = MORALE.start; u.maxMorale = MORALE.start; u.yielded = false; }
+  }
 }
 export const inBounds = (x, y) => x >= 0 && x < W && y >= 0 && y < H;
 export const passable = (x, y) => inBounds(x, y) && S.map[y][x] === FLOOR;
@@ -168,6 +175,38 @@ export function pathTo(parent, x, y) {
   return path.slice(1); // drop start tile
 }
 
+// ---- morale -----------------------------------------------------
+// Hostiles fight for a purse, not a cause (sentinel_circuit_design.md §5:
+// "surrender, on camera"). Morale only moves down, and only for things a
+// fighter can perceive: fire that lands on them, a squadmate dropping, a
+// squadmate quitting. Perception is squad-wide by design, not gated on
+// sightlines — the yard is small and gunfire carries, and morale is meant
+// to be legible squad state, not a per-witness simulation the player has
+// to audit unit by unit. (Per-witness morale is a real future fork — an
+// execution as a performance wants an audience — but it belongs to the
+// rating/witness layer, not before it.) Zero is a yield — deterministic,
+// no roll — because a collapse the player can see coming is one they can
+// play around, or play for. None of this touches the RNG stream, which is
+// why the golden transcripts captured before this mechanic existed still
+// replay byte-for-byte.
+export const MORALE = { start: 8, hit: 2, crit: 4, mateDown: 3, mateYield: 2 };
+
+function drainMorale(u, amt) {
+  if (u.morale === undefined || !u.alive || u.yielded) return;
+  u.morale = Math.max(0, u.morale - amt);
+  if (u.morale === 0) unitYields(u);
+}
+
+function unitYields(u) {
+  u.yielded = true;
+  u.overwatch = false;
+  u.ap = 0;
+  io.emit({ type: "yield", unit: u });
+  // one fighter quitting makes it easier for the next to quit
+  for (const v of living("ho")) if (v !== u) drainMorale(v, MORALE.mateYield);
+  checkEnd();
+}
+
 // ---- combat -----------------------------------------------------
 async function fireShot(att, def, aimMod = 0, label = "") {
   const g = S.gen;
@@ -189,6 +228,10 @@ async function fireShot(att, def, aimMod = 0, label = "") {
       def.alive = false;
       def.overwatch = false;
       io.emit({ type: "down", unit: def });
+      // the drain no-ops for operatives, who have no morale to lose
+      for (const v of living(def.side)) drainMorale(v, MORALE.mateDown);
+    } else {
+      drainMorale(def, crit ? MORALE.crit : MORALE.hit);
     }
   } else {
     io.emit({ type: "shot", hit: false, att, def, pct, roll: r, label });
@@ -219,19 +262,32 @@ async function animateMove(u, path) {
     await io.sleep(70);
     if (g !== S.gen) return;
     await overwatchCheck(u);
-    if (g !== S.gen || !u.alive || S.gameOver) break;
+    // a mover who yields under overwatch fire stops in their tracks
+    if (g !== S.gen || !u.alive || u.yielded || S.gameOver || S.decision) break;
   }
 }
 
 function checkEnd() {
   if (S.gameOver) return;
-  if (living("ho").length === 0) endGame("win");
-  else if (living("op").length === 0) endGame("loss");
+  const ho = living("ho");
+  if (ho.length === 0) { endGame("win"); return; }
+  if (living("op").length === 0) { endGame("loss"); return; }
+  // Every hostile still standing has yielded: the fight is settled, the
+  // match is not. Hold here — the spare/finish call is the player's, and
+  // it is the whole point of the mechanic.
+  if (!S.decision && ho.every(u => u.yielded)) {
+    S.decision = true;
+    S.turn = "op";
+    S.targetMode = false;
+    io.emit({ type: "yield-decision", count: ho.length });
+    io.changed();
+  }
 }
 
 function endGame(result) {
   S.gameOver = result;
   io.emit({ type: "end", result });
+  io.changed();   // spare() ends the match with no action following — the panel must not go stale
 }
 
 // ---- player actions ---------------------------------------------
@@ -251,6 +307,7 @@ export function cycleSelect() {
 }
 
 export async function tryMove(u, x, y) {
+  if (S.decision) return;
   const { cost, parent } = reachable(u, u.mobility * u.ap);
   const c = cost.get(x + "," + y);
   if (c === undefined || c === 0) return;
@@ -264,7 +321,8 @@ export async function tryMove(u, x, y) {
 }
 
 export async function tryShoot(att, def) {
-  if (att.ap <= 0 || !solution(att, def)) return;
+  if (def.yielded) return tryFinish(att, def);   // you don't roll dice at a kneeling fighter
+  if (S.decision || att.ap <= 0 || !solution(att, def)) return;
   S.busy = true;
   att.ap = 0;            // firing ends the unit's activation
   S.targetMode = false;
@@ -274,8 +332,48 @@ export async function tryShoot(att, def) {
   autoAdvance();
 }
 
+// An execution is a choice, not a gamble: no roll, no crit, no miss.
+// Mid-fight it is still an activation — it costs the action and needs the
+// sightline. Once every hostile has yielded (S.decision) the fight is
+// over, the economy with it, and the only cost left is the one on record.
+export async function tryFinish(att, def) {
+  // turn authority is enforced here, not left to the renderer: this verb
+  // is only ever the player's, on the player's turn, one at a time
+  if (S.busy || S.gameOver || S.turn !== "op") return;
+  if (!att || !def || !att.alive || att.side !== "op") return;
+  if (!def.alive || !def.yielded) return;
+  if (!S.decision) {
+    if (att.ap <= 0 || !los(att.x, att.y, def.x, def.y)) return;
+    att.ap = 0;
+  }
+  const g = S.gen;
+  S.busy = true;
+  S.targetMode = false;
+  io.emit({ type: "fire", att, def });
+  io.changed();
+  await io.sleep(280);
+  if (g !== S.gen) return;                     // restarted: the new encounter owns S.busy now
+  if (S.gameOver) { S.busy = false; return; }  // ended out from under us: release the lock
+  def.hp = 0;
+  def.alive = false;
+  io.emit({ type: "finish", att, def });
+  // a surrendered mate dying breaks the ones still fighting — heard as much as seen
+  for (const v of living("ho")) drainMorale(v, MORALE.mateDown);
+  S.busy = false;
+  io.changed();
+  checkEnd();
+  autoAdvance();
+}
+
+// accept every standing yield and end the match
+export function spare() {
+  if (!S.decision || S.gameOver || S.busy) return;
+  io.emit({ type: "spared", units: living("ho").filter(u => u.yielded) });
+  endGame("win");
+}
+
 export function setOverwatch(u) {
-  if (u.ap <= 0) return;
+  if (S.decision || u.ap <= 0) return;
   u.overwatch = true;
   u.ap = 0;
   S.targetMode = false;
@@ -285,7 +383,7 @@ export function setOverwatch(u) {
 }
 
 function autoAdvance() {
-  if (S.gameOver || S.turn !== "op") return;
+  if (S.gameOver || S.decision || S.turn !== "op") return;
   const cur = selected();
   if (cur && cur.ap > 0) return;
   const next = living("op").find(u => u.ap > 0);
@@ -345,7 +443,7 @@ export async function enemyTurn() {
 
   for (const u of S.units.filter(v => v.side === "ho")) {
     if (g !== S.gen) return;
-    if (!u.alive || S.gameOver) continue;
+    if (!u.alive || u.yielded || S.gameOver || S.decision) continue;
     u.ap = 2; u.overwatch = false;
     let guard = 0;
     while (u.ap > 0 && u.alive && !S.gameOver && g === S.gen && guard++ < 4) {
@@ -387,7 +485,9 @@ export async function enemyTurn() {
   }
   if (g !== S.gen) return;
 
-  if (!S.gameOver) {
+  // if the decision moment arrived mid-turn (overwatch broke them), the
+  // turn cycle is over — checkEnd already handed control to the player
+  if (!S.gameOver && !S.decision) {
     S.turn = "op";
     for (const u of living("op")) { u.ap = 2; u.overwatch = false; }
     io.emit({ type: "turn", side: "op" });
@@ -399,7 +499,7 @@ export async function enemyTurn() {
 }
 
 export function endPlayerTurn() {
-  if (S.busy || S.gameOver || S.turn !== "op") return;
+  if (S.busy || S.gameOver || S.decision || S.turn !== "op") return;
   for (const u of living("op")) u.ap = 0;
   return enemyTurn();
 }
@@ -411,7 +511,7 @@ export function restart(seed) {
   S.rng = mulberry32(S.seed);
   buildMap();
   makeUnits();
-  S.turn = "op"; S.selectedId = 0; S.targetMode = false; S.busy = false; S.gameOver = null;
+  S.turn = "op"; S.selectedId = 0; S.targetMode = false; S.busy = false; S.gameOver = null; S.decision = false;
   io.emit({ type: "reset" });
   io.emit({ type: "mission" });
   io.emit({ type: "turn", side: "op" });
@@ -441,6 +541,14 @@ export function formatEvent(ev, wrap = t => t) {
       return `${n(ev.unit)} sets ${wrap("overwatch", "sys")}`;
     case "overwatch-trigger":
       return `${n(ev.unit)} ${wrap("overwatch triggered", "sys")}`;
+    case "yield":
+      return `${n(ev.unit)} ${wrap("yields", "sys")} — weapon down, hands up.`;
+    case "yield-decision":
+      return wrap("— THE FIGHT IS OVER — spare them [⏎] or finish them [click] —", "sys");
+    case "finish":
+      return `${n(ev.att)} ${wrap("finishes", "hit")} ${n(ev.def)}. The yard sees it.`;
+    case "spared":
+      return `${ev.units.map(u => n(u)).join(", ")} ${wrap("spared", "sys")} — they walk.`;
     default:
       return null;   // fire / select / reset / end are not log lines
   }

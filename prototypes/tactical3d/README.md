@@ -58,11 +58,11 @@ Not spectacle. Two specific things:
 
 | Input | Action |
 |-------|--------|
-| click | select operative / move / shoot hostile |
+| click | select operative / move / shoot hostile / finish a yielded hostile |
 | `Tab` | cycle to next operative with AP |
 | `F` | toggle shoot mode (hit % over every hostile) |
 | `Y` | overwatch (ends unit's activation) |
-| `Enter` | end turn |
+| `Enter` | end turn — or **spare them**, once every hostile has yielded |
 | `Q` / `E` | rotate camera 90° |
 | `P` | toggle pixel crunch |
 | `R` / `shift+R` | new encounter / replay same seed |
@@ -118,6 +118,8 @@ Everything the 2D README already ruled out — no campaign, no classes, no
 research tree. Plus, specific to this build: no unit facing, no move-path
 preview arc, no camera zoom, no hit/miss reaction animation.
 
-The organ-replacement questions are unchanged and still the actual point:
-simultaneous turns, degrading cover, social energy as the morale system,
-positioning that creates team abilities, hostiles who surrender.
+The organ-replacement questions are still the actual point: simultaneous
+turns, degrading cover, social energy as the morale system, positioning that
+creates team abilities. The first one is answered — hostiles yield on morale
+now, and the spare/finish call is the match's last move. It lives in the
+rules core, which is why this file barely changed to get it.
