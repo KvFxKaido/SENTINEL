@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import {
   S, bindIO, restart, endPlayerTurn, formatEvent,
   los, coverBonus, solution, reachable, living, unitAt, W, H,
-  mulberry32, MORALE, tryShoot, tryFinish, spare, setOverwatch, tryMove,
+  mulberry32, MORALE, RATING, tryShoot, tryFinish, spare, setOverwatch, tryMove,
 } from "./rules.js";
 
 // FNV-1a, matching the fingerprint taken in the browser
@@ -344,12 +344,121 @@ test("a match with yields, a finish, and a spare replays identically", async () 
     const { v, s2 } = await driveToDecision(cap);
     await tryFinish(v, s2);
     spare();
-    return cap.lines;
+    return { lines: cap.lines, rating: S.rating };
   }
   const a = await scriptedMatch();
   const b = await scriptedMatch();
-  assert.deepEqual(a, b, "the input log plus the seed IS the match — it must replay");
+  assert.deepEqual(a.lines, b.lines, "the input log plus the seed IS the match — it must replay");
+  assert.equal(a.rating, b.rating, "the crowd is part of the record too");
   assert.equal(S.gameOver, "win");
-  assert.ok(a.some(l => l.includes("finishes")));
-  assert.ok(a.some(l => l.includes("spared")));
+  assert.ok(a.lines.some(l => l.includes("finishes")));
+  assert.ok(a.lines.some(l => l.includes("spared")));
+});
+
+/* ---- rating ----------------------------------------------------
+ * Same discipline as morale, one step further: rating is arithmetic on
+ * events that already happen, draws nothing from the RNG, and never
+ * writes a log line — which is why the golden transcripts above pass
+ * untouched while the meter moves underneath them.
+ */
+
+test("rating never becomes a log line", () => {
+  assert.equal(formatEvent({ type: "rating", delta: 5, total: 55 }), null);
+});
+
+test("landed player fire is scored, itemized for flash", async () => {
+  const { events } = captureEvents();
+  restart(seedHitting(83));
+  const v = living("op")[0];
+  const s1 = living("ho")[0];
+  v.x = 1; v.y = 0;
+  s1.hp = 20;
+  const before = S.rating;
+  await tryShoot(v, s1);
+  const shot = events.find(e => e.type === "shot");
+  assert.equal(shot.hit, true);
+  // adjacent shot: no long-shot bonus; target flanked (+), shooter in the
+  // open (+), crit if the dice said so
+  assert.equal(S.rating,
+    before + RATING.hit + RATING.flank + RATING.open + (shot.crit ? RATING.crit : 0));
+});
+
+test("a down pays the crowd, whoever fell", async () => {
+  const { events } = captureEvents();
+  restart(seedHitting(83));
+  const v = living("op")[0];
+  const s1 = living("ho")[0];
+  v.x = 1; v.y = 0;
+  s1.hp = 1;
+  await tryShoot(v, s1);
+  assert.equal(s1.alive, false);
+  const deltas = events.filter(e => e.type === "rating").map(e => e.delta);
+  assert.ok(deltas.includes(RATING.down), "blood is content");
+});
+
+test("the turtle bleeds: player overwatch and stalled AP", async () => {
+  const { events } = captureEvents();
+  restart(1);
+  const v = living("op")[0];
+  const before = S.rating;
+  setOverwatch(v);
+  assert.equal(S.rating, before + RATING.overwatch);
+  await endPlayerTurn();   // the two untouched operatives stall 4 AP
+  const deltas = events.filter(e => e.type === "rating").map(e => e.delta);
+  assert.ok(deltas.includes(RATING.stalledAp * 4), "dead air must bleed the meter");
+});
+
+test("in an untouched playout the only crowd-pleaser is blood", async () => {
+  const { events } = captureEvents();
+  restart(1);
+  for (let i = 0; i < 14 && !S.gameOver; i++) await endPlayerTurn();
+  const ups = events.filter(e => e.type === "rating" && e.delta > 0);
+  assert.ok(ups.length > 0, "operatives went down — those pay");
+  assert.ok(ups.every(e => e.delta === RATING.down),
+    "nothing the AI does builds the player's meter");
+  assert.ok(S.rating < RATING.start, "a squad that never fights bleeds out on air");
+});
+
+test("yield economy pays out at the end, clamped at the ceiling", async () => {
+  const cap = captureEvents();
+  const { v, s2 } = await driveToDecision(cap);
+  const yieldUps = cap.events.filter(e => e.type === "rating" && e.delta === RATING.yield);
+  assert.equal(yieldUps.length, 2, "each fighter breaking on camera pays");
+  S.rating = 98;             // stage the ceiling
+  await tryFinish(v, s2);
+  assert.equal(S.rating, 100, "the meter is clamped, not unbounded");
+  spare();
+  assert.equal(S.rating, 100 + RATING.spare, "mercy costs purse, applied before payout");
+  const end = cap.events.find(e => e.type === "end");
+  assert.equal(end.rating, S.rating);
+  assert.equal(end.purse, S.rating * RATING.pursePerPoint);
+});
+
+test("rating events report the applied delta, never the requested one", async () => {
+  const cap = captureEvents();
+  const { v, s2 } = await driveToDecision(cap);
+  S.rating = 98;
+  const before = cap.events.length;
+  await tryFinish(v, s2);
+  const ev = cap.events.slice(before).find(e => e.type === "rating");
+  assert.equal(ev.delta, 2, "the ceiling ate half the finish — the event must say so");
+  assert.equal(ev.total, 100);
+
+  const cap2 = captureEvents();
+  restart(1);
+  S.rating = 0;
+  setOverwatch(living("op")[0]);
+  assert.ok(!cap2.events.some(e => e.type === "rating"),
+    "a change the clamp fully ate is not an event");
+  assert.equal(S.rating, 0);
+});
+
+test("the floor is zero, and restart resets the meter", async () => {
+  captureEvents();
+  restart(1);
+  S.rating = 1;
+  setOverwatch(living("op")[0]);
+  assert.equal(S.rating, 0, "the meter is clamped at the floor");
+  restart(2);
+  assert.equal(S.rating, RATING.start);
 });

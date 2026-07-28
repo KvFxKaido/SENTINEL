@@ -32,6 +32,7 @@ The server root is `prototypes/`, not this folder — `index.html` imports
 - Visible hit percentages with the full breakdown (base aim / range / cover)
 - Simple enemy AI: fires at ≥45%, or ≥30% when caught in the open after moving; otherwise advances toward cover with sightlines and holds overwatch once it gets there
 - Hostile morale (the amber bar): landed hits, downed squadmates and watching a mate quit all drain it; at zero the fighter yields. When every hostile standing has yielded, the match holds for the spare/finish call
+- The RATING meter: the crowd. Flashy landed fire builds it (crits, long shots, flanks, shooting from the open), overwatch and unspent AP bleed it, anyone going down pays — including your own. Pays out as purse at match end, win or lose
 - Win, lose, restart
 
 ## Determinism
