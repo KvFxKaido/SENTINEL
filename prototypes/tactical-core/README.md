@@ -60,11 +60,16 @@ reads in the comms log.
 ## Yield states
 
 Hostiles carry morale (`sentinel_circuit_design.md` §5, roadmap step 1). It
-only moves down, and only for things a fighter can see: a landed hit, a
-squadmate dropping, a squadmate quitting. At zero the fighter yields —
-deterministically, no roll, because a collapse the player can see coming is
-one they can play around, or play for. Operatives have no morale; the
-player's people don't quit under the player.
+only moves down, and only for things a fighter can perceive: a landed hit, a
+squadmate dropping, a squadmate quitting. Perception is squad-wide by design
+— the yard is small and gunfire carries, so drains are not gated on
+sightlines. Morale is legible squad state, not a per-witness simulation the
+player has to audit unit by unit; per-witness morale is a real future fork
+(an execution as a performance wants an audience), but it belongs to the
+rating/witness layer. At zero the fighter yields — deterministically, no
+roll, because a collapse the player can see coming is one they can play
+around, or play for. Operatives have no morale; the player's people don't
+quit under the player.
 
 When every hostile still standing has yielded, the fight is settled but the
 match holds (`S.decision`): the only verbs left are `spare()` — accept every

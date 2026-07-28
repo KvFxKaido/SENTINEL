@@ -178,11 +178,17 @@ export function pathTo(parent, x, y) {
 // ---- morale -----------------------------------------------------
 // Hostiles fight for a purse, not a cause (sentinel_circuit_design.md §5:
 // "surrender, on camera"). Morale only moves down, and only for things a
-// fighter can see: fire that lands, a squadmate dropping, a squadmate
-// quitting. Zero is a yield — deterministic, no roll — because a collapse
-// the player can see coming is one they can play around, or play for.
-// None of this touches the RNG stream, which is why the golden transcripts
-// captured before this mechanic existed still replay byte-for-byte.
+// fighter can perceive: fire that lands on them, a squadmate dropping, a
+// squadmate quitting. Perception is squad-wide by design, not gated on
+// sightlines — the yard is small and gunfire carries, and morale is meant
+// to be legible squad state, not a per-witness simulation the player has
+// to audit unit by unit. (Per-witness morale is a real future fork — an
+// execution as a performance wants an audience — but it belongs to the
+// rating/witness layer, not before it.) Zero is a yield — deterministic,
+// no roll — because a collapse the player can see coming is one they can
+// play around, or play for. None of this touches the RNG stream, which is
+// why the golden transcripts captured before this mechanic existed still
+// replay byte-for-byte.
 export const MORALE = { start: 8, hit: 2, crit: 4, mateDown: 3, mateYield: 2 };
 
 function drainMorale(u, amt) {
@@ -331,8 +337,11 @@ export async function tryShoot(att, def) {
 // sightline. Once every hostile has yielded (S.decision) the fight is
 // over, the economy with it, and the only cost left is the one on record.
 export async function tryFinish(att, def) {
+  // turn authority is enforced here, not left to the renderer: this verb
+  // is only ever the player's, on the player's turn, one at a time
+  if (S.busy || S.gameOver || S.turn !== "op") return;
   if (!att || !def || !att.alive || att.side !== "op") return;
-  if (!def.alive || !def.yielded || S.gameOver) return;
+  if (!def.alive || !def.yielded) return;
   if (!S.decision) {
     if (att.ap <= 0 || !los(att.x, att.y, def.x, def.y)) return;
     att.ap = 0;
@@ -343,11 +352,12 @@ export async function tryFinish(att, def) {
   io.emit({ type: "fire", att, def });
   io.changed();
   await io.sleep(280);
-  if (g !== S.gen || S.gameOver) return;
+  if (g !== S.gen) return;                     // restarted: the new encounter owns S.busy now
+  if (S.gameOver) { S.busy = false; return; }  // ended out from under us: release the lock
   def.hp = 0;
   def.alive = false;
   io.emit({ type: "finish", att, def });
-  // watching a surrendered mate die breaks the ones still fighting
+  // a surrendered mate dying breaks the ones still fighting — heard as much as seen
   for (const v of living("ho")) drainMorale(v, MORALE.mateDown);
   S.busy = false;
   io.changed();

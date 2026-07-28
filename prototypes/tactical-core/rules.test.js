@@ -292,6 +292,52 @@ test("during the decision, everything but the choice is inert", async () => {
   assert.ok(!cap.events.slice(before).some(e => e.type === "turn"), "the turn cycle is suspended");
 });
 
+test("finishing respects turn authority and the busy lock", async () => {
+  captureEvents();
+  restart(seedHitting(83));
+  const v = living("op")[0];
+  const s1 = living("ho")[0];
+  v.x = 1; v.y = 0;
+  s1.hp = 20;
+  s1.morale = MORALE.hit;
+  await tryShoot(v, s1);
+  assert.equal(s1.yielded, true);
+  v.ap = 2;   // a valid attacker in every respect — only the turn is wrong
+  S.turn = "ho";
+  await tryFinish(v, s1);
+  assert.equal(s1.alive, true, "not the player's turn, not the player's verb");
+  S.turn = "op";
+  S.busy = true;
+  await tryFinish(v, s1);
+  assert.equal(s1.alive, true, "another action is mid-flight — the verb must refuse");
+  S.busy = false;
+  await tryFinish(v, s1);
+  assert.equal(s1.alive, false);
+});
+
+test("a restart mid-finish releases cleanly and cannot touch the new encounter", async () => {
+  const cap = captureEvents();
+  const { v, s2 } = await driveToDecision(cap);
+  // hold the finish animation open, restart underneath it, then let it resolve
+  let release;
+  bindIO({
+    sleep: () => new Promise(r => { release = r; }),
+    emit: () => {},
+    changed: () => {},
+  });
+  const pending = tryFinish(v, s2);
+  assert.equal(S.busy, true);
+  restart(41);
+  release();
+  await pending;
+  assert.equal(S.busy, false, "the restarted encounter must not inherit a stale lock");
+  assert.equal(S.gameOver, null);
+  assert.equal(S.decision, false);
+  const fresh = living("ho");
+  assert.equal(fresh.length, 3, "the stale finish must not kill into the new encounter");
+  assert.ok(fresh.every(u => u.alive && !u.yielded));
+});
+
 test("a match with yields, a finish, and a spare replays identically", async () => {
   async function scriptedMatch() {
     const cap = captureEvents();
