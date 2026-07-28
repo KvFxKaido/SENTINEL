@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SENTINEL — Fighter Sheet Mock (phosphor vs chrome)</title>
+<style>
+  /* ============================================================
+     The palette fork, side by side (art_direction_gba_tactics.md).
+     IDENTICAL markup in both columns — only the skin differs, so
+     the comparison is purely the palette question:
+       left:  green-phosphor terminal (current identity)
+       right: navy cockpit chrome (SRW J direction)
+     Structural grammar is shared per the doc: every datum in a
+     beveled labeled cell, physical tabs, a portrait anchoring the
+     sheet, insignia slot beside the face, density as respect.
+     Framing is tale-of-the-tape: this is a broadcast graphic,
+     not a character menu.
+     ============================================================ */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #0a0a0c; color: #ccc; font-family: "SF Mono", "Cascadia Mono", Consolas, Menlo, monospace; }
+  body { display: flex; flex-wrap: wrap; gap: 28px; justify-content: center; padding: 24px; }
+  .variant h1 { font-size: 12px; letter-spacing: 3px; font-weight: normal; color: #777; margin-bottom: 10px; text-align: center; }
+
+  .sheet { width: 400px; padding: 12px; image-rendering: pixelated; }
+
+  /* ---- shared structure ---- */
+  .tabs { display: flex; gap: 2px; margin-bottom: 8px; }
+  .tab { flex: 1; text-align: center; font-size: 11px; letter-spacing: 1px; padding: 5px 0; }
+  .head { display: flex; gap: 8px; margin-bottom: 8px; }
+  .portrait { width: 84px; height: 84px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .portrait img { width: 64px; height: 64px; image-rendering: pixelated; }
+  .idblock { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+  .namebar { font-size: 16px; letter-spacing: 2px; padding: 4px 8px; }
+  .callsign { font-size: 10px; letter-spacing: 1px; padding: 3px 8px; }
+  .insignia { display: flex; gap: 8px; align-items: center; padding: 5px 8px; font-size: 10px; }
+  .patch { width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+  .cells { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 8px; }
+  .cell { display: flex; }
+  .cell .k { flex: 1; font-size: 10px; letter-spacing: 1px; padding: 4px 7px; }
+  .cell .v { width: 88px; font-size: 11px; text-align: right; padding: 4px 7px; }
+  .bar { position: relative; height: 12px; margin: 2px 0 0; }
+  .bar i { position: absolute; inset: 0; }
+  .bar b { position: absolute; top: 0; bottom: 0; left: 0; }
+  .tape { font-size: 10px; line-height: 1.7; padding: 7px 9px; }
+  .tape b { font-weight: normal; }
+  .foot { font-size: 9px; letter-spacing: 1px; padding: 5px 8px; margin-top: 8px; }
+
+  /* ============================================================
+     SKIN 1 — PHOSPHOR (green terminal, the current identity)
+     ============================================================ */
+  .phosphor .sheet { background: #0c120d; border: 1px solid #1d2b20; }
+  .phosphor .tab { background: #101a12; color: #5e7a66; border: 1px solid #1d2b20; }
+  .phosphor .tab.on { color: #46e07a; border-color: #2a7a4a; background: #12211714; background: #122117; }
+  .phosphor .portrait { background: #0a0e0b; border: 1px solid #1d2b20; }
+  .phosphor .namebar { color: #b8d8c0; background: #101a12; border: 1px solid #1d2b20; }
+  .phosphor .callsign { color: #5e7a66; background: #0e1710; border: 1px solid #1d2b20; }
+  .phosphor .insignia { background: #0e1710; border: 1px solid #1d2b20; color: #5e7a66; }
+  .phosphor .patch { background: #0a0e0b; border: 1px dashed #2a7a4a; color: #46e07a; }
+  .phosphor .cell .k { background: #12241a; color: #46e07a; border: 1px solid #1d2b20; border-right: none; }
+  .phosphor .cell .v { background: #0a0e0b; color: #b8d8c0; border: 1px solid #1d2b20; }
+  .phosphor .bar i { background: #142018; border: 1px solid #1d2b20; }
+  .phosphor .bar b { background: #46e07a; }
+  .phosphor .bar.rating b { background: #ffb347; }
+  .phosphor .tape { background: #0e1710; border: 1px solid #1d2b20; color: #5e7a66; }
+  .phosphor .tape b { color: #b8d8c0; }
+  .phosphor .foot { background: #0a0e0b; border: 1px solid #1d2b20; color: #3d5245; }
+  /* scanlines — the rig you own */
+  .phosphor .sheet { position: relative; }
+  .phosphor .sheet::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,0.15) 0 1px, transparent 1px 3px);
+  }
+
+  /* ============================================================
+     SKIN 2 — CHROME (navy cockpit steel, the SRW J direction)
+     bevel emboss: light edge top-left, dark edge bottom-right;
+     hex watermark on the panel behind everything
+     ============================================================ */
+  .chrome .sheet {
+    background:
+      radial-gradient(circle at 30% 20%, rgba(90,130,200,0.06), transparent 60%),
+      repeating-conic-gradient(from 30deg at 50% 50%, #10182a 0deg 60deg, #0e1526 60deg 120deg),
+      #0e1526;
+    background-blend-mode: normal;
+    border: 2px solid; border-color: #3a4a6a #060a14 #060a14 #3a4a6a;
+  }
+  .chrome .tab { background: #16223c; color: #6d81a8; border: 1px solid; border-color: #2c3c60 #080d1a #080d1a #2c3c60; }
+  .chrome .tab.on { color: #e8eef8; background: #23345c; }
+  .chrome .portrait { background: #0a101f; border: 2px solid; border-color: #080d1a #3a4a6a #3a4a6a #080d1a; }
+  .chrome .namebar { color: #e8eef8; background: linear-gradient(180deg, #24365e, #182747); border: 1px solid; border-color: #3d5488 #0a1020 #0a1020 #3d5488; text-shadow: 1px 1px 0 #060a14; }
+  .chrome .callsign { color: #8fa3cc; background: #121d33; border: 1px solid; border-color: #2c3c60 #080d1a #080d1a #2c3c60; }
+  .chrome .insignia { background: #121d33; border: 1px solid; border-color: #2c3c60 #080d1a #080d1a #2c3c60; color: #6d81a8; }
+  .chrome .patch { background: #0a101f; border: 1px dashed #4a5f8f; color: #c9d6ee; }
+  .chrome .cell .k { background: linear-gradient(180deg, #1d5c50, #15453c); color: #b8f0d8; border: 1px solid; border-color: #2f8a70 #072018 #072018 #2f8a70; border-right: none; text-shadow: 1px 1px 0 #06251c; }
+  .chrome .cell .v { background: #0a101f; color: #ffffff; border: 1px solid; border-color: #080d1a #2c3c60 #2c3c60 #080d1a; text-shadow: 1px 1px 0 #000; }
+  .chrome .bar i { background: #0a101f; border: 1px solid; border-color: #080d1a #2c3c60 #2c3c60 #080d1a; }
+  .chrome .bar b { background: linear-gradient(180deg, #7ce8a8, #2f9a5c); }
+  .chrome .bar.rating b { background: linear-gradient(180deg, #ffd27a, #d98a2b); }
+  .chrome .tape { background: #121d33; border: 1px solid; border-color: #2c3c60 #080d1a #080d1a #2c3c60; color: #6d81a8; }
+  .chrome .tape b { color: #e8eef8; }
+  .chrome .foot { background: #0a101f; border: 1px solid; border-color: #080d1a #2c3c60 #2c3c60 #080d1a; color: #46587e; }
+</style>
+</head>
+<body>
+
+<div class="variant phosphor">
+  <h1>PHOSPHOR — the rig you own</h1>
+  <div class="sheet" id="sheet-a"></div>
+</div>
+
+<div class="variant chrome">
+  <h1>CHROME — the feed they watch</h1>
+  <div class="sheet" id="sheet-b"></div>
+</div>
+
+<script>
+// One markup source, two skins — the comparison is purely the palette.
+// Portrait placeholder is the 2D build's operative sprite, upscaled; a
+// real portrait lands here in the quantized-cel style the art doc names.
+const OP_SPRITE = [
+  "................",
+  ".....BBBBB......",
+  "....BHHHHHB.....",
+  "....BALLAAB.....",
+  "....BSSSSSB.....",
+  ".....BBBBB......",
+  "...JJJBBBJJJ....",
+  "..JJBJJJJJBJJ...",
+  "..JHBJAAAJBHJ...",
+  "..JJBJJJJJBJJ...",
+  "..GGGGGGGGGGG...",
+  "...JBBJJJBBJ....",
+  "....BBB.BBB.....",
+  "....BB...BB.....",
+  "...BBB...BBB....",
+  "................",
+];
+const PAL = { B: "#22303a", H: "#48606f", A: "#5ccfff", L: "#bdefff", S: "#d4a574", J: "#31424e", G: "#151a1e" };
+function spriteDataURL() {
+  const c = document.createElement("canvas");
+  c.width = 16; c.height = 16;
+  const g = c.getContext("2d");
+  OP_SPRITE.forEach((row, y) => [...row].forEach((ch, x) => {
+    if (PAL[ch]) { g.fillStyle = PAL[ch]; g.fillRect(x, y, 1, 1); }
+  }));
+  return c.toDataURL();
+}
+
+const SHEET = `
+  <div class="tabs">
+    <div class="tab on">FIGHTER</div>
+    <div class="tab">LOADOUT</div>
+    <div class="tab">RECORD</div>
+  </div>
+  <div class="head">
+    <div class="portrait"><img src="${spriteDataURL()}" alt="VESPER"></div>
+    <div class="idblock">
+      <div class="namebar">VESPER</div>
+      <div class="callsign">"THE QUIET ARGUMENT" — FREELANCE, LATTICE CARD</div>
+      <div class="insignia"><span class="patch">⬡</span><span>insignia: empty patch — and everyone at the yard noticed</span></div>
+    </div>
+  </div>
+  <div class="cells">
+    <div class="cell"><span class="k">RECORD</span><span class="v">12–3</span></div>
+    <div class="cell"><span class="k">YIELDS</span><span class="v">2 taken · 1 given</span></div>
+    <div class="cell"><span class="k">AIM</span><span class="v">75</span></div>
+    <div class="cell"><span class="k">MOBILITY</span><span class="v">4</span></div>
+    <div class="cell"><span class="k">CONDITION</span><span class="v">10 / 10</span></div>
+    <div class="cell"><span class="k">ODDS</span><span class="v">+240</span></div>
+  </div>
+  <div class="cells">
+    <div class="cell" style="grid-column: 1 / -1; flex-direction: column;">
+      <span class="k">RATING</span>
+      <span class="bar rating"><i></i><b style="width: 64%"></b></span>
+    </div>
+  </div>
+  <div class="tape">
+    <b>TALE OF THE TAPE</b> — spared both at the drained reservoir; the
+    crowd split on it and the Syndicate booked the rematch at even money.
+    Fights from cover, finishes with the pistol, has never once played
+    to the camera. <b>The camera keeps finding them anyway.</b>
+  </div>
+  <div class="foot">WITNESS RECORD № 0x5EED1E — SANCTIONED · RECORDED · CERTIFIED</div>
+`;
+
+document.getElementById("sheet-a").innerHTML = SHEET;
+document.getElementById("sheet-b").innerHTML = SHEET;
+</script>
+</body>
+</html>
