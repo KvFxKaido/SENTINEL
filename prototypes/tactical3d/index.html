@@ -588,8 +588,11 @@ const SPRITE_MASK = {
   ho: bakeMask(HO_SPRITE, SPRITE_PALETTES.ho),
 };
 
-const spriteGeo = new THREE.PlaneGeometry(0.92, 0.92);
-spriteGeo.translate(0, 0.46, 0);           // feet at the origin, standing on the tile
+// 1.10 world units tall — the audited size (art_direction_gba_tactics.md:
+// +20% over the first billboard pass; presence without out-growing the
+// 1.5-tall walls that make cover height readable)
+const spriteGeo = new THREE.PlaneGeometry(1.10, 1.10);
+spriteGeo.translate(0, 0.55, 0);           // feet at the origin, standing on the tile
 const blobGeo   = new THREE.CircleGeometry(0.30, 20);
 const blobMat   = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.38 });
 const ringGeo   = new THREE.TorusGeometry(0.42, 0.032, 8, 28);
@@ -609,7 +612,7 @@ function makeBadge(u) {
   tex.minFilter = THREE.NearestFilter;
   const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
   spr.scale.set(1.15, 1.15 * BADGE_H / BADGE_W, 1);
-  spr.position.y = 1.06;
+  spr.position.y = 1.28;   // clears the 1.10-tall sprite plus its bob
   spr.renderOrder = 10;
   u._badge = c; u._badgeTex = tex;
   return spr;
@@ -709,7 +712,7 @@ function buildUnits() {
     g.add(ring);
 
     const ow = new THREE.Mesh(owGeo, owMat);
-    ow.position.y = 1.3;
+    ow.position.y = 1.5;   // above the badge, which is above the taller sprite
     ow.visible = false;
     g.add(ow);
 
@@ -939,7 +942,7 @@ function frame() {
     const bob = v.yielded ? 0 : Math.sin(t * 2.2 + v.id * 1.7) * 0.022;
     d.spr.position.y = bob;
     d.ghost.position.y = bob;
-    if (d.ow.visible) { d.ow.rotation.y = t * 1.6; d.ow.position.y = 1.3 + Math.sin(t * 2) * 0.05; }
+    if (d.ow.visible) { d.ow.rotation.y = t * 1.6; d.ow.position.y = 1.5 + Math.sin(t * 2) * 0.05; }
 
     // Walk the camera ray backwards from well behind the unit: if terrain
     // stops it before it arrives, the unit is hidden and the ghost goes on.
