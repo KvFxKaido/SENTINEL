@@ -64,7 +64,7 @@ Not spectacle. Two specific things:
 | `Y` | overwatch (ends unit's activation) |
 | `Enter` | end turn — or **spare them**, once every hostile has yielded |
 | `Q` / `E` | rotate camera 90° |
-| `P` | toggle pixel crunch |
+| `P` | cycle display: LCD / crunch / clean |
 | `R` / `shift+R` | new encounter / replay same seed |
 
 ## Projection
@@ -74,9 +74,21 @@ ratio `architecture/Isometric Sprite System.md` specifies — 30° is the angle
 where a unit grid step projects to a 2:1 screen slope. Rotation snaps to 90°
 so the board never sits at an off-axis angle.
 
-`P` toggles pixel crunch: the renderer draws at 0.6× and CSS upscales it with
-`image-rendering: pixelated`. That is the whole retro-crunch treatment — a
-pixel look without a pixel pipeline. Off, it renders crisp.
+`P` cycles three display treatments:
+
+- **LCD** (default) — the scene renders to a 350×222 target, then a post pass
+  draws every texel as a discrete LCD cell with darkened seams and applies
+  handheld color: desaturated toward luma, warmed, shadows lifted because a
+  real LCD never reaches true black. Modeled on RetroArch's
+  `lcd-grid-v2` + `gba-color` treatment (the shader stack that makes GBA
+  tactics games look right on modern screens — the direct inspiration was
+  Super Robot Wars J under exactly that stack). The target is exactly half
+  the 700×444 canvas and the mode snaps device pixel ratio to an integer, so
+  each texel lands on a clean 2×2 (4×4 at DPR 2) cell — non-integer scales
+  turn the seams into moiré, which is also why the canvas height is even.
+- **crunch** — the original trick: render at 0.6× and let
+  `image-rendering: pixelated` upscale. A pixel look without a pixel pipeline.
+- **clean** — native resolution, no treatment.
 
 ## Why it needs a server
 
