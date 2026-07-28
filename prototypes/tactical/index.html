@@ -36,6 +36,10 @@
   #turnbar .op { color: var(--cyan); }
   #turnbar .ho { color: var(--red); }
   #seed { color: var(--text-dim); font-size: 11px; }
+  #ratingrow { display: flex; justify-content: space-between; font-size: 11px; letter-spacing: 2px; color: var(--text-dim); margin-bottom: 6px; }
+  #ratingrow b { color: var(--amber); font-weight: normal; }
+  #ratingbar { position: relative; height: 10px; background: #241d10; border: 1px solid var(--line); }
+  #ratingbar b { position: absolute; top: 1px; bottom: 1px; left: 1px; background: var(--amber); transition: width 0.35s; }
   .unitrow { display: flex; justify-content: space-between; font-size: 12px; padding: 3px 4px; cursor: pointer; border-left: 2px solid transparent; }
   .unitrow.sel { border-left-color: var(--green); background: rgba(70,224,122,0.06); }
   .unitrow.dead { color: var(--text-dim); text-decoration: line-through; cursor: default; }
@@ -68,6 +72,7 @@
   #overlay h1 { font-size: 26px; letter-spacing: 6px; font-weight: normal; }
   #overlay h1.win { color: var(--green); } #overlay h1.loss { color: var(--red); }
   #overlay p { font-size: 12px; color: var(--text-dim); max-width: 380px; line-height: 1.6; }
+  #ovpurse { font-size: 13px; color: var(--amber); letter-spacing: 2px; }
   #boot { font-size: 12px; color: var(--red); padding: 10px 0; display: none; }
   #boot.show { display: block; }
 </style>
@@ -79,6 +84,7 @@
     <div id="overlay">
       <h1 id="ovtitle"></h1>
       <p id="ovtext"></p>
+      <p id="ovpurse"></p>
       <div>
         <button id="ovreplay">REPLAY SEED [shift+R]</button>
         <button id="ovnew">NEW ENCOUNTER [R]</button>
@@ -87,6 +93,10 @@
   </div>
   <div id="panel">
     <div class="box" id="turnbar"><span id="turnlabel"></span><span id="seed"></span></div>
+    <div class="box">
+      <div id="ratingrow"><span>RATING</span><b id="ratingval">50</b></div>
+      <div id="ratingbar"><b id="ratingfill" style="width:50%"></b></div>
+    </div>
     <div class="box">
       <h2>SQUAD</h2>
       <div id="roster"></div>
@@ -114,7 +124,8 @@
       <kbd>click</kbd> select / move &nbsp; <kbd>tab</kbd> next unit &nbsp;
       <kbd>F</kbd> shoot &nbsp; <kbd>Y</kbd> overwatch &nbsp; <kbd>⏎</kbd> end turn<br>
       ▪ low crate = half cover (−20 to be hit) &nbsp; █ wall = full cover (−40, blocks sight)<br>
-      the amber bar is morale — break it and they yield. What you do next is watched.
+      the amber bar is morale — break it and they yield. What you do next is watched.<br>
+      RATING is the crowd: flash builds it, turtling bleeds it, and it pays the purse — win or lose.
     </div>
     <div class="box" id="boot"></div>
   </div>
@@ -213,13 +224,16 @@ function onEvent(ev) {
     case "turn":   sfx.turn(); break;
     case "select": sfx.select(); showSolution(null, null); break;
     case "overwatch-set": if (ev.unit.side === "op") sfx.select(); break;
-    case "end":    showEnd(ev.result); break;
+    case "end":    showEnd(ev); break;
   }
 }
 
-function showEnd(result) {
+function showEnd(ev) {
+  const result = ev.result;
   const ov = document.getElementById("overlay");
   const t = document.getElementById("ovtitle"), p = document.getElementById("ovtext");
+  document.getElementById("ovpurse").textContent =
+    `RATING ${ev.rating} — PURSE ${ev.purse}c`;
   // yielded stays true on the dead — that is how the ending knows what you did
   const spared   = S.units.filter(u => u.side === "ho" && u.alive && u.yielded).length;
   const finished = S.units.filter(u => u.side === "ho" && !u.alive && u.yielded).length;
@@ -497,6 +511,8 @@ function draw() {
 
 // ---- panel ------------------------------------------------------
 function syncPanel() {
+  document.getElementById("ratingval").textContent = S.rating;
+  document.getElementById("ratingfill").style.width = S.rating + "%";
   document.getElementById("turnlabel").innerHTML = S.gameOver
     ? (S.gameOver === "win" ? '<span class="op">MISSION COMPLETE</span>' : '<span class="ho">MISSION FAILED</span>')
     : S.decision ? '<span style="color:var(--amber)">▶ THEY YIELD — YOUR CALL</span>'
