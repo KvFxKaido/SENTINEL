@@ -361,7 +361,10 @@ in the core under its golden-transcript tests, never in a renderer:
    disposition changes, and dormant threads. Includes persisting match
    input transcripts: the seed reconstructs only the opening deal, and a
    Witness record (seed + input log) is what makes replay-as-provenance
-   real rather than promised
+   real rather than promised. *The record half is built (2026-07-29):
+   `S.record` / `replayMatch` in the rules core, certified at the edge by
+   `workers/witness/` `POST /certify` — what remains here is the campaign
+   side: persistence, wiki events, disposition, threads*
 
 Steps 1–2 are weekend-sized against the existing prototype. Step 5 is where
 the Circuit stops being a prototype and becomes SENTINEL.

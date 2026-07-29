@@ -48,6 +48,9 @@ los, coverBonus, coveringTiles, solution, reachable, pathTo
 MORALE                start value and drain amounts, exported for tuning
 RATING                crowd-meter deltas and payout rate, exported for tuning
 formatEvent(ev, wrap) one formatter, two skins
+S.record              the witness record — committed player commands, in order
+replayMatch(seed, commands)
+                      drive a record back through the verbs (see below)
 ```
 
 The rules never call the renderer. They emit events — `fire`, `shot`, `down`,
@@ -103,6 +106,36 @@ plus one more trick: rating changes are events but **never log lines**, so
 the meter moves underneath the pre-meter transcripts without disturbing a
 byte. Deltas live in the exported `RATING` table; tuning them is free until
 they interlock with ammo (Circuit doc §6, gated on this prototype).
+
+## The witness record
+
+The input-log protocol (`sentinel_circuit_design.md` §9, roadmap step 5):
+**seed + record IS the match.** Every player verb that changes the match
+appends its canonical form to `S.record` at the moment its guards pass —
+`["move", id, x, y]`, `["shoot", att, def]`, `["finish", att, def]`,
+`["ow", id]`, `["spare"]`, `["end"]`. Rejected inputs never enter the
+record, and selection is deliberately absent: it rolls nothing, logs
+nothing, and every verb names its units explicitly, so it is
+presentation, not play. Shooting a kneeling fighter records the finish it
+reroutes to — the record captures what happened, not what was clicked.
+
+`replayMatch(seed, commands)` drives a record back through the same
+verbs. Because replaying re-records, and commands the rules refuse don't
+re-record, **a faithful replay reproduces its own input** — that closure
+is the integrity check. A record that cannot reproduce itself (tampered,
+reordered, from a different rules version) is not a match record, and
+nothing downstream certifies it. The dispatcher also refuses grammar the
+renderers can never produce (moving hostiles, friendly fire), so a
+renderer bug that recorded one fails closed at replay.
+
+`workers/witness/` inherits all of this as `POST /certify`: play a match
+anywhere, and the edge will attest that the record is a valid match under
+the running rules and what its one replay says happened. (That is
+validation, not provenance — *who* played it is a claim certification
+cannot check yet, and belongs to campaign wiring.)
+
+Recording draws nothing from the RNG and emits nothing — the fourth rules
+change in a row to land with the golden transcripts untouched.
 
 ## Rules for changing this file
 
