@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>SENTINEL — Yard Roster (System A)</title>
+<style>
+  body { background: #0a0f0c; color: #9fc7ab; font: 13px/1.5 monospace; padding: 24px; }
+  h1 { font-size: 14px; letter-spacing: 2px; color: #cfe8d6; }
+  .row { display: flex; gap: 32px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 28px; }
+  .card { text-align: center; }
+  .card .name { margin-top: 8px; letter-spacing: 1px; }
+  canvas { image-rendering: pixelated; display: block; margin: 0 auto; background: #111813; }
+  .strip canvas { background: #070a08; }
+  .note { color: #5e7a66; max-width: 70ch; }
+</style>
+</head>
+<body>
+<h1>YARD ROSTER — SYSTEM A, 32×32</h1>
+<p class="note">The five fighters of Kestrel Yard on the audited body (1.10 world
+units, feet on row 29). Ops share the uniform and the blue chest band —
+identity lives in the head. The SYN crew is one design worn three times,
+because that is what a crew looks like. Right-most strip: 1× and flipped,
+roughly the size the yard actually shows them at combat zoom.</p>
+<div id="big" class="row"></div>
+<div id="strip" class="row strip"></div>
+<script type="module">
+  import { SPRITES, spriteFor, validate } from "./sprites.js";
+  const bad = validate();
+  if (bad.length) document.body.insertAdjacentHTML("beforeend", `<pre style="color:#ff5c5c">${bad.join("\n")}</pre>`);
+
+  const ORDER = ["VESPER", "KOA", "SABLE", "SYN-1", "SYN-2", "SYN-3"];
+  function paint(name, scale, flip = false) {
+    const { grid, pal } = spriteFor(name);
+    const c = document.createElement("canvas");
+    c.width = c.height = 32 * scale;
+    const g = c.getContext("2d");
+    g.imageSmoothingEnabled = false;
+    grid.forEach((row, y) => [...row].forEach((ch, x) => {
+      if (!pal[ch]) return;
+      g.fillStyle = pal[ch];
+      g.fillRect((flip ? 31 - x : x) * scale, y * scale, scale, scale);
+    }));
+    return c;
+  }
+  const big = document.getElementById("big");
+  const strip = document.getElementById("strip");
+  for (const name of ORDER) {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.appendChild(paint(name, 8));
+    card.insertAdjacentHTML("beforeend", `<div class="name">${name}</div>`);
+    big.appendChild(card);
+
+    const small = document.createElement("div");
+    small.className = "card";
+    const pair = document.createElement("div");
+    pair.style.display = "flex"; pair.style.gap = "6px";
+    pair.appendChild(paint(name, 2));
+    pair.appendChild(paint(name, 2, true));
+    small.appendChild(pair);
+    strip.appendChild(small);
+  }
+</script>
+</body>
+</html>

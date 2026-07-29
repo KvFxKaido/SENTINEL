@@ -29,6 +29,13 @@ covers the other half: what the sprites and the UI themselves should do.
   needs the pixels; gear reads through silhouette, which the drape slot
   owns anyway. Display size audited at three heights — +20% won: presence
   without out-growing the 1.5-tall walls that make cover height readable.
+  **The yard roster shipped on this body (2026-07-29)** —
+  `prototypes/tactical3d/sprites.js`, preview at `roster.html`: VESPER
+  (crested helm), KOA (topknot, headband, the one permitted body edit:
+  wider pauldrons), SABLE (cowl, goggles lit inside the shadow), and one
+  SYN design worn by the whole crew, because a uniform crew is how "them"
+  reads. Ops share the stance and the blue chest band — the audition's
+  identity-lives-in-the-head claim, now practiced.
   Reference specimen: **Cipher**, `mocks/cipher_sprites.js` (the audition
   file is the decision record — both bodies, one palette, one ground line).
 - **Silhouette first.** A unit must read from its outer shape alone — at map
