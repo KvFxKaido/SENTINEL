@@ -210,6 +210,45 @@ export const SPRITES = {
       "................................",
       "................................",
     ],
+    // The yield frame — "weapon down, hands up." Two-thirds height so
+    // "down" reads at any zoom before a single detail does; arms raised
+    // flush against the head; knees folded onto the same row-29 ground
+    // line the standing frame plants its soles on. Poses are frames
+    // (art doc), and this is the first pose the game earned.
+    kneel: [
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "......BKKB............BKKB......",
+      "......BKKB............BKKB......",
+      ".......BKB...CCCCCC....BKB......",
+      ".......BKB.CCCCCCCCCC..BKB......",
+      ".......BKBCCCCCCCCCCCCBKB.......",
+      ".......BKBBKKKKKKKKKKBBKB.......",
+      ".......BKBBKKKKKKKKKKBBKB.......",
+      ".......BKBBKALKKKKALKBBKB.......",
+      ".......BKBBKKKKKKKKKKBBKB.......",
+      ".......BKBBKKKKKKKKKKBBKB.......",
+      ".......BKBBKKKKBBKKKKBBKB.......",
+      ".......BKB.BKKKKKKKKB.BKB.......",
+      ".......BKB..BKKKKKKB..BKB.......",
+      ".......BKB....BKKB....BKB.......",
+      ".........BRRNNNNNNNNRRB.........",
+      ".........BWRRNNNNNNRRRB.........",
+      ".........BWRRRRRRRRRRRB.........",
+      "........BPPPPPPPPPPPPPPB........",
+      "........BGPPPPPPPPPPPPGB........",
+      "........BGGPPPPPPPPPPGGB........",
+      "........BBBBBBBBBBBBBBBB........",
+      "................................",
+      "................................",
+    ],
   },
 };
 
@@ -221,16 +260,20 @@ export function spriteFor(name) {
 export function validate() {
   const bad = [];
   for (const [name, s] of Object.entries(SPRITES)) {
-    if (s.grid.length !== 32) bad.push(`${name}: ${s.grid.length} rows`);
-    s.grid.forEach((row, i) => {
-      if (row.length !== 32) bad.push(`${name} r${i}: ${row.length} cols`);
-      for (const ch of row) {
-        if (ch !== "." && !s.pal[ch]) bad.push(`${name} r${i}: unknown '${ch}'`);
-      }
-    });
-    // the ground line is the contract with the billboard quad
-    if (!/[^.]/.test(s.grid[29])) bad.push(`${name}: nothing stands on row 29`);
-    if (/[^.]/.test(s.grid[30]) || /[^.]/.test(s.grid[31])) bad.push(`${name}: art below the ground line`);
+    const frames = { grid: s.grid, ...(s.kneel ? { kneel: s.kneel } : {}) };
+    for (const [frame, grid] of Object.entries(frames)) {
+      const tag = frame === "grid" ? name : `${name}.${frame}`;
+      if (grid.length !== 32) bad.push(`${tag}: ${grid.length} rows`);
+      grid.forEach((row, i) => {
+        if (row.length !== 32) bad.push(`${tag} r${i}: ${row.length} cols`);
+        for (const ch of row) {
+          if (ch !== "." && !s.pal[ch]) bad.push(`${tag} r${i}: unknown '${ch}'`);
+        }
+      });
+      // the ground line is the contract with the billboard quad
+      if (!/[^.]/.test(grid[29])) bad.push(`${tag}: nothing stands on row 29`);
+      if (/[^.]/.test(grid[30]) || /[^.]/.test(grid[31])) bad.push(`${tag}: art below the ground line`);
+    }
   }
   return bad;
 }
