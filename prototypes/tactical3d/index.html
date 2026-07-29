@@ -404,7 +404,11 @@ function applyDisplayMode() {
 applyDisplayMode();
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x070a08);
+// Diorama-in-void staging (the product-vision reference): the yard is a lit
+// stage on black — nothing outside the broadcast exists. The LCD post pass
+// lifts this to a faint panel glow anyway, because a handheld LCD never
+// reaches true black; that is in character, not a leak.
+scene.background = new THREE.Color(0x000000);
 
 // 2:1 dimetric — 45° azimuth, 30° elevation — is the projection the sprite
 // doc specifies (2 horizontal : 1 vertical). An orthographic camera at that
@@ -452,8 +456,30 @@ scene.add(base);
 // ---- floor: one InstancedMesh, 100 tiles, per-instance colour -----
 // The movement overlay, hover highlight and cover callout are all just
 // instance colours — no geometry churn, one draw call for the whole board.
+// The plate texture is a near-white multiplier (frame, corner rivets, wear)
+// so it textures every instance colour equally: the deck reads as deck and
+// the range/hover overlays keep their exact hues, just worn.
+function bakeFloorTexture() {
+  const c = document.createElement("canvas");
+  c.width = 16; c.height = 16;
+  const g = c.getContext("2d");
+  g.fillStyle = "#fbfbfb"; g.fillRect(0, 0, 16, 16);
+  g.fillStyle = "#e0e0e0";
+  g.fillRect(0, 0, 16, 1); g.fillRect(0, 15, 16, 1);
+  g.fillRect(0, 0, 1, 16); g.fillRect(15, 0, 1, 16);
+  g.fillStyle = "#cbcbcb";
+  for (const [rx, ry] of [[2, 2], [13, 2], [2, 13], [13, 13]]) g.fillRect(rx, ry, 1, 1);
+  g.fillStyle = "#ececec";
+  g.fillRect(5, 9, 3, 1); g.fillRect(10, 4, 1, 3); g.fillRect(4, 5, 1, 1); g.fillRect(11, 11, 2, 1);
+  const tex = new THREE.CanvasTexture(c);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.generateMipmaps = false;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
 const floorGeo = new THREE.BoxGeometry(0.98, 0.06, 0.98);
-const floorMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, metalness: 0.0 });
+const floorMat = new THREE.MeshStandardMaterial({ color: 0xffffff, map: bakeFloorTexture(), roughness: 0.95, metalness: 0.0 });
 const floor = new THREE.InstancedMesh(floorGeo, floorMat, W * H);
 floor.receiveShadow = true;
 floor.instanceMatrix.setUsage(THREE.StaticDrawUsage);
@@ -468,23 +494,94 @@ floor.instanceMatrix.setUsage(THREE.StaticDrawUsage);
 }
 scene.add(floor);
 
-// ---- terrain (walls + crates) -------------------------------------
+// ---- terrain: voxel-extruded pixel art ----------------------------
+// The pokered-recomp trick (the product-vision reference): cover is not a
+// billboard and not a model — it is 2D pixel art given mass by extruding
+// every pixel into a depth-spanning box. Front and back faces show the
+// art, sides show the edge columns streaked, the top shows the cap row —
+// so the art is authored with a deliberate cap row, darker edge columns,
+// and full-width weld rows that read as grooves from the side. Everything
+// shares one pixel density with the unit sprites (the proportion law's
+// 1.10-world / 16-px), so the world and its fighters are made of the
+// same-sized matter.
+const PX = 1.10 / 16;
+
+// Same value discipline as COL: terrain stays in the low-saturation
+// phosphor family (W and K ARE COL.wall / COL.crate), detail is value
+// variation, and the only saturated things on screen remain the overlays.
+// `inset` pixels extrude two pixels shallower, so seams and slat gaps are
+// real grooves that catch the sun, not painted-on lines.
+const TERRAIN_PAL = {
+  C: { c: "#4a5f50" },              // wall cap
+  L: { c: "#55705d" },              // lit rim under the cap
+  W: { c: "#33463a" },              // wall face (== COL.wall)
+  V: { c: "#2c3d32" },              // wall edge columns — the side faces
+  D: { c: "#1d2a21", inset: true }, // panel seams / weld grooves
+  M: { c: "#7da888" },              // worn stencil marks
+  S: { c: "#273529" },              // stains, base shadow
+  F: { c: "#8fae94" },              // crate cap + corner braces
+  K: { c: "#6d8a72" },              // crate slats (== COL.crate)
+  E: { c: "#3f5546", inset: true }, // slat gaps
+  G: { c: "#5d7a63" },              // lower slat, shadowed
+};
+const WALL_ART = [   // 14 × 22 px → 0.96 wide, 1.51 tall (was a 0.94×1.5 box)
+  "CCCCCCCCCCCCCC",
+  "CLLLLLLLLLLLLC",
+  "VWWWDWWWWDWWWV",
+  "VWWWDWMMWDWWWV",
+  "VWMWDWWMWDWSWV",
+  "VWWWDWWWWDWWWV",
+  "VSWWDWWWWDWWSV",
+  "DDDDDDDDDDDDDD",
+  "VWWWDWWWWDWWWV",
+  "VWWWDWSSWDWWWV",
+  "VWWSDWSSWDWWWV",
+  "VWWWDWWWWDWWWV",
+  "VWWWDWWWWDWMWV",
+  "VSWWDWWWWDWWWV",
+  "VWWWDWWWWDWWWV",
+  "DDDDDDDDDDDDDD",
+  "VWWWDWWWWDWWWV",
+  "VWWWDWWWWDWSWV",
+  "VWSWDWWWWDWWWV",
+  "VWWWDWWWWDWWWV",
+  "VWWWDWSWWDWWWV",
+  "SSSSSSSSSSSSSS",
+];
+const CRATE_ART = [   // 11 × 7 px → 0.76 wide, 0.48 tall (was a 0.78×0.46 box)
+  "FFFFFFFFFFF",
+  "FKKKKKKKKKF",
+  "FEEEEEEEEEF",
+  "FKKKKKKKKKF",
+  "FEEEEEEEEEF",
+  "FGGGGGGGGGF",
+  "SSSSSSSSSSS",
+];
+
 const terrainGroup = new THREE.Group();
 scene.add(terrainGroup);
-const wallGeo  = new THREE.BoxGeometry(0.94, 1.5, 0.94);
-const crateGeo = new THREE.BoxGeometry(0.78, 0.46, 0.78);
-const wallMat  = new THREE.MeshStandardMaterial({ color: COL.wall,  roughness: 0.85 });
-const crateMat = new THREE.MeshStandardMaterial({ color: COL.crate, roughness: 0.8 });
+const voxelGeo = new THREE.BoxGeometry(1, 1, 1);
+const voxelMat = new THREE.MeshStandardMaterial({ roughness: 0.85 });
+
+// Invisible exact hulls for the per-frame X-ray occlusion ray: raycasting
+// one 3k-instance voxel mesh six times a frame is real work, and the voxel
+// solids ARE boxes, so a box proxy is exact, not an approximation. Layer 1
+// keeps them out of every render pass; only occRay looks there.
+const wallGeo  = new THREE.BoxGeometry(14 * PX, 22 * PX, 14 * PX);
+const crateGeo = new THREE.BoxGeometry(11 * PX, 7 * PX, 11 * PX);
+const proxyMat = new THREE.MeshBasicMaterial();
+var occluders = [];
 
 // Geometries and materials reused across rebuilds must survive disposal —
 // every reset tears the unit and terrain groups down, and disposing a shared
 // BufferGeometry once kills every later rebuild that uses it.
-const SHARED = new Set([wallGeo, crateGeo, wallMat, crateMat]);
+const SHARED = new Set([voxelGeo, voxelMat, wallGeo, crateGeo, proxyMat]);
 
 function disposeGroup(group) {
   for (const child of [...group.children]) {
     group.remove(child);
     child.traverse(o => {
+      if (o.isInstancedMesh) o.dispose();   // frees instance buffers; the shared box survives
       if (o.geometry && !SHARED.has(o.geometry)) o.geometry.dispose();
       const mats = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
       for (const m of mats) {
@@ -496,19 +593,58 @@ function disposeGroup(group) {
   }
 }
 
+// deterministic per-tile shade jitter — renderer-side flavor, so it never
+// goes anywhere near the rules' seeded stream
+function hash01(x, y) {
+  let h = (x * 374761393 + y * 668265263) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
 function buildTerrain() {
   disposeGroup(terrainGroup);
+  occluders = [];
+  const spots = [];
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const t = S.map[y][x];
-    if (t === FLOOR) continue;
-    const m = t === FULL
-      ? new THREE.Mesh(wallGeo, wallMat)
-      : new THREE.Mesh(crateGeo, crateMat);
-    m.position.copy(tileWorld(x, y, t === FULL ? 0.75 : 0.23));
-    m.castShadow = true;
-    m.receiveShadow = true;
-    terrainGroup.add(m);
+    if (S.map[y][x] !== FLOOR) spots.push({ x, y, t: S.map[y][x] });
   }
+  const artFor = t => t === FULL ? WALL_ART : CRATE_ART;
+  let count = 0;
+  for (const s of spots) for (const row of artFor(s.t)) for (const ch of row) if (TERRAIN_PAL[ch]) count++;
+
+  const mesh = new THREE.InstancedMesh(voxelGeo, voxelMat, count);
+  const dummy = new THREE.Object3D();
+  const col = new THREE.Color();
+  let i = 0;
+  for (const s of spots) {
+    const art = artFor(s.t);
+    const rows = art.length, cols = art[0].length;
+    const depth = cols * PX;
+    const mirror = (s.x + s.y) & 1;                  // parity flip breaks the wallpaper
+    const shade = 0.94 + 0.12 * hash01(s.x, s.y);    // ±6% per tile does the rest
+    const cx = gx(s.x), cz = gz(s.y);
+    for (let ry = 0; ry < rows; ry++) {
+      for (let rx = 0; rx < cols; rx++) {
+        const p = TERRAIN_PAL[art[ry][mirror ? cols - 1 - rx : rx]];
+        if (!p) continue;
+        dummy.position.set(cx + (rx - (cols - 1) / 2) * PX, (rows - 1 - ry + 0.5) * PX, cz);
+        dummy.scale.set(PX, PX, p.inset ? depth - 2 * PX : depth);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(i, dummy.matrix);
+        mesh.setColorAt(i, col.set(p.c).multiplyScalar(shade));
+        i++;
+      }
+    }
+    const proxy = new THREE.Mesh(s.t === FULL ? wallGeo : crateGeo, proxyMat);
+    proxy.position.set(cx, (s.t === FULL ? 11 : 3.5) * PX, cz);
+    proxy.layers.set(1);
+    occluders.push(proxy);
+    terrainGroup.add(proxy);
+  }
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  terrainGroup.add(mesh);
+  terrainGroup.updateMatrixWorld(true);
 }
 
 // ---- units --------------------------------------------------------
@@ -900,6 +1036,7 @@ const timer = new THREE.Timer();       // Clock is deprecated as of r18x
 const viewDir = new THREE.Vector3();
 const chest = new THREE.Vector3();
 const occRay = new THREE.Raycaster();
+occRay.layers.set(1);                  // the invisible occlusion hulls live there
 const OCC_BACK = 25;                   // ray start distance behind the unit
 
 function frame() {
@@ -948,7 +1085,7 @@ function frame() {
     // stops it before it arrives, the unit is hidden and the ghost goes on.
     chest.set(gx(v.x), 0.55, gz(v.y));
     occRay.set(chest.clone().addScaledVector(viewDir, -OCC_BACK), viewDir);
-    const blocked = occRay.intersectObjects(terrainGroup.children, false);
+    const blocked = occRay.intersectObjects(occluders, false);
     d.ghost.visible = blocked.length > 0 && blocked[0].distance < OCC_BACK - 0.3;
   }
 
