@@ -122,6 +122,37 @@ keep-earning clause (prototypes/README) comes due. Current lean: keep it —
 cheapest determinism cross-check, and the immediate-mode teaching contrast —
 but the question is now live.
 
+### World staging (added 2026-07-29)
+
+Second reference joins the file: the Pokémon Blue/Red recompilation's 3D
+renderer — Shawn's stated image of the finished product. The two references
+partition cleanly: **SRW J is the information language** (how the game talks
+— sheets, cells, density), **the recomp is the world language** (how the
+game is staged — a place you stand in). Phosphor over both makes them one
+thing: a tactical broadcast you walk around inside. What it adds, all
+shipped in `tactical3d/` the day it was decided:
+
+- **Voxel-extruded tile art.** Cover is neither billboard nor model: 2D
+  pixel art with every pixel extruded into a depth-spanning box. Front and
+  back show the art; author a deliberate cap row (the lid), darker edge
+  columns (the flanks), and full-width groove rows that read from every
+  side. Seam pixels extrude shallower, so grooves catch the light for real.
+- **One pixel density for all matter.** Terrain voxels use the sprite
+  density (1.10 world / 16 px — the proportion law). The world and its
+  fighters are made of the same-sized stuff; nothing reads as belonging to
+  a different game.
+- **Diorama-in-void staging.** The yard is a lit stage on black — nothing
+  outside the broadcast exists. (The LCD pass lifts the void to a faint
+  panel glow; that is the handheld being honest about its panel, not a
+  leak.)
+- **The deck is a multiplier texture.** Floor plates are near-white detail
+  multiplied under the per-instance tile colours, so the overlay hues
+  (range, hover, covering) stay exact — worn, not repainted.
+
+Scope note: the recomp screenshots show the *whole game* staged this way —
+town, interiors, conversation. That is the destination (overworld and
+campaign surfaces included), not just the yard's costume.
+
 ## The palette (decided: phosphor)
 
 **Decided (2026-07-28):** green-phosphor terminal, everywhere. Settled by the
