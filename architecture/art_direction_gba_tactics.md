@@ -1,10 +1,11 @@
 # Art Direction Reference — GBA Tactics Chrome
 
-**Status:** reference, v0.1 — steers future sprite and UI work; not design-binding
+**Status:** Reference, v0.1 — steers future sprite and UI work; not design-binding
+as a whole; decided items are marked inline with their decision date
 **Source:** Super Robot Wars J (Banpresto, GBA, 2005), viewed through RetroArch's
 `lcd-grid-v2` + `gba-color` shader stack
-**Related:** `Isometric Sprite System.md` (sprite budgets), `sentinel_warp_vision.md`
-(current terminal identity), `sentinel_circuit_design.md` (broadcast framing)
+**Related:** `Isometric Sprite System.md` (sprite budgets),
+`sentinel_circuit_design.md` (broadcast framing)
 
 ## Why this reference
 

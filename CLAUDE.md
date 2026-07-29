@@ -8,10 +8,19 @@ Context for AI assistants working on the SENTINEL project.
 SENTINEL/
 ├── core/                    # Game design documents
 │   └── SENTINEL Playbook — Core Rules.md
-├── architecture/            # Technical design
-│   ├── AGENT_ARCHITECTURE.md
-│   ├── sentinel_warp_vision.md
-│   └── npc_codec_prototype.py
+├── architecture/            # Design + decision docs (each carries a Status: line)
+│   ├── sentinel_circuit_design.md    # The Circuit — sanctioned combat (Proposal)
+│   ├── art_direction_gba_tactics.md  # Sprite + UI art direction (Reference)
+│   ├── AGENT_ARCHITECTURE.md         # Agent design, state schema, tools
+│   ├── VIDEO_GAME_REUSE_MAP.md       # What the video game reuses from this stack
+│   ├── mocks/                        # HTML mocks (fighter sheet, sprite audition)
+│   └── Archive/                      # Historical docs, kept for the paper trail
+├── prototypes/              # Playable prototypes (see prototypes/README.md)
+│   ├── tactical-core/       # Deterministic rules module — golden transcripts
+│   ├── tactical/            # 2D canvas renderer
+│   └── tactical3d/          # 2.5D renderer (three.js, billboarded sprites)
+├── workers/
+│   └── witness/             # Cloudflare Worker — certifies transcripts at the edge
 ├── sentinel-agent/          # The AI GM implementation
 │   ├── CLAUDE.md            # Detailed dev context
 │   ├── src/                 # Python source
@@ -77,11 +86,27 @@ Ship a feature only if its state is visible, its failure modes are legible, and 
 | Document | Purpose |
 |----------|---------|
 | `core/SENTINEL Playbook — Core Rules.md` | The complete game rules |
+| `architecture/sentinel_circuit_design.md` | The Circuit — combat as an institution (Proposal) |
+| `architecture/art_direction_gba_tactics.md` | Sprite + UI art direction (Reference) |
 | `architecture/AGENT_ARCHITECTURE.md` | Agent design, state schema, tools |
-| `architecture/sentinel_warp_vision.md` | Terminal UI/UX roadmap (Warp + MGS inspired) |
-| `architecture/sentinel_cross_platform_implementation_plan.md` | Cross-platform roadmap (Phases 0-6) |
+| `prototypes/tactical-core/README.md` | Deterministic rules module + the golden-transcript discipline |
+| `workers/witness/README.md` | Edge certification of match transcripts (live Worker) |
 | `sentinel-agent/CLAUDE.md` | Dev guide for Claude assistants |
 | `sentinel-campaign/README.md` | Campaign MCP server (factions, history, tools) |
+
+### Decision-doc Status lifecycle
+
+Every doc in `architecture/` carries a `Status:` line in its header (borrowed
+from Push's decision docs). The states:
+
+- **Proposal** — a design being argued; cite it in PRs as intent, not law.
+- **Reference** — steers taste and future work; not binding as a whole, but may
+  contain individually **decided** items, marked inline with their decision date.
+- **Current (date)** — binding until superseded; changing it takes a PR that says so.
+- **Historical — superseded by `<doc>`** — kept for the paper trail; do not build
+  against it. Docs in `architecture/Archive/` are Historical by location.
+
+If a doc has no Status line, add one before extending the doc.
 
 ## Game Philosophy
 
@@ -176,9 +201,41 @@ sentinel-cli              # Dev CLI with simulation
 sentinel --local          # For 8B-12B models (reduced context)
 ```
 
+## Execute the Claim
+
+Borrowed from Push, paid for twice here: **before asserting something is
+verified, run the exact thing that would fail if the assertion were false.**
+Inspecting code, narrating arithmetic, or grepping for the convenient form of a
+pattern is not verification — it is a claim wearing verification's clothes.
+
+The failure classes this repo has already bought:
+
+- **Narrated arithmetic.** "350×223 is exactly half of 445" shipped in a fix
+  description. 445 is odd. Review bots caught it; the author didn't, because the
+  claim was written down instead of computed. If the claim is a number, compute
+  the number.
+- **The convenient grep.** A removal sweep matched `_wiki_dir` and declared
+  victory; a bare `wiki_dir=` kwarg survived and broke every TUI launch. The
+  smoke test imported the module but never reached the failing call. Search for
+  the form that would falsify you, and execute the code path — not the import.
+- **The untested boundary.** `addRating` claimed consumers could sum its event
+  deltas; at the clamp bounds it emitted the *requested* delta, not the
+  *applied* one, so sums drifted. If the claim is "consumers can rely on X,"
+  write the test at the edge of X, where X breaks.
+
+The golden-transcript discipline (`prototypes/tactical-core/README.md`) is this
+rule institutionalized: rules changes have landed with the goldens untouched
+because "this change cannot alter the transcript" was executed via `node --test`,
+not argued in prose.
+
 ## AI Collaboration
 
 This project has access to multiple AI agents. **Use them proactively** — don't wait to be asked.
+
+> **Staleness note (2026-07):** the Gemini CLI is retired; Google's replacement
+> is Antigravity (`agy`). `/portrait` has been re-plumbed onto `agy`; the Gemini
+> halves of `/council`, `/deploy`, and `/security` have not and will fail until
+> they get the same treatment. The Codex halves still work.
 
 ### `/council` — Get External Perspectives
 Consults Gemini and Codex for design feedback. Use when:
