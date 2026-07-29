@@ -27,11 +27,38 @@ re-record — so a faithful replay **reproduces its own input**, and that
 closure is the integrity check. `/certify` refuses, with the reason on the
 surface:
 
-- `422 "record does not replay"` — tampered, reordered, or from a
-  different rules version; fails closed at the first refused command
+- `422 "record claims a different rules version"` — the optional `rules`
+  field names the stamp the record was made under; a mismatch is refused
+  *before* replay, because faithfulness under different rules is
+  meaningless
+- `422 "record does not replay"` — tampered or reordered; fails closed at
+  the first refused command
 - `422 "record replays but the match is unfinished"` — fidelity is not
   completeness; a certificate is for a match, not a fragment
-- `400` — wire-level garbage (non-array commands, oversized records)
+- `400` — wire-level grammar violations (unknown verbs, wrong arity,
+  non-integer args, oversized records) — reserved for "you cannot even
+  say that," so 422 always means authentic replay divergence
+
+## The rules stamp
+
+Every response carries `rules`: the fingerprint of the golden playout
+under the rules actually running — the version, expressed as behavior.
+Doc changes don't bump it; any change to a draw, a guard, or a transcript
+line does. Today that stamp is `39e8be71` (it is the deadbeef golden).
+Anything persisting records should store the stamp alongside them and
+send it back as `rules` when certifying, so a record can never be
+silently reinterpreted by newer rules as if history had always been that
+way.
+
+## What a certificate attests — and what it doesn't
+
+A certificate attests that the record is a **valid match under the
+stamped rules** and that this transcript is its one true replay. It does
+not attest *who* played it, or that it was played live rather than
+synthesized — a legal command sequence certifies no matter whose hand
+wrote it. That is validation, not provenance. Provenance (commitments or
+signatures binding a record to a player and a moment) is the campaign
+wiring layer's problem, and it starts mattering exactly when purses do.
 
 ## The acceptance test is the goldens — and a locally-played match
 

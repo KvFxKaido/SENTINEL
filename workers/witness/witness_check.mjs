@@ -119,6 +119,19 @@ check(cert.status === 200 && cert.body.certified === true &&
       cert.body.result === local.result,
   `certify: edge fp=${cert.body.fingerprint} vs local ${local.fingerprint}, rating ${cert.body.rating} vs ${local.rating}, purse=${cert.body.purse}`);
 
+// ---- the rules stamp --------------------------------------------
+// The version-as-behavior stamp is the golden fingerprint itself: the
+// edge must be running rules that produce 39e8be71 for deadbeef, and a
+// record claiming other rules must be refused before replay.
+check(cert.body.rules === GOLDENS[0].fingerprint,
+  `certificate carries the rules stamp: ${cert.body.rules}`);
+const claimed = await post({ seed: "6", record: local.record, rules: GOLDENS[0].fingerprint });
+check(claimed.status === 200 && claimed.body.certified === true,
+  `record claiming the current rules certifies: ${claimed.status}`);
+const misclaimed = await post({ seed: "6", record: local.record, rules: "00000000" });
+check(misclaimed.status === 422 && misclaimed.body.error === "record claims a different rules version",
+  `record claiming other rules refused: ${misclaimed.status} "${misclaimed.body.error}"`);
+
 // ---- refusals ---------------------------------------------------
 const bent = JSON.parse(JSON.stringify(local.record));
 const mi = bent.findIndex(c => c[0] === "move");
@@ -132,8 +145,17 @@ const cut = await post({ seed: "6", record: local.record.slice(0, -1) });
 check(cut.status === 422 && cut.body.error === "record replays but the match is unfinished",
   `truncated record refused: ${cut.status} "${cut.body.error}"`);
 
-const garbage = await post({ seed: "6", record: [["warp", 0, { x: 1 }]] });
-check(garbage.status === 400, `malformed record rejected at the wire: ${garbage.status}`);
+// 400 is for "you cannot even say that"; 422 stays reserved for records
+// that speak the grammar and still fail to replay
+for (const [label, record] of [
+  ["unknown verb", [["warp", 0, 1]]],
+  ["wrong arity", [["move", 0, 1]]],
+  ["fractional coordinate", [["move", 0, 1.5, 2]]],
+  ["non-array command", ["move"]],
+]) {
+  const r = await post({ seed: "6", record });
+  check(r.status === 400, `malformed record (${label}) rejected at the wire: ${r.status}`);
+}
 
 // ---- concurrency: interleave replays and certifies --------------
 // every response must still match its own expectation, or the mutex is fiction

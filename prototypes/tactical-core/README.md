@@ -129,7 +129,10 @@ renderers can never produce (moving hostiles, friendly fire), so a
 renderer bug that recorded one fails closed at replay.
 
 `workers/witness/` inherits all of this as `POST /certify`: play a match
-anywhere, and the edge will attest to exactly what happened in it.
+anywhere, and the edge will attest that the record is a valid match under
+the running rules and what its one replay says happened. (That is
+validation, not provenance — *who* played it is a claim certification
+cannot check yet, and belongs to campaign wiring.)
 
 Recording draws nothing from the RNG and emits nothing — the fourth rules
 change in a row to land with the golden transcripts untouched.

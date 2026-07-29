@@ -44,6 +44,19 @@ function serialized(fn) {
   return run;
 }
 
+// The rules version, as behavior: the fingerprint of the golden playout
+// under the rules actually running here. Doc changes don't bump it; any
+// change to a draw, a guard, or a transcript line does. Certificates
+// carry it, and a record claiming a different stamp is refused before
+// replay — its faithfulness under these rules would be meaningless.
+// Computed once per isolate; callers must hold the mutex (it runs the
+// shared S machine).
+let rulesStamp = null;
+async function rulesFingerprint() {
+  if (rulesStamp === null) rulesStamp = (await replay(0xdeadbeef)).fingerprint;
+  return rulesStamp;
+}
+
 function captureLines() {
   const lines = [];
   bindIO({
@@ -76,26 +89,38 @@ async function replay(seed) {
   return certificate(seed, lines);
 }
 
-// The certification policy, in full: a record must reproduce itself
-// (rules-refused commands don't re-record, so tampering fails closed) and
-// must end the match (fidelity is not completeness). Everything else is a
-// refusal with the reason on the surface.
-async function certify(seed, record) {
+// The certification policy, in full: a record must claim these rules (or
+// stay silent), must reproduce itself (rules-refused commands don't
+// re-record, so tampering fails closed), and must end the match (fidelity
+// is not completeness). Everything else is a refusal with the reason on
+// the surface. What a certificate attests: this record is a valid match
+// under the stamped rules and this transcript is its one true replay —
+// validation, not provenance. WHO played it is a claim this Worker
+// cannot check yet; that layer (commitments/signatures) arrives with
+// campaign wiring, where purses start to matter.
+async function certify(seed, record, claimedRules) {
+  const rules = await rulesFingerprint();
+  if (claimedRules !== undefined && claimedRules !== rules) {
+    return { status: 422, body: {
+      certified: false, error: "record claims a different rules version",
+      rules, claimed: claimedRules,
+    } };
+  }
   const lines = captureLines();
   const fidelity = await replayMatch(seed, record);
   if (!fidelity.faithful) {
     return { status: 422, body: {
-      certified: false, error: "record does not replay",
+      certified: false, error: "record does not replay", rules,
       applied: fidelity.applied, submitted: fidelity.submitted,
     } };
   }
   if (!S.gameOver) {
     return { status: 422, body: {
       certified: false, error: "record replays but the match is unfinished",
-      commands: record.length,
+      rules, commands: record.length,
     } };
   }
-  return { status: 200, body: { certified: true, ...certificate(seed, lines, { commands: record.length }) } };
+  return { status: 200, body: { certified: true, rules, ...certificate(seed, lines, { commands: record.length }) } };
 }
 
 function json(obj, status = 200) {
@@ -107,12 +132,17 @@ function json(obj, status = 200) {
 
 const SEED_RE = /^[0-9a-fA-F]{1,8}$/;
 
-// wire-level sanity only — the real gatekeeper is the dispatcher in the
-// rules core, which refuses any command the renderers cannot issue
+// Wire-level grammar: exact arity per verb, integer args in a sane
+// domain. This keeps 400 for "you cannot even say that" and reserves 422
+// for records that speak the grammar and still fail to replay. The real
+// gatekeeper stays the dispatcher in the rules core — if the grammar
+// grows a verb this table lags on, witness_check's played-match round
+// trip fails loudly at deploy time, not silently in production.
+const ARITY = { move: 4, shoot: 3, finish: 3, ow: 2, spare: 1, end: 1 };
 function validRecord(record) {
   return Array.isArray(record) && record.length <= 1024 &&
-    record.every(c => Array.isArray(c) && c.length >= 1 && c.length <= 4 &&
-      c.every(v => typeof v === "string" || typeof v === "number"));
+    record.every(c => Array.isArray(c) && c.length === ARITY[c[0]] &&
+      c.slice(1).every(v => Number.isInteger(v) && v >= 0 && v <= 255));
 }
 
 export default {
@@ -124,7 +154,10 @@ export default {
         return json({ error: "seed required — GET /replay?seed=<hex, up to 8 digits>" }, 400);
       }
       try {
-        return json(await serialized(() => replay(parseInt(raw, 16))));
+        return json(await serialized(async () => {
+          const rules = await rulesFingerprint();
+          return { rules, ...(await replay(parseInt(raw, 16))) };
+        }));
       } catch (err) {
         console.log(JSON.stringify({ level: "error", event: "witness_replay_failed", seed: raw, message: String(err) }));
         return json({ error: "replay failed" }, 500);
@@ -139,10 +172,13 @@ export default {
       const raw = typeof body?.seed === "string" ? body.seed : "";
       if (!SEED_RE.test(raw)) return json({ error: "seed required — hex, up to 8 digits" }, 400);
       if (!validRecord(body.record)) {
-        return json({ error: "record must be an array of at most 1024 commands, each [verb, ...args]" }, 400);
+        return json({ error: "record must be an array of at most 1024 commands, each [verb, ...int args] with exact arity" }, 400);
+      }
+      if (body.rules !== undefined && typeof body.rules !== "string") {
+        return json({ error: "rules, if claimed, is the fingerprint string a certificate carries" }, 400);
       }
       try {
-        const { status, body: out } = await serialized(() => certify(parseInt(raw, 16), body.record));
+        const { status, body: out } = await serialized(() => certify(parseInt(raw, 16), body.record, body.rules));
         return json(out, status);
       } catch (err) {
         console.log(JSON.stringify({ level: "error", event: "witness_certify_failed", seed: raw, message: String(err) }));
@@ -154,9 +190,9 @@ export default {
       what: "replays Kestrel Yard matches through the same rules module the renderers run, and certifies the transcript",
       usage: {
         replay: "GET /replay?seed=deadbeef — no-input playout, a pure function of the seed",
-        certify: 'POST /certify {"seed":"<hex>","record":[...]} — a played match; certified only if the record replays faithfully to a finished match',
+        certify: 'POST /certify {"seed":"<hex>","record":[...],"rules":"<optional fingerprint>"} — a played match; certified only if the record replays faithfully to a finished match under these rules',
       },
-      note: "the record grammar lives in prototypes/tactical-core/rules.js (S.record / replayMatch) — seed + record IS the match",
+      note: "the record grammar lives in prototypes/tactical-core/rules.js (S.record / replayMatch) — seed + record IS the match. A certificate attests validity under the stamped rules version, not who played it; provenance is the campaign-wiring layer.",
     });
   },
 };
