@@ -9,14 +9,58 @@ Worker certifies it at the edge — same bytes in all three.
 Live at: `https://sentinel-witness.ishawnd.workers.dev`
 
 ```
-GET /replay?seed=deadbeef
+GET  /replay?seed=deadbeef
+POST /certify   {"seed":"6","record":[["move",0,1,7],...,["spare"]]}
 ```
 
-Replays the encounter for that seed through the shared rules module and
-returns the certified transcript: result, rating, purse, line count, the
-FNV-1a fingerprint, and the transcript itself.
+`/replay` replays the no-input encounter for a seed. `/certify` takes a
+**played match** — the input-log protocol, Circuit roadmap step 5: `seed +
+record` is the match, where the record is the command list the rules core
+accumulated in `S.record` while the player played. Both replay through the
+shared rules module and return the certified transcript: result, rating,
+purse, line count, the FNV-1a fingerprint, and the transcript itself.
 
-## The acceptance test is the goldens
+## Certification policy
+
+Replaying a record re-records it, and commands the rules refuse don't
+re-record — so a faithful replay **reproduces its own input**, and that
+closure is the integrity check. `/certify` refuses, with the reason on the
+surface:
+
+- `422 "record claims a different rules version"` — the optional `rules`
+  field names the stamp the record was made under; a mismatch is refused
+  *before* replay, because faithfulness under different rules is
+  meaningless
+- `422 "record does not replay"` — tampered or reordered; fails closed at
+  the first refused command
+- `422 "record replays but the match is unfinished"` — fidelity is not
+  completeness; a certificate is for a match, not a fragment
+- `400` — wire-level grammar violations (unknown verbs, wrong arity,
+  non-integer args, oversized records) — reserved for "you cannot even
+  say that," so 422 always means authentic replay divergence
+
+## The rules stamp
+
+Every response carries `rules`: the fingerprint of the golden playout
+under the rules actually running — the version, expressed as behavior.
+Doc changes don't bump it; any change to a draw, a guard, or a transcript
+line does. Today that stamp is `39e8be71` (it is the deadbeef golden).
+Anything persisting records should store the stamp alongside them and
+send it back as `rules` when certifying, so a record can never be
+silently reinterpreted by newer rules as if history had always been that
+way.
+
+## What a certificate attests — and what it doesn't
+
+A certificate attests that the record is a **valid match under the
+stamped rules** and that this transcript is its one true replay. It does
+not attest *who* played it, or that it was played live rather than
+synthesized — a legal command sequence certifies no matter whose hand
+wrote it. That is validation, not provenance. Provenance (commitments or
+signatures binding a record to a player and a moment) is the campaign
+wiring layer's problem, and it starts mattering exactly when purses do.
+
+## The acceptance test is the goldens — and a locally-played match
 
 Seed `deadbeef` must answer fingerprint `39e8be71` (42 lines) and seed `1`
 must answer `bac5ad90` (39 lines) — the exact hashes captured from the
@@ -24,24 +68,31 @@ browser build *before the rules were extracted*, asserted in
 `rules.test.js`, and now served from the edge. If the edge disagrees with
 the goldens, the deploy is wrong, not the goldens.
 
+`witness_check.mjs` goes one further: it imports the rules core, *plays* a
+match locally (deterministic auto-player, public verbs only), and demands
+the edge certify it to the identical fingerprint, rating, and purse —
+local play and edge certification, same bytes.
+
 ## Run / deploy
 
 ```sh
 cd workers/witness
 pnpm dlx wrangler dev --port 8787     # local
 pnpm dlx wrangler deploy              # to Cloudflare
-node <repo>/... witness_check.mjs     # goldens + concurrency burst, local or live
+node witness_check.mjs [base-url]     # goldens + played-match certification
+                                      # + refusals + concurrency burst
 ```
 
 The whole bundle — game rules included — is ~5.6 KiB gzipped.
 
-## Scope, deliberately
+## Scope
 
-No-input playouts only: hostile turns need no player input, so the entire
-transcript is a pure function of the seed. The full input-log protocol (a
-*played* match as seed + player commands — the real Witness record) is
-Circuit roadmap step 5 and gets designed in the rules core first, not
-improvised in a Worker.
+The input-log protocol was designed in the rules core (`S.record` /
+`replayMatch` in `prototypes/tactical-core/rules.js`, with its own test
+suite) and this Worker inherits it — exactly the order the first version
+of this README promised. What remains of roadmap step 5 is the campaign
+wiring: persisting records, feeding results into wiki events, disposition,
+and dormant threads. That lands when matches become a job type, not here.
 
 One implementation note: `rules.js` keeps a single module-level encounter
 by design (its README documents the deliberate deferral of forkable
