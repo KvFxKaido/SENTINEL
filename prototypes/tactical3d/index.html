@@ -167,6 +167,7 @@ import {
   selected, living, unitAt, solution, los, reachable, coveringTiles,
   selectUnit, cycleSelect, tryMove, tryShoot, tryFinish, spare, setOverwatch, endPlayerTurn,
 } from "../tactical-core/rules.js";
+import { spriteFor } from "./sprites.js";
 
 // ---- renderer-owned state --------------------------------------
 // Transient presentation only. Anything the rules need to know lives in S.
@@ -648,57 +649,19 @@ function buildTerrain() {
 }
 
 // ---- units --------------------------------------------------------
-// The 2.5D turn (art_direction_gba_tactics.md, "The view"): units are the
-// 2D build's hand-authored 16×16 pixel sprites, baked to NearestFilter
-// textures and stood upright on billboarded quads. The environment stays
-// 3D — rotate-to-read-cover, occlusion and terrain shadows all survive —
-// while characters get sprite craft instead of capsule geometry.
+// The 2.5D turn (art_direction_gba_tactics.md, "The view"): units are
+// hand-authored pixel sprites baked to NearestFilter textures and stood
+// upright on billboarded quads. The environment stays 3D — rotate-to-
+// read-cover, occlusion and terrain shadows all survive — while
+// characters get sprite craft instead of capsule geometry. The art is
+// the yard roster (./sprites.js): 32×32 on the audited System A body,
+// per-fighter heads, one SYN design worn by the whole crew.
 const unitGroup = new THREE.Group();
 scene.add(unitGroup);
 
-const OP_SPRITE = [
-  "................",
-  ".....BBBBB......",
-  "....BHHHHHB.....",
-  "....BALLAAB.....",
-  "....BSSSSSB.....",
-  ".....BBBBB......",
-  "...JJJBBBJJJ....",
-  "..JJBJJJJJBJJ...",
-  "..JHBJAAAJBHJ...",
-  "..JJBJJJJJBJJ...",
-  "..GGGGGGGGGGG...",
-  "...JBBJJJBBJ....",
-  "....BBB.BBB.....",
-  "....BB...BB.....",
-  "...BBB...BBB....",
-  "................",
-];
-const HO_SPRITE = [
-  "................",
-  "....BBBBBBB.....",
-  "...BHHHHHHHB....",
-  "...BAAAAAAAB....",
-  "...BBSSSSSBB....",
-  "....BBBBBBB.....",
-  "..JJJJBBBJJJJ...",
-  ".JJBJJJJJJJBJJ..",
-  ".JHBJJAAAJJBHJ..",
-  ".JJBJJJJJJJBJJ..",
-  ".GGGGGGGGGGGGG..",
-  "..JJBBJJJBBJJ...",
-  "....BBB.BBB.....",
-  "....BB...BB.....",
-  "...BBBB.BBBB....",
-  "................",
-];
-const SPRITE_PALETTES = {
-  op: { B: "#22303a", H: "#48606f", A: "#5ccfff", L: "#bdefff", S: "#d4a574", J: "#31424e", G: "#151a1e" },
-  ho: { B: "#38221f", H: "#5f3a33", A: "#ff5c5c", L: "#ffd0c0", S: "#b08968", J: "#4d2e28", G: "#151a1e" },
-};
 function bakeSpriteTexture(grid, pal) {
   const c = document.createElement("canvas");
-  c.width = 16; c.height = 16;
+  c.width = grid[0].length; c.height = grid.length;
   const g = c.getContext("2d");
   grid.forEach((row, y) => [...row].forEach((ch, x) => {
     if (pal[ch]) { g.fillStyle = pal[ch]; g.fillRect(x, y, 1, 1); }
@@ -710,19 +673,23 @@ function bakeSpriteTexture(grid, pal) {
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
-const SPRITE_TEX = {
-  op: bakeSpriteTexture(OP_SPRITE, SPRITE_PALETTES.op),
-  ho: bakeSpriteTexture(HO_SPRITE, SPRITE_PALETTES.ho),
-};
 // Opacity masks for picking: mesh raycasting tests the quad's triangles and
-// ignores the material's alphaTest, so without this the whole 0.92×0.92
-// plane would be clickable — transparent corners included (caught in
-// review). The mask makes the sprite's silhouette the hit area.
+// ignores the material's alphaTest, so without this the whole quad would be
+// clickable — transparent corners included (caught in review). The mask
+// makes the sprite's silhouette the hit area.
 const bakeMask = (grid, pal) => grid.map(row => [...row].map(ch => !!pal[ch]));
-const SPRITE_MASK = {
-  op: bakeMask(OP_SPRITE, SPRITE_PALETTES.op),
-  ho: bakeMask(HO_SPRITE, SPRITE_PALETTES.ho),
-};
+// Bake once per unique design — the SYN crew shares one grid on purpose,
+// so it also shares one texture and one mask.
+const SPRITE_ASSETS = new Map();
+function spriteAssets(name) {
+  const s = spriteFor(name);
+  if (!SPRITE_ASSETS.has(s.grid)) {
+    const tex = bakeSpriteTexture(s.grid, s.pal);
+    SHARED.add(tex);   // survives unit-group teardown on every reset
+    SPRITE_ASSETS.set(s.grid, { tex, mask: bakeMask(s.grid, s.pal) });
+  }
+  return SPRITE_ASSETS.get(s.grid);
+}
 
 // 1.10 world units tall — the audited size (art_direction_gba_tactics.md:
 // +20% over the first billboard pass; presence without out-growing the
@@ -735,7 +702,7 @@ const ringGeo   = new THREE.TorusGeometry(0.42, 0.032, 8, 28);
 const owGeo     = new THREE.OctahedronGeometry(0.12);
 const ringMat   = new THREE.MeshBasicMaterial({ color: 0x46e07a });
 const owMat     = new THREE.MeshBasicMaterial({ color: 0xffb347 });
-for (const r of [spriteGeo, blobGeo, blobMat, ringGeo, owGeo, ringMat, owMat, SPRITE_TEX.op, SPRITE_TEX.ho]) SHARED.add(r);
+for (const r of [spriteGeo, blobGeo, blobMat, ringGeo, owGeo, ringMat, owMat]) SHARED.add(r);
 
 // HP/AP live on a canvas-textured Sprite: sprites always face the camera,
 // so the readout survives rotation with no billboarding code.
@@ -813,11 +780,13 @@ function buildUnits() {
     // Billboarded sprite quad. alphaTest instead of blending keeps the
     // edges crisp with no transparency sorting; the material is unlit
     // because the sprite palette already encodes its own shading.
+    const assets = spriteAssets(u.name);
     const spr = new THREE.Mesh(spriteGeo, new THREE.MeshBasicMaterial({
-      map: SPRITE_TEX[u.side],
+      map: assets.tex,
       alphaTest: 0.5,
     }));
-    spr.userData.unit = u;   // picking resolves quad hits to this unit's tile
+    spr.userData.unit = u;        // picking resolves quad hits to this unit's tile
+    spr.userData.mask = assets.mask;   // ...but only through opaque texels
     g.add(spr);
 
     // X-ray silhouette. Full-cover walls are 1.5 tall and will hide a unit
@@ -825,7 +794,7 @@ function buildUnits() {
     // Toggled on only when the unit is actually occluded (see the frame
     // loop). It is the sprite itself, translucent, not a proxy shape.
     const ghost = new THREE.Mesh(spriteGeo, new THREE.MeshBasicMaterial({
-      map: SPRITE_TEX[u.side],
+      map: assets.tex,
       transparent: true, opacity: 0.35, alphaTest: 0.05,
       depthTest: false, depthWrite: false,
     }));
@@ -907,10 +876,11 @@ function tileFromEvent(e) {
       return [i % W, Math.floor(i / W)];
     }
     const u = hit.object.userData.unit;
-    if (!u || !hit.uv) continue;
-    const mask = SPRITE_MASK[u.side];
-    const col = Math.min(15, Math.floor(hit.uv.x * 16));
-    const row = Math.min(15, Math.floor((1 - hit.uv.y) * 16));
+    const mask = hit.object.userData.mask;
+    if (!u || !mask || !hit.uv) continue;
+    const n = mask.length;
+    const col = Math.min(n - 1, Math.floor(hit.uv.x * n));
+    const row = Math.min(n - 1, Math.floor((1 - hit.uv.y) * n));
     if (mask[row][col]) return [u.x, u.y];
   }
   return null;
