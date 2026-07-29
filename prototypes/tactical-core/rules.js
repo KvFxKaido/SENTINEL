@@ -57,6 +57,7 @@ export const S = {
   gameOver: null,      // null | "win" | "loss"
   decision: false,     // every living hostile has yielded — match holds for spare/finish
   rating: 50,          // crowd meter, 0–100 — pays out at match end (sentinel_circuit_design.md §5)
+  record: [],          // the witness record — every committed player command, in order
   gen: 0,              // restart generation — stale async turns check this and bail
 };
 
@@ -359,10 +360,11 @@ export function cycleSelect() {
 }
 
 export async function tryMove(u, x, y) {
-  if (S.decision) return;
+  if (S.decision || S.gameOver) return;
   const { cost, parent } = reachable(u, u.mobility * u.ap);
   const c = cost.get(x + "," + y);
   if (c === undefined || c === 0) return;
+  S.record.push(["move", u.id, x, y]);
   S.busy = true;
   u.ap -= c <= u.mobility ? 1 : 2;
   S.targetMode = false;
@@ -374,7 +376,8 @@ export async function tryMove(u, x, y) {
 
 export async function tryShoot(att, def) {
   if (def.yielded) return tryFinish(att, def);   // you don't roll dice at a kneeling fighter
-  if (S.decision || att.ap <= 0 || !solution(att, def)) return;
+  if (S.decision || S.gameOver || att.ap <= 0 || !solution(att, def)) return;
+  S.record.push(["shoot", att.id, def.id]);
   S.busy = true;
   att.ap = 0;            // firing ends the unit's activation
   S.targetMode = false;
@@ -398,6 +401,7 @@ export async function tryFinish(att, def) {
     if (att.ap <= 0 || !los(att.x, att.y, def.x, def.y)) return;
     att.ap = 0;
   }
+  S.record.push(["finish", att.id, def.id]);
   const g = S.gen;
   S.busy = true;
   S.targetMode = false;
@@ -421,13 +425,15 @@ export async function tryFinish(att, def) {
 // accept every standing yield and end the match
 export function spare() {
   if (!S.decision || S.gameOver || S.busy) return;
+  S.record.push(["spare"]);
   io.emit({ type: "spared", units: living("ho").filter(u => u.yielded) });
   addRating(RATING.spare);   // mercy costs purse — what it buys lives elsewhere
   endGame("win");
 }
 
 export function setOverwatch(u) {
-  if (S.decision || u.ap <= 0) return;
+  if (S.decision || S.gameOver || u.ap <= 0) return;
+  S.record.push(["ow", u.id]);
   u.overwatch = true;
   u.ap = 0;
   S.targetMode = false;
@@ -557,6 +563,7 @@ export async function enemyTurn() {
 
 export function endPlayerTurn() {
   if (S.busy || S.gameOver || S.decision || S.turn !== "op") return;
+  S.record.push(["end"]);
   // unspent AP is dead air — the crowd bleeds off while you stall
   const stalled = living("op").reduce((n, u) => n + u.ap, 0);
   if (stalled > 0) addRating(RATING.stalledAp * stalled);
@@ -571,11 +578,60 @@ export function restart(seed) {
   S.rng = mulberry32(S.seed);
   buildMap();
   makeUnits();
-  S.turn = "op"; S.selectedId = 0; S.targetMode = false; S.busy = false; S.gameOver = null; S.decision = false; S.rating = RATING.start;
+  S.turn = "op"; S.selectedId = 0; S.targetMode = false; S.busy = false; S.gameOver = null; S.decision = false; S.rating = RATING.start; S.record = [];
   io.emit({ type: "reset" });
   io.emit({ type: "mission" });
   io.emit({ type: "turn", side: "op" });
   io.changed();
+}
+
+/* ---- the witness record -----------------------------------------
+   Circuit roadmap step 5: a played match, as data. Every player verb
+   that changes the match appends its canonical form to S.record at the
+   moment its guards pass — rejected inputs never enter the record, and
+   selection is presentation, not play (no roll, no log line, and every
+   verb names its units explicitly), so it is deliberately absent.
+   seed + record IS the match.
+
+   replayMatch() drives a record back through the same verbs — and since
+   replaying re-records, a faithful replay reproduces its own input.
+   That closure is the integrity check: a record that cannot reproduce
+   itself (tampered, reordered, or from a different rules version) is
+   not a match record, and nothing downstream should certify it. The
+   dispatcher refuses commands the renderers can never issue (moving
+   hostiles, friendly fire, self-targeting) so the grammar only spans
+   legal play; a renderer bug that recorded one would fail closed here.
+
+   Recording draws nothing from the RNG and emits nothing — the golden
+   transcripts predating it replay untouched. */
+
+async function applyCommand(cmd) {
+  if (!Array.isArray(cmd)) return;
+  const [verb, a, b, c] = cmd;
+  const op = id => S.units.find(u => u.id === id && u.side === "op" && u.alive);
+  const ho = id => S.units.find(u => u.id === id && u.side === "ho");
+  switch (verb) {
+    case "move":   { const u = op(a); if (u) await tryMove(u, b, c); break; }
+    case "shoot":  { const u = op(a), t = ho(b); if (u && t && t.alive) await tryShoot(u, t); break; }
+    case "finish": { const u = op(a), t = ho(b); if (u && t) await tryFinish(u, t); break; }
+    case "ow":     { const u = op(a); if (u) setOverwatch(u); break; }
+    case "spare":  spare(); break;
+    case "end":    await endPlayerTurn(); break;
+  }
+}
+
+export async function replayMatch(seed, commands) {
+  if (!Array.isArray(commands)) commands = [];
+  restart(seed);
+  for (const cmd of commands) {
+    if (S.gameOver) break;   // commands past the ending are not play
+    await applyCommand(cmd);
+  }
+  return {
+    faithful: JSON.stringify(S.record) === JSON.stringify(commands),
+    applied: S.record.length,
+    submitted: commands.length,
+  };
 }
 
 /* ---- one formatter, two skins ----------------------------------

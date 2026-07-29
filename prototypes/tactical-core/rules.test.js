@@ -15,6 +15,7 @@ import {
   S, bindIO, restart, endPlayerTurn, formatEvent,
   los, coverBonus, solution, reachable, living, unitAt, W, H,
   mulberry32, MORALE, RATING, tryShoot, tryFinish, spare, setOverwatch, tryMove,
+  replayMatch,
 } from "./rules.js";
 
 // FNV-1a, matching the fingerprint taken in the browser
@@ -461,4 +462,182 @@ test("the floor is zero, and restart resets the meter", async () => {
   assert.equal(S.rating, 0, "the meter is clamped at the floor");
   restart(2);
   assert.equal(S.rating, RATING.start);
+});
+
+/* ---- the witness record ----------------------------------------
+ * Circuit roadmap step 5: seed + record IS the match. These tests play
+ * organic matches from spawn through the public verbs only — no state
+ * rigging — because a record can only replay what the seed can rebuild.
+ * The auto-player is deterministic: it reads game state, draws nothing.
+ */
+
+// shoot when confident, overwatch on a spare action, otherwise close
+// distance; at the decision, resolve by choice. Public verbs only.
+async function autoPlay(seed, resolve = "spare", maxTurns = 20) {
+  const cap = captureEvents();
+  restart(seed);
+  const bestTarget = u => {
+    let best = null;
+    for (const t of living("ho").filter(t => !t.yielded)) {
+      const sol = solution(u, t);
+      if (sol && (!best || sol.pct > best.sol.pct)) best = { t, sol };
+    }
+    return best;
+  };
+  const stepToward = u => {
+    const { cost } = reachable(u, u.mobility);
+    const hos = living("ho").filter(t => !t.yielded);
+    if (!hos.length) return null;
+    let best = null;
+    for (const k of cost.keys()) {
+      const [x, y] = k.split(",").map(Number);
+      if (x === u.x && y === u.y) continue;
+      const d = Math.min(...hos.map(t => Math.hypot(t.x - x, t.y - y)));
+      if (!best || d < best.d) best = { x, y, d };
+    }
+    return best;
+  };
+  for (let turn = 0; turn < maxTurns && !S.gameOver && !S.decision; turn++) {
+    for (const u of living("op")) {
+      while (u.ap > 0 && u.alive && !S.gameOver && !S.decision) {
+        const shot = bestTarget(u);
+        if (shot && shot.sol.pct >= 50) { await tryShoot(u, shot.t); break; }
+        if (u.ap === 1) { setOverwatch(u); break; }
+        const mv = stepToward(u);
+        if (!mv) break;
+        const ap = u.ap;
+        await tryMove(u, mv.x, mv.y);
+        if (u.ap === ap) break;   // move refused — don't spin
+      }
+      if (S.gameOver || S.decision) break;
+    }
+    if (S.gameOver || S.decision) break;
+    await endPlayerTurn();
+  }
+  if (S.decision) {
+    if (resolve === "finish") {
+      const v = living("op")[0];
+      for (const t of living("ho").filter(t => t.yielded)) {
+        if (S.gameOver) break;
+        await tryFinish(v, t);
+      }
+    }
+    if (!S.gameOver) spare();
+  }
+  return { lines: cap.lines, rating: S.rating, over: S.gameOver };
+}
+
+test("a played match records itself, and seed + record replays it byte-identically", async () => {
+  const live = await autoPlay(6, "spare");
+  assert.equal(live.over, "win");
+  // the record survives the wire: what replays is parsed JSON, not live refs
+  const record = JSON.parse(JSON.stringify(S.record));
+  const verbs = new Set(record.map(c => c[0]));
+  for (const v of ["move", "shoot", "ow", "end", "spare"]) {
+    assert.ok(verbs.has(v), `an organic match should exercise "${v}"`);
+  }
+  const cap = captureEvents();
+  const cert = await replayMatch(6, record);
+  assert.equal(cert.faithful, true, "a faithful replay reproduces its own input");
+  assert.equal(cert.applied, record.length);
+  assert.deepEqual(cap.lines, live.lines, "the transcript is the record's shadow");
+  assert.equal(S.rating, live.rating, "the crowd replays too");
+  assert.equal(S.gameOver, "win");
+});
+
+test("a finish resolves on the record and replays like any other verb", async () => {
+  const live = await autoPlay(7, "finish");
+  assert.equal(live.over, "win");
+  const record = JSON.parse(JSON.stringify(S.record));
+  assert.equal(record.at(-1)[0], "finish", "the last committed command is the execution");
+  const cap = captureEvents();
+  const cert = await replayMatch(7, record);
+  assert.equal(cert.faithful, true);
+  assert.deepEqual(cap.lines, live.lines);
+  assert.ok(cap.lines.some(l => l.includes("finishes")));
+});
+
+test("the golden playout is a record of pure end-turns", async () => {
+  await playOut(0xdeadbeef);
+  const record = JSON.parse(JSON.stringify(S.record));
+  assert.ok(record.length > 0);
+  assert.ok(record.every(c => c.length === 1 && c[0] === "end"),
+    "no player input means no command but the clock");
+  const lines = [];
+  bindIO({
+    sleep: () => Promise.resolve(),
+    emit: ev => { const l = formatEvent(ev); if (l !== null) lines.push(l); },
+    changed: () => {},
+  });
+  const cert = await replayMatch(0xdeadbeef, record);
+  assert.equal(cert.faithful, true);
+  assert.equal(lines.length, 42);
+  assert.equal(fnv(lines.join("\n")), "39e8be71",
+    "the seed-only replay the Worker serves today is just this record");
+});
+
+test("rejected inputs never enter the record", async () => {
+  captureEvents();
+  restart(1);
+  const v = living("op")[0];
+  await tryMove(v, v.x, v.y);          // zero-cost non-move
+  await tryMove(v, 9, 0);              // far beyond one turn's mobility
+  v.ap = 0;
+  setOverwatch(v);                     // no action left
+  const s1 = living("ho")[0];
+  await tryShoot(v, s1);               // no AP either
+  assert.deepEqual(S.record, [], "only committed commands are play");
+});
+
+test("shooting a kneeling fighter records the finish, not the click", async () => {
+  captureEvents();
+  restart(seedHitting(83));
+  const v = living("op")[0];
+  const s1 = living("ho")[0];
+  v.x = 1; v.y = 0;
+  s1.hp = 20;
+  s1.morale = MORALE.hit;
+  await tryShoot(v, s1);
+  assert.equal(s1.yielded, true);
+  v.ap = 2;
+  await tryShoot(v, s1);   // the renderer's shoot gesture, rerouted
+  assert.equal(S.record.at(-1)[0], "finish",
+    "the record captures what happened, not what was clicked");
+});
+
+test("a tampered record does not certify", async () => {
+  await autoPlay(6, "spare");
+  const record = JSON.parse(JSON.stringify(S.record));
+  // (a) rewrite a move onto a wall — no path ever reaches FULL cover
+  const bent = JSON.parse(JSON.stringify(record));
+  const mi = bent.findIndex(c => c[0] === "move");
+  bent[mi][2] = 6; bent[mi][3] = 1;
+  const a = await replayMatch(6, bent);
+  assert.equal(a.faithful, false, "a command the rules refuse cannot reproduce itself");
+  // (b) commands past the ending are not play
+  const padded = [...record, ["end"]];
+  const b = await replayMatch(6, padded);
+  assert.equal(b.faithful, false);
+  // (c) grammar the renderers cannot produce is refused, not crashed on:
+  // moving a hostile, friendly fire, garbage verbs, non-commands
+  const c = await replayMatch(6, [["move", 3, 1, 1], ["shoot", 0, 1], ["warp", 0], null]);
+  assert.equal(c.faithful, false);
+  assert.equal(c.applied, 0);
+});
+
+test("a truncated record replays faithfully but is not a finished match", async () => {
+  await autoPlay(6, "spare");
+  const record = JSON.parse(JSON.stringify(S.record)).slice(0, -1);   // drop the spare
+  const cert = await replayMatch(6, record);
+  assert.equal(cert.faithful, true, "a partial record is honest play, just not all of it");
+  assert.equal(S.gameOver, null, "fidelity is not completeness — certification needs both");
+});
+
+test("restart clears the record", async () => {
+  captureEvents();
+  restart(1);
+  await endPlayerTurn();
+  assert.ok(S.record.length > 0);
+  restart(2);
+  assert.deepEqual(S.record, []);
 });

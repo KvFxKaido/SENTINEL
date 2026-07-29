@@ -8,13 +8,20 @@
    assert, so seed deadbeef answers 39e8be71 from the edge or it is a
    deploy failure.
 
-   Scope, deliberately: no-input playouts only — the entire transcript is
-   a pure function of the seed. The full input-log protocol (a played
-   match as seed + player commands) is Circuit roadmap step 5 and gets
-   designed in the rules core first, not improvised in a Worker.
+   Two endpoints, one discipline:
+
+   GET  /replay?seed=<hex>     — no-input playout, a pure function of the
+                                 seed. The goldens live here.
+   POST /certify {seed,record} — a PLAYED match: the input-log protocol
+                                 (Circuit roadmap step 5), designed in the
+                                 rules core (S.record / replayMatch) and
+                                 inherited here. The record replays through
+                                 the same verbs the player used; a replay
+                                 that cannot reproduce its own input, or
+                                 that ends unfinished, certifies nothing.
    ============================================================ */
 
-import { S, bindIO, restart, endPlayerTurn, formatEvent, RATING } from "../../prototypes/tactical-core/rules.js";
+import { S, bindIO, restart, endPlayerTurn, replayMatch, formatEvent, RATING } from "../../prototypes/tactical-core/rules.js";
 
 // FNV-1a, mirroring rules.test.js — the certificate must be the same hash
 // the goldens assert or it certifies nothing.
@@ -31,32 +38,64 @@ function fnv(s) {
 // inside a playout, so replays serialize through a promise chain. This is
 // a mutex, not request state; a failed replay must not wedge the chain.
 let chain = Promise.resolve();
-function replaySerialized(seed) {
-  const run = chain.then(() => replay(seed));
+function serialized(fn) {
+  const run = chain.then(fn);
   chain = run.then(() => {}, () => {});
   return run;
 }
 
-async function replay(seed) {
+function captureLines() {
   const lines = [];
   bindIO({
     sleep: () => Promise.resolve(),
     emit: (ev) => { const l = formatEvent(ev); if (l !== null) lines.push(l); },
     changed: () => {},
   });
-  restart(seed);
-  // the goldens' horizon: hostile turns need no player input, so the
-  // transcript is a pure function of the seed
-  for (let i = 0; i < 14 && !S.gameOver; i++) await endPlayerTurn();
+  return lines;
+}
+
+function certificate(seed, lines, extra = {}) {
   return {
     seed: (seed >>> 0).toString(16),
     result: S.gameOver,
     rating: S.rating,
     purse: S.rating * RATING.pursePerPoint,
+    ...extra,
     lines: lines.length,
     fingerprint: fnv(lines.join("\n")),
     transcript: lines,
   };
+}
+
+async function replay(seed) {
+  const lines = captureLines();
+  restart(seed);
+  // the goldens' horizon: hostile turns need no player input, so the
+  // transcript is a pure function of the seed
+  for (let i = 0; i < 14 && !S.gameOver; i++) await endPlayerTurn();
+  return certificate(seed, lines);
+}
+
+// The certification policy, in full: a record must reproduce itself
+// (rules-refused commands don't re-record, so tampering fails closed) and
+// must end the match (fidelity is not completeness). Everything else is a
+// refusal with the reason on the surface.
+async function certify(seed, record) {
+  const lines = captureLines();
+  const fidelity = await replayMatch(seed, record);
+  if (!fidelity.faithful) {
+    return { status: 422, body: {
+      certified: false, error: "record does not replay",
+      applied: fidelity.applied, submitted: fidelity.submitted,
+    } };
+  }
+  if (!S.gameOver) {
+    return { status: 422, body: {
+      certified: false, error: "record replays but the match is unfinished",
+      commands: record.length,
+    } };
+  }
+  return { status: 200, body: { certified: true, ...certificate(seed, lines, { commands: record.length }) } };
 }
 
 function json(obj, status = 200) {
@@ -66,26 +105,58 @@ function json(obj, status = 200) {
   });
 }
 
+const SEED_RE = /^[0-9a-fA-F]{1,8}$/;
+
+// wire-level sanity only — the real gatekeeper is the dispatcher in the
+// rules core, which refuses any command the renderers cannot issue
+function validRecord(record) {
+  return Array.isArray(record) && record.length <= 1024 &&
+    record.every(c => Array.isArray(c) && c.length >= 1 && c.length <= 4 &&
+      c.every(v => typeof v === "string" || typeof v === "number"));
+}
+
 export default {
   async fetch(request) {
     const url = new URL(request.url);
     if (url.pathname === "/replay") {
       const raw = url.searchParams.get("seed");
-      if (!raw || !/^[0-9a-fA-F]{1,8}$/.test(raw)) {
+      if (!raw || !SEED_RE.test(raw)) {
         return json({ error: "seed required — GET /replay?seed=<hex, up to 8 digits>" }, 400);
       }
       try {
-        return json(await replaySerialized(parseInt(raw, 16)));
+        return json(await serialized(() => replay(parseInt(raw, 16))));
       } catch (err) {
         console.log(JSON.stringify({ level: "error", event: "witness_replay_failed", seed: raw, message: String(err) }));
         return json({ error: "replay failed" }, 500);
       }
     }
+    if (url.pathname === "/certify") {
+      if (request.method !== "POST") {
+        return json({ error: 'POST a witness record — {"seed":"<hex>","record":[["move",0,3,7],...]}' }, 405);
+      }
+      let body;
+      try { body = await request.json(); } catch { return json({ error: "body must be JSON" }, 400); }
+      const raw = typeof body?.seed === "string" ? body.seed : "";
+      if (!SEED_RE.test(raw)) return json({ error: "seed required — hex, up to 8 digits" }, 400);
+      if (!validRecord(body.record)) {
+        return json({ error: "record must be an array of at most 1024 commands, each [verb, ...args]" }, 400);
+      }
+      try {
+        const { status, body: out } = await serialized(() => certify(parseInt(raw, 16), body.record));
+        return json(out, status);
+      } catch (err) {
+        console.log(JSON.stringify({ level: "error", event: "witness_certify_failed", seed: raw, message: String(err) }));
+        return json({ error: "certify failed" }, 500);
+      }
+    }
     return json({
       service: "sentinel-witness",
-      what: "replays a Kestrel Yard encounter from its seed through the same rules module the renderers run, and certifies the transcript",
-      usage: "GET /replay?seed=deadbeef",
-      note: "no-input playouts only — the full input-log protocol is Circuit roadmap step 5 and lands in the rules core first",
+      what: "replays Kestrel Yard matches through the same rules module the renderers run, and certifies the transcript",
+      usage: {
+        replay: "GET /replay?seed=deadbeef — no-input playout, a pure function of the seed",
+        certify: 'POST /certify {"seed":"<hex>","record":[...]} — a played match; certified only if the record replays faithfully to a finished match',
+      },
+      note: "the record grammar lives in prototypes/tactical-core/rules.js (S.record / replayMatch) — seed + record IS the match",
     });
   },
 };
