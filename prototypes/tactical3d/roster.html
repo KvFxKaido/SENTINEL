@@ -28,9 +28,11 @@ roughly the size the yard actually shows them at combat zoom.</p>
   const bad = validate();
   if (bad.length) document.body.insertAdjacentHTML("beforeend", `<pre style="color:#ff5c5c">${bad.join("\n")}</pre>`);
 
-  const ORDER = ["VESPER", "KOA", "SABLE", "SYN-1", "SYN-2", "SYN-3"];
+  const ORDER = ["VESPER", "KOA", "SABLE", "SYN-1", "SYN-2", "SYN-3", "SYN.kneel"];
   function paint(name, scale, flip = false) {
-    const { grid, pal } = spriteFor(name);
+    const kneel = name.endsWith(".kneel");
+    const s = spriteFor(kneel ? name.slice(0, -6) : name);
+    const grid = kneel ? s.kneel : s.grid, pal = s.pal;
     const c = document.createElement("canvas");
     c.width = c.height = 32 * scale;
     const g = c.getContext("2d");

@@ -121,7 +121,9 @@ Implementation rules:
 - **Occlusion ghost is the sprite itself,** translucent, not a proxy shape.
 - **Poses are frames.** Yield, down, fire — each is a sprite frame when it
   earns one ("few frames, strong poses"); until then, tint and badges carry
-  state.
+  state. *The first one is earned (2026-07-29): the SYN kneel — hands up,
+  two-thirds height, same ground line — swaps in with its own picking mask
+  when a fighter yields. Down and fire still read through state.*
 
 Open consequence: once `tactical3d/` wears the same authored sprites as
 `tactical/`, the two renderers converge visually and the 2D build's

@@ -679,14 +679,23 @@ function bakeSpriteTexture(grid, pal) {
 // makes the sprite's silhouette the hit area.
 const bakeMask = (grid, pal) => grid.map(row => [...row].map(ch => !!pal[ch]));
 // Bake once per unique design — the SYN crew shares one grid on purpose,
-// so it also shares one texture and one mask.
+// so it also shares one texture and one mask. A design with a kneel frame
+// (only hostiles yield, so today that is only SYN) gets both frames baked;
+// the yield swaps texture AND picking mask, so a kneeling fighter is
+// clickable exactly where the kneeling art is.
 const SPRITE_ASSETS = new Map();
 function spriteAssets(name) {
   const s = spriteFor(name);
   if (!SPRITE_ASSETS.has(s.grid)) {
     const tex = bakeSpriteTexture(s.grid, s.pal);
     SHARED.add(tex);   // survives unit-group teardown on every reset
-    SPRITE_ASSETS.set(s.grid, { tex, mask: bakeMask(s.grid, s.pal) });
+    const assets = { tex, mask: bakeMask(s.grid, s.pal) };
+    if (s.kneel) {
+      assets.kneelTex = bakeSpriteTexture(s.kneel, s.pal);
+      SHARED.add(assets.kneelTex);
+      assets.kneelMask = bakeMask(s.kneel, s.pal);
+    }
+    SPRITE_ASSETS.set(s.grid, assets);
   }
   return SPRITE_ASSETS.get(s.grid);
 }
@@ -824,7 +833,7 @@ function buildUnits() {
     const badge = makeBadge(u);
     g.add(badge);
 
-    g.userData = { unit: u, spr, ghost, ring, ow, badge };
+    g.userData = { unit: u, spr, ghost, ring, ow, badge, assets };
     u._obj = g;
     unitGroup.add(g);
     drawBadge(u);
@@ -952,10 +961,20 @@ function syncScene() {
     o.userData.placed = true;
     o.userData.ring.visible = (v.id === S.selectedId && S.turn === "op");
     o.userData.ow.visible = v.overwatch;
-    // a yielded fighter reads through state, not posture — sprites don't
-    // kneel until they earn a dedicated frame: dimmed, still, badged
+    // the yield frame: posture carries it now — texture and picking mask
+    // swap together, so the kneeling art is also the click target. The
+    // tint fallback stays for any design without a kneel frame (today
+    // none can need it: only hostiles yield, and the crew has the frame).
     const kneel = !!v.yielded;
-    o.userData.spr.material.color.setScalar(kneel ? 0.5 : 1);
+    const a = o.userData.assets;
+    const useKneel = kneel && a.kneelTex;
+    const map = useKneel ? a.kneelTex : a.tex;
+    if (o.userData.spr.material.map !== map) {
+      o.userData.spr.material.map = map;
+      o.userData.ghost.material.map = map;
+      o.userData.spr.userData.mask = useKneel ? a.kneelMask : a.mask;
+    }
+    o.userData.spr.material.color.setScalar(kneel && !useKneel ? 0.5 : 1);
     o.userData.ghost.material.opacity = kneel ? 0.2 : 0.35;
     drawBadge(v);
   }
