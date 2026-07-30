@@ -50,16 +50,53 @@ covers the other half: what the sprites and the UI themselves should do.
 - **One dominant hue + one accent per unit.** Faction tells at a glance. The
   world stays dark and desaturated so unit hues carry the scene — the board is
   a stage, not a competitor.
-- **Two scales, one silhouette.** Map sprites (small, ~48px per the sprite doc)
-  and sheet/battle sprites (large, detailed) are the same silhouette at
-  different budgets. If the big one doesn't shrink into the small one, the big
-  one is wrong.
+- **One canvas, integer zoom** *(decided 2026-07-30 — supersedes the earlier
+  "two scales, one silhouette" bullet, which anticipated large battle
+  sprites as a separate budget)*: there are no large body sprites,
+  anywhere. See **The body law** below.
 - **Few frames, strong poses.** Impact frames and smears over interpolation.
   Twelve good frames beat sixty tweened ones, and are achievable solo.
-- **Portraits:** painted-then-quantized, hard cel shading, outlined, expressive
-  at ~48px box. This is the target style for `/portrait` generation prompts:
-  "GBA-era tactical RPG portrait, hard cel shading, 1px outline, limited
-  palette, quantized" — not painterly, not anime-gloss.
+- **Portraits** *(superseded 2026-07-29 by the register pair —
+  `art_style_audit.md`: photoreal source graded into the feed and terminal
+  registers, never quantized cel; kept here for the paper trail)*:
+  painted-then-quantized, hard cel shading, outlined, expressive at ~48px
+  box.
+
+## The body law: one canvas, integer zoom (decided 2026-07-30)
+
+Pixel art travels in one direction: **up**. Integer upscaling is lossless;
+downscaling deletes decisions — and at 32×32 every pixel is one. So the
+universe keeps a single body register, authored at the floor, consumed
+everywhere:
+
+- **One canvas.** 32×32, System A proportions, feet on the ground line —
+  the same body on every surface that shows one: the tactical board, the
+  walkable world, Close Contact's stage, and whatever comes after them.
+- **Zoom by integers only.** The board shows it at world density, the
+  fighter at ~4×, the diorama wherever its camera sits — always 2×/3×/4×,
+  never fractional, never downsampled. A surface that wants a different
+  size moves its camera, not the canvas.
+- **Frames, never formats.** Surfaces add frame *sets* to the same canvas:
+  the board has idle and kneel; the world adds directional walks; the
+  fighter adds stances, limb commitments, and hitstun. Same palette, same
+  outline rules, same ground-line contract, one `validate()` guarding all
+  of it. A character is never re-rendered — only re-consumed.
+- **The density agreement is the teeth.** Body pixels and voxel matter
+  share one density (1.10 world / 16 px, above). Renegotiating the body
+  scale means renegotiating the world — that structural coupling, not
+  preference, is what makes this law instead of habit.
+- **Faces are exempt, deliberately.** Close-up identity belongs to the
+  portrait register pair (`art_style_audit.md`, 2026-07-29). Bodies never
+  grow toward faces, and detail never smuggles downward between scales —
+  the fighter's frame set may be large, but its pixels are never finer.
+
+Costs, accepted on the record: Close Contact forgoes high-detail
+animation permanently (its own non-goals already renounce it — impact
+lives in hitstop, shake, and sound per its spec), and hitboxes-from-art
+are coarse (a game of three rigid heights says that is the game). If a
+future surface truly cannot live at an integer zoom of 32, this section
+gets a successor — by a PR that says so, with the world-density bill
+attached.
 
 ## UI language
 
