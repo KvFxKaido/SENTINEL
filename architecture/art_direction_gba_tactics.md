@@ -238,6 +238,19 @@ respect. SRW J's structure wearing SENTINEL's color.
 
 ## Concrete next uses
 
+- **Done (2026-07-30): Cipher's walkable body.** A licensed 4-direction
+  pack (idle/run/two attacks, 8 frames each) molded into Cipher by a
+  deterministic pipeline — `scripts/cipher_mold.py`: 24-color
+  hand-mapped LUT, columnar dread pass, solid visor band (nothing may
+  read as an eye from any facing), and the energy blade — dormant dark
+  steel sheathed, ignited to the visor's cyan family in attack frames,
+  so the only lights on the body are his own tech and ignition itself
+  is a readable event. Outputs (`assets/sprites/cipher/`) are
+  regenerable and untracked; the source pack stays out of the public
+  repo by license. First body ready for the walkable-world toy. Note:
+  this body is the selout dialect — the selout-vs-ink audition against
+  the System A roster remains open.
+
 - Fight card / fighter sheet mock for the Circuit: tabs FIGHTER / LOADOUT /
   RECORD, portrait + insignia slot top-left, every stat in a beveled cell.
 - ~~`/portrait` prompt guidance updated to the quantized cel style
