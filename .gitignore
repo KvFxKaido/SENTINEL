@@ -95,3 +95,5 @@ gha-creds-*.json
 
 # Cloudflare Workers local state
 .wrangler/
+# Godot 4 import cache
+.godot/

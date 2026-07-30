@@ -1,7 +1,9 @@
 # prototypes
 
-One tactical encounter — Kestrel Yard — that feels good enough to replay
-twice. One rules layer, two renderers, one test suite.
+Playable prototypes of the universe's combat layers.
+
+The squad layer: one tactical encounter — Kestrel Yard — that feels good
+enough to replay twice. One rules layer, two renderers, one test suite.
 
 ```
 tactical-core/   rules: rng, LOS, cover, firing solutions, movement, AI
@@ -9,6 +11,10 @@ tactical-core/   rules: rng, LOS, cover, firing solutions, movement, AI
 tactical/        2D canvas renderer (immediate-mode, pixel sprites)
 tactical3d/      three.js renderer (retained-mode, 2:1 isometric)
 ```
+
+And the 1v1 layer: `close-contact/` — the SENTINEL: Close Contact
+fighting prototype (Godot 4.5, limb-mapped inputs, active defense). See
+its own README; the rest of this file is about the tactical slice.
 
 ## Run it
 

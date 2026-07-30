@@ -13,9 +13,10 @@
 SENTINEL is a setting — post-collapse North America, eleven factions, no
 villains, everyone right about something — and this repo is every game
 being built inside it. A tabletop RPG run by an AI Game Master. A tactical
-circuit game where surrender is a mechanic and mercy has a price. An edge
-service that certifies match records like a notary. A 2.5D world taking
-shape around all of it.
+circuit game where surrender is a mechanic and mercy has a price. A 1v1
+fighting game where every button commits a limb. An edge service that
+certifies match records like a notary. A 2.5D world taking shape around
+all of it.
 
 They share the lore, the factions, and one law borrowed from the Witnesses
 faction itself: **what happened is on the record, and the record can be
@@ -30,6 +31,7 @@ a content-addressed archive nothing enters without proving itself.
 |-------|-----------|--------|
 | [Tabletop RPG + AI GM](#the-tabletop-rpg) | The full RPG, run by an AI Game Master on local LLMs | **Playable** — 450+ tests |
 | [The Circuit](#the-circuit--tactical-combat-as-an-institution) | Tactical combat as a broadcast institution | **Playable prototype** (browser) |
+| [Close Contact](#close-contact--the-fight-at-limb-scale) | 1v1 fighting: limb-mapped inputs, active defense | **Early prototype** (Godot) |
 | [The Witness](#the-witness--records-at-the-edge) | Match certification + archive at the edge | **Live** on Cloudflare Workers |
 | [The world game](#where-its-heading) | The universe as a playable 2.5D place | **Direction** — pieces prototyped |
 
@@ -287,6 +289,29 @@ landed without touching them — determinism as a test, not a habit.
 cd prototypes/tactical-core && node --test    # 43 tests, the goldens among them
 ```
 
+## Close Contact — the fight at limb scale
+
+The universe's combat at its closest zoom. The tabletop plays the world
+at conversation scale, the Circuit plays the fight at squad scale — this
+is the scale where you can watch someone decide to commit a limb.
+
+A 1v1 fighting game built on physical intent over abstraction: every
+button is a body part (LP/RP/LK/RK), sixteen grounded normals per
+character maximum, a rigid three-height system with no overheads and no
+ambiguous cross-ups, and active defense where blocking is deliberately
+the losing option — parry and duck are the real reads, and defensive
+failure is a decision error, never an input error. *"Close Contact is
+not a style of combat. It is a condition. There are no safe states.
+Only choices."*
+
+Spec: [`architecture/close_contact_design.md`](architecture/close_contact_design.md).
+Prototype: [`prototypes/close-contact/`](prototypes/close-contact/)
+(Godot 4.5 — open `project.godot`, F5; two players on one keyboard).
+Early: the current build is a combat harness for proving the read/punish
+loop, not a finished fight. The Circuit institution — cards, purses,
+witness records — wraps this layer conceptually; that wiring is future
+work.
+
 ## The Witness — records at the edge
 
 [`workers/witness/`](workers/witness/) is a Cloudflare Worker that imports
@@ -344,10 +369,11 @@ SENTINEL/
 ├── sentinel-campaign/  # Faction MCP server
 ├── lore/               # Canon novellas (RAG-retrievable)
 ├── wiki/               # Reference encyclopedia (Obsidian vault)
-├── prototypes/         # The Circuit, playable
+├── prototypes/         # The combat layers, playable
 │   ├── tactical-core/  #   deterministic rules module + golden transcripts
 │   ├── tactical/       #   2D canvas renderer
-│   └── tactical3d/     #   2.5D three.js renderer (voxels, sprites, CRT)
+│   ├── tactical3d/     #   2.5D three.js renderer (voxels, sprites, CRT)
+│   └── close-contact/  #   1v1 fighting prototype (Godot 4.5)
 ├── workers/
 │   └── witness/        # Edge certification + the match archive (live)
 ├── architecture/       # Design + decision docs (each carries a Status: line)
@@ -395,6 +421,7 @@ CI runs all three on every push.
 |----------|---------|
 | [Core Rules](core/) | The complete tabletop game |
 | [Circuit Design](architecture/sentinel_circuit_design.md) | Combat as an institution |
+| [Close Contact Design](architecture/close_contact_design.md) | The 1v1 fighting system spec |
 | [Tactical Core](prototypes/tactical-core/README.md) | The rules module + golden-transcript discipline |
 | [The Witness](workers/witness/README.md) | Edge certification of match records |
 | [Art Direction](architecture/art_direction_gba_tactics.md) | Sprites, voxels, and the diorama stage |
