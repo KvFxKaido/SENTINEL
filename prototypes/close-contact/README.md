@@ -31,6 +31,13 @@ port inherits a settled design instead of a guess.
 
 Gamepad target (per spec): A(LK) B(RK) X(LP) Y(RP), LB block/parry.
 
+Harness status, honestly: walk/crouch/block, the three-height law,
+edge-triggered attacks, duck counters, and trades are in. **Parry is
+spec'd but not implemented** — its input (block+limb) is reserved and
+inert, never a misfired normal. No jump, no chip, no health yet; see
+`CLAUDE.md` for the full ledger. `tests/logic_check.gd` verifies the
+implemented claims headlessly.
+
 ## Success criteria (from the spec)
 
 1. A new player understands the controls in under 60 seconds

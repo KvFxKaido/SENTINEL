@@ -308,9 +308,10 @@ Spec: [`architecture/close_contact_design.md`](architecture/close_contact_design
 Prototype: [`prototypes/close-contact/`](prototypes/close-contact/)
 (Godot 4.5 — open `project.godot`, F5; two players on one keyboard).
 Early: the current build is a combat harness for proving the read/punish
-loop, not a finished fight. The Circuit institution — cards, purses,
-witness records — wraps this layer conceptually; that wiring is future
-work.
+loop, not a finished fight — block, duck, duck counters, and trades are
+in; parry is spec'd but not yet implemented. The Circuit institution —
+cards, purses, witness records — wraps this layer conceptually; that
+wiring is future work.
 
 ## The Witness — records at the edge
 

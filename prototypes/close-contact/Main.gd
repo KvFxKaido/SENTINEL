@@ -78,6 +78,12 @@ class Fighter:
 var p1: Fighter
 var p2: Fighter
 
+# previous-frame limb-key state, per player: attacks are edge-triggered
+# so holding a button cannot machine-gun normals — committing a limb
+# means pressing it (caught in review)
+var p1_held := {"lp": false, "rp": false, "lk": false, "rk": false}
+var p2_held := {"lp": false, "rp": false, "lk": false, "rk": false}
+
 @onready var p1_label: Label = $UI/P1Label
 @onready var p2_label: Label = $UI/P2Label
 
@@ -87,8 +93,8 @@ func _ready() -> void:
 	_update_facing()
 
 func _physics_process(delta: float) -> void:
-	var p1_input = _read_input(P1_KEYS)
-	var p2_input = _read_input(P2_KEYS)
+	var p1_input = _read_input(P1_KEYS, p1_held)
+	var p2_input = _read_input(P2_KEYS, p2_held)
 
 	_update_fighter(p1, p1_input, delta)
 	_update_fighter(p2, p2_input, delta)
@@ -97,8 +103,7 @@ func _physics_process(delta: float) -> void:
 	_update_duck_counter_window(p2, p1)
 	_resolve_duck_counter(p1, p2)
 	_resolve_duck_counter(p2, p1)
-	_resolve_combat(p1, p2)
-	_resolve_combat(p2, p1)
+	_resolve_combat_pair(p1, p2)
 
 	_apply_pushbox()
 	_update_facing()
@@ -110,7 +115,7 @@ func _physics_process(delta: float) -> void:
 	_update_labels()
 	queue_redraw()
 
-func _read_input(keys: Dictionary) -> Dictionary:
+func _read_input(keys: Dictionary, held: Dictionary) -> Dictionary:
 	var input := {
 		"left": Input.is_key_pressed(keys["left"]),
 		"right": Input.is_key_pressed(keys["right"]),
@@ -119,14 +124,12 @@ func _read_input(keys: Dictionary) -> Dictionary:
 		"block": Input.is_key_pressed(keys["block"]),
 		"attack_id": ""
 	}
-	if Input.is_key_pressed(keys["lp"]):
-		input.attack_id = "LP"
-	elif Input.is_key_pressed(keys["rp"]):
-		input.attack_id = "RP"
-	elif Input.is_key_pressed(keys["lk"]):
-		input.attack_id = "LK"
-	elif Input.is_key_pressed(keys["rk"]):
-		input.attack_id = "RK"
+	# rising edge only: a limb fires once per press
+	for id in ["lp", "rp", "lk", "rk"]:
+		var down := Input.is_key_pressed(keys[id])
+		if down and not held[id] and input.attack_id == "":
+			input.attack_id = id.to_upper()
+		held[id] = down
 	return input
 
 func _update_fighter(f: Fighter, input: Dictionary, delta: float) -> void:
@@ -162,8 +165,13 @@ func _update_fighter(f: Fighter, input: Dictionary, delta: float) -> void:
 		if f.crouch and f.duck_counter_window > 0:
 			f.duck_counter_attempt = true
 			return
-		_start_attack(f, input.attack_id)
-		return
+		# block + limb is the parry input (spec §6). Parry is not
+		# implemented in this harness yet, so the input is reserved and
+		# inert — it must never misfire as a normal (caught in review).
+		# The fighter stays in block below.
+		if not input.block or f.crouch:
+			_start_attack(f, input.attack_id)
+			return
 
 	f.crouch = input.down
 	if f.crouch:
@@ -210,37 +218,53 @@ func _attack_phase(attack: Dictionary) -> String:
 		return "RECOVERY"
 	return "DONE"
 
-func _resolve_combat(attacker: Fighter, defender: Fighter) -> void:
+# Both connections are read BEFORE either is applied: simultaneous clean
+# hits are a trade, not a win for whoever the update order favors
+# (caught in review). The captured attack dicts stay valid after
+# `defender.attack = {}` because that rebinds the field, not the dict.
+func _resolve_combat_pair(a: Fighter, b: Fighter) -> void:
+	var ab := _combat_result(a, b)
+	var ba := _combat_result(b, a)
+	_apply_combat(a, b, ab)
+	_apply_combat(b, a, ba)
+
+func _combat_result(attacker: Fighter, defender: Fighter) -> Dictionary:
 	if attacker.attack.is_empty():
-		return
+		return {}
 	if _attack_phase(attacker.attack) != "ACTIVE":
-		return
+		return {}
 	if attacker.attack["has_hit"] or attacker.attack["has_block"]:
-		return
+		return {}
 
 	if attacker.attack["height"] == "HIGH" and defender.crouch:
-		return
+		return {}
 
 	var hitbox := _get_attack_hitbox(attacker, attacker.attack)
 	var hurtbox := _get_hurtbox(defender, false)
 	if not hitbox.intersects(hurtbox):
-		return
+		return {}
 
 	var blocked := defender.block and not defender.crouch
-	if blocked:
-		defender.blockstun = attacker.attack["blockstun"]
+	return {"kind": "BLOCK" if blocked else "HIT", "attack": attacker.attack}
+
+func _apply_combat(attacker: Fighter, defender: Fighter, result: Dictionary) -> void:
+	if result.is_empty():
+		return
+	var atk: Dictionary = result["attack"]
+	if result["kind"] == "BLOCK":
+		defender.blockstun = atk["blockstun"]
 		defender.attack = {}
 		_set_event(defender, "BLOCK")
 		_set_event(attacker, "BLOCKED")
-		attacker.attack["has_block"] = true
-		_apply_pushback(attacker, defender, attacker.attack, true)
+		atk["has_block"] = true
+		_apply_pushback(attacker, defender, atk, true)
 	else:
-		defender.hitstun = attacker.attack["hitstun"]
+		defender.hitstun = atk["hitstun"]
 		defender.attack = {}
 		_set_event(defender, "HIT")
 		_set_event(attacker, "HIT")
-		attacker.attack["has_hit"] = true
-		_apply_pushback(attacker, defender, attacker.attack, false)
+		atk["has_hit"] = true
+		_apply_pushback(attacker, defender, atk, false)
 
 func _apply_pushback(attacker: Fighter, defender: Fighter, attack: Dictionary, blocked: bool) -> void:
 	var push: float = float(attack["push"])
@@ -285,8 +309,11 @@ func _get_attack_hitbox(f: Fighter, attack: Dictionary) -> Rect2:
 	var y_bottom := f.pos.y
 	match attack["height"]:
 		"HIGH":
+			# the bottom clears a crouching silhouette (CROUCH_H = 60):
+			# the debug draw must never show a "whiffed" high overlapping
+			# the ducker — the picture and the height law have to agree
 			y_top = f.pos.y - BODY_H
-			y_bottom = f.pos.y - BODY_H * 0.5
+			y_bottom = f.pos.y - BODY_H * 0.65
 		"MID":
 			y_top = f.pos.y - BODY_H * 0.75
 			y_bottom = f.pos.y - BODY_H * 0.25
@@ -319,10 +346,15 @@ func _update_duck_counter_window(attacker: Fighter, defender: Fighter) -> void:
 		return
 	if not defender.crouch:
 		return
+	# one law, shared with _combat_result: a HIGH whiffs over a crouch by
+	# HEIGHT (guarded above), never by pixel accident. The stand-box test
+	# asks the only remaining question — "would this have hit you
+	# standing?" — and that near-miss is what opens the window. (The old
+	# extra crouch-box test made the window geometrically unreachable:
+	# dead code, caught in review.)
 	var hitbox := _get_attack_hitbox(attacker, attacker.attack)
 	var stand_box := _get_hurtbox(defender, true)
-	var crouch_box := _get_hurtbox(defender, false)
-	if hitbox.intersects(stand_box) and not hitbox.intersects(crouch_box):
+	if hitbox.intersects(stand_box):
 		defender.duck_counter_window = DUCK_COUNTER_WINDOW
 
 func _resolve_duck_counter(attacker: Fighter, defender: Fighter) -> void:
@@ -336,12 +368,11 @@ func _resolve_duck_counter(attacker: Fighter, defender: Fighter) -> void:
 		return
 	if attacker.attack["height"] != "HIGH":
 		return
+	if not defender.crouch:
+		return
 	var hitbox := _get_attack_hitbox(attacker, attacker.attack)
 	var stand_box := _get_hurtbox(defender, true)
-	var crouch_box := _get_hurtbox(defender, false)
 	if not hitbox.intersects(stand_box):
-		return
-	if hitbox.intersects(crouch_box):
 		return
 
 	attacker.attack = {}

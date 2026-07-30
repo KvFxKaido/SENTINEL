@@ -44,27 +44,65 @@ reinforces returning to neutral.
 ## Implementation shape (Main.gd)
 
 The `Fighter` class owns position/facing, the attack state machine
-(idle → startup → active → recovery), per-attack frame data, hitbox /
-hurtbox spawning, and duck state with its counter window
+(NEUTRAL → startup → active → recovery), per-attack frame data, hitbox /
+hurtbox rects, and duck state with its counter window
 (`DUCK_COUNTER_WINDOW = 6` frames).
 
+The real frame data — this table is copied from the `ATTACKS` const in
+Main.gd and must be kept in step with it (an earlier version of this
+file carried a stale fork of it; caught in review):
+
 ```gdscript
-var ATTACK_DATA = {
-    "lp": {height = "HIGH", startup = 4, active = 2, recovery = 8,  damage = 5,  range = 50},
-    "rp": {height = "HIGH", startup = 5, active = 3, recovery = 10, damage = 7,  range = 55},
-    "lk": {height = "LOW",  startup = 7, active = 3, recovery = 12, damage = 8,  range = 70},
-    "rk": {height = "MID",  startup = 8, active = 4, recovery = 14, damage = 10, range = 75},
+const ATTACKS := {
+    "LP": {"height": "HIGH", "startup": 6, "active": 3, "recovery": 10, "range": 40.0, "hitstun": 12, "blockstun": 8, "push": 22.0},
+    "RP": {"height": "MID",  "startup": 7, "active": 3, "recovery": 11, "range": 42.0, "hitstun": 13, "blockstun": 8, "push": 23.0},
+    "LK": {"height": "LOW",  "startup": 8, "active": 3, "recovery": 12, "range": 55.0, "hitstun": 14, "blockstun": 9, "push": 26.0},
+    "RK": {"height": "LOW",  "startup": 8, "active": 3, "recovery": 12, "range": 55.0, "hitstun": 14, "blockstun": 9, "push": 26.0}
 }
 ```
 
 Frame data conventions: `startup` (frames before hitbox) + `active`
 (hitbox live) + `recovery` (before actionable) = total duration;
-`range` is hitbox x-offset from center; `height` is HIGH/MID/LOW.
+`range` is hitbox reach beyond the body edge; `hitstun`/`blockstun`
+are the defender's frozen frames; `push` is pushback distance. There
+is no `damage` field yet — the harness has no health (see status
+below).
 
 Keep the loop readable and data-driven; prefer small, testable steps.
-New attacks are `ATTACK_DATA` entries, not new systems. New characters
-are frame-data variations within the 16-normal cap, never new height
-rules.
+New attacks are `ATTACKS` entries, not new systems. New characters are
+frame-data variations within the 16-normal cap, never new height rules.
+
+## Harness status — what is actually implemented
+
+The spec is the design; the harness is a slice of it. Today:
+
+**In:** walk (forward faster than back), crouch, block (stun only),
+the three-height law, edge-triggered limb attacks (one press, one
+commitment), duck-counter window + resolution, simultaneous-hit trades,
+pushback and the pushbox, debug hitbox draw, per-fighter state labels.
+
+**Not in yet:** **parry** (the LB+limb input is reserved and inert —
+holding block suppresses normals so the spec's input can never misfire
+as an attack; implementing parry per spec §6 is the next milestone),
+**jump** (the up key is read and unused), **chip damage**, **health /
+rounds / win state** (hitstun is the only currency), meter, and any
+per-character variation.
+
+Consequences for the success criteria: #1 and #2 are testable today;
+#3 ("blocking feels bad but necessary") needs chip damage first; #4
+("parries feel earned") needs parry to exist. Do not claim them until
+their mechanics do.
+
+`tests/logic_check.gd` executes the harness's load-bearing claims
+headlessly (height law, duck-counter reachability, trades, parry-input
+inertness):
+
+```sh
+godot --headless --path prototypes/close-contact --script res://tests/logic_check.gd
+```
+
+Run it after touching Main.gd. It is not in CI (no Godot runtime
+there) — that makes it your job.
 
 ## Non-goals (out of scope until the core is fun)
 
