@@ -11,6 +11,7 @@ SENTINEL/
 ├── architecture/            # Design + decision docs (each carries a Status: line)
 │   ├── sentinel_circuit_design.md    # The Circuit — sanctioned combat (Proposal)
 │   ├── close_contact_design.md       # 1v1 fighting system spec (Proposal)
+│   ├── flux_card_game_design.md      # Folk card game — collection + ante (Proposal)
 │   ├── art_direction_gba_tactics.md  # Sprite + UI art direction (Reference)
 │   ├── AGENT_ARCHITECTURE.md         # Agent design, state schema, tools
 │   ├── VIDEO_GAME_REUSE_MAP.md       # What the video game reuses from this stack
@@ -90,6 +91,7 @@ Ship a feature only if its state is visible, its failure modes are legible, and 
 | `core/SENTINEL Playbook — Core Rules.md` | The complete game rules |
 | `architecture/sentinel_circuit_design.md` | The Circuit — combat as an institution (Proposal) |
 | `architecture/close_contact_design.md` | Close Contact — the 1v1 fighting spec (Proposal) |
+| `architecture/flux_card_game_design.md` | FLUX — the folk card game (Proposal) |
 | `architecture/art_direction_gba_tactics.md` | Sprite + UI art direction (Reference) |
 | `architecture/AGENT_ARCHITECTURE.md` | Agent design, state schema, tools |
 | `prototypes/tactical-core/README.md` | Deterministic rules module + the golden-transcript discipline |

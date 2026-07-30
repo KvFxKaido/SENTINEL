@@ -14,9 +14,9 @@ SENTINEL is a setting — post-collapse North America, eleven factions, no
 villains, everyone right about something — and this repo is every game
 being built inside it. A tabletop RPG run by an AI Game Master. A tactical
 circuit game where surrender is a mechanic and mercy has a price. A 1v1
-fighting game where every button commits a limb. An edge service that
-certifies match records like a notary. A 2.5D world taking shape around
-all of it.
+fighting game where every button commits a limb. A folk card game the
+world itself plays, for keeps. An edge service that certifies match
+records like a notary. A 2.5D world taking shape around all of it.
 
 They share the lore, the factions, and one law borrowed from the Witnesses
 faction itself: **what happened is on the record, and the record can be
@@ -32,6 +32,7 @@ a content-addressed archive nothing enters without proving itself.
 | [Tabletop RPG + AI GM](#the-tabletop-rpg) | The full RPG, run by an AI Game Master on local LLMs | **Playable** — 450+ tests |
 | [The Circuit](#the-circuit--tactical-combat-as-an-institution) | Tactical combat as a broadcast institution | **Playable prototype** (browser) |
 | [Close Contact](#close-contact--the-fight-at-limb-scale) | 1v1 fighting: limb-mapped inputs, active defense | **Early prototype** (Godot) |
+| [FLUX](#flux--the-worlds-own-card-game) | Collectible folk card game — commit, reveal, play for keeps | **Design** — on paper |
 | [The Witness](#the-witness--records-at-the-edge) | Match certification + archive at the edge | **Live** on Cloudflare Workers |
 | [The world game](#where-its-heading) | The universe as a playable 2.5D place | **Direction** — pieces prototyped |
 
@@ -313,6 +314,23 @@ in; parry is spec'd but not yet implemented. The Circuit institution —
 cards, purses, witness records — wraps this layer conceptually; that
 wiring is future work.
 
+## FLUX — the world's own card game
+
+The universe at hand scale: a collectible card game that exists *inside*
+the fiction — a folk game dealt in Syndicate dens and Covenant halls
+across the eleven regions, played for keeps. Snap-derived chassis
+(locations, energy, hidden commitment resolving in public reveals),
+**ante instead of a roguelike**: you lose cards because you staked them,
+and a lost card doesn't vanish — somebody *has* it, two regions away, and
+the fiction knows who. Losses become geography; the collection is a
+ledger of where everything went. Folding is this game's yield.
+
+Faction card pools play the way their factions believe — the first
+designed pool is Lattice (bank the grid, cut the overloads), translated
+card-for-card from a real Infinite-rank Snap deck. Design doc:
+[`architecture/flux_card_game_design.md`](architecture/flux_card_game_design.md).
+Paper only — no code yet, deliberately.
+
 ## The Witness — records at the edge
 
 [`workers/witness/`](workers/witness/) is a Cloudflare Worker that imports
@@ -423,6 +441,7 @@ CI runs all three on every push.
 | [Core Rules](core/) | The complete tabletop game |
 | [Circuit Design](architecture/sentinel_circuit_design.md) | Combat as an institution |
 | [Close Contact Design](architecture/close_contact_design.md) | The 1v1 fighting system spec |
+| [FLUX Design](architecture/flux_card_game_design.md) | The folk card game — collection, ante, circulation |
 | [Tactical Core](prototypes/tactical-core/README.md) | The rules module + golden-transcript discipline |
 | [The Witness](workers/witness/README.md) | Edge certification of match records |
 | [Art Direction](architecture/art_direction_gba_tactics.md) | Sprites, voxels, and the diorama stage |
