@@ -41,7 +41,7 @@ jobs:
 
       - name: Upload coverage
         if: matrix.python-version == '3.11'
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           file: sentinel-agent/coverage.xml
           fail_ci_if_error: false
