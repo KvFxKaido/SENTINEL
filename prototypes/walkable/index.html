@@ -1084,12 +1084,12 @@ document.addEventListener("keydown", event => {
 
   if (event.code === "KeyJ" || event.code === "Space") {
     event.preventDefault();
-    triggerAttack("attack1", performance.now() / 1000);
+    triggerAttack("attack1", timer.getElapsed());   // one clock: the loop's timer, never performance.now (caught in review)
     return;
   }
   if (event.code === "KeyK") {
     event.preventDefault();
-    triggerAttack("attack2", performance.now() / 1000);
+    triggerAttack("attack2", timer.getElapsed());
     return;
   }
   if (event.code === "KeyQ") {
@@ -1111,7 +1111,7 @@ document.addEventListener("keydown", event => {
 document.addEventListener("keyup", event => {
   if (MOVE_CODES.has(event.code)) held.delete(event.code);
 });
-window.addEventListener("blur", () => held.clear());
+window.addEventListener("blur", () => { held.clear(); attack = null; });   // no key survives a blur — neither does a lock (caught in review)
 
 // ---- frame loop ---------------------------------------------------
 const timer = new THREE.Timer();
