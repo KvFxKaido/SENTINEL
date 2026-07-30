@@ -129,13 +129,20 @@ a diegetic story.
 
 ## Follow-ups once the portrait register is decided
 
-- Portrait skill grows a mandatory treatment step (generation stays agy;
-  the grade is deterministic post-processing — scriptable, no model in the
-  loop).
-- Prompt guidance shifts backgrounds from default neon-alley toward the
-  world's actual places (yard, sanctuary, market — dust and instrument
-  light), so the Dune half exists in portraits at all.
-- Fighter sheet and pre-match card consume the treated register(s).
-- Existing corpus (painterly batch, raw axiom) either regenerates through
-  the pipeline or is grandfathered as archive — not presented in-world
-  untreated.
+- ~~Portrait skill grows a mandatory treatment step~~ **Done (2026-07-29):**
+  `scripts/portrait_grade.py` — the audition's treatments as deterministic
+  post-processing (seeded grain: same source in, same bytes out; verified
+  byte-identical across reruns). The `/portrait` skill's Step 5 makes it
+  mandatory; outputs `{name}.feed.png` / `.term.png` / `.amber.png` beside
+  the raw source, which stays for pipeline compatibility and regrades.
+- ~~Prompt guidance shifts backgrounds from default neon-alley~~ **Done
+  (2026-07-29):** the skill's prompt structure gained a `[FACTION_SETTING]`
+  slot with a per-faction settings table (operations rooms, sanctuary
+  halls, dusk roads — dust and instrument light, "NOT a neon city alley").
+- Fighter sheet and pre-match card consume the treated register(s) — lands
+  with match framing (Circuit step 3).
+- Existing corpus: `axiom` is graded (first specimen — lives beside its
+  source under the gitignored campaign-portraits tree, like all campaign
+  data; determinism makes graded outputs regenerable artifacts, not
+  repository content). The painterly batch is archive, not product, and is
+  not presented in-world untreated.

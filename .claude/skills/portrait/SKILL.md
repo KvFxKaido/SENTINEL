@@ -31,7 +31,9 @@ prompts with all guardrails to prevent style drift.
 3. Build an explicit prompt with all guardrails
 4. Call `agy -p "<prompt>" --add-dir <target dir> --dangerously-skip-permissions`
 5. Handle the scratch-directory fallback if needed
-6. Report success with the file path
+6. **Grade the portrait into its registers** (mandatory — raw photoreal is
+   source only and never ships in-world)
+7. Report success with the file paths
 
 ## Step 0: Get Current Campaign ID
 
@@ -68,11 +70,16 @@ Cinematic portrait, photorealistic digital art style.
 Modern post-apocalyptic cyberpunk aesthetic. NOT fantasy, NOT medieval, NOT anime, NOT elf, NOT blue hair.
 [EXPLICIT_PERSON_DESCRIPTOR] with [BUILD] build, [HAIR_DESCRIPTION], [EYE_DESCRIPTION], [FACIAL_FEATURES], [DISTINGUISHING_MARKS], [EXPRESSION].
 [FACTION] [ROLE] survivor. [FACTION_GEAR].
-Dark atmospheric background with [FACTION_COLOR] accent lighting.
+Background: [FACTION_SETTING], with subtle [FACTION_COLOR] accent lighting. Dust, worn surfaces, analog instrument light. NOT a neon city alley, NOT holograms.
 High detail, dramatic rim lighting, shallow depth of field.
 Bust framing, 3/4 angle, looking slightly off-camera.
 Use your generate_image tool. Save the file to exactly this absolute path: C:\dev\SENTINEL\sentinel-ui\public\assets\portraits\campaigns\{campaign_id}\{name}.png - do not save it anywhere else. Do not ask for confirmation.
 ```
+
+The background line implements the art-style audit
+(`architecture/art_style_audit.md`): the portrait corpus was pure
+neon-alley cyberpunk — the Dune half of the vibe has to exist in portraits
+too, and it enters through the setting.
 
 **NOTE**: Always use the campaign-specific path for saving. The "exactly this
 absolute path" phrasing matters — without it the agy agent saves into its own
@@ -108,6 +115,24 @@ For elderly characters, prepend "elderly" (e.g., "elderly olive-skinned woman").
 | witnesses | sepia | #8B4513 | Document satchels, ink-stained fingers |
 | architects | cyan | #0077B6 | Pre-collapse uniforms, credential badges |
 | ghost_networks | black | #0D0D0D | Nondescript dark clothing, deep shadows |
+
+### Faction Settings
+
+The world's actual places — dust and instrument light, never neon streets:
+
+| Faction | Setting |
+|---------|---------|
+| nexus | dim operations room, banks of old screens |
+| ember_colonies | firelit communal shelter, smoke haze |
+| lattice | substation interior, work lamps and cable runs |
+| convergence | clinic interior, surgical light on worn tile |
+| covenant | sanctuary hall, candlelight and white cloth |
+| wanderers | dusk road, dust haze, distant convoy lights |
+| cultivators | greenhouse rows under grow lamps |
+| steel_syndicate | freight yard at night, hard floodlights |
+| witnesses | archive stacks, lamplight on paper |
+| architects | pre-collapse atrium, dusty shafts of daylight |
+| ghost_networks | unlit interior, one practical light source |
 
 ### Expression Mapping
 
@@ -159,9 +184,30 @@ requested path (always, if `--add-dir` was omitted).
    mv ~/.gemini/antigravity-cli/scratch/[filename].png "C:/dev/SENTINEL/sentinel-ui/public/assets/portraits/campaigns/{campaign_id}/{name}.png"
    ```
 
-## Step 5: Report Result
+## Step 5: Grade Into Registers (mandatory)
 
-Show the user the generated portrait using the Read tool on the PNG file.
+The raw generation is **source only** — the art-style audit
+(`architecture/art_style_audit.md`, decided 2026-07-29) rules that
+untreated photoreal never ships in-world. Grade it:
+
+```bash
+python C:/dev/SENTINEL/scripts/portrait_grade.py "C:/dev/SENTINEL/sentinel-ui/public/assets/portraits/campaigns/{campaign_id}/{name}.png"
+```
+
+This writes the registers beside the source, deterministically (same
+source, same bytes, every rerun — no model in the loop):
+
+- `{name}.feed.png` — broadcast surfaces ("the feed they watch")
+- `{name}.term.png` — owned surfaces, phosphor ("the rig you own")
+- `{name}.amber.png` — owned surfaces, warm mood (opposition/archive)
+
+`{name}.png` stays the raw source for pipeline compatibility and future
+regrades. UI surfaces consume the registers as they adopt them.
+
+## Step 6: Report Result
+
+Show the user the source and at least one graded register using the Read
+tool on the PNG files. Name all four paths.
 
 ## Example: Full Prompt for Cipher (in campaign "cipher")
 
@@ -190,7 +236,7 @@ Cinematic portrait, photorealistic digital art style.
 Modern post-apocalyptic cyberpunk aesthetic. NOT fantasy, NOT medieval, NOT anime, NOT elf, NOT blue hair.
 Black man with lean build, short black dreadlocks, cybernetic eyes with subtle blue data overlay, sharp features, high cheekbones, small temple implant, always wears a data visor, calm alert expression.
 Nexus analyst survivor. Data visors, sensor arrays, sleek tech fabric.
-Dark atmospheric background with blue (#00A8E8) accent lighting.
+Background: dim operations room, banks of old screens, with subtle blue (#00A8E8) accent lighting. Dust, worn surfaces, analog instrument light. NOT a neon city alley, NOT holograms.
 High detail, dramatic rim lighting, shallow depth of field.
 Bust framing, 3/4 angle, looking slightly off-camera.
 Use your generate_image tool. Save the file to exactly this absolute path: C:\dev\SENTINEL\sentinel-ui\public\assets\portraits\campaigns\cipher\cipher.png - do not save it anywhere else. Do not ask for confirmation.
@@ -206,17 +252,17 @@ Use your generate_image tool. Save the file to exactly this absolute path: C:\de
 - **Generation fails**: Show error output, suggest retrying
 - **Wrong style generated**: Regenerate with stronger guardrails (add more NOT constraints)
 
-## Style Note (future)
+## Style Note
 
-The default style above is photorealistic-cinematic, matching the existing
-`sentinel-ui` portrait set. The GBA-tactics art direction names an alternative
-target (full rationale in `architecture/art_direction_gba_tactics.md`, landed
-via PR #65): *"GBA-era tactical RPG portrait, hard cel shading, 1px outline,
-limited palette, quantized"*. Do not
-switch styles unprompted — mixing the two in one campaign's portrait set is
-worse than either. If the user asks for the GBA style, replace the first two
-lines of the prompt structure with that descriptor and keep every other
-guardrail.
+Photorealistic-cinematic is the **source register** — it is what the
+generator does best, and per the art-style audit
+(`architecture/art_style_audit.md`, decided 2026-07-29) it is *source
+only*: what ships in-world are the graded registers from Step 5 (feed
+still on broadcast surfaces, terminal phosphor/amber on owned surfaces).
+Registers are diegetic — the frame says what device produced the image.
+Do not switch the source style unprompted, and do not skip the grading
+step. The GBA-cel alternative from `art_direction_gba_tactics.md` remains
+available only on explicit request, and would still be graded.
 
 ## Creating New Characters
 
