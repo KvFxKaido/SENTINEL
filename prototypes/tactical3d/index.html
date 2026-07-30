@@ -120,6 +120,23 @@
   #card .ho-side .fname { color: var(--red); }
   #card .cfoot { display: flex; justify-content: space-between; align-items: center; margin-top: auto; }
   #card .cfoot .sub { max-width: 430px; }
+  /* ---- the broadcast interrupt: the house cuts into the feed ---- */
+  #twistcast {
+    position: absolute; inset: 0; display: none; flex-direction: column;
+    align-items: center; justify-content: center; gap: 12px; z-index: 7;
+    text-align: center; cursor: pointer;
+    background: repeating-linear-gradient(0deg, rgba(4,6,5,0.87) 0 2px, rgba(12,16,12,0.87) 2px 4px);
+  }
+  #twistcast.show { display: flex; animation: castin 0.22s steps(5) both; }
+  @keyframes castin { from { opacity: 0; transform: scaleY(0.04); } to { opacity: 1; transform: scaleY(1); } }
+  #twistcast .tclabel { font-size: 10px; letter-spacing: 4px; color: var(--text-dim); }
+  #twistcast .tcname { font-size: 26px; letter-spacing: 9px; color: var(--amber); }
+  #twistcast .tcterms { font-size: 13px; letter-spacing: 3px; color: var(--text); border: 1px solid var(--amber); padding: 8px 18px; }
+  #twistcast .tcwhen { font-size: 10px; letter-spacing: 3px; color: var(--text-dim); }
+  #twistcast .tcdismiss { font-size: 9px; letter-spacing: 2px; color: var(--text-dim); margin-top: 12px; }
+  #twistchip.pulse { animation: chippulse 0.5s ease-out 3; }
+  @keyframes chippulse { 0% { background: rgba(255,180,80,0.4); } 100% { background: transparent; } }
+  #btnEnd.priced { color: var(--amber); border-color: var(--amber); }
   #boot { font-size: 12px; color: var(--red); padding: 10px 0; display: none; }
   #boot.show { display: block; }
 </style>
@@ -145,6 +162,7 @@
       </div>
     </div>
     <div id="card"></div>
+    <div id="twistcast"></div>
   </div>
   <div id="panel">
     <div class="box" id="turnbar"><span id="turnlabel"></span><span id="seed"></span></div>
@@ -254,6 +272,12 @@ const sfx = {
   down:   () => { beep(140, 0.3, "sawtooth", 0.06); setTimeout(() => beep(70, 0.4, "sawtooth", 0.05), 90); },
   turn:   () => { beep(440, 0.07); setTimeout(() => beep(660, 0.09), 90); },
   yield:  () => { beep(660, 0.1, "sine", 0.04); setTimeout(() => beep(440, 0.18, "sine", 0.04), 110); },
+  // the house's voice: a descending broadcast sting over a low carrier —
+  // the only entity in the yard allowed to sound like a transmission
+  house:  () => { beep(65, 0.5, "sawtooth", 0.025); beep(1040, 0.09, "square", 0.03);
+                  setTimeout(() => beep(780, 0.09, "square", 0.03), 100);
+                  setTimeout(() => beep(520, 0.22, "square", 0.035), 200); },
+  houseEcho: () => { beep(520, 0.07, "square", 0.025); setTimeout(() => beep(780, 0.12, "square", 0.03), 80); },
 };
 
 // ---- comms log --------------------------------------------------
@@ -402,6 +426,41 @@ function beginCard() {
   cardEl.classList.remove("show");
 }
 
+/* ---- the broadcast interrupt ------------------------------------
+   The house's card must not lose the attention war to the fight it is
+   commenting on (playtest finding: a locked-in player never saw the
+   feed line or the chip). When the showrunner plays, the broadcast
+   takes the screen and HOLDS it until acknowledged — same law as THE
+   CARD holding the match until begun. It fires between rounds by
+   design, on the player's own clock, so the interruption costs
+   nothing tactically; a timed toast would just be the missable line
+   with a bigger font. Presentation only: the rules emitted the same
+   event either way, and the transcript is unchanged. */
+var twistcastOpen = false;
+const twistcastEl = document.getElementById("twistcast");
+function showTwistcast(card) {
+  twistcastEl.innerHTML = `
+    <div class="tclabel">— BROADCAST OVERRIDE · THE SHOWRUNNER —</div>
+    <div class="tcname">${card.name}</div>
+    <div class="tcterms">${card.terms}</div>
+    <div class="tcwhen">NEXT ROUND</div>
+    <div class="tcdismiss">any key / click</div>`;
+  twistcastOpen = true;
+  twistcastEl.classList.add("show");
+}
+function hideTwistcast() {
+  twistcastOpen = false;
+  twistcastEl.classList.remove("show");
+}
+twistcastEl.onclick = hideTwistcast;
+
+function pulseTwistChip() {
+  const chip = document.getElementById("twistchip");
+  chip.classList.remove("pulse");
+  void chip.offsetWidth;   // restart the animation
+  chip.classList.add("pulse");
+}
+
 function onEvent(ev) {
   const line = formatEvent(ev, wrapHTML);
   if (line !== null) log(line);
@@ -438,6 +497,10 @@ function onEvent(ev) {
     case "select": sfx.select(); showSolution(null, null); break;
     // the AI sets overwatch constantly; only chirp for the player's own
     case "overwatch-set": if (ev.unit.side === "op") sfx.select(); break;
+    // the house speaks: sting + the broadcast takes the screen; the
+    // resolve is a smaller echo — the priced button carries it from there
+    case "twist-announce": sfx.house(); showTwistcast(ev.card); break;
+    case "twist-resolve":  sfx.houseEcho(); pulseTwistChip(); break;
     case "end":    showEnd(ev); break;
   }
 }
@@ -1319,13 +1382,13 @@ function syncPanel() {
   // amber once live — the same terms the feed printed, nowhere sneakier
   const chip = document.getElementById("twistchip");
   if (S.pendingTwist !== null) {
-    chip.style.display = "block"; chip.className = "pending";
+    chip.style.display = "block"; chip.classList.add("pending");
     chip.textContent = `THE HOUSE PLAYS: ${TWISTS[S.pendingTwist].name} — NEXT ROUND`;
   } else if (S.activeTwist !== null) {
-    chip.style.display = "block"; chip.className = "";
+    chip.style.display = "block"; chip.classList.remove("pending");
     chip.textContent = `${TWISTS[S.activeTwist].name} — ${TWISTS[S.activeTwist].terms}`;
   } else {
-    chip.style.display = "none";
+    chip.style.display = "none"; chip.classList.remove("pending", "pulse");
   }
   document.getElementById("turnlabel").innerHTML = S.gameOver
     ? (S.gameOver === "win" ? '<span class="op">MISSION COMPLETE</span>' : '<span class="ho">MISSION FAILED</span>')
@@ -1351,8 +1414,16 @@ function syncPanel() {
   document.getElementById("btnShoot").className = S.targetMode ? "armed" : "";
   document.getElementById("btnOw").disabled = !can;
   // during the decision the end-turn button becomes the mercy button
-  document.getElementById("btnEnd").textContent = S.decision ? "SPARE THEM [⏎]" : "END TURN [⏎]";
-  document.getElementById("btnEnd").disabled = S.busy || S.gameOver !== null || S.turn !== "op";
+  // the card's most important consumer is the choice itself: when the
+  // house has priced mercy, the price sits ON the spare button — not in
+  // a chip two boxes away (playtest finding)
+  const btnEnd = document.getElementById("btnEnd");
+  const priced = S.decision && S.activeTwist !== null && TWISTS[S.activeTwist].spareRating !== undefined;
+  btnEnd.textContent = S.decision
+    ? (priced ? `SPARE THEM [⏎] · HOUSE PAYS +${TWISTS[S.activeTwist].spareRating}` : "SPARE THEM [⏎]")
+    : "END TURN [⏎]";
+  btnEnd.classList.toggle("priced", priced);
+  btnEnd.disabled = S.busy || S.gameOver !== null || S.turn !== "op";
 }
 
 function showSolution(att, def) {
@@ -1429,6 +1500,9 @@ document.addEventListener("keydown", e => {
   // the card holds the match until the player begins it — the overlay
   // blocks the canvas by covering it; keys are blocked here
   if (cardOpen) { if (e.key === "Enter") beginCard(); return; }
+  // the broadcast holds the first key it hears: dismiss, don't act —
+  // an Enter meant for the overlay must never end a turn
+  if (twistcastOpen) { hideTwistcast(); return; }
   if (S.gameOver || S.busy || S.turn !== "op") return;
   const u = selected();
   switch (e.key) {
