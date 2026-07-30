@@ -328,8 +328,19 @@ and access stay play-gated, or the allegiance layer is dead on arrival.
    (Design philosophy rule 1: shared state must be visible.)
 5. **Showrunner authority.** How much may the GM-as-showrunner interfere
    mid-match before it violates turn authority and determinism
-   (`Sentinel 2D.md` §4)? Current lean: twists are declared between rounds,
-   resolved by the same pure-function pipeline — never silent mid-turn edits.
+   (`Sentinel 2D.md` §4)? **Decided (2026-07-29), built as roadmap step 4:**
+   a twist is a *recorded input* — `["twist", cardId]` enters the witness
+   record like any player verb, legal only in the between-rounds window,
+   announced on the feed one resolution-moment before it lands, budgeted
+   (one card per match) by the rules rather than by director etiquette.
+   The core validates and resolves; *who* chooses lives outside it (a
+   reactive deterministic director today, the campaign brain later), which
+   is also how set-story-vs-dynamic resolves: the job authors the deck,
+   the drama picks the moment. Settled law alongside it: **the house can
+   monetize your decision; it cannot decide what the decision means** —
+   cards price choices, never touch morale, yield thresholds, or what a
+   spare socially costs, and their terms print on the feed with the
+   numbers in them.
 6. **Exposure model for false colors.** Event-driven (a reader must be
    physically present) or threshold-based? How much of the presence list is
    visible pre-match? Current lean: fully visible — the risk is a decision,
@@ -366,7 +377,18 @@ in the core under its golden-transcript tests, never in a renderer:
    edge with identical fingerprint, rating, and purse. The card is data
    (`MATCH`); dynamic dealing replaces the object, not the code*
 4. **Showrunner twists** — between-round events drawn from a small deck,
-   announced on the feed before they resolve
+   announced on the feed before they resolve. *Built (2026-07-29): the
+   twist grammar lives in the rules core as a recorded verb (see open
+   question 5's resolution), with MERCY ODDS as the first card — the
+   house replaces the spare payout with a bounty, terms printed on the
+   feed. A deterministic reactive director (`tactical-core/director.js`)
+   plays the card when a fighter is one bad beat from kneeling; the 3D
+   prototype wires it in as a second input adapter, with the card's
+   state on a panel chip (dim while announced, amber once live). The
+   witness stamp grew a second golden to cover twist behavior — card
+   balance changes now move the rules version, as they must. Remaining
+   deck (DOUBLE STAKES, THE DOOR OPENS, THE CROWD TURNS) waits until
+   MERCY ODDS proves the loop feels like a showrunner*
 5. **Campaign wiring** — matches as a job type; results into wiki events,
    disposition changes, and dormant threads. Includes persisting match
    input transcripts: the seed reconstructs only the opening deal, and a

@@ -49,6 +49,8 @@
   #ratingrow b { color: var(--amber); font-weight: normal; }
   #ratingbar { position: relative; height: 10px; background: #241d10; border: 1px solid var(--line); }
   #ratingbar b { position: absolute; top: 1px; bottom: 1px; left: 1px; background: var(--amber); transition: width 0.35s; }
+  #twistchip { display: none; margin-top: 6px; padding: 3px 6px; font-size: 11px; letter-spacing: 1px; color: var(--amber); border: 1px dashed var(--line); }
+  #twistchip.pending { color: var(--text-dim); }
   .unitrow { display: flex; justify-content: space-between; font-size: 12px; padding: 3px 4px; cursor: pointer; border-left: 2px solid transparent; }
   .unitrow.sel { border-left-color: var(--green); background: rgba(70,224,122,0.06); }
   .unitrow.dead { color: var(--text-dim); text-decoration: line-through; cursor: default; }
@@ -149,6 +151,7 @@
     <div class="box">
       <div id="ratingrow"><span>RATING</span><b id="ratingval">50</b></div>
       <div id="ratingbar"><b id="ratingfill" style="width:50%"></b></div>
+      <div id="twistchip"></div>
     </div>
     <div class="box">
       <h2>SQUAD</h2>
@@ -181,7 +184,8 @@
       ▪ low crate = half cover (−20 to be hit) &nbsp; █ wall = full cover (−40, blocks sight)<br>
       cover only helps against fire from <b>that side</b> — rotate to read the angle<br>
       the amber bar is morale — break it and they yield. What you do next is watched.<br>
-      RATING is the crowd: flash builds it, turtling bleeds it, and it pays the purse — win or lose.
+      RATING is the crowd: flash builds it, turtling bleeds it, and it pays the purse — win or lose.<br>
+      THE HOUSE holds one card. If it plays, the feed announces the terms a round before they land.
     </div>
     <div class="box" id="boot"></div>
   </div>
@@ -205,11 +209,12 @@
 
 import * as THREE from "./vendor/three.module.js";
 import {
-  S, W, H, FLOOR, HALF, FULL, RATING,
+  S, W, H, FLOOR, HALF, FULL, RATING, TWISTS,
   bindIO, restart as rulesRestart, formatEvent,
   selected, living, unitAt, solution, los, reachable, coveringTiles,
   selectUnit, cycleSelect, tryMove, tryShoot, tryFinish, spare, setOverwatch, endPlayerTurn,
 } from "../tactical-core/rules.js";
+import { directorTick } from "../tactical-core/director.js";
 import { spriteFor } from "./sprites.js";
 
 // ---- renderer-owned state --------------------------------------
@@ -217,6 +222,7 @@ import { spriteFor } from "./sprites.js";
 var hoverTile = null;
 var tracers = [];        // {x0,y0,x1,y1,until,mesh?}
 var curSeed = 0;
+var directorArm = false; // a between-rounds window is opening — let the house read the board
 
 function newSeed() { return (Math.floor(performance.now() * 1000) ^ (Math.random() * 0xffffffff)) >>> 0; }
 // ?seed=1a2b3c pins the opening encounter so a specific board can be replayed,
@@ -291,7 +297,7 @@ const MATCH = {
     ["SYNDICATE ODDSMAKER", "book open, even money"],
     ["LATTICE STATION CHIEF", "wants the relay back; hosts under protest"],
   ],
-  rules: "No referee. Yields are honored by custom, and a finish is legal on this card. What you do next is watched.",
+  rules: "No referee. Yields are honored by custom, and a finish is legal on this card. The house holds one card of its own — twists announce on the feed a round before they land. What you do next is watched.",
   colors: "COLORS: none declared — eleven factions read an empty patch eleven ways.",
   sponsor: "none — open purse",   // sponsorship is leverage, and leverage is the campaign layer's
 };
@@ -426,7 +432,9 @@ function onEvent(ev) {
     case "finish": sfx.down(); break;
     case "yield":  sfx.yield(); break;
     case "yield-decision": sfx.turn(); break;
-    case "turn":   sfx.turn(); break;
+    // the player's round is opening — arm the director; it speaks on the
+    // first quiet frame (enemyTurn emits this while S.busy still holds)
+    case "turn":   sfx.turn(); if (ev.side === "op") directorArm = true; break;
     case "select": sfx.select(); showSolution(null, null); break;
     // the AI sets overwatch constantly; only chirp for the player's own
     case "overwatch-set": if (ev.unit.side === "op") sfx.select(); break;
@@ -445,6 +453,9 @@ function consequences(spared, finished, result, rating) {
     else out.push("Cleared at the gun — no yields taken, none refused.");
   } else {
     out.push("The book pays the other corner. The record shows how it went — all of it.");
+  }
+  if (spared && S.activeTwist !== null && TWISTS[S.activeTwist].spareRating !== undefined) {
+    out.push("The house put a number on mercy and you collected. Everyone watching saw the price.");
   }
   out.push(rating >= 70 ? "The crowd got a show. This one will travel."
         : rating <= 30 ? "Dead air, says the oddsmaker. The purse agrees."
@@ -492,7 +503,12 @@ function showEnd(ev) {
 bindIO({
   sleep: ms => new Promise(r => setTimeout(r, ms)),
   emit: onEvent,
-  changed: () => { draw(); syncPanel(); },
+  changed: () => {
+    // the house reads the board once per round, before the player acts —
+    // same doorway as the player's own verbs, and the rules can refuse it
+    if (directorArm && !S.busy) { directorArm = false; directorTick(); }
+    draw(); syncPanel();
+  },
 });
 
 /* ============================================================
@@ -1299,6 +1315,18 @@ function frame() {
 function syncPanel() {
   document.getElementById("ratingval").textContent = S.rating;
   document.getElementById("ratingfill").style.width = S.rating + "%";
+  // the house's card, visible the moment it exists: dim while announced,
+  // amber once live — the same terms the feed printed, nowhere sneakier
+  const chip = document.getElementById("twistchip");
+  if (S.pendingTwist !== null) {
+    chip.style.display = "block"; chip.className = "pending";
+    chip.textContent = `THE HOUSE PLAYS: ${TWISTS[S.pendingTwist].name} — NEXT ROUND`;
+  } else if (S.activeTwist !== null) {
+    chip.style.display = "block"; chip.className = "";
+    chip.textContent = `${TWISTS[S.activeTwist].name} — ${TWISTS[S.activeTwist].terms}`;
+  } else {
+    chip.style.display = "none";
+  }
   document.getElementById("turnlabel").innerHTML = S.gameOver
     ? (S.gameOver === "win" ? '<span class="op">MISSION COMPLETE</span>' : '<span class="ho">MISSION FAILED</span>')
     : S.decision ? '<span style="color:var(--amber)">▶ THEY YIELD — YOUR CALL</span>'
