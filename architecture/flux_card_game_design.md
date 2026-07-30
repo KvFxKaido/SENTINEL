@@ -122,6 +122,19 @@ that way:
   night it got won at gunpoint), never statistical — a worn card plays
   at full strength. Honest surfaces: the game state is the text, not
   the damage.
+- **Errata mints, never overwrites.** A card, once printed, keeps its
+  printed text forever. Balance changes ship as *new print runs* —
+  new collectible cards with their own provenance — and the old
+  printing stays legal and stays yours. No patch ever reaches into a
+  binder. Where a printing genuinely warps play, the world handles it
+  the way folk games always have: tables and regions bar it by house
+  rule — visible, local, chosen — never by silent global rewrite.
+  This is the witness discipline at card scale (history is never
+  reinterpreted; the rules stamp refuses exactly this), and it has a
+  paper trail: the original FLUX pillars demanded "no meta shifts
+  deleting your deck," written by a designer who once quit a card
+  game for a year over a retroactive nerf. BREAKER (§7) is printed
+  accordingly.
 - **Named cards depict real people of the world.** Faction legends,
   Circuit fighters, campaign figures. The folk game is how the world
   gossips about its own history — a card of a fighter you played as in
@@ -165,12 +178,12 @@ grid hardware.
 | # | Card | Cost/Power | Text | Snap source |
 |---|------|-----------|------|-------------|
 | 1 | **CAPACITOR** (designation) | 1/0 | End of Turn: +1 Power for each unspent Energy. | Sunspot |
-| 2 | *[AWAITING CARD TEXT]* | 2/1 | Transforms under unspent energy — exact current text needed. | Bruce Banner |
+| 2 | **FUSE • VOLATILE LINEMAN** | 2/1 | End of Turn: If you have unspent Energy, 33% chance to OVERCLOCK — this transforms into a high-Power unit (value set in tuning). | Bruce Banner |
 | 3 | **STATIC • DEAD-AIR ENGINEER** | 3/3 | Ongoing: On Reveal abilities won't happen at this location. | Cosmo |
-| 4 | *[AWAITING CARD TEXT]* | 3/3 | — | Rocket Raccoon & Groot |
-| 5 | *[AWAITING CARD TEXT]* | 3/6 | — | Luna Snow |
-| 6 | **BREAKER • LOAD LIMITER** | 4/3 | On Reveal: Destroy all enemy cards here with 10 or more Power. | Shang-Chi |
-| 7 | *[AWAITING CARD TEXT]* | 4/6 | — | Galacta |
+| 4 | **LEECH TAP** (designation) | 3/3 | Moveable once. After your opponent plays a card here, steal 1 Power from it. | Rocket Raccoon & Groot |
+| 5 | **MARA • BALLAST ENGINEER** | 3/6 | On Reveal: Add a BALLAST (1-Cost, 0-Power, inert) to each side of this location. | Luna Snow |
+| 6 | **BREAKER • LOAD LIMITER** | 4/3 | On Reveal: Destroy **all** enemy cards here with 10 or more Power. | Shang-Chi — *pre-nerf text, by law (§5)* |
+| 7 | **PRIORITY DISPATCH** (designation) | 4/6 | Each turn, the first card you play at another location reveals with +2 Power. | Galacta |
 | 8 | **RELAY • LONE-CIRCUIT FOREMAN** | 5/7 | On Reveal: Give +5 Power to each of your cards alone at another location. | Namora |
 | 9 | **HARMONIC DAMPER** (designation) | 5/8 | On Reveal: Remove the abilities from all Ongoing cards at this location. | Enchantress |
 | 10 | **REPRISAL PROTOCOL** (designation) | 5/8 | On Reveal: If your opponent played a card here this turn, +5 Power. | Gamora |
@@ -178,14 +191,18 @@ grid hardware.
 | 12 | **PEAK LOAD** (designation) | 6/10 | Costs 1 less for each unspent Energy you had last turn. | She-Hulk |
 
 Flavor direction (samples): CAPACITOR — *"Nothing on the grid goes to
-waste."* BREAKER — *"Overloads get cut. That's the job."* STEP-UP
-TRANSFORMER — *"One asset, stepped up across every line."*
+waste."* LEECH TAP — *"Somebody's drawing off the line."* BREAKER —
+*"Overloads get cut. That's the job."* PRIORITY DISPATCH — *"First on
+the schedule draws full voltage."* STEP-UP TRANSFORMER — *"One asset,
+stepped up across every line."*
 
-The curve (1·2·3·3·3·4·4·5·5·5·6·6) and the archetype's three organs —
-the unspent-energy core (1, 2, 12), the disruption suite (3, 6, 9),
-and the punishers (10, and likely 4) — carry over intact. Four slots
-await current card text before their translations are designed;
-mechanics are translated faithfully first, renamed second.
+The curve (1·2·3·3·3·4·4·5·5·5·6·6) and the archetype's organs carry
+over intact: the unspent-energy core (CAPACITOR, FUSE, PEAK LOAD), the
+disruption suite (STATIC, MARA, BREAKER, HARMONIC DAMPER), the
+punishers (LEECH TAP, REPRISAL PROTOCOL), and the tempo-and-spread
+payoff (PRIORITY DISPATCH, RELAY, STEP-UP TRANSFORMER). BREAKER is
+deliberately printed with the text its player earned Infinite with —
+see the errata law in §5.
 
 ## 8. Locations are places
 
