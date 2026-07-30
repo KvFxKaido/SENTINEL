@@ -14,8 +14,10 @@ fighting layer).
    (`architecture/art_direction_gba_tactics.md`, decided 2026-07-30):
    the 32×32 System A canvas at ~4× integer zoom — the fighter adds
    frame sets (stances, limb commitments, hitstun), never a larger
-   format. Impact feel is hitstop, shake, and sound, exactly as the
-   spec already legislates — never sprite detail.
+   format. The animation-detail cap is the body law's own tradeoff,
+   not a spec mandate; the spec independently wants hitstop-over-VFX
+   impact and readability-first animation, which is why the two are
+   compatible.
 
 If there's a conflict: **mechanics > lore > visuals**.
 

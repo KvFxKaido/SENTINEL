@@ -72,31 +72,49 @@ everywhere:
 - **One canvas.** 32×32, System A proportions, feet on the ground line —
   the same body on every surface that shows one: the tactical board, the
   walkable world, Close Contact's stage, and whatever comes after them.
-- **Zoom by integers only.** The board shows it at world density, the
-  fighter at ~4×, the diorama wherever its camera sits — always 2×/3×/4×,
-  never fractional, never downsampled. A surface that wants a different
-  size moves its camera, not the canvas.
+  This formally supersedes `Isometric Sprite System.md` (48×48), now
+  marked Historical.
+- **Authored once, never resampled into being.** No asset is ever
+  created by scaling another — 32×32 is the only authored form. On
+  **flat surfaces** (Close Contact's stage, UI, cards, thumbnails) the
+  canvas displays at integer magnification only — 1×, 2×, 3×, 4× —
+  never fractional; the roster preview's 3× thumbnails are the pattern,
+  the fighter at ~4× the plan. **World surfaces** (the board, the
+  diorama) consume the same texture through a projective camera with
+  nearest filtering, and the LCD pass quantizes everything to one texel
+  grid — a camera is not a resample, and the board's ~21-target-pixel
+  sprite is legal because nobody *authored* it. (Caught in review: the
+  first draft claimed "integer zoom everywhere," which the shipped
+  board already violated. The law is about authoring, and always was.)
 - **Frames, never formats.** Surfaces add frame *sets* to the same canvas:
   the board has idle and kneel; the world adds directional walks; the
   fighter adds stances, limb commitments, and hitstun. Same palette, same
   outline rules, same ground-line contract, one `validate()` guarding all
   of it. A character is never re-rendered — only re-consumed.
-- **The density agreement is the teeth.** Body pixels and voxel matter
-  share one density (1.10 world / 16 px, above). Renegotiating the body
-  scale means renegotiating the world — that structural coupling, not
-  preference, is what makes this law instead of habit.
+- **The density agreement is the teeth — stated correctly.** Matter is
+  authored at 1.10/16 world units per pixel (terrain voxels); bodies at
+  1.10/32 — body pixels are exactly **twice as fine** as matter, a fixed
+  2:1 ratio, because identity needs pixels and walls don't. (Caught in
+  review: the first draft claimed one shared density, and the shipped
+  constants refute it — 1.10/16 was never the sprite density. The
+  arithmetic is now computed, not narrated.) The ratio is the coupling:
+  renegotiate the canvas and either the 2:1 breaks visibly or the world
+  re-extrudes. That bill is what makes this law instead of habit.
 - **Faces are exempt, deliberately.** Close-up identity belongs to the
   portrait register pair (`art_style_audit.md`, 2026-07-29). Bodies never
   grow toward faces, and detail never smuggles downward between scales —
   the fighter's frame set may be large, but its pixels are never finer.
 
 Costs, accepted on the record: Close Contact forgoes high-detail
-animation permanently (its own non-goals already renounce it — impact
-lives in hitstop, shake, and sound per its spec), and hitboxes-from-art
-are coarse (a game of three rigid heights says that is the game). If a
-future surface truly cannot live at an integer zoom of 32, this section
-gets a successor — by a PR that says so, with the world-density bill
-attached.
+animation — **a cost this law imposes and owns**. Its spec does not
+mandate the cap (caught in review: the first draft pinned it on the
+spec's non-goals, which actually renounce rosters, balance, cinematic
+story, and netplay — not animation detail); the spec is merely
+*compatible* with it, wanting readability-first animation and
+hitstop-over-VFX impact. Hitboxes-from-art stay coarse (a game of three
+rigid heights says that is the game). If a future surface truly cannot
+live on the 32 canvas, this section gets a successor — by a PR that
+says so, with the world-density bill attached.
 
 ## UI language
 
@@ -183,10 +201,12 @@ shipped in `tactical3d/` the day it was decided:
   back show the art; author a deliberate cap row (the lid), darker edge
   columns (the flanks), and full-width groove rows that read from every
   side. Seam pixels extrude shallower, so grooves catch the light for real.
-- **One pixel density for all matter.** Terrain voxels use the sprite
-  density (1.10 world / 16 px — the proportion law). The world and its
-  fighters are made of the same-sized stuff; nothing reads as belonging to
-  a different game.
+- **One pixel density for all matter.** Terrain voxels are authored at
+  1.10 world / 16 px; bodies at 1.10 / 32 — a fixed 2:1 ratio, matter
+  coarse and bodies fine. *(Corrected 2026-07-30: this bullet originally
+  called 1.10/16 "the sprite density," which the sprite constants
+  refute — see the body law's density clause.)* One family of stuff, one
+  deliberate ratio; nothing reads as belonging to a different game.
 - **Diorama-in-void staging.** The yard is a lit stage on black — nothing
   outside the broadcast exists. (The LCD pass lifts the void to a faint
   panel glow; that is the handheld being honest about its panel, not a
@@ -220,7 +240,10 @@ respect. SRW J's structure wearing SENTINEL's color.
 
 - Fight card / fighter sheet mock for the Circuit: tabs FIGHTER / LOADOUT /
   RECORD, portrait + insignia slot top-left, every stat in a beveled cell.
-- `/portrait` prompt guidance updated to the quantized cel style above.
+- ~~`/portrait` prompt guidance updated to the quantized cel style
+  above~~ — overtaken (2026-07-29): the register pair decided otherwise,
+  and the skill now grades photoreal sources into feed/terminal
+  registers (the mandatory grading step in `.claude/skills/portrait/`).
 - 2D renderer sprite pass: rework the 16×16 authored sprites toward
   silhouette-first with single-pixel outlines (they are close already).
 - Panel CSS pass (hex watermark, beveled cells) once the palette fork is
