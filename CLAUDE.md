@@ -10,6 +10,7 @@ SENTINEL/
 │   └── SENTINEL Playbook — Core Rules.md
 ├── architecture/            # Design + decision docs (each carries a Status: line)
 │   ├── sentinel_circuit_design.md    # The Circuit — sanctioned combat (Proposal)
+│   ├── close_contact_design.md       # 1v1 fighting system spec (Proposal)
 │   ├── art_direction_gba_tactics.md  # Sprite + UI art direction (Reference)
 │   ├── AGENT_ARCHITECTURE.md         # Agent design, state schema, tools
 │   ├── VIDEO_GAME_REUSE_MAP.md       # What the video game reuses from this stack
@@ -18,7 +19,8 @@ SENTINEL/
 ├── prototypes/              # Playable prototypes (see prototypes/README.md)
 │   ├── tactical-core/       # Deterministic rules module — golden transcripts
 │   ├── tactical/            # 2D canvas renderer
-│   └── tactical3d/          # 2.5D renderer (three.js, billboarded sprites)
+│   ├── tactical3d/          # 2.5D renderer (three.js, billboarded sprites)
+│   └── close-contact/       # 1v1 fighting prototype (Godot 4.5, has own CLAUDE.md)
 ├── workers/
 │   └── witness/             # Cloudflare Worker — certifies transcripts at the edge
 ├── sentinel-agent/          # The AI GM implementation
@@ -87,6 +89,7 @@ Ship a feature only if its state is visible, its failure modes are legible, and 
 |----------|---------|
 | `core/SENTINEL Playbook — Core Rules.md` | The complete game rules |
 | `architecture/sentinel_circuit_design.md` | The Circuit — combat as an institution (Proposal) |
+| `architecture/close_contact_design.md` | Close Contact — the 1v1 fighting spec (Proposal) |
 | `architecture/art_direction_gba_tactics.md` | Sprite + UI art direction (Reference) |
 | `architecture/AGENT_ARCHITECTURE.md` | Agent design, state schema, tools |
 | `prototypes/tactical-core/README.md` | Deterministic rules module + the golden-transcript discipline |
