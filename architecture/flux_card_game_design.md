@@ -67,6 +67,28 @@ name outright, and the Drifters' founder was THE ETERNAL WANDERER);
   record.
 - **Win two of three locations** by total Power.
 
+### Resolution order (binding chassis work)
+
+"Everything resolves in public" needs a fixed order, or determinism
+dies at the first STATIC-versus-On-Reveal standoff (caught in review).
+First-pass rule, flagged as required chassis work:
+
+- A **priority player** exists every round: whoever leads on locations
+  as the round opens. First round and ties: the player who accepted
+  the ante last reveals first — the table's guest shows their hand
+  before the host, a folk custom doing protocol work.
+- Reveals resolve priority player first, in commit order, location by
+  location left to right; then the other player the same way.
+- Reactive effects (LEECH TAP, REPRISAL PROTOCOL) fire in the order
+  their conditions become true; simultaneous conditions resolve in
+  commit order, priority side first.
+- Suppression (STATIC) is evaluated at the moment each On Reveal
+  would fire, never at commit.
+
+Whatever the final rule becomes, the acceptance bar is this repo's
+existing one: a FLUX match must replay byte-identically from its
+record — golden transcripts, same as the tactical core.
+
 ### The raise and the fold
 
 Snap's cube betting returns diegetically — you raise with *cards*:
@@ -135,6 +157,16 @@ that way:
   deleting your deck," written by a designer who once quit a card
   game for a year over a retroactive nerf. BREAKER (§7) is printed
   accordingly.
+
+  And because printings of one name can carry different text, **a
+  card's name is its face, not its identity**: every printing bears a
+  stable identifier — a content hash of its printed text and run —
+  and every record in the game (binders, provenance ledgers, deck
+  lists, witness-certified matches) references printings, never
+  names. The archive must always know *which* BREAKER was played
+  (caught in review). This is the same name-versus-identity split the
+  witness worker already enforces: FNV is a checksum, SHA is an
+  identity.
 - **Named cards depict real people of the world.** Faction legends,
   Circuit fighters, campaign figures. The folk game is how the world
   gossips about its own history — a card of a fighter you played as in
@@ -237,10 +269,18 @@ the way the Circuit's venues are learned.
 - **The witness layer fits this game best of all** (future work, noted
   now so the design doesn't foreclose it): turn-based, discrete state,
   tiny records. Commit-reveal is the cryptographic shape of witnessed
-  hidden information — hash the committed hand, reveal, verify.
-  A match record with hidden-then-revealed hands is certifiable at the
-  edge with the machinery the Circuit already runs. Card provenance
-  (§5) is the same pattern at object scale.
+  hidden information — but a bare hash of a hand is neither hiding nor
+  binding over a card pool this small: the play space is enumerable
+  against the hash, a hand-hash can be replayed across turns, and it
+  says nothing about placement (caught in review, twice,
+  independently). The commitment must cover a **canonical
+  serialization of the full hidden turn action** — card printings,
+  destinations, order — **domain-separated** by match, round, and
+  player, **salted with a fresh per-commit nonce**; the reveal is the
+  action plus the nonce, verified against the commitment. In that
+  shape, a match record with hidden-then-revealed hands is certifiable
+  at the edge with the machinery the Circuit already runs. Card
+  provenance (§5) is the same pattern at object scale.
 
 ## 10. Open questions
 
