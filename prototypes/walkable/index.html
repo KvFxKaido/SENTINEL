@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SENTINEL — Kestrel Interior Walkable Prototype</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    --bg: #050706;
+    --panel: #0b110d;
+    --panel-2: #0e1711;
+    --line: #1d2b20;
+    --line-hot: #31543a;
+    --green: #46e07a;
+    --green-dim: #2a7a4a;
+    --amber: #ffb347;
+    --cyan: #5ccfff;
+    --red: #ff6b63;
+    --text: #b8d8c0;
+    --text-dim: #607c68;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    min-height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "SF Mono", "Cascadia Mono", Consolas, Menlo, monospace;
+  }
+
+  body {
+    display: flex;
+    justify-content: center;
+    padding: 16px;
+  }
+
+  #app {
+    width: min(100%, 1000px);
+    display: grid;
+    grid-template-columns: minmax(0, 700px) 286px;
+    gap: 14px;
+    align-items: start;
+  }
+
+  #left {
+    position: relative;
+    width: 100%;
+    border: 1px solid var(--line);
+    background: #000;
+    overflow: hidden;
+  }
+
+  /* The renderer owns a fixed 700×444 image. CSS may shrink that image on
+     a narrow screen, but never changes its ratio or its pixel grammar. */
+  canvas#cv {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 700 / 444;
+    background: #000;
+    image-rendering: pixelated;
+  }
+
+  #left::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0.15) 0 1px,
+      transparent 1px 3px
+    );
+    mix-blend-mode: multiply;
+  }
+
+  #asset-gate {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 28px;
+    background: rgba(3, 5, 4, 0.9);
+    text-align: center;
+  }
+
+  #asset-gate.show { display: flex; }
+
+  #asset-gate .gate-box {
+    max-width: 520px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    padding: 16px 18px;
+    box-shadow: inset 1px 1px #203327, inset -1px -1px #050806;
+  }
+
+  #asset-gate h2 {
+    margin-bottom: 10px;
+    color: var(--amber);
+    font-size: 13px;
+    font-weight: normal;
+    letter-spacing: 3px;
+  }
+
+  #asset-gate p {
+    color: var(--text-dim);
+    font-size: 11px;
+    line-height: 1.7;
+  }
+
+  #asset-gate code { color: var(--text); }
+  #asset-gate.asset-error h2 { color: var(--red); }
+
+  #panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .box {
+    border: 1px solid var(--line);
+    background: var(--panel);
+    padding: 10px 12px;
+    box-shadow: inset 1px 1px #16251b, inset -1px -1px #050806;
+  }
+
+  .eyebrow {
+    margin-bottom: 7px;
+    color: var(--amber);
+    font-size: 9px;
+    letter-spacing: 3px;
+  }
+
+  h1 {
+    color: var(--text);
+    font-size: 15px;
+    font-weight: normal;
+    line-height: 1.35;
+    letter-spacing: 2px;
+  }
+
+  .subtitle {
+    margin-top: 8px;
+    color: var(--text-dim);
+    font-size: 10px;
+    line-height: 1.55;
+  }
+
+  .telemetry {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .cell {
+    min-width: 0;
+    border: 1px solid var(--line);
+    background: var(--panel-2);
+    padding: 6px 7px;
+  }
+
+  .cell span {
+    display: block;
+    margin-bottom: 3px;
+    color: var(--text-dim);
+    font-size: 8px;
+    letter-spacing: 2px;
+  }
+
+  .cell b {
+    display: block;
+    overflow: hidden;
+    color: var(--green);
+    font-size: 11px;
+    font-weight: normal;
+    letter-spacing: 1px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .box h2 {
+    margin-bottom: 8px;
+    color: var(--text-dim);
+    font-size: 9px;
+    font-weight: normal;
+    letter-spacing: 2px;
+  }
+
+  .controls {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10px;
+    line-height: 1.5;
+  }
+
+  .controls th,
+  .controls td {
+    padding: 3px 0;
+    border-top: 1px solid #121e16;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .controls tr:first-child th,
+  .controls tr:first-child td { border-top: 0; }
+
+  .controls th {
+    width: 92px;
+    color: var(--text);
+    font-weight: normal;
+  }
+
+  .controls td { color: var(--text-dim); }
+
+  kbd {
+    border: 1px solid var(--line);
+    padding: 0 4px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 9px;
+  }
+
+  .audition {
+    border-left: 2px solid var(--amber);
+    color: var(--text-dim);
+    font-size: 10px;
+    line-height: 1.65;
+  }
+
+  .audition b {
+    color: var(--amber);
+    font-weight: normal;
+  }
+
+  #boot {
+    display: none;
+    color: var(--red);
+    font-size: 10px;
+    line-height: 1.65;
+  }
+
+  #boot.show { display: block; }
+
+  @media (max-width: 1015px) {
+    #app {
+      grid-template-columns: minmax(0, 700px);
+      justify-content: center;
+    }
+
+    #panel {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    #panel > :first-child,
+    #panel > .audition,
+    #boot { grid-column: 1 / -1; }
+  }
+
+  @media (max-width: 600px) {
+    body { padding: 8px; }
+    #app { gap: 8px; }
+    #panel { display: flex; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { scroll-behavior: auto !important; }
+  }
+</style>
+</head>
+<body>
+<main id="app">
+  <section id="left" aria-label="Walkable room viewport">
+    <canvas id="cv" aria-label="Cipher standing inside a voxel-extruded room"></canvas>
+    <div id="asset-gate" class="show" role="status" aria-live="assertive">
+      <div class="gate-box">
+        <h2>LOADING CIPHER</h2>
+        <p>16 local sprite sheets · idle / run / two attacks</p>
+      </div>
+    </div>
+  </section>
+
+  <aside id="panel">
+    <header class="box">
+      <div class="eyebrow">WALKABLE WORLD / COURT 01</div>
+      <h1>KESTREL INTERIOR<br>WALKABLE PROTOTYPE</h1>
+      <p class="subtitle">One room. One body. Movement and ignition under the same display glass.</p>
+    </header>
+
+    <section class="box telemetry" aria-label="Renderer status">
+      <div class="cell"><span>BODY</span><b id="body-state">LOADING</b></div>
+      <div class="cell"><span>ACTION</span><b id="action-state">IDLE</b></div>
+      <div class="cell"><span>FACING</span><b id="facing-state">DOWN</b></div>
+      <div class="cell"><span>DISPLAY</span><b id="display-state">LCD</b></div>
+      <div class="cell"><span>VIEW</span><b id="view-state">QTR 0</b></div>
+      <div class="cell"><span>MATTER</span><b>16 PX / 1.10</b></div>
+    </section>
+
+    <section class="box">
+      <h2>CONTROL SURFACE</h2>
+      <table class="controls">
+        <tr><th><kbd>WASD</kbd> / <kbd>↑↓←→</kbd></th><td>walk, camera-relative</td></tr>
+        <tr><th><kbd>J</kbd> / <kbd>Space</kbd></th><td>attack 1</td></tr>
+        <tr><th><kbd>K</kbd></th><td>attack 2</td></tr>
+        <tr><th><kbd>Q</kbd> / <kbd>E</kbd></th><td>orbit 90°</td></tr>
+        <tr><th><kbd>P</kbd></th><td>LCD / crunch / clean</td></tr>
+      </table>
+    </section>
+
+    <section class="box audition">
+      <b>PROVISIONAL BODY.</b> This Cipher is the audition body: 96×80 pack
+      format, selout dialect. Two auditions ride on this room —
+      selout-vs-ink and pack-format-vs-body-law — per
+      <code>architecture/art_direction_gba_tactics.md</code>.
+    </section>
+
+    <section class="box" id="boot" aria-live="assertive"></section>
+  </aside>
+</main>
+
+<script type="module">
+"use strict";
+/* ================================================================
+   SENTINEL walkable-world toy — pure renderer.
+
+   No tactical-core import, no rules, no witness. The product is exactly
+   one room and one walking body. This file borrows tactical3d's visual
+   machinery because the audition only means anything when world, body,
+   camera and display pass are the same machinery already under review.
+   ================================================================ */
+
+import * as THREE from "../tactical3d/vendor/three.module.js";
+
+// ---- room coordinates ---------------------------------------------
+const ROOM_W = 12;
+const ROOM_H = 9;
+const gx = x => x - (ROOM_W - 1) / 2;
+const gz = z => z - (ROOM_H - 1) / 2;
+
+const VIEW_W = 700;
+const VIEW_H = 444; // even on both axes: the LCD target is an exact half
+
+const canvas = document.getElementById("cv");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.setSize(VIEW_W, VIEW_H, false);
+
+const scene = new THREE.Scene();
+// Diorama-in-void staging: the room is the lit stage and the black beyond it
+// is not missing content. In LCD mode the panel lift keeps the void honest.
+scene.background = new THREE.Color(0x000000);
+
+// ---- display pipeline ---------------------------------------------
+// Same three treatments as tactical3d. The LCD pass is the unifier: it puts
+// the 32-density body and 16-density voxel matter on one 350×222 image
+// instead of asking crisp geometry and authored pixels to negotiate alone.
+const DISPLAY_MODES = ["lcd", "crunch", "clean"];
+let displayMode = "lcd";
+
+const LCD_W = 350;
+const LCD_H = 222;
+const lcdTarget = new THREE.WebGLRenderTarget(LCD_W, LCD_H, {
+  minFilter: THREE.NearestFilter,
+  magFilter: THREE.NearestFilter,
+});
+lcdTarget.texture.generateMipmaps = false;
+
+const postScene = new THREE.Scene();
+const postCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+const postMaterial = new THREE.ShaderMaterial({
+  uniforms: {
+    tex: { value: lcdTarget.texture },
+    texSize: { value: new THREE.Vector2(LCD_W, LCD_H) },
+  },
+  vertexShader: /* glsl */ `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = vec4(position.xy, 0.0, 1.0);
+    }
+  `,
+  fragmentShader: /* glsl */ `
+    varying vec2 vUv;
+    uniform sampler2D tex;
+    uniform vec2 texSize;
+    void main() {
+      vec3 c = texture2D(tex, vUv).rgb;
+      float l = dot(c, vec3(0.299, 0.587, 0.114));
+      c = mix(vec3(l), c, 0.84);
+      c *= vec3(1.05, 1.01, 0.93);
+      c = c * 1.04 + 0.016;
+      vec2 f = fract(vUv * texSize);
+      vec2 e = min(f, 1.0 - f);
+      float g = smoothstep(0.0, 0.30, e.x)
+              * smoothstep(0.0, 0.30, e.y);
+      c *= mix(0.70, 1.0, g);
+      gl_FragColor = vec4(c, 1.0);
+      #include <colorspace_fragment>
+    }
+  `,
+  depthTest: false,
+  depthWrite: false,
+});
+postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), postMaterial));
+
+const displayStateEl = document.getElementById("display-state");
+function applyDisplayMode() {
+  const dpr = Math.min(window.devicePixelRatio, 2);
+  renderer.setPixelRatio(
+    displayMode === "crunch" ? 0.6
+      : displayMode === "lcd" ? Math.max(1, Math.round(dpr))
+        : dpr
+  );
+  renderer.setSize(VIEW_W, VIEW_H, false);
+  displayStateEl.textContent = displayMode.toUpperCase();
+  canvas.dataset.displayMode = displayMode;
+}
+applyDisplayMode();
+
+// ---- camera -------------------------------------------------------
+// The room uses tactical3d's orthographic-ish 2:1 diorama view and its
+// quarter-turn contract. camAz eases continuously, so the Y billboard
+// swivels continuously too; there is no cardboard snap between views.
+const ELEV = 30 * Math.PI / 180;
+const CAM_DIST = 21;
+const HALF_W = 8.6;
+const HALF_H = HALF_W * VIEW_H / VIEW_W;
+const camera = new THREE.OrthographicCamera(
+  -HALF_W, HALF_W, HALF_H, -HALF_H, 0.1, 100
+);
+const CAMERA_FOCUS = new THREE.Vector3(0, 0.38, 0);
+const BASE_AZ = Math.PI / 4;
+let camQuarter = 0;
+let camAz = BASE_AZ;
+let camAzTarget = BASE_AZ;
+
+const viewStateEl = document.getElementById("view-state");
+function placeCamera() {
+  camera.position.set(
+    Math.cos(ELEV) * Math.sin(camAz) * CAM_DIST,
+    Math.sin(ELEV) * CAM_DIST,
+    Math.cos(ELEV) * Math.cos(camAz) * CAM_DIST
+  );
+  camera.lookAt(CAMERA_FOCUS);
+}
+
+function orbit(delta) {
+  camQuarter += delta;
+  camAzTarget = BASE_AZ + camQuarter * Math.PI / 2;
+  const shown = ((camQuarter % 4) + 4) % 4;
+  viewStateEl.textContent = `QTR ${shown}`;
+  canvas.dataset.cameraQuarter = String(shown);
+}
+placeCamera();
+orbit(0);
+
+// ---- lighting -----------------------------------------------------
+// The stage contract is sodium key over cool ambient. The fill stays low:
+// voxel grooves and the doorway silhouette need shadows more than the room
+// needs evenly exposed corners.
+scene.add(new THREE.AmbientLight(0x7896a8, 0.34));
+scene.add(new THREE.HemisphereLight(0x94bfd0, 0x071015, 0.38));
+
+const sodium = new THREE.DirectionalLight(0xffad55, 2.8);
+sodium.position.set(-5.5, 8, 6.5);
+sodium.castShadow = true;
+sodium.shadow.mapSize.set(1024, 1024);
+sodium.shadow.camera.left = -10;
+sodium.shadow.camera.right = 10;
+sodium.shadow.camera.top = 10;
+sodium.shadow.camera.bottom = -10;
+sodium.shadow.camera.near = 1;
+sodium.shadow.camera.far = 35;
+sodium.shadow.camera.updateProjectionMatrix();
+sodium.shadow.bias = -0.0015;
+scene.add(sodium);
+
+// A small cool practical marks the doorway without implying a second room.
+const doorPractical = new THREE.PointLight(0x5ccfff, 2.1, 5.5, 2);
+doorPractical.position.set(0, 1.25, gz(0) + 0.2);
+scene.add(doorPractical);
+
+// ---- floating deck ------------------------------------------------
+function bakeFloorTexture() {
+  const c = document.createElement("canvas");
+  c.width = c.height = 16;
+  const g = c.getContext("2d");
+  g.fillStyle = "#fbfbfb";
+  g.fillRect(0, 0, 16, 16);
+  g.fillStyle = "#dedede";
+  g.fillRect(0, 0, 16, 1);
+  g.fillRect(0, 15, 16, 1);
+  g.fillRect(0, 0, 1, 16);
+  g.fillRect(15, 0, 1, 16);
+  g.fillStyle = "#c9c9c9";
+  for (const [x, y] of [[2, 2], [13, 2], [2, 13], [13, 13]]) {
+    g.fillRect(x, y, 1, 1);
+  }
+  g.fillStyle = "#e8e8e8";
+  g.fillRect(4, 5, 3, 1);
+  g.fillRect(10, 10, 2, 1);
+  g.fillRect(11, 3, 1, 3);
+  g.fillRect(5, 12, 1, 1);
+  const tex = new THREE.CanvasTexture(c);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.generateMipmaps = false;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+const base = new THREE.Mesh(
+  new THREE.BoxGeometry(ROOM_W + 0.18, 0.24, ROOM_H + 0.18),
+  new THREE.MeshStandardMaterial({
+    color: 0x09100c,
+    roughness: 0.98,
+    metalness: 0,
+  })
+);
+base.position.y = -0.18;
+base.castShadow = true;
+base.receiveShadow = true;
+scene.add(base);
+
+const floorGeo = new THREE.BoxGeometry(0.98, 0.06, 0.98);
+const floorMat = new THREE.MeshStandardMaterial({
+  color: 0xffffff,
+  map: bakeFloorTexture(),
+  roughness: 0.93,
+  metalness: 0.03,
+});
+const floor = new THREE.InstancedMesh(floorGeo, floorMat, ROOM_W * ROOM_H);
+floor.receiveShadow = true;
+floor.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+
+{
+  const dummy = new THREE.Object3D();
+  const color = new THREE.Color();
+  for (let z = 0; z < ROOM_H; z++) {
+    for (let x = 0; x < ROOM_W; x++) {
+      const i = z * ROOM_W + x;
+      dummy.position.set(gx(x), -0.03, gz(z));
+      dummy.updateMatrix();
+      floor.setMatrixAt(i, dummy.matrix);
+      // The two exposed doorway tiles are the only amber floor note: a
+      // threshold, not a promise that more authored world exists outside.
+      const threshold = z === 0 && (x === 5 || x === 6);
+      color.setHex(
+        threshold ? 0x49371d
+          : ((x + z) & 1) ? 0x15231b : 0x18271e
+      );
+      floor.setColorAt(i, color);
+    }
+  }
+  floor.instanceMatrix.needsUpdate = true;
+  floor.instanceColor.needsUpdate = true;
+}
+scene.add(floor);
+
+// ---- voxel-extruded matter ---------------------------------------
+// This is tactical3d's recomp technique, copied as a material grammar:
+// pixel art becomes one depth-spanning box per authored pixel. Full-width
+// seam rows extrude two pixels shallower, so grooves remain grooves from
+// oblique views and actually catch the sodium key.
+const PX = 1.10 / 16;
+
+const MATTER_PAL = {
+  C: { c: "#4a5f50" },
+  L: { c: "#55705d" },
+  W: { c: "#33463a" },
+  V: { c: "#2c3d32" },
+  D: { c: "#1d2a21", inset: true },
+  M: { c: "#7da888" },
+  S: { c: "#273529" },
+  F: { c: "#8fae94" },
+  K: { c: "#6d8a72" },
+  E: { c: "#3f5546", inset: true },
+  G: { c: "#5d7a63" },
+  T: { c: "#17252a" },
+  B: { c: "#24576b", inset: true },
+  I: { c: "#66d9ff" },
+  A: { c: "#d99742" },
+};
+
+const WALL_ART = [
+  "CCCCCCCCCCCCCC",
+  "CLLLLLLLLLLLLC",
+  "VWWWDWWWWDWWWV",
+  "VWWWDWMMWDWWWV",
+  "VWMWDWWMWDWSWV",
+  "VWWWDWWWWDWWWV",
+  "VSWWDWWWWDWWSV",
+  "DDDDDDDDDDDDDD",
+  "VWWWDWWWWDWWWV",
+  "VWWWDWSSWDWWWV",
+  "VWWSDWSSWDWWWV",
+  "VWWWDWWWWDWWWV",
+  "VWWWDWWWWDWMWV",
+  "VSWWDWWWWDWWWV",
+  "VWWWDWWWWDWWWV",
+  "DDDDDDDDDDDDDD",
+  "VWWWDWWWWDWWWV",
+  "VWWWDWWWWDWSWV",
+  "VWSWDWWWWDWWWV",
+  "VWWWDWWWWDWWWV",
+  "VWWWDWSWWDWWWV",
+  "SSSSSSSSSSSSSS",
+];
+
+const CRATE_ART = [
+  "FFFFFFFFFFF",
+  "FKKKKKKKKKF",
+  "FEEEEEEEEEF",
+  "FKKKKKKKKKF",
+  "FEEEEEEEEEF",
+  "FGGGGGGGGGF",
+  "SSSSSSSSSSS",
+];
+
+// One new prop in the same language: a wall console whose cyan display is
+// the room's practical, with inset screen pixels and an amber service row.
+const CONSOLE_ART = [
+  "FFFFFFFFFFFFF",
+  "VTTTTTTTTTTTV",
+  "VTBBBBBBBBBTV",
+  "VTBIIIIIIIBTV",
+  "VTBIBBIBBIBTV",
+  "VTBIIIIIIIBTV",
+  "VTBBBBBBBBBTV",
+  "VTTTTDTTTTTTV",
+  "VTAAATTTAAATV",
+  "VTTTTTTTTTTTV",
+  "VTTDTTTTDTTTV",
+  "SSSSSSSSSSSSS",
+];
+
+function hash01(x, y) {
+  let h = (x * 374761393 + y * 668265263) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
+const matterSpots = [];
+const doorColumns = new Set([5, 6]);
+
+for (let x = 0; x < ROOM_W; x++) {
+  if (!doorColumns.has(x)) {
+    matterSpots.push({ kind: "wall", x, z: 0, rot: 0 });
+  }
+  matterSpots.push({ kind: "wall", x, z: ROOM_H - 1, rot: 0 });
+}
+for (let z = 1; z < ROOM_H - 1; z++) {
+  matterSpots.push({ kind: "wall", x: 0, z, rot: Math.PI / 2 });
+  matterSpots.push({ kind: "wall", x: ROOM_W - 1, z, rot: Math.PI / 2 });
+}
+
+matterSpots.push(
+  { kind: "crate", x: 3, z: 3, rot: 0 },
+  { kind: "crate", x: 8, z: 5, rot: Math.PI / 2 },
+  { kind: "console", x: 9, z: 2, rot: 0 }
+);
+
+function artFor(spot) {
+  if (spot.kind === "wall") return WALL_ART;
+  if (spot.kind === "crate") return CRATE_ART;
+  return CONSOLE_ART;
+}
+
+function depthFor(spot) {
+  if (spot.kind === "console") return 7 * PX;
+  return artFor(spot)[0].length * PX;
+}
+
+const voxelGeo = new THREE.BoxGeometry(1, 1, 1);
+const voxelMat = new THREE.MeshStandardMaterial({
+  color: 0xffffff,
+  roughness: 0.84,
+  metalness: 0.04,
+});
+
+function buildMatter() {
+  let count = 0;
+  for (const spot of matterSpots) {
+    const art = artFor(spot);
+    const cols = art[0].length;
+    for (const row of art) {
+      if (row.length !== cols) {
+        throw new Error(`${spot.kind} voxel art is not rectangular`);
+      }
+      for (const ch of row) if (MATTER_PAL[ch]) count++;
+    }
+  }
+
+  const mesh = new THREE.InstancedMesh(voxelGeo, voxelMat, count);
+  const dummy = new THREE.Object3D();
+  const color = new THREE.Color();
+  let i = 0;
+
+  for (const spot of matterSpots) {
+    const art = artFor(spot);
+    const rows = art.length;
+    const cols = art[0].length;
+    const depth = depthFor(spot);
+    const mirror = (Math.round(spot.x) + Math.round(spot.z)) & 1;
+    const shade = 0.94 + 0.12 * hash01(
+      Math.round(spot.x * 10),
+      Math.round(spot.z * 10)
+    );
+    const cx = gx(spot.x);
+    const cz = gz(spot.z);
+    const cos = Math.cos(spot.rot);
+    const sin = Math.sin(spot.rot);
+
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        const authoredCol = mirror ? cols - 1 - col : col;
+        const pixel = MATTER_PAL[art[row][authoredCol]];
+        if (!pixel) continue;
+
+        const localX = (col - (cols - 1) / 2) * PX;
+        dummy.position.set(
+          cx + localX * cos,
+          (rows - 1 - row + 0.5) * PX,
+          cz - localX * sin
+        );
+        dummy.rotation.set(0, spot.rot, 0);
+        dummy.scale.set(
+          PX,
+          PX,
+          pixel.inset ? depth - 2 * PX : depth
+        );
+        dummy.updateMatrix();
+        mesh.setMatrixAt(i, dummy.matrix);
+        mesh.setColorAt(i, color.set(pixel.c).multiplyScalar(shade));
+        i++;
+      }
+    }
+  }
+
+  mesh.instanceMatrix.needsUpdate = true;
+  mesh.instanceColor.needsUpdate = true;
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  scene.add(mesh);
+  return mesh;
+}
+buildMatter();
+
+// ---- collision ----------------------------------------------------
+// The doorway is visibly open but deliberately blocked at its threshold.
+// This prototype promises one room, so letting the body walk into unbuilt
+// void would turn an honest stage edge into an accidental second product.
+const BODY_RADIUS = 0.22;
+const WALL_HALF = WALL_ART[0].length * PX / 2;
+const WALK_BOUNDS = {
+  minX: gx(0) + WALL_HALF + BODY_RADIUS,
+  maxX: gx(ROOM_W - 1) - WALL_HALF - BODY_RADIUS,
+  minZ: gz(0) + WALL_HALF + BODY_RADIUS,
+  maxZ: gz(ROOM_H - 1) - WALL_HALF - BODY_RADIUS,
+};
+
+const propColliders = matterSpots
+  .filter(spot => spot.kind !== "wall")
+  .map(spot => {
+    const width = artFor(spot)[0].length * PX;
+    const depth = depthFor(spot);
+    const quarterTurn = Math.abs(Math.sin(spot.rot)) > 0.5;
+    const halfX = (quarterTurn ? depth : width) / 2 + BODY_RADIUS;
+    const halfZ = (quarterTurn ? width : depth) / 2 + BODY_RADIUS;
+    return {
+      minX: gx(spot.x) - halfX,
+      maxX: gx(spot.x) + halfX,
+      minZ: gz(spot.z) - halfZ,
+      maxZ: gz(spot.z) + halfZ,
+    };
+  });
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function hitsProp(x, z) {
+  return propColliders.some(collider =>
+    x > collider.minX && x < collider.maxX
+      && z > collider.minZ && z < collider.maxZ
+  );
+}
+
+// ---- Cipher sheet pipeline ---------------------------------------
+const FRAME_W = 96;
+const FRAME_H = 80;
+const FRAME_COUNT = 8;
+const GROUND_ROW = 57;
+// The decided density ratio is matter 1.10/16, bodies 1.10/32. This pack
+// body is provisional, but its pixels still pay the body's half-size rate.
+const BODY_PX = 1.10 / 32;
+const QUAD_W = FRAME_W * BODY_PX;
+const QUAD_H = FRAME_H * BODY_PX;
+
+const SHEETS = {
+  idle: { folder: "IDLE", stem: "idle", fps: 7, loop: true },
+  run: { folder: "RUN", stem: "run", fps: 11, loop: true },
+  attack1: {
+    folder: "ATTACK%201",
+    stem: "attack1",
+    fps: 14,
+    loop: false,
+  },
+  attack2: {
+    folder: "ATTACK%202",
+    stem: "attack2",
+    fps: 13,
+    loop: false,
+  },
+};
+const FACINGS = ["down", "up", "left", "right"];
+const textures = new Map();
+const textureLoader = new THREE.TextureLoader();
+
+function sheetUrl(action, facing) {
+  const spec = SHEETS[action];
+  return `../../assets/sprites/cipher/${spec.folder}/${spec.stem}_${facing}.png`;
+}
+
+async function loadSheet(action, facing) {
+  const url = sheetUrl(action, facing);
+  const texture = await textureLoader.loadAsync(url);
+  const width = texture.image.naturalWidth || texture.image.width;
+  const height = texture.image.naturalHeight || texture.image.height;
+  if (width !== FRAME_W * FRAME_COUNT || height !== FRAME_H) {
+    texture.dispose();
+    throw new Error(
+      `${url} is ${width}×${height}; expected 768×80`
+    );
+  }
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  texture.generateMipmaps = false;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.repeat.set(1 / FRAME_COUNT, 1);
+  texture.offset.set(0, 0);
+  textures.set(`${action}:${facing}`, texture);
+}
+
+const assetGate = document.getElementById("asset-gate");
+const bodyStateEl = document.getElementById("body-state");
+function showAssetFault(error) {
+  assetGate.className = "show asset-error";
+  assetGate.innerHTML = `
+    <div class="gate-box">
+      <h2>CIPHER SHEETS NOT LOADED</h2>
+      <p>
+        Regenerate them with <code>python scripts/cipher_mold.py</code>.<br>
+        The licensed source pack must be present locally at
+        <code>prototypes/FREE_Adventurer 2D Pixel Art/</code>.
+      </p>
+      <p id="asset-detail" style="margin-top:10px"></p>
+    </div>`;
+  document.getElementById("asset-detail").textContent =
+    error instanceof Error ? error.message : "A local sprite request failed.";
+  bodyStateEl.textContent = "ASSET FAULT";
+  bodyStateEl.style.color = "var(--red)";
+  canvas.dataset.sprites = "error";
+}
+
+let character = null;
+let spriteMaterial = null;
+let bladeLight = null;
+
+function buildCipher() {
+  // PlaneGeometry is centered by default. Translate its vertices so source
+  // row 57 — the pack's ground line — sits at local Y=0. Transparent rows
+  // below the feet may extend under the floor without moving the authored
+  // body, which is the only anchor that matters.
+  const spriteGeo = new THREE.PlaneGeometry(QUAD_W, QUAD_H);
+  spriteGeo.translate(
+    0,
+    GROUND_ROW * BODY_PX - QUAD_H / 2,
+    0
+  );
+
+  spriteMaterial = new THREE.MeshBasicMaterial({
+    map: textures.get("idle:down"),
+    alphaTest: 0.05,
+  });
+  const sprite = new THREE.Mesh(spriteGeo, spriteMaterial);
+
+  const blob = new THREE.Mesh(
+    new THREE.CircleGeometry(0.31, 20),
+    new THREE.MeshBasicMaterial({
+      color: 0x000000,
+      transparent: true,
+      opacity: 0.42,
+      depthWrite: false,
+    })
+  );
+  blob.rotation.x = -Math.PI / 2;
+  blob.position.y = 0.012;
+
+  character = new THREE.Group();
+  character.position.set(0, 0.002, 0.6);
+  character.add(blob, sprite);
+  character.userData.sprite = sprite;
+  character.userData.action = "idle";
+  character.userData.facing = "down";
+  character.userData.frame = 0;
+
+  // The blade is authored in the attack sheets. This light is only spill on
+  // nearby matter — no surrogate blade and no effect when the sheet is idle.
+  bladeLight = new THREE.PointLight(0x5ccfff, 0, 3.1, 2);
+  bladeLight.position.set(0.25, 0.72, 0.05);
+  character.add(bladeLight);
+  scene.add(character);
+}
+
+async function bootCipher() {
+  try {
+    const jobs = [];
+    for (const action of Object.keys(SHEETS)) {
+      for (const facing of FACINGS) jobs.push(loadSheet(action, facing));
+    }
+    await Promise.all(jobs);
+    buildCipher();
+    assetGate.className = "";
+    assetGate.setAttribute("aria-hidden", "true");
+    bodyStateEl.textContent = "PROVISIONAL / READY";
+    canvas.dataset.sprites = "ready";
+    canvas.dataset.ready = "1";
+  } catch (error) {
+    showAssetFault(error);
+  }
+}
+
+// ---- movement and animation --------------------------------------
+const held = new Set();
+const MOVE_CODES = new Set([
+  "KeyW", "KeyA", "KeyS", "KeyD",
+  "ArrowUp", "ArrowLeft", "ArrowDown", "ArrowRight",
+]);
+const WORLD_UP = new THREE.Vector3(0, 1, 0);
+const cameraForward = new THREE.Vector3();
+const cameraRight = new THREE.Vector3();
+const moveVector = new THREE.Vector3();
+const facingWorld = new THREE.Vector3(0, 0, 1);
+const previousPosition = new THREE.Vector3();
+
+const MOVE_SPEED = 3.0;
+let attack = null;
+
+const actionStateEl = document.getElementById("action-state");
+const facingStateEl = document.getElementById("facing-state");
+
+function triggerAttack(name, now) {
+  if (!character || attack) return;
+  attack = { name, started: now };
+}
+
+function screenFacing() {
+  const rightward = facingWorld.dot(cameraRight);
+  const forward = facingWorld.dot(cameraForward);
+  if (Math.abs(rightward) > Math.abs(forward)) {
+    return rightward >= 0 ? "right" : "left";
+  }
+  return forward >= 0 ? "up" : "down";
+}
+
+function setSpriteFrame(action, facing, frame) {
+  const texture = textures.get(`${action}:${facing}`);
+  if (spriteMaterial.map !== texture) spriteMaterial.map = texture;
+  texture.offset.x = frame / FRAME_COUNT;
+  character.userData.action = action;
+  character.userData.facing = facing;
+  character.userData.frame = frame;
+
+  actionStateEl.textContent =
+    action === "attack1" ? "ATTACK 1 / IGNITION"
+      : action === "attack2" ? "ATTACK 2 / IGNITION"
+        : action.toUpperCase();
+  facingStateEl.textContent = facing.toUpperCase();
+
+  canvas.dataset.action = action;
+  canvas.dataset.facing = facing;
+  canvas.dataset.frame = String(frame);
+}
+
+function updateMovement(dt) {
+  const inputX =
+    (held.has("KeyD") || held.has("ArrowRight") ? 1 : 0)
+    - (held.has("KeyA") || held.has("ArrowLeft") ? 1 : 0);
+  const inputY =
+    (held.has("KeyW") || held.has("ArrowUp") ? 1 : 0)
+    - (held.has("KeyS") || held.has("ArrowDown") ? 1 : 0);
+
+  previousPosition.copy(character.position);
+  if (!inputX && !inputY) return false;
+
+  moveVector
+    .copy(cameraRight).multiplyScalar(inputX)
+    .addScaledVector(cameraForward, inputY);
+  if (moveVector.lengthSq() > 1) moveVector.normalize();
+  moveVector.multiplyScalar(MOVE_SPEED * dt);
+
+  const nextX = clamp(
+    character.position.x + moveVector.x,
+    WALK_BOUNDS.minX,
+    WALK_BOUNDS.maxX
+  );
+  if (!hitsProp(nextX, character.position.z)) {
+    character.position.x = nextX;
+  }
+
+  const nextZ = clamp(
+    character.position.z + moveVector.z,
+    WALK_BOUNDS.minZ,
+    WALK_BOUNDS.maxZ
+  );
+  if (!hitsProp(character.position.x, nextZ)) {
+    character.position.z = nextZ;
+  }
+
+  const actualX = character.position.x - previousPosition.x;
+  const actualZ = character.position.z - previousPosition.z;
+  if (actualX * actualX + actualZ * actualZ < 1e-7) return false;
+  facingWorld.set(actualX, 0, actualZ).normalize();
+  return true;
+}
+
+function updateCipher(dt, now) {
+  if (!character) return;
+
+  camera.getWorldDirection(cameraForward);
+  cameraForward.y = 0;
+  cameraForward.normalize();
+  cameraRight.crossVectors(cameraForward, WORLD_UP).normalize();
+
+  let moving = false;
+  if (!attack) moving = updateMovement(dt);
+
+  let action = moving ? "run" : "idle";
+  let frame = 0;
+
+  if (attack) {
+    action = attack.name;
+    const spec = SHEETS[action];
+    const elapsed = now - attack.started;
+    frame = Math.floor(elapsed * spec.fps);
+    if (frame >= FRAME_COUNT) {
+      attack = null;
+      action = "idle";
+      frame = 0;
+    } else {
+      bladeLight.intensity = 2.6 + Math.sin(elapsed * 42) * 0.35;
+    }
+  }
+
+  if (!attack) {
+    bladeLight.intensity = 0;
+    const spec = SHEETS[action];
+    frame = Math.floor(now * spec.fps) % FRAME_COUNT;
+  }
+
+  const facing = screenFacing();
+  setSpriteFrame(action, facing, frame);
+  character.userData.sprite.rotation.y = camAz;
+  canvas.dataset.position =
+    `${character.position.x.toFixed(3)},${character.position.z.toFixed(3)}`;
+}
+
+document.addEventListener("keydown", event => {
+  if (MOVE_CODES.has(event.code)) {
+    event.preventDefault();
+    held.add(event.code);
+    return;
+  }
+  if (event.repeat) return;
+
+  if (event.code === "KeyJ" || event.code === "Space") {
+    event.preventDefault();
+    triggerAttack("attack1", performance.now() / 1000);
+    return;
+  }
+  if (event.code === "KeyK") {
+    event.preventDefault();
+    triggerAttack("attack2", performance.now() / 1000);
+    return;
+  }
+  if (event.code === "KeyQ") {
+    orbit(1);
+    return;
+  }
+  if (event.code === "KeyE") {
+    orbit(-1);
+    return;
+  }
+  if (event.code === "KeyP") {
+    displayMode = DISPLAY_MODES[
+      (DISPLAY_MODES.indexOf(displayMode) + 1) % DISPLAY_MODES.length
+    ];
+    applyDisplayMode();
+  }
+});
+
+document.addEventListener("keyup", event => {
+  if (MOVE_CODES.has(event.code)) held.delete(event.code);
+});
+window.addEventListener("blur", () => held.clear());
+
+// ---- frame loop ---------------------------------------------------
+const timer = new THREE.Timer();
+function frame() {
+  requestAnimationFrame(frame);
+  timer.update();
+  const dt = Math.min(timer.getDelta(), 0.05);
+  const now = timer.getElapsed();
+
+  if (Math.abs(camAzTarget - camAz) > 1e-5) {
+    const ease = 1 - Math.exp(-9 * dt);
+    camAz += (camAzTarget - camAz) * ease;
+    placeCamera();
+  }
+
+  updateCipher(dt, now);
+
+  if (displayMode === "lcd") {
+    renderer.setRenderTarget(lcdTarget);
+    renderer.render(scene, camera);
+    renderer.setRenderTarget(null);
+    renderer.render(postScene, postCamera);
+  } else {
+    renderer.render(scene, camera);
+  }
+}
+
+canvas.dataset.booted = "1";
+bootCipher();
+frame();
+</script>
+
+<script>
+// ES modules fail quietly under file://. A black stage is an authored void;
+// a renderer that never booted is not, so the surface says which one it is.
+window.addEventListener("load", () => {
+  const canvas = document.getElementById("cv");
+  if (canvas.dataset.booted) return;
+  const gate = document.getElementById("asset-gate");
+  const boot = document.getElementById("boot");
+  gate.className = "show asset-error";
+  gate.innerHTML = `
+    <div class="gate-box">
+      <h2>RENDERER DID NOT START</h2>
+      <p>Serve this page from the repository root; module imports do not run from <code>file://</code>.</p>
+    </div>`;
+  boot.className = "box show";
+  boot.innerHTML = location.protocol === "file:"
+    ? "Run <code>python -m http.server 8082</code> at the repository root, then open " +
+      "<code>http://localhost:8082/prototypes/walkable/</code>."
+    : "The renderer failed before startup. Check the browser console and confirm " +
+      "<code>prototypes/tactical3d/vendor/three.module.js</code> is present.";
+});
+</script>
+</body>
+</html>
