@@ -10,7 +10,14 @@ fighting layer).
 2. Repo `lore/` and `wiki/` — setting, factions, narrative constraints
 3. `assets/ART_STYLE.md` + `architecture/art_style_audit.md` — visual
    direction (the audit is the current thesis; a conformance pass on
-   this prototype is future work)
+   this prototype is future work). **Fighter bodies obey the body law**
+   (`architecture/art_direction_gba_tactics.md`, decided 2026-07-30):
+   the 32×32 System A canvas at ~4× integer zoom — the fighter adds
+   frame sets (stances, limb commitments, hitstun), never a larger
+   format. The animation-detail cap is the body law's own tradeoff,
+   not a spec mandate; the spec independently wants hitstop-over-VFX
+   impact and readability-first animation, which is why the two are
+   compatible.
 
 If there's a conflict: **mechanics > lore > visuals**.
 
