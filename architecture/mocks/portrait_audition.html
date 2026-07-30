@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>SENTINEL — Portrait Register Audition</title>
+<style>
+  body { background: #070a08; color: #9fc7ab; font: 13px/1.5 monospace; padding: 24px; }
+  h1 { font-size: 14px; letter-spacing: 2px; color: #cfe8d6; }
+  .note { color: #5e7a66; max-width: 78ch; }
+  .grid { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 20px; }
+  .card {
+    background: #0a0f0c;
+    border: 1px solid #33463a;
+    box-shadow: inset 0 0 0 1px #101812, inset 0 0 24px rgba(0,0,0,.55);
+    padding: 10px; width: 276px;
+  }
+  .plate {
+    display: flex; justify-content: space-between; align-items: baseline;
+    border-bottom: 1px solid #1d2a21; padding-bottom: 6px; margin-bottom: 8px;
+  }
+  .plate .who { color: #cfe8d6; letter-spacing: 1px; }
+  .plate .fac { color: #5e7a66; font-size: 11px; }
+  canvas { display: block; width: 256px; height: 256px; image-rendering: pixelated; background: #060907; }
+  .reg { margin-top: 8px; color: #ffb347; letter-spacing: 1px; font-size: 12px; }
+  .claim { color: #5e7a66; font-size: 11px; min-height: 4.5em; }
+</style>
+</head>
+<body>
+<h1>PORTRAIT REGISTER AUDITION</h1>
+<p class="note">One photoreal source (the agy pipeline's actual output for
+AXIOM), five treatments, each framed in the phosphor card it would actually
+live in. Registers are diegetic sources, not palettes — the question is not
+"which filter" but "which devices in this world produce portraits." The same
+source can legitimately be a feed still on the match card and a phosphor
+record on the fighter sheet. What should not survive: untreated photoreal
+presented as an in-world surface.</p>
+<p class="note" style="color:#ffb347">RESOLVED (2026-07-29): the register
+pair — FEED STILL on broadcast surfaces, TERMINAL on owned surfaces
+(phosphor default, amber second mood). Photoreal is source only; RAW and
+hand-pixel do not ship. Record: architecture/art_style_audit.md.</p>
+<div class="grid" id="grid"></div>
+<script>
+const SRC = "../../sentinel-ui/public/assets/portraits/campaigns/axiom/axiom.png";
+const SIZE = 256;
+
+const clamp = v => v < 0 ? 0 : v > 255 ? 255 : v;
+const hex = h => [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
+
+// map luma through a posterized color ramp — the terminal look
+function rampize(data, stops) {
+  const cols = stops.map(hex);
+  for (let i = 0; i < data.length; i += 4) {
+    const l = (0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2]) / 255;
+    const c = cols[Math.min(cols.length - 1, Math.floor(l * cols.length))];
+    data[i] = c[0]; data[i+1] = c[1]; data[i+2] = c[2];
+  }
+}
+
+function grain(data, amt) {
+  for (let i = 0; i < data.length; i += 4) {
+    const n = (Math.random() - 0.5) * amt;
+    data[i] = clamp(data[i]+n); data[i+1] = clamp(data[i+1]+n); data[i+2] = clamp(data[i+2]+n);
+  }
+}
+
+function scanlines(g, w, h, alpha) {
+  g.fillStyle = `rgba(0,0,0,${alpha})`;
+  for (let y = 0; y < h; y += 2) g.fillRect(0, y, w, 1);
+}
+
+// draw source at a working resolution, return {canvas, ctx, imageData}
+function work(img, w, h) {
+  const c = document.createElement("canvas");
+  c.width = w; c.height = h;
+  const g = c.getContext("2d");
+  g.imageSmoothingEnabled = true;
+  g.drawImage(img, 0, 0, w, h);
+  return { c, g };
+}
+
+const TREATMENTS = [
+  {
+    reg: "RAW",
+    claim: "Control — the pipeline's untreated output. No device in the world produced this image; it is a photograph from nowhere.",
+    render(img, out) {
+      out.getContext("2d").drawImage(img, 0, 0, SIZE, SIZE);
+    },
+  },
+  {
+    reg: "FEED STILL",
+    claim: '"The feed they watch." Broadcast camera grade: desaturated, split-toned, grained, scanlined. Keeps color and likeness; the frame says a camera saw this.',
+    render(img, out) {
+      const { c, g } = work(img, SIZE, SIZE);
+      const id = g.getImageData(0, 0, SIZE, SIZE);
+      const d = id.data;
+      for (let i = 0; i < d.length; i += 4) {
+        let r = d[i], gg = d[i+1], b = d[i+2];
+        const l = 0.299*r + 0.587*gg + 0.114*b;
+        // desaturate toward luma
+        r = l + (r - l) * 0.5; gg = l + (gg - l) * 0.5; b = l + (b - l) * 0.5;
+        // gentle S-curve
+        const s = v => 255 * (1 / (1 + Math.exp(-((v/255) - 0.5) * 6)));
+        r = s(r); gg = s(gg); b = s(b);
+        // split-tone: shadows toward phosphor green, highlights toward amber
+        const t = l / 255;
+        r += (1 - t) * -6 + t * 14;
+        gg += (1 - t) * 8 + t * 6;
+        b += (1 - t) * -2 + t * -12;
+        d[i] = clamp(r); d[i+1] = clamp(gg); d[i+2] = clamp(b);
+      }
+      grain(d, 26);
+      g.putImageData(id, 0, 0);
+      scanlines(g, SIZE, SIZE, 0.10);
+      out.getContext("2d").drawImage(c, 0, 0);
+    },
+  },
+  {
+    reg: "TERMINAL — PHOSPHOR",
+    claim: '"The rig you own." Duotone phosphor ramp, posterized, texel-scaled. An identity record rendered by your own instrument. Fighter sheet native.',
+    render(img, out) {
+      const W = 128;
+      const { c, g } = work(img, W, W);
+      const id = g.getImageData(0, 0, W, W);
+      rampize(id.data, ["#06120b", "#17231a", "#33463a", "#6d8a72", "#9fc7ab", "#cfe8d6"]);
+      grain(id.data, 14);
+      g.putImageData(id, 0, 0);
+      const og = out.getContext("2d");
+      og.imageSmoothingEnabled = false;
+      og.drawImage(c, 0, 0, SIZE, SIZE);
+      scanlines(og, SIZE, SIZE, 0.08);
+    },
+  },
+  {
+    reg: "TERMINAL — AMBER",
+    claim: "Same instrument, warm phosphor. The Dune pull: dust and lamplight instead of CRT green. Candidate for hostile/opposition records or older archives.",
+    render(img, out) {
+      const W = 128;
+      const { c, g } = work(img, W, W);
+      const id = g.getImageData(0, 0, W, W);
+      rampize(id.data, ["#120b06", "#221709", "#4a3012", "#8a5c22", "#d19540", "#ffe2b0"]);
+      grain(id.data, 14);
+      g.putImageData(id, 0, 0);
+      const og = out.getContext("2d");
+      og.imageSmoothingEnabled = false;
+      og.drawImage(c, 0, 0, SIZE, SIZE);
+      scanlines(og, SIZE, SIZE, 0.08);
+    },
+  },
+  {
+    reg: "PIXEL QUANTIZE",
+    claim: "Approximates committing to hand-pixel portraits (SRW J's answer). Machine quantize is a stand-in: the real thing is a large ongoing art cost at portrait fidelity.",
+    render(img, out) {
+      const W = 48;
+      const { c, g } = work(img, W, W);
+      const id = g.getImageData(0, 0, W, W);
+      const d = id.data;
+      for (let i = 0; i < d.length; i += 4) {
+        d[i]   = Math.round(d[i]   / 51) * 51;
+        d[i+1] = Math.round(d[i+1] / 51) * 51;
+        d[i+2] = Math.round(d[i+2] / 51) * 51;
+      }
+      g.putImageData(id, 0, 0);
+      const og = out.getContext("2d");
+      og.imageSmoothingEnabled = false;
+      og.drawImage(c, 0, 0, SIZE, SIZE);
+    },
+  },
+];
+
+const img = new Image();
+img.onload = () => {
+  const grid = document.getElementById("grid");
+  for (const t of TREATMENTS) {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.innerHTML = `<div class="plate"><span class="who">AXIOM</span><span class="fac">GHOST NETWORKS — W2 L0</span></div>`;
+    const cv = document.createElement("canvas");
+    cv.width = SIZE; cv.height = SIZE;
+    t.render(img, cv);
+    card.appendChild(cv);
+    card.insertAdjacentHTML("beforeend", `<div class="reg">${t.reg}</div><div class="claim">${t.claim}</div>`);
+    grid.appendChild(card);
+  }
+};
+img.onerror = () => document.body.insertAdjacentHTML("beforeend",
+  `<p style="color:#ff5c5c">source not found — serve from the repo root (e.g. :8082) so ${SRC} resolves</p>`);
+img.src = SRC;
+</script>
+</body>
+</html>
