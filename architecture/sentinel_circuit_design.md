@@ -373,8 +373,15 @@ in the core under its golden-transcript tests, never in a renderer:
    Witness record (seed + input log) is what makes replay-as-provenance
    real rather than promised. *The record half is built (2026-07-29):
    `S.record` / `replayMatch` in the rules core, certified at the edge by
-   `workers/witness/` `POST /certify` — what remains here is the campaign
-   side: persistence, wiki events, disposition, threads*
+   `workers/witness/` `POST /certify`. **Persistence is built too (same
+   day):* `POST /file` *archives certified matches in KV under
+   content-derived keys (idempotent by construction), certificates carry
+   the walked/finished/lost ledger, and the prototype's post-match card
+   files records and shows the career —cards on file, W–L, lifetime
+   purse. What remains is the campaign-consequence half — matches as
+   jobs, wiki events, disposition, dormant threads — which belongs to the
+   campaign brain (TS, per the platform direction), plus
+   identity/signatures when provenance must name a player*
 
 Steps 1–2 are weekend-sized against the existing prototype. Step 5 is where
 the Circuit stops being a prototype and becomes SENTINEL.
