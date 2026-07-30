@@ -15,8 +15,10 @@ import {
   S, bindIO, restart, endPlayerTurn, formatEvent,
   los, coverBonus, solution, reachable, living, unitAt, W, H,
   mulberry32, MORALE, RATING, tryShoot, tryFinish, spare, setOverwatch, tryMove,
-  replayMatch,
+  replayMatch, TWISTS, playTwist, twistWindow,
 } from "./rules.js";
+import { SHOWRUNNER_GOLDEN } from "./showrunner-golden.js";
+import { directorTick } from "./director.js";
 
 // FNV-1a, matching the fingerprint taken in the browser
 function fnv(s) {
@@ -473,7 +475,7 @@ test("the floor is zero, and restart resets the meter", async () => {
 
 // shoot when confident, overwatch on a spare action, otherwise close
 // distance; at the decision, resolve by choice. Public verbs only.
-async function autoPlay(seed, resolve = "spare", maxTurns = 20) {
+async function autoPlay(seed, resolve = "spare", maxTurns = 20, director = false) {
   const cap = captureEvents();
   restart(seed);
   const bestTarget = u => {
@@ -498,6 +500,7 @@ async function autoPlay(seed, resolve = "spare", maxTurns = 20) {
     return best;
   };
   for (let turn = 0; turn < maxTurns && !S.gameOver && !S.decision; turn++) {
+    if (director) directorTick();   // the house speaks at the bell, if it speaks
     for (const u of living("op")) {
       while (u.ap > 0 && u.alive && !S.gameOver && !S.decision) {
         const shot = bestTarget(u);
@@ -640,4 +643,154 @@ test("restart clears the record", async () => {
   assert.ok(S.record.length > 0);
   restart(2);
   assert.deepEqual(S.record, []);
+});
+
+/* ---- showrunner twists (Circuit step 4) --------------------------
+ * The house is a second actor with one verb: ["twist", cardId] is a
+ * recorded input, validated and resolved by the core, chosen outside
+ * it. The goldens at the top of this file prove the no-twist path is
+ * untouched; these prove the card is announced before it lands, fails
+ * closed outside its window, and certifies like any other play.
+ */
+
+test("a twist announces on the feed and goes live at the top of the next round", async () => {
+  const cap = captureEvents();
+  restart(1);
+  assert.equal(twistWindow(), true, "match start is a between-rounds window");
+  playTwist(1);
+  assert.deepEqual(S.record, [["twist", 1]]);
+  assert.equal(S.pendingTwist, 1);
+  assert.equal(S.activeTwist, null, "announced is not live");
+  assert.ok(cap.lines.some(l => l.includes("THE HOUSE PLAYS: MERCY ODDS")));
+  assert.ok(!cap.lines.some(l => l.includes("IS LIVE")));
+  await endPlayerTurn();
+  assert.equal(S.activeTwist, 1, "live at the top of the next round");
+  assert.equal(S.pendingTwist, null);
+  const turnIdx = cap.lines.lastIndexOf("— OPERATIVE TURN —");
+  assert.equal(cap.lines[turnIdx + 1], "— MERCY ODDS IS LIVE — A SPARE PAYS +6 —",
+    "the resolution line lands right as the round opens");
+});
+
+test("MERCY ODDS replaces the spare payout — the number on the feed is the number paid", async () => {
+  assert.ok(TWISTS[1].terms.includes(`+${TWISTS[1].spareRating}`),
+    "the terms line must print the real number — legible corruption or none");
+  const cap = captureEvents();
+  restart(seedHitting(83));
+  playTwist(1);   // played before the fight settles; resolves at the decision
+  const v = living("op")[0];
+  const [s1, s2, s3] = living("ho");
+  v.x = 1; v.y = 0;
+  s1.hp = 1;
+  s2.morale = MORALE.mateDown;
+  s3.morale = MORALE.mateDown + MORALE.mateYield;
+  await tryShoot(v, s1);
+  assert.equal(S.decision, true);
+  assert.equal(S.activeTwist, 1, "the fight settled first — the card goes live as the choice opens");
+  const di = cap.lines.findIndex(l => l.includes("THE FIGHT IS OVER"));
+  assert.ok(cap.lines[di + 1].includes("MERCY ODDS IS LIVE"),
+    "the house speaks right before the player chooses");
+  S.rating = 50;   // stage clear of both clamps
+  spare();
+  assert.equal(S.rating, 50 + TWISTS[1].spareRating, "the card replaces RATING.spare, not adds to it");
+});
+
+test("the twist window fails closed: mid-round, wrong turn, unknown cards, the budget, the decision", async () => {
+  captureEvents();
+  restart(1);
+  const v = living("op")[0];
+  await tryMove(v, v.x, v.y - 1);   // any spent AP closes the window
+  assert.equal(twistWindow(), false);
+  playTwist(1);
+  assert.ok(!S.record.some(c => c[0] === "twist"), "the house cannot speak mid-round");
+
+  restart(1);
+  S.turn = "ho";
+  playTwist(1);
+  assert.deepEqual(S.record, [], "not the player's turn, not a between-rounds window");
+  S.turn = "op";
+
+  playTwist(99);
+  assert.deepEqual(S.record, [], "a card that does not exist cannot be played");
+
+  // the budget: one card per match, enforced by the rules, not etiquette
+  playTwist(1);
+  assert.equal(S.record.length, 1);
+  await endPlayerTurn();
+  assert.equal(twistWindow(), true, "a fresh round reopens the window");
+  playTwist(1);
+  assert.equal(S.record.filter(c => c[0] === "twist").length, 1, "the house has played its card");
+
+  // the decision: the card must precede the choice, never interrupt it
+  const cap = captureEvents();
+  await driveToDecision(cap);
+  playTwist(1);
+  assert.ok(!S.record.some(c => c[0] === "twist"),
+    "no cards into the decision — pricing it required announcing a round earlier");
+});
+
+test("a record with an illegally-timed twist does not certify", async () => {
+  await autoPlay(6, "spare");
+  const organic = JSON.parse(JSON.stringify(S.record));
+  // (a) mid-round: right after the first move, the mover has spent AP
+  const mi = organic.findIndex(c => c[0] === "move");
+  const bent = [...organic.slice(0, mi + 1), ["twist", 1], ...organic.slice(mi + 1)];
+  const a = await replayMatch(6, bent);
+  assert.equal(a.faithful, false, "a card played mid-round cannot reproduce itself");
+  // (b) over budget
+  const b = await replayMatch(6, [["twist", 1], ["twist", 1], ...organic]);
+  assert.equal(b.faithful, false);
+  // (c) a card that does not exist
+  const c = await replayMatch(6, [["twist", 7], ...organic]);
+  assert.equal(c.faithful, false);
+});
+
+test("the director is deterministic, plays at the bell, and its choice certifies", async () => {
+  // quiet house: full morale at match start, no card
+  captureEvents();
+  restart(1);
+  assert.equal(directorTick(), null, "nobody is near breaking — the house holds its card");
+  assert.deepEqual(S.record, []);
+
+  // a directed match: the director reads the board at each round top and
+  // plays MERCY ODDS when a fighter is one bad beat from kneeling
+  const a = await autoPlay(6, "spare", 20, true);
+  const recA = JSON.parse(JSON.stringify(S.record));
+  const ti = recA.findIndex(c => c[0] === "twist");
+  assert.ok(ti > 0, "the card is a reaction to the fight, not weather at the deal");
+  assert.equal(recA[ti - 1][0], "end", "the house speaks only at a round boundary");
+  assert.deepEqual(recA[ti], ["twist", 1]);
+
+  // deterministic: same seed, same fight, same call at the same moment
+  const b = await autoPlay(6, "spare", 20, true);
+  assert.deepEqual(JSON.parse(JSON.stringify(S.record)), recA);
+  assert.deepEqual(b.lines, a.lines);
+
+  // and the witness protocol certifies the director's choice without
+  // knowing the director exists — it is just another hand on the record
+  const cap = captureEvents();
+  const cert = await replayMatch(6, recA);
+  assert.equal(cert.faithful, true);
+  assert.deepEqual(cap.lines, a.lines);
+});
+
+test("the showrunner golden replays to its captured fingerprint", async () => {
+  const { seed, record, result, rating, lines: lineCount, fingerprint } = SHOWRUNNER_GOLDEN;
+  const lines = [];
+  bindIO({
+    sleep: () => Promise.resolve(),
+    emit: ev => { const l = formatEvent(ev); if (l !== null) lines.push(l); },
+    changed: () => {},
+  });
+  const cert = await replayMatch(seed, record);
+  assert.equal(cert.faithful, true, "the twist splices into the organic record without disturbing it");
+  assert.equal(S.gameOver, result);
+  assert.equal(S.rating, rating, "the spare paid the card's number, not RATING.spare");
+  assert.equal(lines.length, lineCount);
+  assert.equal(fnv(lines.join("\n")), fingerprint,
+    "the stamp's second golden: any change to twist behavior must move this");
+  // and the same match without the card: identical fight, RATING.spare payout
+  const bare = record.filter(c => c[0] !== "twist");
+  await replayMatch(seed, bare);
+  assert.equal(S.rating, rating - TWISTS[1].spareRating + RATING.spare,
+    "card off, same fight — only the spare payout moves");
 });

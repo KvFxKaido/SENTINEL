@@ -22,6 +22,7 @@
    ============================================================ */
 
 import { S, bindIO, restart, endPlayerTurn, replayMatch, formatEvent, RATING } from "../../prototypes/tactical-core/rules.js";
+import { SHOWRUNNER_GOLDEN } from "../../prototypes/tactical-core/showrunner-golden.js";
 
 // FNV-1a, mirroring rules.test.js — the certificate must be the same hash
 // the goldens assert or it certifies nothing.
@@ -44,16 +45,29 @@ function serialized(fn) {
   return run;
 }
 
-// The rules version, as behavior: the fingerprint of the golden playout
+// The rules version, as behavior: the fingerprint of the golden playouts
 // under the rules actually running here. Doc changes don't bump it; any
 // change to a draw, a guard, or a transcript line does. Certificates
 // carry it, and a record claiming a different stamp is refused before
 // replay — its faithfulness under these rules would be meaningless.
-// Computed once per isolate; callers must hold the mutex (it runs the
-// shared S machine).
+//
+// TWO playouts, one stamp: the deadbeef golden exercises the base game,
+// and the showrunner golden exercises the twist grammar and card math a
+// no-input playout can never reach — without it, a balance patch to a
+// card would move nothing and old records would silently certify under
+// new card terms. Extending the stamp's INPUTS is the one legitimate way
+// the stamp changes without behavior changing; it happened when twists
+// landed, deliberately, and it is why the stamp is no longer the bare
+// deadbeef fingerprint. Computed once per isolate; callers must hold the
+// mutex (it runs the shared S machine).
 let rulesStamp = null;
 async function rulesFingerprint() {
-  if (rulesStamp === null) rulesStamp = (await replay(0xdeadbeef)).fingerprint;
+  if (rulesStamp === null) {
+    const base = (await replay(0xdeadbeef)).fingerprint;
+    const lines = captureLines();
+    await replayMatch(SHOWRUNNER_GOLDEN.seed, SHOWRUNNER_GOLDEN.record);
+    rulesStamp = fnv(`${base}:${fnv(lines.join("\n"))}`);
+  }
   return rulesStamp;
 }
 
@@ -166,7 +180,7 @@ const SEED_RE = /^[0-9a-fA-F]{1,8}$/;
 // gatekeeper stays the dispatcher in the rules core — if the grammar
 // grows a verb this table lags on, witness_check's played-match round
 // trip fails loudly at deploy time, not silently in production.
-const ARITY = { move: 4, shoot: 3, finish: 3, ow: 2, spare: 1, end: 1 };
+const ARITY = { move: 4, shoot: 3, finish: 3, ow: 2, spare: 1, end: 1, twist: 2 };
 function validRecord(record) {
   return Array.isArray(record) && record.length <= 1024 &&
     record.every(c => Array.isArray(c) && c.length === ARITY[c[0]] &&

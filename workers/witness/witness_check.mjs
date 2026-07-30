@@ -8,6 +8,7 @@ import {
   S, bindIO, restart, endPlayerTurn, tryShoot, tryFinish, spare, tryMove,
   setOverwatch, solution, reachable, living, formatEvent,
 } from "../../prototypes/tactical-core/rules.js";
+import { SHOWRUNNER_GOLDEN } from "../../prototypes/tactical-core/showrunner-golden.js";
 
 const BASE = process.argv[2] ?? "http://localhost:8787";
 const GOLDENS = [
@@ -120,17 +121,41 @@ check(cert.status === 200 && cert.body.certified === true &&
   `certify: edge fp=${cert.body.fingerprint} vs local ${local.fingerprint}, rating ${cert.body.rating} vs ${local.rating}, purse=${cert.body.purse}`);
 
 // ---- the rules stamp --------------------------------------------
-// The version-as-behavior stamp is the golden fingerprint itself: the
-// edge must be running rules that produce 39e8be71 for deadbeef, and a
-// record claiming other rules must be refused before replay.
-check(cert.body.rules === GOLDENS[0].fingerprint,
-  `certificate carries the rules stamp: ${cert.body.rules}`);
-const claimed = await post({ seed: "6", record: local.record, rules: GOLDENS[0].fingerprint });
+// Version-as-behavior, over TWO playouts: the deadbeef golden pins the
+// base game, the showrunner golden pins the twist grammar and card math
+// a no-input playout never reaches. The edge must derive the same stamp
+// from the same two pinned fingerprints, and a record claiming other
+// rules must be refused before replay.
+const STAMP = fnv(`${GOLDENS[0].fingerprint}:${SHOWRUNNER_GOLDEN.fingerprint}`);
+check(cert.body.rules === STAMP,
+  `certificate carries the two-golden rules stamp: ${cert.body.rules} (expected ${STAMP})`);
+const claimed = await post({ seed: "6", record: local.record, rules: STAMP });
 check(claimed.status === 200 && claimed.body.certified === true,
   `record claiming the current rules certifies: ${claimed.status}`);
 const misclaimed = await post({ seed: "6", record: local.record, rules: "00000000" });
 check(misclaimed.status === 422 && misclaimed.body.error === "record claims a different rules version",
   `record claiming other rules refused: ${misclaimed.status} "${misclaimed.body.error}"`);
+// a record claiming the PRE-TWIST stamp (the bare deadbeef fingerprint)
+// is history stamped under old rules — refused, exactly as designed
+const oldStamp = await post({ seed: "6", record: local.record, rules: GOLDENS[0].fingerprint });
+check(oldStamp.status === 422,
+  `record claiming the pre-twist stamp refused: ${oldStamp.status}`);
+
+// ---- showrunner twists (Circuit step 4) ---------------------------
+// the house's verb, certified at the edge: the showrunner golden must
+// answer its captured fingerprint, and an illegally-timed card must
+// fail closed as an unfaithful replay
+const twistCert = await post({ seed: SHOWRUNNER_GOLDEN.seed.toString(16), record: SHOWRUNNER_GOLDEN.record });
+check(twistCert.status === 200 && twistCert.body.certified === true &&
+      twistCert.body.fingerprint === SHOWRUNNER_GOLDEN.fingerprint &&
+      twistCert.body.rating === SHOWRUNNER_GOLDEN.rating &&
+      twistCert.body.result === SHOWRUNNER_GOLDEN.result,
+  `showrunner golden certifies at the edge: fp=${twistCert.body.fingerprint} rating=${twistCert.body.rating} (MERCY ODDS paid)`);
+const midRound = [...SHOWRUNNER_GOLDEN.record];
+midRound.splice(3, 0, ["twist", 1]);   // mid-round, and over budget besides
+const badTwist = await post({ seed: SHOWRUNNER_GOLDEN.seed.toString(16), record: midRound });
+check(badTwist.status === 422 && badTwist.body.error === "record does not replay",
+  `illegally-timed twist refused: ${badTwist.status} "${badTwist.body.error}"`);
 
 // ---- refusals ---------------------------------------------------
 const bent = JSON.parse(JSON.stringify(local.record));
@@ -152,6 +177,7 @@ for (const [label, record] of [
   ["wrong arity", [["move", 0, 1]]],
   ["fractional coordinate", [["move", 0, 1.5, 2]]],
   ["non-array command", ["move"]],
+  ["twist wrong arity", [["twist", 1, 2]]],
 ]) {
   const r = await post({ seed: "6", record });
   check(r.status === 400, `malformed record (${label}) rejected at the wire: ${r.status}`);

@@ -57,7 +57,9 @@ export const S = {
   gameOver: null,      // null | "win" | "loss"
   decision: false,     // every living hostile has yielded — match holds for spare/finish
   rating: 50,          // crowd meter, 0–100 — pays out at match end (sentinel_circuit_design.md §5)
-  record: [],          // the witness record — every committed player command, in order
+  record: [],          // the witness record — every committed command, in order
+  pendingTwist: null,  // house card announced this round; goes live next round
+  activeTwist: null,   // house card in effect for the rest of the match
   gen: 0,              // restart generation — stale async turns check this and bail
 };
 
@@ -248,6 +250,67 @@ function unitYields(u) {
   checkEnd();
 }
 
+// ---- showrunner twists ------------------------------------------
+// Circuit roadmap step 4, and the resolution of its open question 5: the
+// house is a second actor with one verb and no dice. A twist is a
+// RECORDED INPUT — ["twist", cardId] enters S.record like any player
+// command — never weather drawn inside the rules. The core validates and
+// resolves; it does not choose. Who chooses (a scripted card, a reactive
+// director, someday a live hand) lives outside, and the record does not
+// care: seed + record is still the match, twists included. Announced
+// between rounds, resolved at the next moment control returns to the
+// player — the warning always lands before the effect. On a record with
+// no twist verbs none of this draws RNG or emits a line, so the
+// pre-twist goldens replay untouched.
+//
+// Settled law: the house can monetize your decision; it cannot decide
+// what the decision means. Cards price choices — they do not touch
+// morale, yield thresholds, or what a spare socially costs. And the
+// terms print on the feed, numbers included: legible corruption.
+export const TWISTS = {
+  // MERCY ODDS replaces the spare payout (RATING.spare, normally a cost)
+  // with a bounty. `terms` is the feed line's contract — a test asserts
+  // the number in the text is the number in the code.
+  1: { name: "MERCY ODDS", terms: "A SPARE PAYS +6", spareRating: 6 },
+};
+
+// One card per match: a house that keeps interrupting is a moderator,
+// not a showrunner. Enforced here rather than left as director etiquette
+// so a synthesized five-twist record can never certify. The budget reads
+// the record because the record is already the authority on what has
+// been played.
+const TWIST_BUDGET = 1;
+
+// The between-rounds window: control is the player's and nobody has
+// acted yet (full AP mirrors makeUnits and enemyTurn's refresh). One
+// home for the legality question — when a second between-rounds actor
+// lands, this predicate is where the window grows into a phase.
+export function twistWindow() {
+  return S.turn === "op" && !S.busy && !S.gameOver && !S.decision &&
+    living("op").every(u => u.ap === 2);
+}
+
+export function playTwist(cardId) {
+  const card = TWISTS[cardId];
+  if (!card || !twistWindow()) return;
+  if (S.record.filter(c => c[0] === "twist").length >= TWIST_BUDGET) return;
+  S.record.push(["twist", cardId]);
+  S.pendingTwist = cardId;
+  io.emit({ type: "twist-announce", card });
+  io.changed();
+}
+
+// A pending card goes live at the next moment control returns to the
+// player: the top of the next round, or the decision entry if the fight
+// settles first — either way the announcement landed before the choice.
+function resolveTwist() {
+  if (S.pendingTwist === null) return;
+  const card = TWISTS[S.pendingTwist];
+  S.activeTwist = S.pendingTwist;
+  S.pendingTwist = null;
+  io.emit({ type: "twist-resolve", card });
+}
+
 // ---- combat -----------------------------------------------------
 async function fireShot(att, def, aimMod = 0, label = "") {
   const g = S.gen;
@@ -331,6 +394,7 @@ function checkEnd() {
     S.turn = "op";
     S.targetMode = false;
     io.emit({ type: "yield-decision", count: ho.length });
+    resolveTwist();   // the house's card goes live as the choice opens
     io.changed();
   }
 }
@@ -427,7 +491,11 @@ export function spare() {
   if (!S.decision || S.gameOver || S.busy) return;
   S.record.push(["spare"]);
   io.emit({ type: "spared", units: living("ho").filter(u => u.yielded) });
-  addRating(RATING.spare);   // mercy costs purse — what it buys lives elsewhere
+  // mercy costs purse — what it buys lives elsewhere. An active card that
+  // prices mercy REPLACES the payout: the feed stated the terms a round
+  // ago, numbers included, so the number here is the number on screen.
+  const card = S.activeTwist === null ? null : TWISTS[S.activeTwist];
+  addRating(card && card.spareRating !== undefined ? card.spareRating : RATING.spare);
   endGame("win");
 }
 
@@ -554,6 +622,7 @@ export async function enemyTurn() {
     S.turn = "op";
     for (const u of living("op")) { u.ap = 2; u.overwatch = false; }
     io.emit({ type: "turn", side: "op" });
+    resolveTwist();   // announced last round, live now
     const first = living("op")[0];
     if (first) S.selectedId = first.id;
   }
@@ -578,7 +647,7 @@ export function restart(seed) {
   S.rng = mulberry32(S.seed);
   buildMap();
   makeUnits();
-  S.turn = "op"; S.selectedId = 0; S.targetMode = false; S.busy = false; S.gameOver = null; S.decision = false; S.rating = RATING.start; S.record = [];
+  S.turn = "op"; S.selectedId = 0; S.targetMode = false; S.busy = false; S.gameOver = null; S.decision = false; S.rating = RATING.start; S.record = []; S.pendingTwist = null; S.activeTwist = null;
   io.emit({ type: "reset" });
   io.emit({ type: "mission" });
   io.emit({ type: "turn", side: "op" });
@@ -586,11 +655,12 @@ export function restart(seed) {
 }
 
 /* ---- the witness record -----------------------------------------
-   Circuit roadmap step 5: a played match, as data. Every player verb
-   that changes the match appends its canonical form to S.record at the
-   moment its guards pass — rejected inputs never enter the record, and
-   selection is presentation, not play (no roll, no log line, and every
-   verb names its units explicitly), so it is deliberately absent.
+   Circuit roadmap step 5: a played match, as data. Every verb that
+   changes the match — the player's six, and the house's one — appends
+   its canonical form to S.record at the moment its guards pass;
+   rejected inputs never enter the record, and selection is
+   presentation, not play (no roll, no log line, and every verb names
+   its units explicitly), so it is deliberately absent.
    seed + record IS the match.
 
    replayMatch() drives a record back through the same verbs — and since
@@ -615,6 +685,7 @@ async function applyCommand(cmd) {
     case "shoot":  { const u = op(a), t = ho(b); if (u && t && t.alive) await tryShoot(u, t); break; }
     case "finish": { const u = op(a), t = ho(b); if (u && t) await tryFinish(u, t); break; }
     case "ow":     { const u = op(a); if (u) setOverwatch(u); break; }
+    case "twist":  playTwist(a); break;   // the house's verb — window, budget, and card all guarded inside
     case "spare":  spare(); break;
     case "end":    await endPlayerTurn(); break;
   }
@@ -665,6 +736,10 @@ export function formatEvent(ev, wrap = t => t) {
       return `${n(ev.att)} ${wrap("finishes", "hit")} ${n(ev.def)}. The yard sees it.`;
     case "spared":
       return `${ev.units.map(u => n(u)).join(", ")} ${wrap("spared", "sys")} — they walk.`;
+    case "twist-announce":
+      return wrap(`— THE HOUSE PLAYS: ${ev.card.name} — ${ev.card.terms} — NEXT ROUND —`, "sys");
+    case "twist-resolve":
+      return wrap(`— ${ev.card.name} IS LIVE — ${ev.card.terms} —`, "sys");
     default:
       return null;   // fire / select / reset / end / rating are not log lines
       // (rating deliberately so: the meter lives on the panel, and keeping

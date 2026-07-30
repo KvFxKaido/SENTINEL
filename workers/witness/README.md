@@ -19,9 +19,13 @@ GET  /matches/{id} one filed match in full: record + certificate
 `/replay` replays the no-input encounter for a seed. `/certify` takes a
 **played match** — the input-log protocol, Circuit roadmap step 5: `seed +
 record` is the match, where the record is the command list the rules core
-accumulated in `S.record` while the player played. Both replay through the
-shared rules module and return the certified transcript: result, rating,
-purse, line count, the FNV-1a fingerprint, and the transcript itself.
+accumulated in `S.record` while the match was played. Both replay through
+the shared rules module and return the certified transcript: result,
+rating, purse, line count, the FNV-1a fingerprint, and the transcript
+itself. The grammar spans seven verbs — the player's six and the house's
+`["twist", cardId]` (Circuit step 4), which certifies like any other hand
+on the record: legal only between rounds, budgeted by the rules, an
+illegally-timed card fails closed as an unfaithful replay.
 
 ## Certification policy
 
@@ -44,14 +48,26 @@ surface:
 
 ## The rules stamp
 
-Every response carries `rules`: the fingerprint of the golden playout
-under the rules actually running — the version, expressed as behavior.
-Doc changes don't bump it; any change to a draw, a guard, or a transcript
-line does. Today that stamp is `39e8be71` (it is the deadbeef golden).
-Anything persisting records should store the stamp alongside them and
-send it back as `rules` when certifying, so a record can never be
-silently reinterpreted by newer rules as if history had always been that
-way.
+Every response carries `rules`: the version, expressed as behavior —
+derived from golden playouts under the rules actually running. Doc
+changes don't bump it; any change to a draw, a guard, a transcript line,
+or a card's terms does. Anything persisting records should store the
+stamp alongside them and send it back as `rules` when certifying, so a
+record can never be silently reinterpreted by newer rules as if history
+had always been that way.
+
+Since showrunner twists landed (2026-07-29) the stamp hashes **two**
+playouts: the deadbeef no-input golden (`39e8be71`, the base game) and
+the showrunner golden (`6495eab3`, a played match with MERCY ODDS on the
+record — `prototypes/tactical-core/showrunner-golden.js`). The second
+exists because a no-input playout can never play a card: without it, a
+balance patch to a card's terms would move nothing and old records would
+silently certify under new card math. Today's stamp is `41c43d58` =
+`fnv("39e8be71:6495eab3")`. Extending the stamp's *inputs* is the one
+legitimate way the stamp changes without behavior changing — it happened
+here, deliberately, and records stamped `39e8be71` are now correctly
+refused as claiming a different rules version (they do: the grammar
+grew a verb).
 
 ## The archive (campaign wiring, the persistence half)
 
@@ -110,7 +126,8 @@ wiring layer's problem, and it starts mattering exactly when purses do.
 Seed `deadbeef` must answer fingerprint `39e8be71` (42 lines) and seed `1`
 must answer `bac5ad90` (39 lines) — the exact hashes captured from the
 browser build *before the rules were extracted*, asserted in
-`rules.test.js`, and now served from the edge. If the edge disagrees with
+`rules.test.js`, and now served from the edge. The showrunner golden must
+certify to `6495eab3` with MERCY ODDS paid. If the edge disagrees with
 the goldens, the deploy is wrong, not the goldens.
 
 `witness_check.mjs` goes one further: it imports the rules core, *plays* a
