@@ -358,16 +358,18 @@ SENTINEL/
 ## Development
 
 ```bash
-# the tabletop engine
-cd sentinel-agent && pip install -e ".[dev]" && pytest    # 450+ tests
+# each recipe runs in a subshell from the repo root, so they compose
 
-# the tactical rules
-cd prototypes/tactical-core && node --test                # 43 tests, goldens included
+# the tabletop engine — 450+ tests
+(cd sentinel-agent && pip install -e ".[dev]" && pytest)
 
-# the witness worker
-cd workers/witness
-pnpm dlx wrangler dev --port 8787                         # local
-node witness_check.mjs                                    # the acceptance checks
+# the tactical rules — 43 tests, goldens included
+(cd prototypes/tactical-core && node --test)
+
+# the witness worker: a local server in one terminal...
+(cd workers/witness && pnpm dlx wrangler dev --port 8787)
+# ...and the acceptance checks against it in another
+(cd workers/witness && node witness_check.mjs)
 ```
 
 CI runs all three on every push.
