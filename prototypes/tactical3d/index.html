@@ -82,6 +82,41 @@
   #overlay h1.win { color: var(--green); } #overlay h1.loss { color: var(--red); }
   #overlay p { font-size: 12px; color: var(--text-dim); max-width: 380px; line-height: 1.6; }
   #ovpurse { font-size: 13px; color: var(--amber); letter-spacing: 2px; }
+  #ovledger { font-size: 12px; letter-spacing: 1px; }
+  #ovconseq { font-size: 11px; color: var(--text-dim); max-width: 420px; line-height: 1.7; }
+  #ovrecord {
+    font-size: 11px; color: var(--text-dim); border: 1px solid var(--line);
+    padding: 6px 10px; letter-spacing: 1px; background: rgba(12,18,13,0.9);
+  }
+  #ovrecord b { color: var(--text); font-weight: normal; }
+  /* ---- the pre-match card ---- */
+  #card {
+    position: absolute; inset: 0; display: none; z-index: 6;
+    background: rgba(4,6,5,0.97); padding: 10px;
+  }
+  #card.show { display: block; }
+  #card .sheet {
+    border: 1px solid var(--line); height: 100%; padding: 10px 12px;
+    display: flex; flex-direction: column; gap: 7px; background: var(--panel);
+  }
+  #card .chead { display: flex; justify-content: space-between; align-items: baseline; }
+  #card h1 { font-size: 15px; letter-spacing: 3px; font-weight: normal; color: var(--text); }
+  #card .tag { font-size: 10px; letter-spacing: 2px; color: var(--amber); }
+  #card .sub { font-size: 10px; color: var(--text-dim); letter-spacing: 1px; }
+  #card .ccell { border: 1px solid var(--line); padding: 5px 8px; }
+  #card .clabel { font-size: 9px; letter-spacing: 2px; color: var(--text-dim); margin-bottom: 3px; }
+  #card .cbody { font-size: 10px; line-height: 1.5; color: var(--text); }
+  #card .cbody .dim { color: var(--text-dim); }
+  #card .cgrid { display: flex; gap: 7px; }
+  #card .cgrid > div { flex: 1; }
+  #card .frow { display: flex; align-items: center; gap: 8px; padding: 2px 0; font-size: 10px; }
+  #card .frow canvas { width: 40px; height: 40px; image-rendering: pixelated; flex: none; }
+  #card .frow .fname { width: 62px; letter-spacing: 1px; color: var(--text); }
+  #card .frow .fstat { color: var(--text-dim); }
+  #card .op-side .fname { color: var(--cyan); }
+  #card .ho-side .fname { color: var(--red); }
+  #card .cfoot { display: flex; justify-content: space-between; align-items: center; margin-top: auto; }
+  #card .cfoot .sub { max-width: 430px; }
   #boot { font-size: 12px; color: var(--red); padding: 10px 0; display: none; }
   #boot.show { display: block; }
 </style>
@@ -94,12 +129,17 @@
     <div id="overlay">
       <h1 id="ovtitle"></h1>
       <p id="ovtext"></p>
+      <p id="ovledger"></p>
       <p id="ovpurse"></p>
+      <p id="ovconseq"></p>
+      <div id="ovrecord"></div>
       <div>
+        <button id="ovcopy">COPY WITNESS RECORD</button>
         <button id="ovreplay">REPLAY SEED [shift+R]</button>
         <button id="ovnew">NEW ENCOUNTER [R]</button>
       </div>
     </div>
+    <div id="card"></div>
   </div>
   <div id="panel">
     <div class="box" id="turnbar"><span id="turnlabel"></span><span id="seed"></span></div>
@@ -162,7 +202,7 @@
 
 import * as THREE from "./vendor/three.module.js";
 import {
-  S, W, H, FLOOR, HALF, FULL,
+  S, W, H, FLOOR, HALF, FULL, RATING,
   bindIO, restart as rulesRestart, formatEvent,
   selected, living, unitAt, solution, los, reachable, coveringTiles,
   selectUnit, cycleSelect, tryMove, tryShoot, tryFinish, spare, setOverwatch, endPlayerTurn,
@@ -229,19 +269,126 @@ function clearTracers() {
   tracers = [];
 }
 
+/* ---- match framing (Circuit roadmap step 3) ----------------------
+   The pre-match card and the post-match record. The card is data
+   (MATCH), hand-authored for the one venue that exists — when the
+   campaign layer starts dealing cards, it replaces this object, not
+   this code. Content contract from sentinel_circuit_design.md: stakes,
+   venue, host, the presence list (who could read you — exposure is a
+   decision, never a lottery), the insignia line, the tale of the tape.
+   Tone: institution, not satire — a recorder on a tripod and an
+   oddsmaker with a ledger, not a hype man. */
+
+const MATCH = {
+  venue: "KESTREL YARD — LATTICE RELAY STATION",
+  framing: "A Lattice contract, turned card: the Syndicate crew knew you were coming, and the book opened an hour ago.",
+  sanction: "UNSANCTIONED CARD",
+  present: [
+    ["WITNESS RECORDER", "tripod on the north wall — this card is recorded, and the record is the match"],
+    ["SYNDICATE ODDSMAKER", "book open, even money"],
+    ["LATTICE STATION CHIEF", "wants the relay back; hosts under protest"],
+  ],
+  rules: "No referee. Yields are honored by custom, and a finish is legal on this card. What you do next is watched.",
+  colors: "COLORS: none declared — eleven factions read an empty patch eleven ways.",
+  sponsor: "none — open purse",   // sponsorship is leverage, and leverage is the campaign layer's
+};
+
+// FNV-1a over the plain transcript — the same fingerprint rules.test.js
+// asserts and the witness Worker certifies. Shown on the post-match card
+// so the number on screen IS the number the edge would attest to.
+function fnv(s) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return h.toString(16);
+}
+var matchLines = [];   // plain-text transcript, kept in step with the comms log
+
+var cardOpen = false;
+const cardEl = document.getElementById("card");
+
+function spriteThumb(name) {
+  const { grid, pal } = spriteFor(name);
+  const c = document.createElement("canvas");
+  c.width = c.height = 96;   // 3× paint, 48px CSS — integer halving stays crisp
+  const g = c.getContext("2d");
+  grid.forEach((row, y) => [...row].forEach((ch, x) => {
+    if (!pal[ch]) return;
+    g.fillStyle = pal[ch];
+    g.fillRect(x * 3, y * 3, 3, 3);
+  }));
+  return c;
+}
+
+function fighterRow(u) {
+  const row = document.createElement("div");
+  row.className = "frow";
+  row.appendChild(spriteThumb(u.name));
+  const stats = `HP ${u.maxHp} · AIM ${u.aim} · MOB ${u.mobility}` +
+    (u.morale !== undefined ? ` · MORALE ${u.maxMorale}` : "");
+  row.insertAdjacentHTML("beforeend",
+    `<span class="fname">${u.name}</span><span class="fstat">${stats}</span>`);
+  return row;
+}
+
+function showCard() {
+  cardOpen = true;
+  cardEl.innerHTML = `
+    <div class="sheet">
+      <div class="chead"><span class="tag">THE CARD · ${MATCH.sanction}</span><span class="sub">seed ${S.seed.toString(16)}</span></div>
+      <div class="chead"><h1>${MATCH.venue}</h1></div>
+      <div class="sub">${MATCH.framing}</div>
+      <div class="ccell"><div class="clabel">PRESENT — WHO CAN READ YOU</div>
+        <div class="cbody">${MATCH.present.map(([who, what]) => `<b>${who}</b> <span class="dim">— ${what}</span>`).join("<br>")}</div>
+      </div>
+      <div class="cgrid">
+        <div class="ccell op-side"><div class="clabel">YOUR CREW</div><div id="cardops"></div></div>
+        <div class="ccell ho-side"><div class="clabel">THE OPPOSITION</div><div id="cardhos"></div></div>
+      </div>
+      <div class="cgrid">
+        <div class="ccell"><div class="clabel">STAKES</div>
+          <div class="cbody">Purse pays RATING × ${RATING.pursePerPoint}c at close — <b>win or lose</b>. The book opens at ${RATING.start}.<br><span class="dim">SPONSOR: ${MATCH.sponsor}</span></div>
+        </div>
+        <div class="ccell"><div class="clabel">RULES OF THE CARD</div>
+          <div class="cbody dim">${MATCH.rules}</div>
+        </div>
+      </div>
+      <div class="cfoot">
+        <span class="sub">${MATCH.colors}</span>
+        <button id="cardbegin">BEGIN THE CARD [⏎]</button>
+      </div>
+    </div>`;
+  const ops = cardEl.querySelector("#cardops");
+  const hos = cardEl.querySelector("#cardhos");
+  for (const u of S.units) (u.side === "op" ? ops : hos).appendChild(fighterRow(u));
+  cardEl.querySelector("#cardbegin").onclick = beginCard;
+  cardEl.classList.add("show");
+}
+
+function beginCard() {
+  cardOpen = false;
+  cardEl.classList.remove("show");
+}
+
 function onEvent(ev) {
   const line = formatEvent(ev, wrapHTML);
   if (line !== null) log(line);
+  // the plain transcript runs in parallel with the comms log: it is what
+  // gets fingerprinted on the post-match card, byte-for-byte the text the
+  // goldens assert and the witness Worker certifies
+  const plain = formatEvent(ev);
+  if (plain !== null) matchLines.push(plain);
 
   switch (ev.type) {
     case "reset":
       logEl.innerHTML = "";
+      matchLines = [];
       clearTracers();
       labelsEl.innerHTML = "";
       buildTerrain();
       buildUnits();
       showSolution(null, null);
       document.getElementById("overlay").classList.remove("show");
+      showCard();
       break;
     case "fire":
       sfx.fire();
@@ -260,6 +407,24 @@ function onEvent(ev) {
   }
 }
 
+// the crowd and the book react in prose — flavor derived from the same
+// facts the ending reads; real campaign consequences are roadmap step 5
+function consequences(spared, finished, result, rating) {
+  const out = [];
+  if (result === "win") {
+    if (spared && !finished) out.push("The book assumed a finish — the payout is ugly, and the ones who walked owe their walking to you, on camera.");
+    else if (finished && !spared) out.push("A clean card for the book. The recorder has the rest — how it ended is in the record now.");
+    else if (finished && spared) out.push("Some walked, some didn't. Eleven factions will read that eleven ways.");
+    else out.push("Cleared at the gun — no yields taken, none refused.");
+  } else {
+    out.push("The book pays the other corner. The record shows how it went — all of it.");
+  }
+  out.push(rating >= 70 ? "The crowd got a show. This one will travel."
+        : rating <= 30 ? "Dead air, says the oddsmaker. The purse agrees."
+        : "The feed held its audience. The yard goes back to work.");
+  return out;
+}
+
 function showEnd(ev) {
   const result = ev.result;
   const ov = document.getElementById("overlay");
@@ -269,17 +434,27 @@ function showEnd(ev) {
   // yielded stays true on the dead — that is how the ending knows what you did
   const spared   = S.units.filter(u => u.side === "ho" && u.alive && u.yielded).length;
   const finished = S.units.filter(u => u.side === "ho" && !u.alive && u.yielded).length;
+  const lost     = S.units.filter(u => u.side === "op" && !u.alive).length;
   if (result === "win") {
     t.textContent = "YARD CLEARED"; t.className = "win";
     p.textContent =
       spared && finished ? "Some walked, some didn't. The yard saw which was which, and so did the ones who walked." :
       spared             ? "They yielded and you let it stand. The relay hums back to life — and the Syndicate owes you a strange kind of debt." :
       finished           ? "They yielded. You finished it anyway. The relay hums back to life, and the yard remembers how." :
-      "The relay hums back to life. Lattice will remember this — and so will the Syndicate. (That part comes later. For now: it just feels good to replay.)";
+      "The relay hums back to life. Lattice will remember this — and so will the Syndicate.";
   } else {
     t.textContent = "SQUAD LOST"; t.className = "loss";
     p.textContent = "The yard goes quiet. The Syndicate finishes stripping the relay by dawn. Same seed, better angles — try again.";
   }
+  document.getElementById("ovledger").textContent =
+    `${spared} WALKED · ${finished} FINISHED · ${lost} OF YOURS DOWN`;
+  document.getElementById("ovconseq").innerHTML =
+    consequences(spared, finished, result, ev.rating).join("<br>");
+  document.getElementById("ovrecord").innerHTML =
+    `WITNESS RECORD &nbsp; seed <b>${S.seed.toString(16)}</b> · ` +
+    `<b>${S.record.length}</b> commands · <b>${matchLines.length}</b> lines · ` +
+    `fingerprint <b>${fnv(matchLines.join("\n"))}</b>`;
+  document.getElementById("ovcopy").textContent = "COPY WITNESS RECORD";
   ov.classList.add("show");
 }
 
@@ -1192,6 +1367,9 @@ document.addEventListener("keydown", e => {
     applyDisplayMode();
     return;
   }
+  // the card holds the match until the player begins it — the overlay
+  // blocks the canvas by covering it; keys are blocked here
+  if (cardOpen) { if (e.key === "Enter") beginCard(); return; }
   if (S.gameOver || S.busy || S.turn !== "op") return;
   const u = selected();
   switch (e.key) {
@@ -1207,11 +1385,24 @@ document.addEventListener("keydown", e => {
   }
 });
 
-document.getElementById("btnShoot").onclick = () => { S.targetMode = !S.targetMode; draw(); syncPanel(); };
-document.getElementById("btnOw").onclick = () => { const u = selected(); if (u) setOverwatch(u); };
-document.getElementById("btnEnd").onclick = () => { S.decision ? spare() : endPlayerTurn(); };
+document.getElementById("btnShoot").onclick = () => { if (cardOpen) return; S.targetMode = !S.targetMode; draw(); syncPanel(); };
+document.getElementById("btnOw").onclick = () => { if (cardOpen) return; const u = selected(); if (u) setOverwatch(u); };
+document.getElementById("btnEnd").onclick = () => { if (cardOpen) return; S.decision ? spare() : endPlayerTurn(); };
 document.getElementById("ovnew").onclick = () => restart(true);
 document.getElementById("ovreplay").onclick = () => restart(false);
+document.getElementById("ovcopy").onclick = async () => {
+  // the exact wire shape POST /certify takes — the button is the bridge
+  // between a match you just played and the edge attesting to it
+  const payload = JSON.stringify({ seed: S.seed.toString(16), record: S.record });
+  const btn = document.getElementById("ovcopy");
+  try {
+    await navigator.clipboard.writeText(payload);
+    btn.textContent = "COPIED — POST TO /certify";
+  } catch {
+    console.log(payload);
+    btn.textContent = "IN THE CONSOLE";
+  }
+};
 
 // ---- lifecycle --------------------------------------------------
 function restart(fresh) {

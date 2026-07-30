@@ -354,7 +354,17 @@ in the core under its golden-transcript tests, never in a renderer:
    spare/finish choice and log it (hinge moment plumbing can come later)
 2. **Rating meter** — visible, simple, rule-based; pays out at match end
 3. **Match framing** — pre-match card (stakes, sponsor offer, venue,
-   hosting faction) and post-match consequence summary
+   hosting faction) and post-match consequence summary. *Prototyped
+   (2026-07-29) in `tactical3d/`: THE CARD holds the match until begun —
+   venue, framing, the presence list (exposure legibility groundwork),
+   tale of the tape with roster sprites, stakes from the RATING table, the
+   insignia line ("none declared"), sponsor line stubbed (sponsorship is
+   leverage, and leverage is the campaign layer's). Post-match: ledger,
+   consequence prose, and the WITNESS RECORD cell — seed, commands, lines,
+   fingerprint — with a copy button emitting the exact `POST /certify`
+   wire shape. Verified live: a match played in the UI certified at the
+   edge with identical fingerprint, rating, and purse. The card is data
+   (`MATCH`); dynamic dealing replaces the object, not the code*
 4. **Showrunner twists** — between-round events drawn from a small deck,
    announced on the feed before they resolve
 5. **Campaign wiring** — matches as a job type; results into wiki events,
