@@ -44,19 +44,21 @@ restart(seed)         deal an encounter
 
 tryMove, tryShoot, setOverwatch, selectUnit, cycleSelect, endPlayerTurn
 tryFinish, spare      the two halves of the yield decision (see below)
+playTwist, twistWindow, TWISTS
+                      the house's verb, its legality window, and the deck
 los, coverBonus, coveringTiles, solution, reachable, pathTo
 MORALE                start value and drain amounts, exported for tuning
 RATING                crowd-meter deltas and payout rate, exported for tuning
 formatEvent(ev, wrap) one formatter, two skins
-S.record              the witness record — committed player commands, in order
+S.record              the witness record — committed commands, in order
 replayMatch(seed, commands)
                       drive a record back through the verbs (see below)
 ```
 
 The rules never call the renderer. They emit events — `fire`, `shot`, `down`,
 `overwatch-set`, `overwatch-trigger`, `turn`, `select`, `reset`, `end`,
-`yield`, `yield-decision`, `finish`, `spared` — and the host decides what a
-shot looks and sounds like. `formatEvent` takes a `wrap(text, class)` so the
+`yield`, `yield-decision`, `finish`, `spared`, `twist-announce`,
+`twist-resolve` — and the host decides what a shot looks and sounds like. `formatEvent` takes a `wrap(text, class)` so the
 browser gets coloured HTML and the test gets plain text from the same code
 path. That is why the test can assert against exactly the words a player
 reads in the comms log.
@@ -136,6 +138,48 @@ cannot check yet, and belongs to campaign wiring.)
 
 Recording draws nothing from the RNG and emits nothing — the fourth rules
 change in a row to land with the golden transcripts untouched.
+
+## Showrunner twists
+
+The house's verb (`sentinel_circuit_design.md` roadmap step 4). A twist is
+a **recorded input**, never weather: `["twist", cardId]` enters the record
+like any player command, the core validates and resolves it, and *who*
+chose it — a scripted card, a reactive director, someday a live hand —
+lives outside the rules and outside the record's concern. `playTwist` is
+legal only in the between-rounds window (`twistWindow()`: the player has
+control and nobody has acted yet), refuses unknown cards, and enforces the
+budget of **one card per match** in the rules rather than as director
+etiquette — a synthesized five-twist record can never certify.
+
+A played card resolves at the next moment control returns to the player —
+the top of the next round, or the decision entry if the fight settles
+first — so the announcement always lands before the effect. Both moments
+are transcript lines: the warning is on the feed, byte-for-byte.
+
+The deck holds one card. **MERCY ODDS** replaces the spare payout
+(`RATING.spare`, normally a cost) with a bounty — settled law: *the house
+can monetize your decision; it cannot decide what the decision means.*
+Cards price choices; they do not touch morale, yield thresholds, or what
+a spare socially costs. The terms print on the feed with the number in
+them, and a test asserts the number in the text is the number in the code.
+
+On a record with no twist verbs, none of this draws RNG or emits a line —
+the fifth rules change in a row to land with the goldens untouched. But a
+no-input playout can never play a card, so the deadbeef golden alone can
+no longer stamp the rules: `showrunner-golden.js` pins a **second golden**
+(seed 6's organic spare match with the twist spliced at the first window,
+captured fingerprint `6495eab3`), and the witness Worker's rules stamp now
+hashes both playouts — transcript *and* outcome (result, rating, purse),
+because rating is never a transcript line and card economics must not be
+able to change under an unchanged stamp. Changing card math moves the
+stamp — that is the point.
+
+`director.js` is the reference chooser: deterministic, reactive, no RNG.
+It reads the same visible state the player reads at each between-rounds
+window and plays MERCY ODDS when a fighter is one bad beat from kneeling.
+It is a *client* of the rules — same doorway as the player-input adapter,
+refusable like any hand on the controls — not part of them. Renderers may
+use it; tests script their own records.
 
 ## Rules for changing this file
 
