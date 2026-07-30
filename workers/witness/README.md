@@ -62,12 +62,16 @@ the showrunner golden (`6495eab3`, a played match with MERCY ODDS on the
 record — `prototypes/tactical-core/showrunner-golden.js`). The second
 exists because a no-input playout can never play a card: without it, a
 balance patch to a card's terms would move nothing and old records would
-silently certify under new card math. Today's stamp is `41c43d58` =
-`fnv("39e8be71:6495eab3")`. Extending the stamp's *inputs* is the one
-legitimate way the stamp changes without behavior changing — it happened
-here, deliberately, and records stamped `39e8be71` are now correctly
-refused as claiming a different rules version (they do: the grammar
-grew a verb).
+silently certify under new card math. Each golden contributes its
+transcript fingerprint **and its outcome** — result, rating, purse —
+because rating is deliberately never a transcript line, so payout
+behavior could otherwise change under an unchanged stamp (caught in
+review). Today's stamp is `1b07379b` =
+`fnv("39e8be71:loss:29:290:6495eab3:win:92:920")`. Extending the stamp's
+*inputs* is the one legitimate way the stamp changes without behavior
+changing — it happened here, deliberately, and records stamped
+`39e8be71` are now correctly refused as claiming a different rules
+version (they do: the grammar grew a verb).
 
 ## The archive (campaign wiring, the persistence half)
 

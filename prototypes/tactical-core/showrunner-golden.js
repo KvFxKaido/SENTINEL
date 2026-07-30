@@ -33,6 +33,8 @@ export const SHOWRUNNER_GOLDEN = {
   ],
   result: "win",
   rating: 92,     // pre-spare 86, MERCY ODDS pays +6 — unclamped on purpose
+  purse: 920,     // outcome constants are stamp inputs: rating is never a
+                  // transcript line, so economics are pinned here explicitly
   lines: 52,
   fingerprint: "6495eab3",
 };

@@ -728,6 +728,32 @@ test("the twist window fails closed: mid-round, wrong turn, unknown cards, the b
     "no cards into the decision — pricing it required announcing a round earlier");
 });
 
+test("a mover who dies to overwatch cannot reopen the twist window (caught in review)", async () => {
+  // The corner: the first operative to act dies to a reaction shot, and
+  // their spent AP leaves living("op") with them — every survivor still
+  // reads 2 AP. A window inferred from the roster's AP would reopen
+  // mid-round; the explicit S.roundActed flag must not.
+  captureEvents();
+  restart(seedHitting(34));   // 65 aim +4 range −20 cover −15 reaction = 34
+  const v = living("op")[0];
+  const s1 = living("ho")[0];
+  s1.x = 1; s1.y = 6;         // clear line down column 1 — the crate at (1,7) is half cover, not a wall
+  s1.overwatch = true;
+  v.hp = 1;                   // any landed reaction shot kills
+  await tryMove(v, 1, 8);     // one step into the watched lane
+  assert.equal(v.alive, false, "the rig must actually kill the mover");
+  assert.ok(living("op").every(u => u.ap === 2),
+    "the survivors' AP is exactly the inference that would have lied here");
+  assert.equal(twistWindow(), false, "an action happened this round — the window stays shut");
+  playTwist(1);
+  assert.ok(!S.record.some(c => c[0] === "twist"),
+    "the house cannot slip a card in behind a dead mover");
+  await endPlayerTurn();
+  if (!S.gameOver && !S.decision) {
+    assert.equal(twistWindow(), true, "the next round reopens the window honestly");
+  }
+});
+
 test("a record with an illegally-timed twist does not certify", async () => {
   await autoPlay(6, "spare");
   const organic = JSON.parse(JSON.stringify(S.record));
@@ -774,7 +800,7 @@ test("the director is deterministic, plays at the bell, and its choice certifies
 });
 
 test("the showrunner golden replays to its captured fingerprint", async () => {
-  const { seed, record, result, rating, lines: lineCount, fingerprint } = SHOWRUNNER_GOLDEN;
+  const { seed, record, result, rating, purse, lines: lineCount, fingerprint } = SHOWRUNNER_GOLDEN;
   const lines = [];
   bindIO({
     sleep: () => Promise.resolve(),
@@ -785,6 +811,8 @@ test("the showrunner golden replays to its captured fingerprint", async () => {
   assert.equal(cert.faithful, true, "the twist splices into the organic record without disturbing it");
   assert.equal(S.gameOver, result);
   assert.equal(S.rating, rating, "the spare paid the card's number, not RATING.spare");
+  assert.equal(S.rating * RATING.pursePerPoint, purse,
+    "the pinned purse is a stamp input — it must be what the replay actually pays");
   assert.equal(lines.length, lineCount);
   assert.equal(fnv(lines.join("\n")), fingerprint,
     "the stamp's second golden: any change to twist behavior must move this");

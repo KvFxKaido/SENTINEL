@@ -55,18 +55,24 @@ function serialized(fn) {
 // and the showrunner golden exercises the twist grammar and card math a
 // no-input playout can never reach — without it, a balance patch to a
 // card would move nothing and old records would silently certify under
-// new card terms. Extending the stamp's INPUTS is the one legitimate way
-// the stamp changes without behavior changing; it happened when twists
-// landed, deliberately, and it is why the stamp is no longer the bare
-// deadbeef fingerprint. Computed once per isolate; callers must hold the
-// mutex (it runs the shared S machine).
+// new card terms. Each golden contributes its transcript fingerprint AND
+// its outcome (result, rating, purse): rating is deliberately never a
+// transcript line, so payout behavior could otherwise change under an
+// unchanged stamp (caught in review). Extending the stamp's INPUTS is
+// the one legitimate way the stamp changes without behavior changing;
+// it happened when twists landed, deliberately, and it is why the stamp
+// is no longer the bare deadbeef fingerprint. Computed once per isolate;
+// callers must hold the mutex (it runs the shared S machine).
 let rulesStamp = null;
 async function rulesFingerprint() {
   if (rulesStamp === null) {
-    const base = (await replay(0xdeadbeef)).fingerprint;
+    const base = await replay(0xdeadbeef);
     const lines = captureLines();
     await replayMatch(SHOWRUNNER_GOLDEN.seed, SHOWRUNNER_GOLDEN.record);
-    rulesStamp = fnv(`${base}:${fnv(lines.join("\n"))}`);
+    rulesStamp = fnv([
+      base.fingerprint, base.result, base.rating, base.purse,
+      fnv(lines.join("\n")), S.gameOver, S.rating, S.rating * RATING.pursePerPoint,
+    ].join(":"));
   }
   return rulesStamp;
 }

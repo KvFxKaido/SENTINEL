@@ -169,8 +169,10 @@ no-input playout can never play a card, so the deadbeef golden alone can
 no longer stamp the rules: `showrunner-golden.js` pins a **second golden**
 (seed 6's organic spare match with the twist spliced at the first window,
 captured fingerprint `6495eab3`), and the witness Worker's rules stamp now
-hashes both playouts. Changing card math moves the stamp — that is the
-point.
+hashes both playouts — transcript *and* outcome (result, rating, purse),
+because rating is never a transcript line and card economics must not be
+able to change under an unchanged stamp. Changing card math moves the
+stamp — that is the point.
 
 `director.js` is the reference chooser: deterministic, reactive, no RNG.
 It reads the same visible state the player reads at each between-rounds

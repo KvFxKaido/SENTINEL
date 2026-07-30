@@ -11,9 +11,12 @@ import {
 import { SHOWRUNNER_GOLDEN } from "../../prototypes/tactical-core/showrunner-golden.js";
 
 const BASE = process.argv[2] ?? "http://localhost:8787";
+// outcome constants (rating/purse) are pinned literals on purpose: they
+// are stamp inputs, and computing them from imported tables would let
+// economics drift without this check noticing
 const GOLDENS = [
-  { seed: "deadbeef", lines: 42, fingerprint: "39e8be71", result: "loss" },
-  { seed: "1", lines: 39, fingerprint: "bac5ad90", result: "loss" },
+  { seed: "deadbeef", lines: 42, fingerprint: "39e8be71", result: "loss", rating: 29, purse: 290 },
+  { seed: "1", lines: 39, fingerprint: "bac5ad90", result: "loss", rating: 31, purse: 310 },
 ];
 
 function fnv(s) {
@@ -37,7 +40,8 @@ const post = async (payload) => {
 // ---- goldens over GET /replay ----------------------------------
 for (const g of GOLDENS) {
   const r = await get(g.seed);
-  check(r.fingerprint === g.fingerprint && r.lines === g.lines && r.result === g.result,
+  check(r.fingerprint === g.fingerprint && r.lines === g.lines && r.result === g.result &&
+        r.rating === g.rating && r.purse === g.purse,
     `replay seed=${g.seed} fp=${r.fingerprint} lines=${r.lines} result=${r.result} rating=${r.rating} purse=${r.purse}`);
 }
 
@@ -123,10 +127,15 @@ check(cert.status === 200 && cert.body.certified === true &&
 // ---- the rules stamp --------------------------------------------
 // Version-as-behavior, over TWO playouts: the deadbeef golden pins the
 // base game, the showrunner golden pins the twist grammar and card math
-// a no-input playout never reaches. The edge must derive the same stamp
-// from the same two pinned fingerprints, and a record claiming other
-// rules must be refused before replay.
-const STAMP = fnv(`${GOLDENS[0].fingerprint}:${SHOWRUNNER_GOLDEN.fingerprint}`);
+// a no-input playout never reaches. Each contributes transcript AND
+// outcome — rating is never a transcript line, so economics are stamped
+// explicitly (caught in review). The edge must derive the same stamp
+// from the same pinned constants, and a record claiming other rules
+// must be refused before replay.
+const STAMP = fnv([
+  GOLDENS[0].fingerprint, GOLDENS[0].result, GOLDENS[0].rating, GOLDENS[0].purse,
+  SHOWRUNNER_GOLDEN.fingerprint, SHOWRUNNER_GOLDEN.result, SHOWRUNNER_GOLDEN.rating, SHOWRUNNER_GOLDEN.purse,
+].join(":"));
 check(cert.body.rules === STAMP,
   `certificate carries the two-golden rules stamp: ${cert.body.rules} (expected ${STAMP})`);
 const claimed = await post({ seed: "6", record: local.record, rules: STAMP });

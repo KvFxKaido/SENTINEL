@@ -60,6 +60,7 @@ export const S = {
   record: [],          // the witness record — every committed command, in order
   pendingTwist: null,  // house card announced this round; goes live next round
   activeTwist: null,   // house card in effect for the rest of the match
+  roundActed: false,   // a player verb has committed this round — closes the twist window
   gen: 0,              // restart generation — stale async turns check this and bail
 };
 
@@ -282,12 +283,14 @@ export const TWISTS = {
 const TWIST_BUDGET = 1;
 
 // The between-rounds window: control is the player's and nobody has
-// acted yet (full AP mirrors makeUnits and enemyTurn's refresh). One
-// home for the legality question — when a second between-rounds actor
-// lands, this predicate is where the window grows into a phase.
+// acted yet. Tracked explicitly (S.roundActed, set at each verb's commit
+// point) rather than inferred from the roster's AP — a mover who dies to
+// overwatch takes their spent AP out of living("op") with them, and an
+// inferred window would reopen mid-round (caught in review). One home
+// for the legality question — when a second between-rounds actor lands,
+// this predicate is where the window grows into a phase.
 export function twistWindow() {
-  return S.turn === "op" && !S.busy && !S.gameOver && !S.decision &&
-    living("op").every(u => u.ap === 2);
+  return S.turn === "op" && !S.busy && !S.gameOver && !S.decision && !S.roundActed;
 }
 
 export function playTwist(cardId) {
@@ -429,6 +432,7 @@ export async function tryMove(u, x, y) {
   const c = cost.get(x + "," + y);
   if (c === undefined || c === 0) return;
   S.record.push(["move", u.id, x, y]);
+  S.roundActed = true;
   S.busy = true;
   u.ap -= c <= u.mobility ? 1 : 2;
   S.targetMode = false;
@@ -442,6 +446,7 @@ export async function tryShoot(att, def) {
   if (def.yielded) return tryFinish(att, def);   // you don't roll dice at a kneeling fighter
   if (S.decision || S.gameOver || att.ap <= 0 || !solution(att, def)) return;
   S.record.push(["shoot", att.id, def.id]);
+  S.roundActed = true;
   S.busy = true;
   att.ap = 0;            // firing ends the unit's activation
   S.targetMode = false;
@@ -466,6 +471,7 @@ export async function tryFinish(att, def) {
     att.ap = 0;
   }
   S.record.push(["finish", att.id, def.id]);
+  S.roundActed = true;
   const g = S.gen;
   S.busy = true;
   S.targetMode = false;
@@ -502,6 +508,7 @@ export function spare() {
 export function setOverwatch(u) {
   if (S.decision || S.gameOver || u.ap <= 0) return;
   S.record.push(["ow", u.id]);
+  S.roundActed = true;
   u.overwatch = true;
   u.ap = 0;
   S.targetMode = false;
@@ -621,6 +628,7 @@ export async function enemyTurn() {
   if (!S.gameOver && !S.decision) {
     S.turn = "op";
     for (const u of living("op")) { u.ap = 2; u.overwatch = false; }
+    S.roundActed = false;   // a fresh round — the twist window reopens
     io.emit({ type: "turn", side: "op" });
     resolveTwist();   // announced last round, live now
     const first = living("op")[0];
@@ -647,7 +655,7 @@ export function restart(seed) {
   S.rng = mulberry32(S.seed);
   buildMap();
   makeUnits();
-  S.turn = "op"; S.selectedId = 0; S.targetMode = false; S.busy = false; S.gameOver = null; S.decision = false; S.rating = RATING.start; S.record = []; S.pendingTwist = null; S.activeTwist = null;
+  S.turn = "op"; S.selectedId = 0; S.targetMode = false; S.busy = false; S.gameOver = null; S.decision = false; S.rating = RATING.start; S.record = []; S.pendingTwist = null; S.activeTwist = null; S.roundActed = false;
   io.emit({ type: "reset" });
   io.emit({ type: "mission" });
   io.emit({ type: "turn", side: "op" });
