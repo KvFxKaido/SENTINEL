@@ -97,8 +97,8 @@ async function replay(seed) {
 // under the stamped rules and this transcript is its one true replay —
 // validation, not provenance. WHO played it is a claim this Worker
 // cannot check yet; that layer (commitments/signatures) arrives with
-// campaign wiring, where purses start to matter.
-async function certify(seed, record, claimedRules) {
+// player identity, which does not exist anywhere yet.
+async function certify(seed, record, claimedRules, claimedFp) {
   const rules = await rulesFingerprint();
   if (claimedRules !== undefined && claimedRules !== rules) {
     return { status: 422, body: {
@@ -120,13 +120,41 @@ async function certify(seed, record, claimedRules) {
       rules, commands: record.length,
     } };
   }
-  return { status: 200, body: { certified: true, rules, ...certificate(seed, lines, { commands: record.length }) } };
+  const cert = certificate(seed, lines, { commands: record.length });
+  // the fingerprint claim: "this is the match I watched." A page that
+  // outlived a deploy can hold a record whose commands still replay under
+  // newer rules — to a different match. Refusing the mismatch keeps the
+  // archive from ever storing a transcript the player never saw.
+  if (claimedFp !== undefined && claimedFp !== cert.fingerprint) {
+    return { status: 422, body: {
+      certified: false, error: "record replays to a different match than claimed",
+      rules, fingerprint: cert.fingerprint, claimed: claimedFp,
+    } };
+  }
+  // the ledger the post-match card shows, derived from the replayed state:
+  // yielded stays true on the dead, which is how the record knows mercy
+  // from execution
+  const ledger = {
+    walked:   S.units.filter(u => u.side === "ho" && u.alive && u.yielded).length,
+    finished: S.units.filter(u => u.side === "ho" && !u.alive && u.yielded).length,
+    lost:     S.units.filter(u => u.side === "op" && !u.alive).length,
+  };
+  return { status: 200, body: { certified: true, rules, ledger, ...cert } };
 }
+
+// CORS is open by design: the tactical prototype files records straight
+// from the browser, and everything here is either public (replay, list)
+// or self-verifying (file certifies before it stores).
+const CORS = {
+  "access-control-allow-origin": "*",
+  "access-control-allow-methods": "GET, POST, OPTIONS",
+  "access-control-allow-headers": "content-type",
+};
 
 function json(obj, status = 200) {
   return new Response(JSON.stringify(obj, null, 2), {
     status,
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...CORS },
   });
 }
 
@@ -145,9 +173,54 @@ function validRecord(record) {
       c.slice(1).every(v => Number.isInteger(v) && v >= 0 && v <= 255));
 }
 
+async function sha256hex(s) {
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+// Filing: certify, then archive. Identity is content-addressed — a
+// SHA-256 digest of everything that makes the match the match: the rules
+// stamp, the seed, and the record. Rules included on purpose: the same
+// record under different rules is a DIFFERENT match, never an overwrite.
+// (The transcript fingerprint stays FNV for continuity with the goldens;
+// it is a checksum, not an identity — caught in review.) Filing is
+// state-idempotent: an already-filed match returns the original entry,
+// original timestamp — resubmission can neither inflate a career nor
+// bump an old record to the top of the archive.
+async function fileMatch(env, seed, record, claimedRules, claimedFp) {
+  // KV work stays outside the mutex; the replay machine inside it
+  const out = await serialized(() => certify(seed, record, claimedRules, claimedFp));
+  if (out.status !== 200) return { status: out.status, body: { filed: false, ...out.body } };
+  const cert = out.body;
+  const id = (await sha256hex(JSON.stringify({ rules: cert.rules, seed: cert.seed, record }))).slice(0, 32);
+  const key = `match:${id}`;
+  const prior = await env.RECORDS.get(key, "json");
+  if (prior) {
+    return { status: 200, body: { filed: true, existing: true, id, filed_at: prior.filed_at, ...cert } };
+  }
+  // Best-effort cap, checked only for NEW entries so refiling always
+  // works, even at capacity. Concurrent first-time filers near the limit
+  // can overshoot by a few — this is a soft cap on a dev ledger, not an
+  // invariant (a hard one wants a Durable Object, and this archive does
+  // not want a Durable Object yet).
+  const existing = await env.RECORDS.list({ prefix: "match:", limit: 1000 });
+  if (existing.keys.length >= 1000) {
+    return { status: 507, body: { filed: false, error: "the archive is full — this is a prototype ledger, not a product one" } };
+  }
+  const at = new Date().toISOString();
+  const meta = {
+    at, seed: cert.seed, result: cert.result, rating: cert.rating,
+    purse: cert.purse, fingerprint: cert.fingerprint, rules: cert.rules,
+    commands: cert.commands, ledger: cert.ledger,
+  };
+  await env.RECORDS.put(key, JSON.stringify({ filed_at: at, record, certificate: cert }), { metadata: meta });
+  return { status: 200, body: { filed: true, existing: false, id, filed_at: at, ...cert } };
+}
+
 export default {
-  async fetch(request) {
+  async fetch(request, env) {
     const url = new URL(request.url);
+    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
     if (url.pathname === "/replay") {
       const raw = url.searchParams.get("seed");
       if (!raw || !SEED_RE.test(raw)) {
@@ -163,7 +236,7 @@ export default {
         return json({ error: "replay failed" }, 500);
       }
     }
-    if (url.pathname === "/certify") {
+    if (url.pathname === "/certify" || url.pathname === "/file") {
       if (request.method !== "POST") {
         return json({ error: 'POST a witness record — {"seed":"<hex>","record":[["move",0,3,7],...]}' }, 405);
       }
@@ -177,13 +250,37 @@ export default {
       if (body.rules !== undefined && typeof body.rules !== "string") {
         return json({ error: "rules, if claimed, is the fingerprint string a certificate carries" }, 400);
       }
+      if (body.fingerprint !== undefined && !/^[0-9a-f]{1,8}$/.test(body.fingerprint ?? "")) {
+        return json({ error: "fingerprint, if claimed, is the transcript hash the post-match card shows" }, 400);
+      }
       try {
-        const { status, body: out } = await serialized(() => certify(parseInt(raw, 16), body.record, body.rules));
+        const { status, body: out } = await (url.pathname === "/file"
+          ? fileMatch(env, parseInt(raw, 16), body.record, body.rules, body.fingerprint)
+          : serialized(() => certify(parseInt(raw, 16), body.record, body.rules, body.fingerprint)));
         return json(out, status);
       } catch (err) {
-        console.log(JSON.stringify({ level: "error", event: "witness_certify_failed", seed: raw, message: String(err) }));
+        console.log(JSON.stringify({ level: "error", event: "witness_certify_failed", path: url.pathname, seed: raw, message: String(err) }));
         return json({ error: "certify failed" }, 500);
       }
+    }
+    if (url.pathname === "/matches" && request.method === "GET") {
+      // walk every page — the cap bounds this at a handful of list calls,
+      // and a partial page sorted "newest first" is a lie (caught in review)
+      const matches = [];
+      let cursor;
+      do {
+        const page = await env.RECORDS.list({ prefix: "match:", limit: 1000, cursor });
+        for (const k of page.keys) matches.push({ id: k.name.slice("match:".length), ...k.metadata });
+        cursor = page.list_complete ? null : page.cursor;
+      } while (cursor);
+      matches.sort((a, b) => (b.at ?? "").localeCompare(a.at ?? ""));
+      return json({ count: matches.length, matches });
+    }
+    if (url.pathname.startsWith("/matches/") && request.method === "GET") {
+      const id = decodeURIComponent(url.pathname.slice("/matches/".length));
+      const stored = await env.RECORDS.get(`match:${id}`, "json");
+      if (!stored) return json({ error: "no such match on file" }, 404);
+      return json({ id, ...stored });
     }
     return json({
       service: "sentinel-witness",
@@ -191,8 +288,10 @@ export default {
       usage: {
         replay: "GET /replay?seed=deadbeef — no-input playout, a pure function of the seed",
         certify: 'POST /certify {"seed":"<hex>","record":[...],"rules":"<optional fingerprint>"} — a played match; certified only if the record replays faithfully to a finished match under these rules',
+        file: "POST /file — same body as /certify; certifies AND archives. Idempotent: the key is content-derived, so a match files once no matter how often it is submitted",
+        matches: "GET /matches — the archive, newest first (metadata only). GET /matches/{id} — one filed match in full: record + certificate",
       },
-      note: "the record grammar lives in prototypes/tactical-core/rules.js (S.record / replayMatch) — seed + record IS the match. A certificate attests validity under the stamped rules version, not who played it; provenance is the campaign-wiring layer.",
+      note: "the record grammar lives in prototypes/tactical-core/rules.js (S.record / replayMatch) — seed + record IS the match. A certificate attests validity under the stamped rules version, not who played it; identity/signatures do not exist yet, so the archive is self-attested but replay-verified.",
     });
   },
 };

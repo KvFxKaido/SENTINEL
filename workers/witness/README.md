@@ -10,7 +10,10 @@ Live at: `https://sentinel-witness.ishawnd.workers.dev`
 
 ```
 GET  /replay?seed=deadbeef
-POST /certify   {"seed":"6","record":[["move",0,1,7],...,["spare"]]}
+POST /certify      {"seed":"6","record":[["move",0,1,7],...,["spare"]]}
+POST /file         same body — certifies AND archives
+GET  /matches      the archive, newest first (metadata only)
+GET  /matches/{id} one filed match in full: record + certificate
 ```
 
 `/replay` replays the no-input encounter for a seed. `/certify` takes a
@@ -49,6 +52,48 @@ Anything persisting records should store the stamp alongside them and
 send it back as `rules` when certifying, so a record can never be
 silently reinterpreted by newer rules as if history had always been that
 way.
+
+## The archive (campaign wiring, the persistence half)
+
+`POST /file` certifies and then stores the match in KV. Identity is
+**content-addressed**: the id is a SHA-256 digest (truncated to 128 bits)
+of `{rules, seed, record}` — everything that makes the match the match.
+Rules are in the digest on purpose: the same record under different rules
+is a *different* match, never an overwrite. (The transcript fingerprint
+stays FNV-32 for continuity with the goldens — it is a checksum, not an
+identity.) Filing is **state-idempotent**: an already-filed match returns
+the original entry with its original timestamp, so resubmission can
+neither inflate the ledger nor bump an old record to the top.
+
+`POST /file` and `/certify` also accept an optional **fingerprint claim**
+— "this is the match I watched." A browser page that outlived a rules
+deploy can hold a record whose commands still replay under newer rules,
+to a different match; the claim makes the worker refuse rather than
+archive a transcript the player never saw. The prototype always sends it.
+
+Certificates (and stored metadata) carry the **ledger** — walked /
+finished / lost, derived from the replayed state — and the rules stamp,
+so a future rules version can refuse to silently reinterpret the archive.
+`GET /matches` walks every KV page before sorting: the listing is
+globally newest-first and complete, bounded by the cap.
+
+The tactical prototype consumes this directly: the post-match card's FILE
+THE RECORD button posts the exact `/file` wire shape, and THE ARCHIVE
+line is `GET /matches` summarized — cards on file, W–L, purse paid out.
+It is labeled *archive*, not *career*, because the ledger is one shared
+public namespace and nothing scopes records to a player yet; when
+identity exists, careers become a view over it.
+
+Prototype-grade honesty: the archive is **self-attested but
+replay-verified** — nothing proves *who* played a record (identity and
+signatures don't exist anywhere yet), but nothing enters the archive
+without replaying faithfully to a finished match under the current rules.
+Writes are public with a **soft cap** (1,000 entries, checked
+best-effort; concurrent filers near the limit can overshoot by a few —
+a hard cap wants a Durable Object, and this dev ledger doesn't). The
+campaign-consequence half of roadmap step 5 (matches as jobs, wiki
+events, disposition, dormant threads) belongs to the campaign brain and
+is deliberately not improvised here.
 
 ## What a certificate attests — and what it doesn't
 

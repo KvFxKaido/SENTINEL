@@ -108,3 +108,41 @@ jobs:
       - name: Run rules tests
         working-directory: prototypes/tactical-core
         run: node --test
+
+  # The witness Worker against a local wrangler dev (simulated KV): goldens
+  # from the edge, certification refusals, and the archive — including the
+  # >100-entry bulk that forces /matches to walk KV cursors. The live
+  # deployment is verified manually with the same harness minus the bulk.
+  witness-worker:
+    runs-on: ubuntu-latest
+    env:
+      WRANGLER_SEND_METRICS: "false"
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Start worker (local, simulated KV)
+        working-directory: workers/witness
+        run: |
+          npx wrangler@4 dev --port 8787 > wrangler.log 2>&1 &
+          for i in $(seq 1 45); do
+            curl -sf http://localhost:8787/ > /dev/null && exit 0
+            sleep 2
+          done
+          echo "worker never came up" >&2
+          cat wrangler.log >&2
+          exit 1
+
+      - name: Run witness checks
+        working-directory: workers/witness
+        run: node witness_check.mjs http://localhost:8787
+
+      - name: Worker log on failure
+        if: failure()
+        working-directory: workers/witness
+        run: cat wrangler.log || true
