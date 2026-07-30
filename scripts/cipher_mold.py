@@ -26,6 +26,17 @@ redistribution as an asset, so the pack directory is gitignored and
 must stay out of the public repo. Outputs are regenerable artifacts
 (same rule as graded portraits) and are gitignored too.
 
+Body-law status (caught in review): these frames keep the PACK's
+native format — 96x80, ~34px body — which is NOT the 32x32 System A
+canvas the body law mandates for canon bodies. Deliberate and
+PROVISIONAL: this is the selout-dialect audition body for the
+walkable-world toy, not a canon body. If it wins adoption, either
+Cipher is re-authored on the 32 canvas in this dialect, or the body
+law takes its successor amendment through its own escape hatch
+(art_direction_gba_tactics.md), density bill attached. Until decided,
+any surface using these sheets is running a provisional format, on
+the record.
+
 Usage:
   python scripts/cipher_mold.py
     reads  prototypes/FREE_Adventurer 2D Pixel Art/Sprites/**.png
@@ -47,8 +58,9 @@ hx = lambda s: tuple(int(s[i:i + 2], 16) for i in (0, 2, 4))
 
 # ---- pass 1: the LUT (the decision record — 24 colors, hand-assigned) ----
 LUT_HEX = {
-    # hair -> dreadlock warm darks
-    '391f21': '1d1813', '5d2c28': '332a1f',
+    # hair -> dreadlock warm darks (canonical CIPHER_PAL.D/E — one source
+    # of truth with cipher_sprites.js; drift caught in review)
+    '391f21': '171310', '5d2c28': '332a1f',
     # coat reds -> jacket steels
     '800020': '131c26', '571c27': '1d2a37', '891e2b': '2b3a4a', 'c42430': '41586e',
     # skin -> Cipher skin, face kept lit
@@ -68,7 +80,9 @@ LUT_HEX = {
 }
 LUT = {hx(k): hx(v) for k, v in LUT_HEX.items()}
 
-HAIR_D, HAIR_E, HAIR_R = hx('1d1813'), hx('332a1f'), hx('4a3d2c')
+# D and E are CIPHER_PAL's dread tones verbatim; the rim light is a ramp
+# extension this scale needs (not in the 32x32 palette, deliberately)
+HAIR_D, HAIR_E, HAIR_R = hx('171310'), hx('332a1f'), hx('4a3d2c')
 SKINS = {hx('6b4a32'), hx('82603f'), hx('9a7850')}
 VISOR_A = hx('5ccfff')
 LIGHT_FAMILY = {hx('e8f1f7'), hx('c2d3e0'), hx('93aabf'), hx('6b8199'), hx('68809a')}
@@ -178,7 +192,11 @@ def head_and_blade(a, ignite):
     return out
 
 def process_sheet(path):
-    ignite = 'ATTACK' in path.upper()
+    # classify the action from the path RELATIVE to the pack — an absolute
+    # path can contain 'attack' in a parent directory name and ignite
+    # every sheet (caught in review)
+    rel = os.path.relpath(path, PACK)
+    ignite = rel.replace('\\', '/').split('/')[0].upper().startswith('ATTACK')
     sheet = np.array(Image.open(path).convert('RGBA'))
     out = sheet.copy()
     for i in range(FRAMES):
@@ -200,32 +218,54 @@ def main():
         written.append(dst)
         print('molded', rel)
 
-    # preview contact sheet: one frame per action, down + right facings
+    # preview contact sheet: one frame per action, down + right facings.
+    # Best-effort: missing/renamed sheets skip with a warning instead of
+    # crashing after the real work is done (caught in review).
     cells = []
     for rel in ['IDLE/idle_down.png', 'RUN/run_right.png', 'ATTACK 1/attack1_right.png', 'ATTACK 2/attack2_down.png']:
-        a = np.array(Image.open(os.path.join(OUT, rel.replace('/', os.sep))))
+        p = os.path.join(OUT, rel.replace('/', os.sep))
+        if not os.path.exists(p):
+            print(f'preview: skipping missing {rel}')
+            continue
+        with Image.open(p) as im:
+            a = np.array(im)
         f = a[:, 4 * FRAME_W:5 * FRAME_W]
         ys, xs = np.where(f[:, :, 3] > 0)
-        cells.append(f[ys.min() - 3:ys.max() + 4, xs.min() - 3:xs.max() + 4])
-    Z = 6
-    cw = max(c.shape[1] for c in cells) + 4
-    ch = max(c.shape[0] for c in cells) + 6
-    prev = Image.new('RGBA', ((cw * len(cells) + 4) * Z, ch * Z), (14, 16, 20, 255))
-    x = 4
-    for c in cells:
-        img = Image.fromarray(c)
-        cz = img.resize((img.width * Z, img.height * Z), Image.NEAREST)
-        prev.paste(cz, (x * Z, 3 * Z), cz)   # mask: keep the dark backdrop
-        x += cw
-    prev.save(os.path.join(OUT, 'preview.png'))
+        if not len(ys):
+            continue
+        # clamped crop: a body within 3px of the frame edge must pad, not
+        # wrap around numpy's negative indices (caught in review)
+        cells.append(f[max(0, ys.min() - 3):min(f.shape[0], ys.max() + 4),
+                       max(0, xs.min() - 3):min(f.shape[1], xs.max() + 4)])
+    if cells:
+        Z = 6
+        cw = max(c.shape[1] for c in cells) + 4
+        ch = max(c.shape[0] for c in cells) + 6
+        prev = Image.new('RGBA', ((cw * len(cells) + 4) * Z, ch * Z), (14, 16, 20, 255))
+        x = 4
+        for c in cells:
+            img = Image.fromarray(c)
+            cz = img.resize((img.width * Z, img.height * Z), Image.NEAREST)
+            prev.paste(cz, (x * Z, 3 * Z), cz)   # mask: keep the dark backdrop
+            x += cw
+        prev.save(os.path.join(OUT, 'preview.png'))
+    else:
+        print('preview: nothing to draw — sheets still written')
 
-    # execute the determinism claim: reprocess one sheet, byte-compare
-    check_src = sheets[0]
-    again = process_sheet(check_src)
-    ondisk = np.array(Image.open(written[0]))
-    same = np.array_equal(again, ondisk)
+    # execute the determinism claim on ENCODED bytes: the promise is
+    # byte-identical artifacts, so the rerun is encoded through the same
+    # save path and compared raw — decoded-pixel equality would pass even
+    # if PNG encoding drifted between runs (caught in review)
+    import io
+    buf = io.BytesIO()
+    Image.fromarray(process_sheet(sheets[0])).save(buf, format='PNG')
+    with open(written[0], 'rb') as f:
+        same = buf.getvalue() == f.read()
+    def _file_digest(path):
+        with open(path, 'rb') as fh:
+            return hashlib.sha256(fh.read()).digest()
     digest = hashlib.sha256(b''.join(
-        hashlib.sha256(open(w, 'rb').read()).digest() for w in sorted(written)
+        _file_digest(w) for w in sorted(written)
     )).hexdigest()[:16]
     print(f'determinism re-run: {"IDENTICAL" if same else "MISMATCH"}')
     print(f'{len(written)} sheets -> {OUT}')

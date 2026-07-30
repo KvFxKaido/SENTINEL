@@ -247,9 +247,14 @@ respect. SRW J's structure wearing SENTINEL's color.
   so the only lights on the body are his own tech and ignition itself
   is a readable event. Outputs (`assets/sprites/cipher/`) are
   regenerable and untracked; the source pack stays out of the public
-  repo by license. First body ready for the walkable-world toy. Note:
-  this body is the selout dialect — the selout-vs-ink audition against
-  the System A roster remains open.
+  repo by license. **Status: audition body, provisional format** — the
+  frames keep the pack's native 96×80 canvas (~34px body), which is
+  not the body law's 32×32 System A canvas (caught in review). Two
+  auditions therefore ride on this one body: selout-vs-ink against the
+  System A roster, and pack-format-vs-body-law. Adoption as canon
+  means re-authoring on the 32 canvas or amending the law through its
+  own escape hatch; until then the walkable-world toy runs a
+  provisional body, on the record.
 
 - Fight card / fighter sheet mock for the Circuit: tabs FIGHTER / LOADOUT /
   RECORD, portrait + insignia slot top-left, every stat in a beveled cell.
