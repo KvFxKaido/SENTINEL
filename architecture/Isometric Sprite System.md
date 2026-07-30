@@ -1,5 +1,14 @@
 # SENTINEL Isometric Sprite System v1.1
 
+> **Status: Historical — superseded (marked 2026-07-30).** The 48×48
+> canvas and its budgets lost to the System A audition (32×32, decided
+> 2026-07-28) and the body law (one canvas, integer zoom — decided
+> 2026-07-30), both in `art_direction_gba_tactics.md`. This doc's claim
+> that 32×32 is "too small for character identity details" was answered
+> by audition, not argument: identity moved to the head and silhouette,
+> and close-up detail moved to the portrait register pair. Kept for the
+> paper trail; do not build against it.
+
 **Resolution:** 48x48 pixels  
 **Perspective:** Isometric 2:1 (2 horizontal : 1 vertical)  
 **Directions:** 4-way (N/E/S/W)  
