@@ -97,7 +97,7 @@ async function replay(seed) {
 // under the stamped rules and this transcript is its one true replay —
 // validation, not provenance. WHO played it is a claim this Worker
 // cannot check yet; that layer (commitments/signatures) arrives with
-// campaign wiring, where purses start to matter.
+// player identity, which does not exist anywhere yet.
 async function certify(seed, record, claimedRules) {
   const rules = await rulesFingerprint();
   if (claimedRules !== undefined && claimedRules !== rules) {
@@ -120,13 +120,30 @@ async function certify(seed, record, claimedRules) {
       rules, commands: record.length,
     } };
   }
-  return { status: 200, body: { certified: true, rules, ...certificate(seed, lines, { commands: record.length }) } };
+  // the ledger the post-match card shows, derived from the replayed state:
+  // yielded stays true on the dead, which is how the record knows mercy
+  // from execution
+  const ledger = {
+    walked:   S.units.filter(u => u.side === "ho" && u.alive && u.yielded).length,
+    finished: S.units.filter(u => u.side === "ho" && !u.alive && u.yielded).length,
+    lost:     S.units.filter(u => u.side === "op" && !u.alive).length,
+  };
+  return { status: 200, body: { certified: true, rules, ledger, ...certificate(seed, lines, { commands: record.length }) } };
 }
+
+// CORS is open by design: the tactical prototype files records straight
+// from the browser, and everything here is either public (replay, list)
+// or self-verifying (file certifies before it stores).
+const CORS = {
+  "access-control-allow-origin": "*",
+  "access-control-allow-methods": "GET, POST, OPTIONS",
+  "access-control-allow-headers": "content-type",
+};
 
 function json(obj, status = 200) {
   return new Response(JSON.stringify(obj, null, 2), {
     status,
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...CORS },
   });
 }
 
@@ -145,9 +162,34 @@ function validRecord(record) {
       c.slice(1).every(v => Number.isInteger(v) && v >= 0 && v <= 255));
 }
 
+// Filing: certify, then archive. The key is content-derived —
+// match:{fingerprint}:{seed} — so filing is idempotent: a match is
+// itself no matter how many times it is submitted, and resubmission
+// overwrites the identical entry rather than inflating a career.
+async function fileMatch(env, seed, record, claimedRules) {
+  const existing = await env.RECORDS.list({ prefix: "match:", limit: 1000 });
+  if (existing.keys.length >= 1000 && !existing.list_complete) {
+    return { status: 507, body: { filed: false, error: "the archive is full — this is a prototype ledger, not a product one" } };
+  }
+  // KV work stays outside the mutex; the replay machine inside it
+  const out = await serialized(() => certify(seed, record, claimedRules));
+  if (out.status !== 200) return { status: out.status, body: { filed: false, ...out.body } };
+  const cert = out.body;
+  const id = `${cert.fingerprint}:${cert.seed}`;
+  const at = new Date().toISOString();
+  const meta = {
+    at, seed: cert.seed, result: cert.result, rating: cert.rating,
+    purse: cert.purse, fingerprint: cert.fingerprint, rules: cert.rules,
+    commands: cert.commands, ledger: cert.ledger,
+  };
+  await env.RECORDS.put(`match:${id}`, JSON.stringify({ filed_at: at, record, certificate: cert }), { metadata: meta });
+  return { status: 200, body: { filed: true, id, ...cert } };
+}
+
 export default {
-  async fetch(request) {
+  async fetch(request, env) {
     const url = new URL(request.url);
+    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
     if (url.pathname === "/replay") {
       const raw = url.searchParams.get("seed");
       if (!raw || !SEED_RE.test(raw)) {
@@ -163,7 +205,7 @@ export default {
         return json({ error: "replay failed" }, 500);
       }
     }
-    if (url.pathname === "/certify") {
+    if (url.pathname === "/certify" || url.pathname === "/file") {
       if (request.method !== "POST") {
         return json({ error: 'POST a witness record — {"seed":"<hex>","record":[["move",0,3,7],...]}' }, 405);
       }
@@ -178,12 +220,27 @@ export default {
         return json({ error: "rules, if claimed, is the fingerprint string a certificate carries" }, 400);
       }
       try {
-        const { status, body: out } = await serialized(() => certify(parseInt(raw, 16), body.record, body.rules));
+        const { status, body: out } = await (url.pathname === "/file"
+          ? fileMatch(env, parseInt(raw, 16), body.record, body.rules)
+          : serialized(() => certify(parseInt(raw, 16), body.record, body.rules)));
         return json(out, status);
       } catch (err) {
-        console.log(JSON.stringify({ level: "error", event: "witness_certify_failed", seed: raw, message: String(err) }));
+        console.log(JSON.stringify({ level: "error", event: "witness_certify_failed", path: url.pathname, seed: raw, message: String(err) }));
         return json({ error: "certify failed" }, 500);
       }
+    }
+    if (url.pathname === "/matches" && request.method === "GET") {
+      const list = await env.RECORDS.list({ prefix: "match:", limit: 100 });
+      const matches = list.keys
+        .map(k => ({ id: k.name.slice("match:".length), ...k.metadata }))
+        .sort((a, b) => (b.at ?? "").localeCompare(a.at ?? ""));
+      return json({ count: matches.length, complete: list.list_complete, matches });
+    }
+    if (url.pathname.startsWith("/matches/") && request.method === "GET") {
+      const id = decodeURIComponent(url.pathname.slice("/matches/".length));
+      const stored = await env.RECORDS.get(`match:${id}`, "json");
+      if (!stored) return json({ error: "no such match on file" }, 404);
+      return json({ id, ...stored });
     }
     return json({
       service: "sentinel-witness",
@@ -191,8 +248,10 @@ export default {
       usage: {
         replay: "GET /replay?seed=deadbeef — no-input playout, a pure function of the seed",
         certify: 'POST /certify {"seed":"<hex>","record":[...],"rules":"<optional fingerprint>"} — a played match; certified only if the record replays faithfully to a finished match under these rules',
+        file: "POST /file — same body as /certify; certifies AND archives. Idempotent: the key is content-derived, so a match files once no matter how often it is submitted",
+        matches: "GET /matches — the archive, newest first (metadata only). GET /matches/{id} — one filed match in full: record + certificate",
       },
-      note: "the record grammar lives in prototypes/tactical-core/rules.js (S.record / replayMatch) — seed + record IS the match. A certificate attests validity under the stamped rules version, not who played it; provenance is the campaign-wiring layer.",
+      note: "the record grammar lives in prototypes/tactical-core/rules.js (S.record / replayMatch) — seed + record IS the match. A certificate attests validity under the stamped rules version, not who played it; identity/signatures do not exist yet, so the archive is self-attested but replay-verified.",
     });
   },
 };

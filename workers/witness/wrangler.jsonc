@@ -8,5 +8,11 @@
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1
-  }
+  },
+  // the match archive: certified records filed by content-derived key,
+  // so filing is idempotent — a match is itself, no matter how often
+  // it is submitted
+  "kv_namespaces": [
+    { "binding": "RECORDS", "id": "31212ee4c4d04d4dadeb8212e1ffa3a5" }
+  ]
 }

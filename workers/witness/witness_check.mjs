@@ -157,6 +157,50 @@ for (const [label, record] of [
   check(r.status === 400, `malformed record (${label}) rejected at the wire: ${r.status}`);
 }
 
+// ---- the archive: file, refile, list, fetch back -----------------
+// filing is certify + store under a content-derived key, so a match
+// files exactly once no matter how often it is submitted
+const postTo = async (path, payload) => {
+  const res = await fetch(`${BASE}${path}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return { status: res.status, body: await res.json() };
+};
+const getJson = async (path) => (await fetch(`${BASE}${path}`)).json();
+
+check(cert.body.ledger && cert.body.ledger.walked >= 1 && cert.body.ledger.finished === 0,
+  `certificate carries the ledger: ${JSON.stringify(cert.body.ledger)}`);
+
+const filed = await postTo("/file", { seed: "6", record: local.record });
+check(filed.status === 200 && filed.body.filed === true &&
+      filed.body.fingerprint === local.fingerprint,
+  `match filed: id=${filed.body.id}`);
+
+const countAfterFirst = (await getJson("/matches")).count;
+const refiled = await postTo("/file", { seed: "6", record: local.record });
+const countAfterSecond = (await getJson("/matches")).count;
+check(refiled.body.id === filed.body.id && countAfterSecond === countAfterFirst,
+  `refiling is idempotent: same id, archive count stays ${countAfterSecond}`);
+
+const listing = await getJson("/matches");
+const mine = listing.matches.find(m => m.id === filed.body.id);
+check(!!mine && mine.rating === local.rating && mine.result === local.result,
+  `archive lists the match with its metadata: rating=${mine?.rating} result=${mine?.result}`);
+
+const fetched = await getJson(`/matches/${encodeURIComponent(filed.body.id)}`);
+check(JSON.stringify(fetched.record) === JSON.stringify(local.record) &&
+      fetched.certificate?.fingerprint === local.fingerprint,
+  `filed match fetches back in full: ${fetched.record?.length} commands + certificate`);
+
+const tamperedFile = await postTo("/file", { seed: "6", record: bent });
+check(tamperedFile.status === 422 && tamperedFile.body.filed === false,
+  `tampered record cannot be filed: ${tamperedFile.status}`);
+
+const missing = await getJson("/matches/nope:0");
+check(missing.error === "no such match on file", `missing match 404s: "${missing.error}"`);
+
 // ---- concurrency: interleave replays and certifies --------------
 // every response must still match its own expectation, or the mutex is fiction
 const burst = await Promise.all(

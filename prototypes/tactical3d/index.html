@@ -89,6 +89,7 @@
     padding: 6px 10px; letter-spacing: 1px; background: rgba(12,18,13,0.9);
   }
   #ovrecord b { color: var(--text); font-weight: normal; }
+  #ovcareer { font-size: 11px; color: var(--text-dim); letter-spacing: 2px; min-height: 1em; }
   /* ---- the pre-match card ---- */
   #card {
     position: absolute; inset: 0; display: none; z-index: 6;
@@ -133,7 +134,9 @@
       <p id="ovpurse"></p>
       <p id="ovconseq"></p>
       <div id="ovrecord"></div>
+      <p id="ovcareer"></p>
       <div>
+        <button id="ovfile">FILE THE RECORD</button>
         <button id="ovcopy">COPY WITNESS RECORD</button>
         <button id="ovreplay">REPLAY SEED [shift+R]</button>
         <button id="ovnew">NEW ENCOUNTER [R]</button>
@@ -306,6 +309,28 @@ var matchLines = [];   // plain-text transcript, kept in step with the comms log
 var cardOpen = false;
 const cardEl = document.getElementById("card");
 
+// where records get filed — the deployed witness by default, overridable
+// for local worker dev (?witness=http://localhost:8787)
+const WITNESS = new URLSearchParams(location.search).get("witness")
+  ?? "https://sentinel-witness.ishawnd.workers.dev";
+
+// the career is the archive, summarized: every filed card, win or lose,
+// purse accumulated across all of them. This is the fighter sheet's W-L
+// line growing real data underneath it.
+async function refreshCareer() {
+  const el = document.getElementById("ovcareer");
+  try {
+    const r = await fetch(`${WITNESS}/matches`);
+    const { matches } = await r.json();
+    if (!matches?.length) { el.textContent = "CAREER · NOTHING ON FILE YET"; return; }
+    const w = matches.filter(m => m.result === "win").length;
+    const purse = matches.reduce((n, m) => n + (m.purse ?? 0), 0);
+    el.textContent = `CAREER · ${matches.length} CARDS ON FILE · ${w}–${matches.length - w} · ${purse}c LIFETIME`;
+  } catch {
+    el.textContent = "";   // no witness reachable — the match still happened
+  }
+}
+
 function spriteThumb(name) {
   const { grid, pal } = spriteFor(name);
   const c = document.createElement("canvas");
@@ -455,6 +480,10 @@ function showEnd(ev) {
     `<b>${S.record.length}</b> commands · <b>${matchLines.length}</b> lines · ` +
     `fingerprint <b>${fnv(matchLines.join("\n"))}</b>`;
   document.getElementById("ovcopy").textContent = "COPY WITNESS RECORD";
+  const fileBtn = document.getElementById("ovfile");
+  fileBtn.textContent = "FILE THE RECORD";
+  fileBtn.disabled = false;
+  refreshCareer();
   ov.classList.add("show");
 }
 
@@ -1390,6 +1419,29 @@ document.getElementById("btnOw").onclick = () => { if (cardOpen) return; const u
 document.getElementById("btnEnd").onclick = () => { if (cardOpen) return; S.decision ? spare() : endPlayerTurn(); };
 document.getElementById("ovnew").onclick = () => restart(true);
 document.getElementById("ovreplay").onclick = () => restart(false);
+document.getElementById("ovfile").onclick = async () => {
+  const btn = document.getElementById("ovfile");
+  btn.disabled = true;
+  btn.textContent = "FILING…";
+  try {
+    const r = await fetch(`${WITNESS}/file`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ seed: S.seed.toString(16), record: S.record }),
+    });
+    const out = await r.json();
+    if (out.filed) {
+      btn.textContent = `FILED — ${out.fingerprint}`;   // stays disabled: it is on file
+      refreshCareer();
+    } else {
+      btn.textContent = `REFUSED — ${out.error ?? r.status}`;
+      btn.disabled = false;
+    }
+  } catch {
+    btn.textContent = "NO WITNESS REACHABLE";
+    btn.disabled = false;
+  }
+};
 document.getElementById("ovcopy").onclick = async () => {
   // the exact wire shape POST /certify takes — the button is the bridge
   // between a match you just played and the edge attesting to it

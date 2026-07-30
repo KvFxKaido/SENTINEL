@@ -10,7 +10,10 @@ Live at: `https://sentinel-witness.ishawnd.workers.dev`
 
 ```
 GET  /replay?seed=deadbeef
-POST /certify   {"seed":"6","record":[["move",0,1,7],...,["spare"]]}
+POST /certify      {"seed":"6","record":[["move",0,1,7],...,["spare"]]}
+POST /file         same body — certifies AND archives
+GET  /matches      the archive, newest first (metadata only)
+GET  /matches/{id} one filed match in full: record + certificate
 ```
 
 `/replay` replays the no-input encounter for a seed. `/certify` takes a
@@ -49,6 +52,30 @@ Anything persisting records should store the stamp alongside them and
 send it back as `rules` when certifying, so a record can never be
 silently reinterpreted by newer rules as if history had always been that
 way.
+
+## The archive (campaign wiring, the persistence half)
+
+`POST /file` certifies and then stores the match in KV under a
+**content-derived key** — `match:{fingerprint}:{seed}` — so filing is
+idempotent: a match is itself no matter how many times it is submitted,
+and resubmission overwrites the identical entry instead of inflating a
+career. Certificates (and stored metadata) carry the **ledger** — walked /
+finished / lost, derived from the replayed state — and the rules stamp,
+so a future rules version can refuse to silently reinterpret the archive.
+
+The tactical prototype consumes this directly: the post-match card's FILE
+THE RECORD button posts the exact `/file` wire shape, and the CAREER line
+is `GET /matches` summarized — cards on file, W–L, lifetime purse. The
+fighter sheet's W-L row now has real data growing under it.
+
+Prototype-grade honesty: the archive is **self-attested but
+replay-verified** — nothing proves *who* played a record (identity and
+signatures don't exist anywhere yet), but nothing enters the archive
+without replaying faithfully to a finished match under the current rules.
+Writes are public and capped (1,000 entries); this is a dev ledger, not a
+product one. The campaign-consequence half of roadmap step 5 (matches as
+jobs, wiki events, disposition, dormant threads) belongs to the campaign
+brain and is deliberately not improvised here.
 
 ## What a certificate attests — and what it doesn't
 
