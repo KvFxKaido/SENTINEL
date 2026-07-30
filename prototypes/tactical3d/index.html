@@ -314,18 +314,20 @@ const cardEl = document.getElementById("card");
 const WITNESS = new URLSearchParams(location.search).get("witness")
   ?? "https://sentinel-witness.ishawnd.workers.dev";
 
-// the career is the archive, summarized: every filed card, win or lose,
-// purse accumulated across all of them. This is the fighter sheet's W-L
-// line growing real data underneath it.
+// The archive, summarized: every filed card, win or lose, purse paid
+// across all of them. Labeled ARCHIVE and not CAREER on purpose — the
+// ledger is one shared public namespace and nothing scopes records to a
+// player yet (caught in review), so pretending it is *your* career would
+// be the UI lying. When identity exists, this line splits into both.
 async function refreshCareer() {
   const el = document.getElementById("ovcareer");
   try {
     const r = await fetch(`${WITNESS}/matches`);
     const { matches } = await r.json();
-    if (!matches?.length) { el.textContent = "CAREER · NOTHING ON FILE YET"; return; }
+    if (!matches?.length) { el.textContent = "THE ARCHIVE · NOTHING ON FILE YET"; return; }
     const w = matches.filter(m => m.result === "win").length;
     const purse = matches.reduce((n, m) => n + (m.purse ?? 0), 0);
-    el.textContent = `CAREER · ${matches.length} CARDS ON FILE · ${w}–${matches.length - w} · ${purse}c LIFETIME`;
+    el.textContent = `THE ARCHIVE · ${matches.length} CARDS ON FILE · ${w}–${matches.length - w} · ${purse}c PAID OUT`;
   } catch {
     el.textContent = "";   // no witness reachable — the match still happened
   }
@@ -1427,12 +1429,19 @@ document.getElementById("ovfile").onclick = async () => {
     const r = await fetch(`${WITNESS}/file`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ seed: S.seed.toString(16), record: S.record }),
+      // the fingerprint claim: "file the match I watched." If this page
+      // outlived a rules deploy, the worker refuses rather than archiving
+      // a transcript the player never saw.
+      body: JSON.stringify({
+        seed: S.seed.toString(16),
+        record: S.record,
+        fingerprint: fnv(matchLines.join("\n")),
+      }),
     });
     const out = await r.json();
     if (out.filed) {
-      btn.textContent = `FILED — ${out.fingerprint}`;   // stays disabled: it is on file
-      refreshCareer();
+      btn.textContent = out.existing ? "ALREADY ON FILE" : `FILED — ${out.fingerprint}`;
+      refreshCareer();   // stays disabled either way: it is on file
     } else {
       btn.textContent = `REFUSED — ${out.error ?? r.status}`;
       btn.disabled = false;

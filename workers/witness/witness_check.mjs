@@ -158,8 +158,9 @@ for (const [label, record] of [
 }
 
 // ---- the archive: file, refile, list, fetch back -----------------
-// filing is certify + store under a content-derived key, so a match
-// files exactly once no matter how often it is submitted
+// filing is certify + store under a content-addressed id (sha-256 of
+// {rules, seed, record}), so a match files exactly once, keeps its
+// original timestamp forever, and can never overwrite a different match
 const postTo = async (path, payload) => {
   const res = await fetch(`${BASE}${path}`, {
     method: "POST",
@@ -168,28 +169,41 @@ const postTo = async (path, payload) => {
   });
   return { status: res.status, body: await res.json() };
 };
-const getJson = async (path) => (await fetch(`${BASE}${path}`)).json();
+const getJson = async (path) => {
+  const res = await fetch(`${BASE}${path}`);
+  return { status: res.status, body: await res.json() };
+};
 
 check(cert.body.ledger && cert.body.ledger.walked >= 1 && cert.body.ledger.finished === 0,
   `certificate carries the ledger: ${JSON.stringify(cert.body.ledger)}`);
 
-const filed = await postTo("/file", { seed: "6", record: local.record });
+// the fingerprint claim: "this is the match I watched"
+const claimedOk = await postTo("/certify", { seed: "6", record: local.record, fingerprint: local.fingerprint });
+check(claimedOk.status === 200, `record claiming its own fingerprint certifies: ${claimedOk.status}`);
+const claimedBad = await postTo("/certify", { seed: "6", record: local.record, fingerprint: "abcdef1" });
+check(claimedBad.status === 422 && claimedBad.body.error === "record replays to a different match than claimed",
+  `record claiming a different fingerprint refused: ${claimedBad.status} "${claimedBad.body.error}"`);
+
+const filed = await postTo("/file", { seed: "6", record: local.record, fingerprint: local.fingerprint });
 check(filed.status === 200 && filed.body.filed === true &&
-      filed.body.fingerprint === local.fingerprint,
-  `match filed: id=${filed.body.id}`);
+      filed.body.fingerprint === local.fingerprint &&
+      /^[0-9a-f]{32}$/.test(filed.body.id ?? ""),
+  `match filed under content-addressed id: ${filed.body.id}`);
 
-const countAfterFirst = (await getJson("/matches")).count;
+const countAfterFirst = (await getJson("/matches")).body.count;
 const refiled = await postTo("/file", { seed: "6", record: local.record });
-const countAfterSecond = (await getJson("/matches")).count;
-check(refiled.body.id === filed.body.id && countAfterSecond === countAfterFirst,
-  `refiling is idempotent: same id, archive count stays ${countAfterSecond}`);
+const countAfterSecond = (await getJson("/matches")).body.count;
+check(refiled.body.id === filed.body.id && refiled.body.existing === true &&
+      refiled.body.filed_at === filed.body.filed_at &&
+      countAfterSecond === countAfterFirst,
+  `refiling is state-idempotent: same id, original filed_at kept, count stays ${countAfterSecond}`);
 
-const listing = await getJson("/matches");
+const listing = (await getJson("/matches")).body;
 const mine = listing.matches.find(m => m.id === filed.body.id);
 check(!!mine && mine.rating === local.rating && mine.result === local.result,
   `archive lists the match with its metadata: rating=${mine?.rating} result=${mine?.result}`);
 
-const fetched = await getJson(`/matches/${encodeURIComponent(filed.body.id)}`);
+const fetched = (await getJson(`/matches/${filed.body.id}`)).body;
 check(JSON.stringify(fetched.record) === JSON.stringify(local.record) &&
       fetched.certificate?.fingerprint === local.fingerprint,
   `filed match fetches back in full: ${fetched.record?.length} commands + certificate`);
@@ -198,8 +212,46 @@ const tamperedFile = await postTo("/file", { seed: "6", record: bent });
 check(tamperedFile.status === 422 && tamperedFile.body.filed === false,
   `tampered record cannot be filed: ${tamperedFile.status}`);
 
-const missing = await getJson("/matches/nope:0");
-check(missing.error === "no such match on file", `missing match 404s: "${missing.error}"`);
+const missing = await getJson("/matches/00000000000000000000000000000000");
+check(missing.status === 404 && missing.body.error === "no such match on file",
+  `missing match 404s: ${missing.status} "${missing.body.error}"`);
+
+// ---- pagination past the first KV page (local worker only) -------
+// bulk-files >100 pure-end matches so /matches must walk cursors to
+// stay complete. Skipped against the live archive: it would flood the
+// real ledger with synthetic losses. CI runs this against localhost.
+if (BASE.startsWith("http://localhost") || BASE.startsWith("http://127.")) {
+  // each seed's pure-end record is generated through the core — a fixed
+  // 14-end record would be UNFAITHFUL for any seed that finishes early
+  // (commands past the ending are not play)
+  bindIO({ sleep: () => Promise.resolve(), emit: () => {}, changed: () => {} });
+  const pureEnd = async (seedHex) => {
+    restart(parseInt(seedHex, 16));
+    for (let i = 0; i < 14 && !S.gameOver; i++) await endPlayerTurn();
+    return S.gameOver ? JSON.parse(JSON.stringify(S.record)) : null;   // unfinished seeds don't file
+  };
+  const bulkIds = [];
+  let seedN = 0x100;
+  while (bulkIds.length < 110 && seedN < 0x100 + 400) {
+    const batch = [];
+    while (batch.length < 10 && bulkIds.length + batch.length < 110 && seedN < 0x100 + 400) {
+      const s = (seedN++).toString(16);
+      const rec = await pureEnd(s);
+      if (rec) batch.push({ seed: s, record: rec });
+    }
+    const results = await Promise.all(batch.map(b => postTo("/file", b)));
+    for (const r of results) if (r.status === 200) bulkIds.push(r.body.id);
+  }
+  const bulk = (await getJson("/matches")).body;
+  const present = bulkIds.filter(id => bulk.matches.some(m => m.id === id)).length;
+  const sorted = bulk.matches.every((m, i) => i === 0 || (bulk.matches[i - 1].at ?? "") >= (m.at ?? ""));
+  check(bulkIds.length >= 110, `bulk-filed ${bulkIds.length} matches for the pagination test`);
+  check(bulk.count === bulk.matches.length && present === bulkIds.length,
+    `archive lists past the first KV page: ${bulk.count} entries, all ${bulkIds.length} bulk ids present`);
+  check(sorted, "archive is globally newest-first, not per-page");
+} else {
+  console.log("SKIP pagination bulk test — live archive; CI covers it against a local worker");
+}
 
 // ---- concurrency: interleave replays and certifies --------------
 // every response must still match its own expectation, or the mutex is fiction

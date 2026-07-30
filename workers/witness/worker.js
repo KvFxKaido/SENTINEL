@@ -98,7 +98,7 @@ async function replay(seed) {
 // validation, not provenance. WHO played it is a claim this Worker
 // cannot check yet; that layer (commitments/signatures) arrives with
 // player identity, which does not exist anywhere yet.
-async function certify(seed, record, claimedRules) {
+async function certify(seed, record, claimedRules, claimedFp) {
   const rules = await rulesFingerprint();
   if (claimedRules !== undefined && claimedRules !== rules) {
     return { status: 422, body: {
@@ -120,6 +120,17 @@ async function certify(seed, record, claimedRules) {
       rules, commands: record.length,
     } };
   }
+  const cert = certificate(seed, lines, { commands: record.length });
+  // the fingerprint claim: "this is the match I watched." A page that
+  // outlived a deploy can hold a record whose commands still replay under
+  // newer rules — to a different match. Refusing the mismatch keeps the
+  // archive from ever storing a transcript the player never saw.
+  if (claimedFp !== undefined && claimedFp !== cert.fingerprint) {
+    return { status: 422, body: {
+      certified: false, error: "record replays to a different match than claimed",
+      rules, fingerprint: cert.fingerprint, claimed: claimedFp,
+    } };
+  }
   // the ledger the post-match card shows, derived from the replayed state:
   // yielded stays true on the dead, which is how the record knows mercy
   // from execution
@@ -128,7 +139,7 @@ async function certify(seed, record, claimedRules) {
     finished: S.units.filter(u => u.side === "ho" && !u.alive && u.yielded).length,
     lost:     S.units.filter(u => u.side === "op" && !u.alive).length,
   };
-  return { status: 200, body: { certified: true, rules, ledger, ...certificate(seed, lines, { commands: record.length }) } };
+  return { status: 200, body: { certified: true, rules, ledger, ...cert } };
 }
 
 // CORS is open by design: the tactical prototype files records straight
@@ -162,28 +173,48 @@ function validRecord(record) {
       c.slice(1).every(v => Number.isInteger(v) && v >= 0 && v <= 255));
 }
 
-// Filing: certify, then archive. The key is content-derived —
-// match:{fingerprint}:{seed} — so filing is idempotent: a match is
-// itself no matter how many times it is submitted, and resubmission
-// overwrites the identical entry rather than inflating a career.
-async function fileMatch(env, seed, record, claimedRules) {
-  const existing = await env.RECORDS.list({ prefix: "match:", limit: 1000 });
-  if (existing.keys.length >= 1000 && !existing.list_complete) {
-    return { status: 507, body: { filed: false, error: "the archive is full — this is a prototype ledger, not a product one" } };
-  }
+async function sha256hex(s) {
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+// Filing: certify, then archive. Identity is content-addressed — a
+// SHA-256 digest of everything that makes the match the match: the rules
+// stamp, the seed, and the record. Rules included on purpose: the same
+// record under different rules is a DIFFERENT match, never an overwrite.
+// (The transcript fingerprint stays FNV for continuity with the goldens;
+// it is a checksum, not an identity — caught in review.) Filing is
+// state-idempotent: an already-filed match returns the original entry,
+// original timestamp — resubmission can neither inflate a career nor
+// bump an old record to the top of the archive.
+async function fileMatch(env, seed, record, claimedRules, claimedFp) {
   // KV work stays outside the mutex; the replay machine inside it
-  const out = await serialized(() => certify(seed, record, claimedRules));
+  const out = await serialized(() => certify(seed, record, claimedRules, claimedFp));
   if (out.status !== 200) return { status: out.status, body: { filed: false, ...out.body } };
   const cert = out.body;
-  const id = `${cert.fingerprint}:${cert.seed}`;
+  const id = (await sha256hex(JSON.stringify({ rules: cert.rules, seed: cert.seed, record }))).slice(0, 32);
+  const key = `match:${id}`;
+  const prior = await env.RECORDS.get(key, "json");
+  if (prior) {
+    return { status: 200, body: { filed: true, existing: true, id, filed_at: prior.filed_at, ...cert } };
+  }
+  // Best-effort cap, checked only for NEW entries so refiling always
+  // works, even at capacity. Concurrent first-time filers near the limit
+  // can overshoot by a few — this is a soft cap on a dev ledger, not an
+  // invariant (a hard one wants a Durable Object, and this archive does
+  // not want a Durable Object yet).
+  const existing = await env.RECORDS.list({ prefix: "match:", limit: 1000 });
+  if (existing.keys.length >= 1000) {
+    return { status: 507, body: { filed: false, error: "the archive is full — this is a prototype ledger, not a product one" } };
+  }
   const at = new Date().toISOString();
   const meta = {
     at, seed: cert.seed, result: cert.result, rating: cert.rating,
     purse: cert.purse, fingerprint: cert.fingerprint, rules: cert.rules,
     commands: cert.commands, ledger: cert.ledger,
   };
-  await env.RECORDS.put(`match:${id}`, JSON.stringify({ filed_at: at, record, certificate: cert }), { metadata: meta });
-  return { status: 200, body: { filed: true, id, ...cert } };
+  await env.RECORDS.put(key, JSON.stringify({ filed_at: at, record, certificate: cert }), { metadata: meta });
+  return { status: 200, body: { filed: true, existing: false, id, filed_at: at, ...cert } };
 }
 
 export default {
@@ -219,10 +250,13 @@ export default {
       if (body.rules !== undefined && typeof body.rules !== "string") {
         return json({ error: "rules, if claimed, is the fingerprint string a certificate carries" }, 400);
       }
+      if (body.fingerprint !== undefined && !/^[0-9a-f]{1,8}$/.test(body.fingerprint ?? "")) {
+        return json({ error: "fingerprint, if claimed, is the transcript hash the post-match card shows" }, 400);
+      }
       try {
         const { status, body: out } = await (url.pathname === "/file"
-          ? fileMatch(env, parseInt(raw, 16), body.record, body.rules)
-          : serialized(() => certify(parseInt(raw, 16), body.record, body.rules)));
+          ? fileMatch(env, parseInt(raw, 16), body.record, body.rules, body.fingerprint)
+          : serialized(() => certify(parseInt(raw, 16), body.record, body.rules, body.fingerprint)));
         return json(out, status);
       } catch (err) {
         console.log(JSON.stringify({ level: "error", event: "witness_certify_failed", path: url.pathname, seed: raw, message: String(err) }));
@@ -230,11 +264,17 @@ export default {
       }
     }
     if (url.pathname === "/matches" && request.method === "GET") {
-      const list = await env.RECORDS.list({ prefix: "match:", limit: 100 });
-      const matches = list.keys
-        .map(k => ({ id: k.name.slice("match:".length), ...k.metadata }))
-        .sort((a, b) => (b.at ?? "").localeCompare(a.at ?? ""));
-      return json({ count: matches.length, complete: list.list_complete, matches });
+      // walk every page — the cap bounds this at a handful of list calls,
+      // and a partial page sorted "newest first" is a lie (caught in review)
+      const matches = [];
+      let cursor;
+      do {
+        const page = await env.RECORDS.list({ prefix: "match:", limit: 1000, cursor });
+        for (const k of page.keys) matches.push({ id: k.name.slice("match:".length), ...k.metadata });
+        cursor = page.list_complete ? null : page.cursor;
+      } while (cursor);
+      matches.sort((a, b) => (b.at ?? "").localeCompare(a.at ?? ""));
+      return json({ count: matches.length, matches });
     }
     if (url.pathname.startsWith("/matches/") && request.method === "GET") {
       const id = decodeURIComponent(url.pathname.slice("/matches/".length));
