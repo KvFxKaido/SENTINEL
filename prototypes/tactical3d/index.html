@@ -122,12 +122,20 @@
   #card .cfoot .sub { max-width: 430px; }
   /* ---- the broadcast interrupt: the house cuts into the feed ---- */
   #twistcast {
-    position: absolute; inset: 0; display: none; flex-direction: column;
-    align-items: center; justify-content: center; gap: 12px; z-index: 7;
+    /* fixed, not absolute: the override covers the PANEL too — buttons
+       must be unreachable while the house has the floor (caught in
+       review: an absolutely-positioned overlay only covered the board,
+       and END TURN stayed clickable behind the broadcast) */
+    position: fixed; inset: 0; display: none; z-index: 8;
+    align-items: center; justify-content: center;
     text-align: center; cursor: pointer;
     background: repeating-linear-gradient(0deg, rgba(4,6,5,0.87) 0 2px, rgba(12,16,12,0.87) 2px 4px);
   }
-  #twistcast.show { display: flex; animation: castin 0.22s steps(5) both; }
+  #twistcast.show { display: flex; }
+  /* the hit-area itself never animates: the CRT entrance lives on an
+     inner wrapper, so the cover is full-size and click-opaque from the
+     first frame — a transformed cover is a sliver mid-entrance */
+  #twistcast .tcinner { display: flex; flex-direction: column; align-items: center; gap: 12px; animation: castin 0.22s steps(5) both; }
   @keyframes castin { from { opacity: 0; transform: scaleY(0.04); } to { opacity: 1; transform: scaleY(1); } }
   #twistcast .tclabel { font-size: 10px; letter-spacing: 4px; color: var(--text-dim); }
   #twistcast .tcname { font-size: 26px; letter-spacing: 9px; color: var(--amber); }
@@ -162,7 +170,6 @@
       </div>
     </div>
     <div id="card"></div>
-    <div id="twistcast"></div>
   </div>
   <div id="panel">
     <div class="box" id="turnbar"><span id="turnlabel"></span><span id="seed"></span></div>
@@ -208,6 +215,11 @@
     <div class="box" id="boot"></div>
   </div>
 </div>
+<!-- the broadcast override lives OUTSIDE #app: the display pipeline puts
+     transforms/filters on ancestors inside it, which would capture a
+     fixed-position child and shrink the override to the board (caught
+     during verification). As a body child, fixed means the viewport. -->
+<div id="twistcast"></div>
 
 <script type="module">
 "use strict";
@@ -439,14 +451,18 @@ function beginCard() {
 var twistcastOpen = false;
 const twistcastEl = document.getElementById("twistcast");
 function showTwistcast(card) {
-  twistcastEl.innerHTML = `
+  twistcastEl.innerHTML = `<div class="tcinner">
     <div class="tclabel">— BROADCAST OVERRIDE · THE SHOWRUNNER —</div>
     <div class="tcname">${card.name}</div>
     <div class="tcterms">${card.terms}</div>
     <div class="tcwhen">NEXT ROUND</div>
-    <div class="tcdismiss">any key / click</div>`;
+    <div class="tcdismiss">any key / click</div>
+  </div>`;
   twistcastOpen = true;
   twistcastEl.classList.add("show");
+  // strip focus so the eventual dismissing Enter/Space has no button
+  // to activate as a default action (caught in review)
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
 }
 function hideTwistcast() {
   twistcastOpen = false;
@@ -480,6 +496,7 @@ function onEvent(ev) {
       buildUnits();
       showSolution(null, null);
       document.getElementById("overlay").classList.remove("show");
+      hideTwistcast();   // a fresh match never opens under a stale broadcast
       showCard();
       break;
     case "fire":
@@ -1486,6 +1503,11 @@ canvas.addEventListener("click", e => {
 });
 
 document.addEventListener("keydown", e => {
+  // the broadcast holds the floor: the first key of ANY kind — restart
+  // and camera included — acknowledges the house and does nothing else.
+  // preventDefault so a focused panel button can't turn the dismissing
+  // Enter/Space into a click on the fresh turn (caught in review).
+  if (twistcastOpen) { e.preventDefault(); hideTwistcast(); return; }
   // restart works from anywhere — mid-animation, hostile turn, game over
   if (e.key === "r") { restart(true); return; }
   if (e.key === "R") { restart(false); return; }
@@ -1500,9 +1522,6 @@ document.addEventListener("keydown", e => {
   // the card holds the match until the player begins it — the overlay
   // blocks the canvas by covering it; keys are blocked here
   if (cardOpen) { if (e.key === "Enter") beginCard(); return; }
-  // the broadcast holds the first key it hears: dismiss, don't act —
-  // an Enter meant for the overlay must never end a turn
-  if (twistcastOpen) { hideTwistcast(); return; }
   if (S.gameOver || S.busy || S.turn !== "op") return;
   const u = selected();
   switch (e.key) {
