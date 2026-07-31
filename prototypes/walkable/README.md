@@ -1,7 +1,9 @@
 # Walkable World Prototype
 
-One room, one character, walking. This is a pure three.js renderer toy: no
-game rules, no `tactical-core`, and no witness calls.
+One room, one character, walking — and one door that is somewhere else's
+problem. This is a pure three.js renderer toy: no game rules and no
+`tactical-core` import. Its only network call is asking the witness to
+certify what the yard reports back through the seam (below).
 
 Cipher stands inside a voxel-extruded Kestrel interior staged as a lit diorama
 in the void. The room reuses `tactical3d/`'s terrain density, Y-billboard,
@@ -34,9 +36,33 @@ not run from `file://`.
 | `Q` / `E` | orbit the room 90° |
 | `P` | cycle LCD / crunch / clean |
 
-The doorway is visibly open but collision stops Cipher at its threshold. This
-prototype promises one room; the black beyond it is staging, not an implied
-second space.
+The north doorway is **live**: walking through it is the seam.
+
+## The seam
+
+Crossing the north door hands the feed to `tactical3d/` in a fullscreen
+iframe with a seed this room dealt (`?seam=1&seed=…`). The yard plays
+exactly one card — its own re-deal verbs are disabled in seam mode — and
+when you take **WALK BACK OUT** on the post-match overlay, it posts
+`{seed, record, result, rating, purse, fingerprint}` home and the frame
+is torn down. You return standing just inside the walls; walking the
+door again deals a fresh card.
+
+The room does not take the yard's word for it:
+
+- the returned **seed must match the one it dealt**, and the payload must
+  be shaped like a replayable record — anything else is refused;
+- the record is sent to the witness Worker, whose **replay settles the
+  session ledger**: `CERTIFIED AT THE EDGE`, `EDGE DISPUTES THE FEED —
+  STRUCK` (the card never counts), or `UNCERTIFIED — NO WITNESS
+  REACHABLE` (counted, and labeled as taken on the yard's word);
+- the hand-off has a readiness handshake: the cut card holds until the
+  yard proves it booted, with a 7s timeout and an <kbd>ESC</kbd> abort
+  that put you back in the room if the far side never answers.
+
+Query params: `?deal=6` pins the seed the door deals (the same
+pin-a-board move as tactical3d's `?seed=`); `?witness=http://localhost:8787`
+passes through to the yard and is used for certification here.
 
 ## Cipher assets
 

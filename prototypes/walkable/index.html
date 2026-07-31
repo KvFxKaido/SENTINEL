@@ -246,6 +246,49 @@
 
   #boot.show { display: block; }
 
+  /* ---- the seam: the north door is a cut, not a corridor ----------- */
+  /* Both surfaces live OUTSIDE #app as body children: ancestors with
+     transforms capture fixed descendants and shrink "fullscreen" to a
+     panel (the twistcast lesson — applied before the bug this time). */
+  #seamframe {
+    position: fixed;
+    inset: 0;
+    z-index: 8;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: #070a08;
+  }
+
+  #seamcut {
+    position: fixed;
+    inset: 0;
+    z-index: 9;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    text-align: center;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(4, 6, 5, 0.97) 0 2px,
+      rgba(10, 14, 11, 0.97) 2px 4px
+    );
+    opacity: 1;
+    transition: opacity 0.25s;
+  }
+
+  #seamcut.show { display: flex; }
+  #seamcut.fade { opacity: 0; }
+  #seamcut .cutlabel { color: var(--text-dim); font-size: 10px; letter-spacing: 4px; }
+  #seamcut .cutname { color: var(--amber); font-size: 22px; letter-spacing: 8px; }
+  #seamcut .cutsub { color: var(--text); font-size: 11px; letter-spacing: 2px; }
+
+  #seaminfo { color: var(--text-dim); font-size: 10px; line-height: 1.7; }
+  #seaminfo b { color: var(--amber); font-weight: normal; }
+  #seaminfo .fp { color: var(--cyan); }
+
   @media (max-width: 1015px) {
     #app {
       grid-template-columns: minmax(0, 700px);
@@ -289,7 +332,7 @@
     <header class="box">
       <div class="eyebrow">WALKABLE WORLD / COURT 01</div>
       <h1>KESTREL INTERIOR<br>WALKABLE PROTOTYPE</h1>
-      <p class="subtitle">One room. One body. Movement and ignition under the same display glass.</p>
+      <p class="subtitle">One room, one body — and a north door wired straight to the yard.</p>
     </header>
 
     <section class="box telemetry" aria-label="Renderer status">
@@ -309,7 +352,13 @@
         <tr><th><kbd>K</kbd></th><td>attack 2</td></tr>
         <tr><th><kbd>Q</kbd> / <kbd>E</kbd></th><td>orbit 90°</td></tr>
         <tr><th><kbd>P</kbd></th><td>LCD / crunch / clean</td></tr>
+        <tr><th>NORTH DOOR</th><td>walk it — the yard takes the feed</td></tr>
       </table>
+    </section>
+
+    <section class="box" id="yardbox">
+      <h2>THE YARD / LAST CARD</h2>
+      <div id="seaminfo">No card on file this session. The north door is live.</div>
     </section>
 
     <section class="box audition">
@@ -323,15 +372,23 @@
   </aside>
 </main>
 
+<!-- The seam's cut card lives outside #app on purpose: fixed must mean
+     the viewport, and ancestor transforms capture fixed children. The
+     combat iframe is created dynamically beside it when the door fires. -->
+<div id="seamcut"></div>
+
 <script type="module">
 "use strict";
 /* ================================================================
-   SENTINEL walkable-world toy — pure renderer.
+   SENTINEL walkable-world toy — pure renderer, plus one door.
 
-   No tactical-core import, no rules, no witness. The product is exactly
-   one room and one walking body. This file borrows tactical3d's visual
-   machinery because the audition only means anything when world, body,
-   camera and display pass are the same machinery already under review.
+   Still no tactical-core import, no rules. The room is exactly one room
+   and one walking body — but the north door is now real: crossing it
+   hands the feed to tactical3d in an iframe (the seam, below) and takes
+   an outcome back. Combat is a place this file sends the player, never
+   logic it runs. This file borrows tactical3d's visual machinery because
+   the audition only means anything when world, body, camera and display
+   pass are the same machinery already under review.
    ================================================================ */
 
 import * as THREE from "../tactical3d/vendor/three.module.js";
@@ -754,9 +811,10 @@ function buildMatter() {
 buildMatter();
 
 // ---- collision ----------------------------------------------------
-// The doorway is visibly open but deliberately blocked at its threshold.
-// This prototype promises one room, so letting the body walk into unbuilt
-// void would turn an honest stage edge into an accidental second product.
+// The walls stop a body at the wall line. The doorway used to be blocked
+// on purpose ("one room — no accidental second product"); the second
+// product is now deliberate. The opening is carved out of these bounds
+// just below, and what it opens onto is the seam.
 const BODY_RADIUS = 0.22;
 const WALL_HALF = WALL_ART[0].length * PX / 2;
 const WALK_BOUNDS = {
@@ -792,6 +850,19 @@ function hitsProp(x, z) {
       && z > collider.minZ && z < collider.maxZ
   );
 }
+
+// ---- the north door -----------------------------------------------
+// Doorway columns are 5 and 6; WALK_BOUNDS stops a body at the wall line
+// everywhere. Inside the door span the bounds relax enough to step INTO
+// the opening, and past the trigger line the room hands the feed to the
+// yard. The door is a cut, not a corridor: nothing walkable exists on
+// the far side of it, and that is the design, not a gap in it.
+const DOOR = {
+  minX: gx(5) - 0.5 + BODY_RADIUS,
+  maxX: gx(6) + 0.5 - BODY_RADIUS,
+  depthZ: gz(0) + 0.10,     // deepest a body can stand in the opening
+  triggerZ: gz(0) + 0.35,   // past this line, the cut happens
+};
 
 // ---- Cipher sheet pipeline ---------------------------------------
 const FRAME_W = 96;
@@ -1008,18 +1079,24 @@ function updateMovement(dt) {
   if (moveVector.lengthSq() > 1) moveVector.normalize();
   moveVector.multiplyScalar(MOVE_SPEED * dt);
 
+  // Inside the doorway the X corridor narrows to the door span; within
+  // the door span the Z floor drops to the threshold depth. Everywhere
+  // else the room's bounds are exactly what they were.
+  const inDoorway = character.position.z < WALK_BOUNDS.minZ;
   const nextX = clamp(
     character.position.x + moveVector.x,
-    WALK_BOUNDS.minX,
-    WALK_BOUNDS.maxX
+    inDoorway ? DOOR.minX : WALK_BOUNDS.minX,
+    inDoorway ? DOOR.maxX : WALK_BOUNDS.maxX
   );
   if (!hitsProp(nextX, character.position.z)) {
     character.position.x = nextX;
   }
 
+  const inDoorSpan =
+    character.position.x >= DOOR.minX && character.position.x <= DOOR.maxX;
   const nextZ = clamp(
     character.position.z + moveVector.z,
-    WALK_BOUNDS.minZ,
+    inDoorSpan ? DOOR.depthZ : WALK_BOUNDS.minZ,
     WALK_BOUNDS.maxZ
   );
   if (!hitsProp(character.position.x, nextZ)) {
@@ -1030,6 +1107,15 @@ function updateMovement(dt) {
   const actualZ = character.position.z - previousPosition.z;
   if (actualX * actualX + actualZ * actualZ < 1e-7) return false;
   facingWorld.set(actualX, 0, actualZ).normalize();
+
+  if (
+    !seamOpen
+    && character.position.z <= DOOR.triggerZ
+    && character.position.x >= DOOR.minX
+    && character.position.x <= DOOR.maxX
+  ) {
+    beginSeam();
+  }
   return true;
 }
 
@@ -1075,6 +1161,13 @@ function updateCipher(dt, now) {
 }
 
 document.addEventListener("keydown", event => {
+  // while the yard holds the feed, the room takes no input — except that
+  // before the yard has proven it booted, the room still owns the
+  // keyboard, and ESC is the manual way back out of a dead hand-off.
+  if (seamOpen) {
+    if (!seamReady && event.code === "Escape") abortSeam("YOU PULLED BACK");
+    return;
+  }
   if (MOVE_CODES.has(event.code)) {
     event.preventDefault();
     held.add(event.code);
@@ -1112,6 +1205,234 @@ document.addEventListener("keyup", event => {
   if (MOVE_CODES.has(event.code)) held.delete(event.code);
 });
 window.addEventListener("blur", () => { held.clear(); attack = null; });   // no key survives a blur — neither does a lock (caught in review)
+
+/* ---- the seam ------------------------------------------------------
+   Crossing the north door hands the feed to the yard: tactical3d loads
+   in an iframe with a seed this room dealt, plays exactly one card, and
+   posts the outcome back when the player walks out. The contract is a
+   function call — the world deals (seed) and receives (record, result,
+   rating, purse, fingerprint). It never watches combat happen and never
+   shares state with it. Still no tactical-core import on this side of
+   the wall: what returns is the same shape the witness Worker certifies,
+   and the room ENACTS that verification rather than narrating it — the
+   returned seed must match the dealt one, the payload must be shaped
+   like a replayable record, and the witness's own replay settles the
+   session ledger (certifySeam; unreachable = counted but labeled). The
+   hand-off is guarded by a readiness handshake with a timeout and an
+   ESC abort, so a yard that never boots can never trap the room. */
+
+// ?deal=6 pins which seed the door deals — the same pin-a-board move as
+// tactical3d's ?seed=. Without it every crossing deals fresh.
+const DEAL = (() => {
+  const q = new URLSearchParams(location.search).get("deal");
+  if (q === null) return null;
+  const n = parseInt(q, 16);
+  return Number.isFinite(n) ? n >>> 0 : null;
+})();
+// ?witness= passes through to the yard, so local worker dev works from here —
+// and this room asks the same witness to certify what the yard reports
+const WITNESS_PARAM = new URLSearchParams(location.search).get("witness");
+const WITNESS = WITNESS_PARAM ?? "https://sentinel-witness.ishawnd.workers.dev";
+
+let seamOpen = false;
+let seamReady = false;
+let seamDealt = null;      // the seed this room dealt, kept to check the answer
+let seamFrame = null;
+let seamBootTimer = 0;
+let cutTimers = [];
+const seamCut = document.getElementById("seamcut");
+const seamInfo = document.getElementById("seaminfo");
+const ledger = { cards: 0, wins: 0, purse: 0 };
+const SEAM_BOOT_MS = 7000;
+
+function showCut(name, sub) {
+  seamCut.innerHTML = `
+    <div class="cutlabel">— THE NORTH DOOR —</div>
+    <div class="cutname">${name}</div>
+    <div class="cutsub">${sub}</div>`;
+  seamCut.classList.remove("fade");
+  seamCut.classList.add("show");
+}
+
+function dropCut(afterMs) {
+  cutTimers.push(setTimeout(() => {
+    seamCut.classList.add("fade");
+    cutTimers.push(setTimeout(() => seamCut.classList.remove("show", "fade"), 300));
+  }, afterMs));
+}
+
+function clearCutTimers() {
+  for (const t of cutTimers) clearTimeout(t);
+  cutTimers = [];
+}
+
+// the spot you left from is the doorway, and the doorway is the trigger —
+// returning exactly there would deal the next card before the body arrived
+function stepBackInside() {
+  character.position.z = WALK_BOUNDS.minZ + 0.06;
+  facingWorld.set(0, 0, 1);
+}
+
+function beginSeam() {
+  seamOpen = true;
+  seamReady = false;
+  held.clear();
+  attack = null;
+  const seed = DEAL ?? (Math.random() * 0xffffffff) >>> 0;
+  seamDealt = seed.toString(16);
+  showCut("KESTREL YARD", `THE FEED CUTS TO THE CARD · seed ${seamDealt}`);
+  actionStateEl.textContent = "CROSSING";
+  canvas.dataset.seam = "open";
+
+  seamFrame = document.createElement("iframe");
+  seamFrame.id = "seamframe";
+  seamFrame.title = "KESTREL YARD — live card";
+  let src = `../tactical3d/index.html?seam=1&seed=${seamDealt}`;
+  if (WITNESS_PARAM) src += `&witness=${encodeURIComponent(WITNESS_PARAM)}`;
+  seamFrame.src = src;
+  document.body.appendChild(seamFrame);
+
+  // The cut holds until the yard PROVES it booted. A load event fires for
+  // error pages too, and the module can fail after load (caught in
+  // review) — so readiness is a message, not an event, the room keeps the
+  // keyboard until it arrives (ESC is the manual way back), and this
+  // timer is the automatic one.
+  seamBootTimer = setTimeout(
+    () => abortSeam("THE YARD NEVER ANSWERED"),
+    SEAM_BOOT_MS
+  );
+}
+
+// the failure exit: tear the frame down, put the body back inside the
+// walls, and say what happened — the player is never trapped behind a
+// dead feed (caught in review)
+function abortSeam(why) {
+  clearTimeout(seamBootTimer);
+  clearCutTimers();
+  seamOpen = false;
+  seamReady = false;
+  seamDealt = null;
+  if (seamFrame) { seamFrame.remove(); seamFrame = null; }
+  window.focus();
+  canvas.dataset.seam = "aborted";
+  actionStateEl.textContent = "IDLE";
+  stepBackInside();
+  showCut("FEED LOST", `${why} — THE DOOR SPAT YOU BACK`);
+  dropCut(1100);
+}
+
+// what a returned card must look like before the room believes a word of
+// it: the seed IT dealt, a sane outcome, a replayable-shaped record
+function seamResultValid(d) {
+  return d.seed === seamDealt
+    && (d.result === "win" || d.result === "loss")
+    && Number.isFinite(d.rating)
+    && Number.isFinite(d.purse)
+    && typeof d.fingerprint === "string"
+    && Array.isArray(d.record)
+    && d.record.length <= 1024
+    && d.record.every(c => Array.isArray(c));
+}
+
+function endSeam(result) {
+  clearTimeout(seamBootTimer);
+  seamOpen = false;
+  seamReady = false;
+  seamDealt = null;
+  canvas.dataset.seam = "closed";
+  if (seamFrame) { seamFrame.remove(); seamFrame = null; }
+  window.focus();
+  stepBackInside();
+
+  // the entry renders now; the SESSION ledger settles only after the
+  // edge rules on the card — a disputed result must never count
+  seamInfo.innerHTML =
+    `<b>${result.result === "win" ? "YARD CLEARED" : "SQUAD LOST"}</b>` +
+    ` · RATING ${result.rating} · PURSE ${result.purse}c<br>` +
+    `seed ${result.seed} · ${result.record.length} commands` +
+    ` · fp <span class="fp">${result.fingerprint}</span><br>` +
+    `<span id="seamcert">CERT · ASKING THE EDGE…</span><br>` +
+    `<span id="seamtotals">SESSION · settling…</span>`;
+  canvas.dataset.lastResult = result.result;
+  certifySeam(result);
+
+  showCut("FEED RETURNED", "THE RECORD CAME BACK WITH YOU");
+  dropCut(900);
+}
+
+// "Verify what it is told instead of trusting it," made literal: the
+// record goes to the witness, the witness replays it under the canonical
+// rules, and the room compares the certificate against what the yard
+// claimed. No witness reachable = the room takes the yard's word and the
+// panel SAYS so — an unverified truth labeled beats a silent one.
+async function certifySeam(d) {
+  let verdict;
+  let counts;
+  try {
+    const r = await fetch(`${WITNESS}/certify`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        seed: d.seed,
+        record: d.record,
+        fingerprint: d.fingerprint,
+      }),
+    });
+    const out = await r.json();
+    const agrees = out.certified === true
+      && out.result === d.result
+      && out.rating === d.rating
+      && out.purse === d.purse;
+    if (agrees) {
+      verdict = '<span class="fp">CERTIFIED AT THE EDGE</span>';
+      counts = true;
+    } else {
+      verdict = `<b>EDGE DISPUTES THE FEED — STRUCK</b> · ${out.error ?? "outcome mismatch"}`;
+      counts = false;
+    }
+  } catch {
+    verdict = "UNCERTIFIED — NO WITNESS REACHABLE";
+    counts = true;
+  }
+  const certEl = document.getElementById("seamcert");
+  if (certEl) certEl.innerHTML = `CERT · ${verdict}`;
+  if (counts) {
+    ledger.cards += 1;
+    if (d.result === "win") ledger.wins += 1;
+    ledger.purse += d.purse | 0;
+  }
+  const totEl = document.getElementById("seamtotals");
+  if (totEl) {
+    totEl.textContent =
+      `SESSION · ${ledger.cards} CARD${ledger.cards === 1 ? "" : "S"}` +
+      ` · ${ledger.wins}–${ledger.cards - ledger.wins} · ${ledger.purse}c` +
+      (counts ? "" : " · LAST CARD STRUCK");
+  }
+}
+
+window.addEventListener("message", event => {
+  if (event.origin !== location.origin) return;
+  const data = event.data;
+  if (!data || !seamFrame || event.source !== seamFrame.contentWindow) return;
+
+  if (data.type === "sentinel-seam-ready") {
+    if (data.seed !== seamDealt) return;   // answering for a different deal
+    seamReady = true;
+    clearTimeout(seamBootTimer);
+    canvas.dataset.seam = "live";
+    // THE CARD gets the keyboard only once the yard proved alive
+    seamFrame.contentWindow.focus();
+    dropCut(300);
+    return;
+  }
+
+  if (data.type !== "sentinel-seam-result") return;
+  if (!seamResultValid(data)) {
+    abortSeam("THE RECORD CAME BACK WRONG — REFUSED");
+    return;
+  }
+  endSeam(data);
+});
 
 // ---- frame loop ---------------------------------------------------
 const timer = new THREE.Timer();
