@@ -97,7 +97,13 @@ gha-creds-*.json
 .wrangler/
 # Godot 4 import cache
 .godot/
-# licensed source pack — usable in the project, not redistributable as an asset
+# licensed source packs — usable in the project, not redistributable as assets
 prototypes/FREE_Adventurer 2D Pixel Art/
+prototypes/FULL_Adventurer 2D Pixel Art/
+# reference-only free characters (Character Creator 2D) — pose grammar, not architecture
+prototypes/FREE Character 16-bit Thug Outlined/
+prototypes/FREE Character HD Survivor W Bike/
 # regenerable Cipher walk-sprites (scripts/cipher_mold.py)
 assets/sprites/cipher/
+# regenerable System A walk strips (scripts/cipher32_walk.py)
+assets/sprites/cipher32/
