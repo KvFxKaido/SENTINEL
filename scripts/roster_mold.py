@@ -14,9 +14,17 @@ its fighter's mark color:
   SABLE   cowl + shadowed face + lit goggles   ice ignition
   SYN     cap + balaclava + red lenses + rust  red ignition
 
-Succeeds scripts/cipher_mold.py (2026-07-30): the Cipher passes are
-ported verbatim, so his sheets regenerate byte-identically — the
-succession claim is executed below by manifest comparison, not narrated.
+Succeeds scripts/cipher_mold.py (2026-07-30). The succession was
+executed at promotion by resurrecting the retired script from git and
+byte-diffing both pipelines over the full pack: 25 of Cipher's 36
+sheets are byte-identical; the 11 divergent sheets are all deliberate
+fixes — the 8 ATTACK sheets (the legacy flash heuristic misread big
+swing arcs as damage flashes and skipped their ignition; arcs ignite
+again here) and 3 HEAL sheets (source-color eye masks + mark-color
+heal; heal_up has no eyes and stayed identical). The pinned
+EXPECTED_CIPHER digest below guards that state: the run FAILS if the
+cipher subset drifts, and changing the constant is a deliberate act a
+diff will show — golden-transcript discipline, applied to pixels.
 Roster-sheet review fixes carried in: KOA's eyes are per-cluster points,
 not a band (a wide dark stripe read as a blindfold); VESPER's ignition
 is cobalt, clearly apart from Cipher's cyan; VESPER's crest is a ridge
@@ -351,6 +359,11 @@ HEADS = {'cipher': head_cipher, 'vesper': head_vesper, 'koa': head_koa,
          'sable': head_sable, 'syn': head_syn}
 FIGHTERS = ['cipher', 'vesper', 'koa', 'sable', 'syn']
 
+# The succession golden: sha256[:16] over Cipher's 36 sheets, pinned at
+# promotion (2026-07-31, full pack). The run FAILS if this drifts —
+# changing it is a deliberate act a diff will show (see docstring).
+EXPECTED_CIPHER = 'a1b8428d6c84a0b5'
+
 HEAL_GREENS = [hx('99e65f'), hx('5ac54f'), hx('33984b')]   # light -> dark
 
 def build_frame(name, a, ignite):
@@ -361,13 +374,16 @@ def build_frame(name, a, ignite):
     alpha = out[:, :, 3] > 0
     if not alpha.any():
         return out
-    # the flash law: a mostly-light frame IS the damage flash — palette
-    # mold only. The blade classifier would read it as one huge blade,
-    # and SYN's crew-red swap would repaint it head to toe.
+    # The flash law, stated exactly: a damage flash is a frame where the
+    # ENTIRE figure renders light — measured, the pack's true flashes are
+    # 1.00 light and its biggest swing arcs 0.82, so equality is the
+    # convention, not a tuned threshold. (Caught chasing a review finding:
+    # a >50% heuristic read the big swing-arc frames as flashes and
+    # skipped their ignition — mid-swing frames shipped unlit.)
     light = np.zeros(out.shape[:2], dtype=bool)
     for c in LIGHTS:
         light |= eq(out, c)
-    if light.sum() > alpha.sum() * 0.5:
+    if light.sum() == alpha.sum():
         return out
     geo = head_geometry(a)             # identity masks from the SOURCE
     HEADS[name](out, geo)              # head before blade: ignition may
@@ -458,7 +474,12 @@ def main():
     print(f'determinism re-run: {"IDENTICAL" if ok else "MISMATCH"}')
     print(f'{len(written)} sheets -> {OUT_ROOT}/<fighter>/')
     print(f'manifest sha256[:16] = {manifest}')
-    print(f'cipher subset        = {cipher_only}  (succession check vs cipher_mold)')
+    print(f'cipher subset        = {cipher_only}  (golden: {EXPECTED_CIPHER})')
+    if cipher_only != EXPECTED_CIPHER:
+        print('cipher subset DRIFTED from the pinned golden — if the pipeline '
+              'change is deliberate, update EXPECTED_CIPHER in the same commit '
+              'and say why; if not, this exit just saved the roster')
+        sys.exit(1)
     if not ok:
         sys.exit(1)
 
