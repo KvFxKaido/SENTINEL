@@ -1,9 +1,11 @@
 """Cipher walk-sprite mold — deterministic pipeline (2026-07-30).
 
-Molds the licensed "FREE_Adventurer 2D Pixel Art" pack (4-direction
-idle/run/attack sheets, 8 frames of 96x80 each) into Cipher, the
-walkable-world protagonist. Three passes, all deterministic — same
-inputs, same bytes:
+Molds the licensed Adventurer pack into Cipher, the walkable-world
+protagonist. Prefers the FULL pack (nine verbs: idle / walk / run /
+dash / two attacks / hurt / death / heal, 4 facings, variable frame
+counts on the 96x80 canvas) and falls back to the FREE pack's four
+verbs when that is all that's present. Three passes, all
+deterministic — same inputs, same bytes:
 
   1. Palette LUT: 24 source colors hand-mapped onto Cipher's materials
      (cipher_sprites.js palette; spatially verified, not hue-guessed).
@@ -26,20 +28,17 @@ redistribution as an asset, so the pack directory is gitignored and
 must stay out of the public repo. Outputs are regenerable artifacts
 (same rule as graded portraits) and are gitignored too.
 
-Body-law status (caught in review): these frames keep the PACK's
-native format — 96x80, ~34px body — which is NOT the 32x32 System A
-canvas the body law mandates for canon bodies. Deliberate and
-PROVISIONAL: this is the selout-dialect audition body for the
-walkable-world toy, not a canon body. If it wins adoption, either
-Cipher is re-authored on the 32 canvas in this dialect, or the body
-law takes its successor amendment through its own escape hatch
-(art_direction_gba_tactics.md), density bill attached. Until decided,
-any surface using these sheets is running a provisional format, on
-the record.
+Body-law status: CANON (walk-off verdict, 2026-07-31). These frames
+keep the pack's native format — 96x80, ~34px body — which the body
+law's successor section (art_direction_gba_tactics.md) adopted as the
+authored body canvas after the staged walk-off in COURT 01. The
+provisional label this docstring used to carry is retired with the
+audition it belonged to.
 
 Usage:
   python scripts/cipher_mold.py
-    reads  prototypes/FREE_Adventurer 2D Pixel Art/Sprites/**.png
+    reads  prototypes/FULL_Adventurer 2D Pixel Art/Sprites/**.png
+           (or the FREE pack's four verbs if the full one is absent)
     writes assets/sprites/cipher/<ACTION>/<sheet>.png  (+ preview.png)
     then re-runs one sheet in memory and byte-compares — the
     determinism claim is executed, not narrated.
@@ -49,10 +48,14 @@ import numpy as np
 import os, sys, glob, hashlib
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PACK = os.path.join(ROOT, 'prototypes', 'FREE_Adventurer 2D Pixel Art', 'Sprites')
+# the FULL pack carries all nine verbs; the FREE pack is the four-verb
+# fallback so a fresh clone with only the free tier still regenerates
+_FULL = os.path.join(ROOT, 'prototypes', 'FULL_Adventurer 2D Pixel Art', 'Sprites')
+_FREE = os.path.join(ROOT, 'prototypes', 'FREE_Adventurer 2D Pixel Art', 'Sprites')
+PACK = _FULL if os.path.isdir(_FULL) else _FREE
 OUT = os.path.join(ROOT, 'assets', 'sprites', 'cipher')
 
-FRAME_W, FRAME_H, FRAMES = 96, 80, 8
+FRAME_W, FRAME_H = 96, 80   # frame COUNT varies per sheet (heal is 12, hurt 4)
 
 hx = lambda s: tuple(int(s[i:i + 2], 16) for i in (0, 2, 4))
 
@@ -77,6 +80,9 @@ LUT_HEX = {
     '131313': '0d1117', '000000': '0a0d11', '1c121c': '10131a',
     # eyes -> the data visor
     '0069aa': '5ccfff',
+    # the full pack's heal effect: greens -> the cyan energy family.
+    # Heal was a spell; on this body it is a device channeling.
+    '99e65f': 'a5ecff', '5ac54f': '5ccfff', '33984b': '2196d8',
 }
 LUT = {hx(k): hx(v) for k, v in LUT_HEX.items()}
 
@@ -164,6 +170,12 @@ def head_and_blade(a, ignite):
     light = np.zeros(alpha.shape, dtype=bool)
     for c in LIGHT_FAMILY:
         light |= eq(out, c)
+    # the hurt sheets open on a full-body damage flash: the whole figure
+    # renders in light tones, which the shape classifier would read as one
+    # huge "blade" and darken to dormant steel. A frame that is mostly
+    # light IS the flash — leave it lit, that is the convention.
+    if light.sum() > alpha.sum() * 0.5:
+        return out
     lab, n = components(light)
     blade = np.zeros_like(light)
     for i in range(1, n + 1):
@@ -198,8 +210,10 @@ def process_sheet(path):
     rel = os.path.relpath(path, PACK)
     ignite = rel.replace('\\', '/').split('/')[0].upper().startswith('ATTACK')
     sheet = np.array(Image.open(path).convert('RGBA'))
+    if sheet.shape[1] % FRAME_W or sheet.shape[0] != FRAME_H:
+        sys.exit(f'{rel}: {sheet.shape[1]}x{sheet.shape[0]} is not a row of {FRAME_W}x{FRAME_H} frames')
     out = sheet.copy()
-    for i in range(FRAMES):
+    for i in range(sheet.shape[1] // FRAME_W):
         x0 = i * FRAME_W
         out[:, x0:x0 + FRAME_W] = head_and_blade(mold(sheet[:, x0:x0 + FRAME_W]), ignite)
     return out
@@ -222,14 +236,18 @@ def main():
     # Best-effort: missing/renamed sheets skip with a warning instead of
     # crashing after the real work is done (caught in review).
     cells = []
-    for rel in ['IDLE/idle_down.png', 'RUN/run_right.png', 'ATTACK 1/attack1_right.png', 'ATTACK 2/attack2_down.png']:
+    for rel in ['IDLE/idle_down.png', 'RUN/run_right.png', 'ATTACK 1/attack1_right.png',
+                'ATTACK 2/attack2_down.png', 'HURT/hurt_right.png', 'DEATH/death_right.png',
+                'HEAL/heal_down.png']:
         p = os.path.join(OUT, rel.replace('/', os.sep))
         if not os.path.exists(p):
             print(f'preview: skipping missing {rel}')
             continue
         with Image.open(p) as im:
             a = np.array(im)
-        f = a[:, 4 * FRAME_W:5 * FRAME_W]
+        # frame 4 where the sheet has one; shorter sheets show their last
+        fi = min(4, a.shape[1] // FRAME_W - 1)
+        f = a[:, fi * FRAME_W:(fi + 1) * FRAME_W]
         ys, xs = np.where(f[:, :, 3] > 0)
         if not len(ys):
             continue
