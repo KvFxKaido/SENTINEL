@@ -167,6 +167,7 @@
         <button id="ovcopy">COPY WITNESS RECORD</button>
         <button id="ovreplay">REPLAY SEED [shift+R]</button>
         <button id="ovnew">NEW ENCOUNTER [R]</button>
+        <button id="ovwalk" style="display:none">WALK BACK OUT [⏎]</button>
       </div>
     </div>
     <div id="card"></div>
@@ -356,6 +357,13 @@ const cardEl = document.getElementById("card");
 const WITNESS = new URLSearchParams(location.search).get("witness")
   ?? "https://sentinel-witness.ishawnd.workers.dev";
 
+// ?seam=1 marks this page as the far side of the walkable world's north
+// door. The parent dealt the seed in the URL and gets the outcome posted
+// back when the player walks out; one crossing buys exactly one card, so
+// the re-deal verbs (R / shift+R) belong to the world while this is set.
+const SEAM = new URLSearchParams(location.search).get("seam") !== null;
+var lastEnd = null;   // the "end" event, held for the walk home
+
 // The archive, summarized: every filed card, win or lose, purse paid
 // across all of them. Labeled ARCHIVE and not CAREER on purpose — the
 // ledger is one shared public namespace and nothing scopes records to a
@@ -405,7 +413,7 @@ function showCard() {
     <div class="sheet">
       <div class="chead"><span class="tag">THE CARD · ${MATCH.sanction}</span><span class="sub">seed ${S.seed.toString(16)}</span></div>
       <div class="chead"><h1>${MATCH.venue}</h1></div>
-      <div class="sub">${MATCH.framing}</div>
+      <div class="sub">${MATCH.framing}${SEAM ? " You walked in off the interior floor, and the book saw the door open." : ""}</div>
       <div class="ccell"><div class="clabel">PRESENT — WHO CAN READ YOU</div>
         <div class="cbody">${MATCH.present.map(([who, what]) => `<b>${who}</b> <span class="dim">— ${what}</span>`).join("<br>")}</div>
       </div>
@@ -544,6 +552,13 @@ function consequences(spared, finished, result, rating) {
 }
 
 function showEnd(ev) {
+  lastEnd = ev;
+  if (SEAM) {
+    // one crossing, one card: the re-deal buttons are the world's now
+    document.getElementById("ovreplay").style.display = "none";
+    document.getElementById("ovnew").style.display = "none";
+    document.getElementById("ovwalk").style.display = "";
+  }
   const result = ev.result;
   const ov = document.getElementById("overlay");
   const t = document.getElementById("ovtitle"), p = document.getElementById("ovtext");
@@ -1508,9 +1523,11 @@ document.addEventListener("keydown", e => {
   // preventDefault so a focused panel button can't turn the dismissing
   // Enter/Space into a click on the fresh turn (caught in review).
   if (twistcastOpen) { e.preventDefault(); hideTwistcast(); return; }
-  // restart works from anywhere — mid-animation, hostile turn, game over
-  if (e.key === "r") { restart(true); return; }
-  if (e.key === "R") { restart(false); return; }
+  // restart works from anywhere — mid-animation, hostile turn, game over.
+  // Except through the door: one crossing buys one card, and a re-deal is
+  // the world's move, not this page's (the seam contract).
+  if (e.key === "r") { if (!SEAM) restart(true); return; }
+  if (e.key === "R") { if (!SEAM) restart(false); return; }
   // camera + display controls are never gated on turn state
   if (e.key === "q" || e.key === "Q") { camAzTarget += Math.PI / 2; return; }
   if (e.key === "e" || e.key === "E") { camAzTarget -= Math.PI / 2; return; }
@@ -1522,6 +1539,8 @@ document.addEventListener("keydown", e => {
   // the card holds the match until the player begins it — the overlay
   // blocks the canvas by covering it; keys are blocked here
   if (cardOpen) { if (e.key === "Enter") beginCard(); return; }
+  // through the door, the post-match Enter is the walk home
+  if (SEAM && S.gameOver) { if (e.key === "Enter") document.getElementById("ovwalk").click(); return; }
   if (S.gameOver || S.busy || S.turn !== "op") return;
   const u = selected();
   switch (e.key) {
@@ -1572,6 +1591,24 @@ document.getElementById("ovfile").onclick = async () => {
     btn.disabled = false;
   }
 };
+// the walk home. The payload IS the seam contract: the seed the world
+// dealt comes back beside the record and outcome — and it is the same
+// shape the witness Worker certifies, so the world can verify what this
+// page tells it rather than trust it.
+document.getElementById("ovwalk").onclick = () => {
+  if (!lastEnd) return;
+  window.parent.postMessage({
+    type: "sentinel-seam-result",
+    seed: S.seed.toString(16),
+    record: S.record,
+    result: lastEnd.result,
+    rating: lastEnd.rating,
+    purse: lastEnd.purse,
+    fingerprint: fnv(matchLines.join("\n")),
+    lines: matchLines.length,
+  }, location.origin);
+};
+
 document.getElementById("ovcopy").onclick = async () => {
   // the exact wire shape POST /certify takes — the button is the bridge
   // between a match you just played and the edge attesting to it
