@@ -21,11 +21,15 @@ walkable/        walkable interior (COURT 01): one room, one body, and a
 the walkable room's north door loads tactical3d in an iframe with a seed
 the room dealt (`?seam=1&seed=…`); when the player walks out, the yard
 posts back `{seed, record, result, rating, purse, fingerprint}` and the
-iframe is torn down. The overworld never watches combat happen — it
-receives the same certified shape the witness Worker consumes, so it can
-verify what it is told instead of trusting it. One crossing buys exactly
-one card: in seam mode the yard's own re-deal verbs (R / shift+R) are
-disabled, because dealing is the world's move.
+iframe is torn down. The overworld never watches combat happen — and it
+does not trust what it is told: the returned seed must match the dealt
+one, malformed payloads are refused, and the witness Worker's replay of
+the record settles the session ledger (certified / disputed-and-struck /
+unreachable-but-labeled). The hand-off itself is guarded — the cut holds
+until the yard proves it booted, with a timeout and ESC abort — so a
+dead far side never traps the room. One crossing buys exactly one card:
+in seam mode the yard's own re-deal verbs (R / shift+R) are disabled,
+because dealing is the world's move.
 
 And the 1v1 layer: `close-contact/` — the SENTINEL: Close Contact
 fighting prototype (Godot 4.5, limb-mapped inputs, active defense). See

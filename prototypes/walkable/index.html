@@ -1161,10 +1161,13 @@ function updateCipher(dt, now) {
 }
 
 document.addEventListener("keydown", event => {
-  // while the yard holds the feed, the room takes no input. Focus lives
-  // in the iframe anyway — but a click on this page mid-card would bring
-  // keys back to a character nobody can see.
-  if (seamOpen) return;
+  // while the yard holds the feed, the room takes no input — except that
+  // before the yard has proven it booted, the room still owns the
+  // keyboard, and ESC is the manual way back out of a dead hand-off.
+  if (seamOpen) {
+    if (!seamReady && event.code === "Escape") abortSeam("YOU PULLED BACK");
+    return;
+  }
   if (MOVE_CODES.has(event.code)) {
     event.preventDefault();
     held.add(event.code);
@@ -1211,7 +1214,12 @@ window.addEventListener("blur", () => { held.clear(); attack = null; });   // no
    rating, purse, fingerprint). It never watches combat happen and never
    shares state with it. Still no tactical-core import on this side of
    the wall: what returns is the same shape the witness Worker certifies,
-   so the world can verify what it is told instead of trusting it. */
+   and the room ENACTS that verification rather than narrating it — the
+   returned seed must match the dealt one, the payload must be shaped
+   like a replayable record, and the witness's own replay settles the
+   session ledger (certifySeam; unreachable = counted but labeled). The
+   hand-off is guarded by a readiness handshake with a timeout and an
+   ESC abort, so a yard that never boots can never trap the room. */
 
 // ?deal=6 pins which seed the door deals — the same pin-a-board move as
 // tactical3d's ?seed=. Without it every crossing deals fresh.
@@ -1221,14 +1229,21 @@ const DEAL = (() => {
   const n = parseInt(q, 16);
   return Number.isFinite(n) ? n >>> 0 : null;
 })();
-// ?witness= passes through to the yard, so local worker dev works from here
+// ?witness= passes through to the yard, so local worker dev works from here —
+// and this room asks the same witness to certify what the yard reports
 const WITNESS_PARAM = new URLSearchParams(location.search).get("witness");
+const WITNESS = WITNESS_PARAM ?? "https://sentinel-witness.ishawnd.workers.dev";
 
 let seamOpen = false;
+let seamReady = false;
+let seamDealt = null;      // the seed this room dealt, kept to check the answer
 let seamFrame = null;
+let seamBootTimer = 0;
+let cutTimers = [];
 const seamCut = document.getElementById("seamcut");
 const seamInfo = document.getElementById("seaminfo");
 const ledger = { cards: 0, wins: 0, purse: 0 };
+const SEAM_BOOT_MS = 7000;
 
 function showCut(name, sub) {
   seamCut.innerHTML = `
@@ -1240,67 +1255,182 @@ function showCut(name, sub) {
 }
 
 function dropCut(afterMs) {
-  setTimeout(() => {
+  cutTimers.push(setTimeout(() => {
     seamCut.classList.add("fade");
-    setTimeout(() => seamCut.classList.remove("show", "fade"), 300);
-  }, afterMs);
+    cutTimers.push(setTimeout(() => seamCut.classList.remove("show", "fade"), 300));
+  }, afterMs));
+}
+
+function clearCutTimers() {
+  for (const t of cutTimers) clearTimeout(t);
+  cutTimers = [];
+}
+
+// the spot you left from is the doorway, and the doorway is the trigger —
+// returning exactly there would deal the next card before the body arrived
+function stepBackInside() {
+  character.position.z = WALK_BOUNDS.minZ + 0.06;
+  facingWorld.set(0, 0, 1);
 }
 
 function beginSeam() {
   seamOpen = true;
+  seamReady = false;
   held.clear();
   attack = null;
   const seed = DEAL ?? (Math.random() * 0xffffffff) >>> 0;
-  showCut("KESTREL YARD", `THE FEED CUTS TO THE CARD · seed ${seed.toString(16)}`);
+  seamDealt = seed.toString(16);
+  showCut("KESTREL YARD", `THE FEED CUTS TO THE CARD · seed ${seamDealt}`);
   actionStateEl.textContent = "CROSSING";
   canvas.dataset.seam = "open";
 
   seamFrame = document.createElement("iframe");
   seamFrame.id = "seamframe";
   seamFrame.title = "KESTREL YARD — live card";
-  let src = `../tactical3d/index.html?seam=1&seed=${seed.toString(16)}`;
+  let src = `../tactical3d/index.html?seam=1&seed=${seamDealt}`;
   if (WITNESS_PARAM) src += `&witness=${encodeURIComponent(WITNESS_PARAM)}`;
   seamFrame.src = src;
-  seamFrame.addEventListener("load", () => {
-    // THE CARD needs the keyboard; same-origin, so hand focus across
-    seamFrame.contentWindow.focus();
-    dropCut(350);
-  });
   document.body.appendChild(seamFrame);
+
+  // The cut holds until the yard PROVES it booted. A load event fires for
+  // error pages too, and the module can fail after load (caught in
+  // review) — so readiness is a message, not an event, the room keeps the
+  // keyboard until it arrives (ESC is the manual way back), and this
+  // timer is the automatic one.
+  seamBootTimer = setTimeout(
+    () => abortSeam("THE YARD NEVER ANSWERED"),
+    SEAM_BOOT_MS
+  );
+}
+
+// the failure exit: tear the frame down, put the body back inside the
+// walls, and say what happened — the player is never trapped behind a
+// dead feed (caught in review)
+function abortSeam(why) {
+  clearTimeout(seamBootTimer);
+  clearCutTimers();
+  seamOpen = false;
+  seamReady = false;
+  seamDealt = null;
+  if (seamFrame) { seamFrame.remove(); seamFrame = null; }
+  window.focus();
+  canvas.dataset.seam = "aborted";
+  actionStateEl.textContent = "IDLE";
+  stepBackInside();
+  showCut("FEED LOST", `${why} — THE DOOR SPAT YOU BACK`);
+  dropCut(1100);
+}
+
+// what a returned card must look like before the room believes a word of
+// it: the seed IT dealt, a sane outcome, a replayable-shaped record
+function seamResultValid(d) {
+  return d.seed === seamDealt
+    && (d.result === "win" || d.result === "loss")
+    && Number.isFinite(d.rating)
+    && Number.isFinite(d.purse)
+    && typeof d.fingerprint === "string"
+    && Array.isArray(d.record)
+    && d.record.length <= 1024
+    && d.record.every(c => Array.isArray(c));
 }
 
 function endSeam(result) {
+  clearTimeout(seamBootTimer);
   seamOpen = false;
+  seamReady = false;
+  seamDealt = null;
   canvas.dataset.seam = "closed";
   if (seamFrame) { seamFrame.remove(); seamFrame = null; }
   window.focus();
+  stepBackInside();
 
-  ledger.cards += 1;
-  if (result.result === "win") ledger.wins += 1;
-  ledger.purse += result.purse | 0;
+  // the entry renders now; the SESSION ledger settles only after the
+  // edge rules on the card — a disputed result must never count
   seamInfo.innerHTML =
     `<b>${result.result === "win" ? "YARD CLEARED" : "SQUAD LOST"}</b>` +
     ` · RATING ${result.rating} · PURSE ${result.purse}c<br>` +
     `seed ${result.seed} · ${result.record.length} commands` +
     ` · fp <span class="fp">${result.fingerprint}</span><br>` +
-    `SESSION · ${ledger.cards} CARD${ledger.cards === 1 ? "" : "S"}` +
-    ` · ${ledger.wins}–${ledger.cards - ledger.wins} · ${ledger.purse}c`;
+    `<span id="seamcert">CERT · ASKING THE EDGE…</span><br>` +
+    `<span id="seamtotals">SESSION · settling…</span>`;
   canvas.dataset.lastResult = result.result;
+  certifySeam(result);
 
-  // step back inside the walls: the spot you left from is the doorway,
-  // and the doorway is the trigger — returning exactly there would deal
-  // the next card before the body finished arriving
-  character.position.z = WALK_BOUNDS.minZ + 0.06;
-  facingWorld.set(0, 0, 1);
   showCut("FEED RETURNED", "THE RECORD CAME BACK WITH YOU");
   dropCut(900);
+}
+
+// "Verify what it is told instead of trusting it," made literal: the
+// record goes to the witness, the witness replays it under the canonical
+// rules, and the room compares the certificate against what the yard
+// claimed. No witness reachable = the room takes the yard's word and the
+// panel SAYS so — an unverified truth labeled beats a silent one.
+async function certifySeam(d) {
+  let verdict;
+  let counts;
+  try {
+    const r = await fetch(`${WITNESS}/certify`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        seed: d.seed,
+        record: d.record,
+        fingerprint: d.fingerprint,
+      }),
+    });
+    const out = await r.json();
+    const agrees = out.certified === true
+      && out.result === d.result
+      && out.rating === d.rating
+      && out.purse === d.purse;
+    if (agrees) {
+      verdict = '<span class="fp">CERTIFIED AT THE EDGE</span>';
+      counts = true;
+    } else {
+      verdict = `<b>EDGE DISPUTES THE FEED — STRUCK</b> · ${out.error ?? "outcome mismatch"}`;
+      counts = false;
+    }
+  } catch {
+    verdict = "UNCERTIFIED — NO WITNESS REACHABLE";
+    counts = true;
+  }
+  const certEl = document.getElementById("seamcert");
+  if (certEl) certEl.innerHTML = `CERT · ${verdict}`;
+  if (counts) {
+    ledger.cards += 1;
+    if (d.result === "win") ledger.wins += 1;
+    ledger.purse += d.purse | 0;
+  }
+  const totEl = document.getElementById("seamtotals");
+  if (totEl) {
+    totEl.textContent =
+      `SESSION · ${ledger.cards} CARD${ledger.cards === 1 ? "" : "S"}` +
+      ` · ${ledger.wins}–${ledger.cards - ledger.wins} · ${ledger.purse}c` +
+      (counts ? "" : " · LAST CARD STRUCK");
+  }
 }
 
 window.addEventListener("message", event => {
   if (event.origin !== location.origin) return;
   const data = event.data;
-  if (!data || data.type !== "sentinel-seam-result") return;
-  if (!seamFrame || event.source !== seamFrame.contentWindow) return;
+  if (!data || !seamFrame || event.source !== seamFrame.contentWindow) return;
+
+  if (data.type === "sentinel-seam-ready") {
+    if (data.seed !== seamDealt) return;   // answering for a different deal
+    seamReady = true;
+    clearTimeout(seamBootTimer);
+    canvas.dataset.seam = "live";
+    // THE CARD gets the keyboard only once the yard proved alive
+    seamFrame.contentWindow.focus();
+    dropCut(300);
+    return;
+  }
+
+  if (data.type !== "sentinel-seam-result") return;
+  if (!seamResultValid(data)) {
+    abortSeam("THE RECORD CAME BACK WRONG — REFUSED");
+    return;
+  }
   endSeam(data);
 });
 

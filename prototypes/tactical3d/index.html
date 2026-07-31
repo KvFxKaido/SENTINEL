@@ -1633,6 +1633,16 @@ curSeed = initialSeed();
 restart(false);
 frame();
 canvas.dataset.booted = "1";   // the boot-check script below reads this
+// The seam's readiness handshake: the parent holds its cut card (and the
+// keyboard) until the yard PROVES it booted — an iframe load event also
+// fires for error pages, and this module can fail after load (caught in
+// review; the boot-check below exists for exactly that failure).
+if (SEAM) {
+  window.parent.postMessage(
+    { type: "sentinel-seam-ready", seed: S.seed.toString(16) },
+    location.origin
+  );
+}
 </script>
 <script>
 // Modules fail silently from file:// — say so out loud rather than showing
