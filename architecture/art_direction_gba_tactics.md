@@ -116,6 +116,55 @@ rigid heights says that is the game). If a future surface truly cannot
 live on the 32 canvas, this section gets a successor — by a PR that
 says so, with the world-density bill attached.
 
+### Successor: the body canvas is the pack's (walk-off verdict, 2026-07-31)
+
+The escape hatch above was used the honest way: staged, not argued.
+`prototypes/walkable/walkoff.html` fielded both bodies in COURT 01 on
+one input — BODY A the 96×80 pack-mold Cipher, BODY B a 32×32 System A
+Cipher that learned to walk for the audition
+(`scripts/cipher32_walk.py`, pokered stand/step gait, its down face
+being CIPHER_A rows 5–22 verbatim). Same room, same camera, same LCD
+pass, same light. The designer walked both and called it: **the pack
+body wins.** That closes both auditions the walkable room carried —
+pack-format-vs-body-law, and selout-vs-ink with it, since the winning
+body wears the selout dialect.
+
+What changes:
+
+- **The authored body canvas is the pack's 96×80 (~34px body), selout
+  dialect.** The walkable Cipher lifts from provisional to canon. New
+  body verbs (aim, fire, kneel, down — the yard's bill) are authored in
+  this dialect by the deterministic-pass pipeline that minted the
+  roster.
+- **32×32 System A becomes the yard's legacy register.** The shipped
+  board sprites stay until pack bodies grow the yard's poses; then the
+  yard converges — one body per character across the seam, no second
+  species at the door. The System A identity kits are not lost: the
+  roster mold proved they translate deterministically (helm, topknot,
+  cowl, lenses, dreads-and-band) onto the pack body.
+- **The walk-off body stays on the record** as the decision's evidence:
+  strips regenerate from `scripts/cipher32_walk.py`, the stage is
+  `walkoff.html`, and this paragraph is why neither gets deleted.
+
+What survives unchanged — the law's spine was never the number 32:
+
+- **Authored once, never resampled.** The pack canvas is now the only
+  authored body form; integer zoom on flat surfaces, projective camera
+  + nearest filtering + LCD quantizer on world surfaces.
+- **Frames, never formats.** The full pack's nine verbs (idle / walk /
+  run / dash / two attacks / hurt / death / heal) are the current frame
+  set; every new verb joins the same canvas.
+- **The 2:1 density agreement.** Bodies at 1.10/32 world per pixel,
+  matter at 1.10/16. The pack body already obeyed it — that obedience
+  is much of why it won under the same glass — so the coupling holds
+  with no re-extrusion bill.
+- **Faces are exempt.** The portrait register pair is untouched.
+
+Cost accepted with the verdict: the ~2.3-head System A proportion pick
+(2026-07-28) now governs only the legacy yard register; the world body
+runs the pack's ~3.4 heads. Close Contact consumes the pack canvas
+under the same integer-zoom rule when it grows sprites.
+
 ## UI language
 
 - **Every datum is a cell**: label plate + value box, adjacent, both boxed.
@@ -247,14 +296,11 @@ respect. SRW J's structure wearing SENTINEL's color.
   so the only lights on the body are his own tech and ignition itself
   is a readable event. Outputs (`assets/sprites/cipher/`) are
   regenerable and untracked; the source pack stays out of the public
-  repo by license. **Status: audition body, provisional format** — the
-  frames keep the pack's native 96×80 canvas (~34px body), which is
-  not the body law's 32×32 System A canvas (caught in review). Two
-  auditions therefore ride on this one body: selout-vs-ink against the
-  System A roster, and pack-format-vs-body-law. Adoption as canon
-  means re-authoring on the 32 canvas or amending the law through its
-  own escape hatch; until then the walkable-world toy runs a
-  provisional body, on the record.
+  repo by license. **Status: canon body (walk-off verdict, 2026-07-31)**
+  — both auditions this body carried (selout-vs-ink,
+  pack-format-vs-body-law) were decided by the staged walk-off; see the
+  body law's successor section. The full pack adds five more verbs
+  (walk / dash / hurt / death / heal), molded by the same pipeline.
 
 - Fight card / fighter sheet mock for the Circuit: tabs FIGHTER / LOADOUT /
   RECORD, portrait + insignia slot top-left, every stat in a beveled cell.
