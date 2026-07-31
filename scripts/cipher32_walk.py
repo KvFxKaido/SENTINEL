@@ -154,6 +154,20 @@ LEGS_R_STRIDE = [
     "..........BGGGB...BGGGB.........",
     "..........BBBBB...BBBBB.........",
 ]
+# The other phase: rear foot in toe-off, one pixel up, front foot planted
+# on the ground line. Profile legs share one tone, so leg IDENTITY is
+# ambiguous by design — the gait alternates PHASE (contact / toe-off),
+# which is what reads as walking at this scale (caught in review: both
+# stride slots pointed at the same grid, so nothing alternated at all).
+LEGS_R_TOEOFF = [
+    ".............BPPPPPB............",
+    "............BPPPBPPB............",
+    "............BPPB.BPPB...........",
+    "............BGGB..BPPB..........",
+    "...........BGGGB..BGGB..........",
+    "...........BBBBB.BGGGB..........",
+    "..................BBBBB.........",
+]
 
 def figure(head, torso, legs):
     grid = [EMPTY] * 5 + head + torso + legs + [EMPTY] * 2
@@ -174,7 +188,7 @@ FRAMES = {
     "right": {
         "stand": figure(HEAD_RIGHT, TORSO_RIGHT, LEGS_R_STAND),
         "stepA": figure(HEAD_RIGHT, TORSO_RIGHT, LEGS_R_STRIDE),
-        "stepB": figure(HEAD_RIGHT, TORSO_RIGHT, LEGS_R_STRIDE),
+        "stepB": figure(HEAD_RIGHT, TORSO_RIGHT, LEGS_R_TOEOFF),
     },
 }
 FRAMES["left"] = {

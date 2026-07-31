@@ -764,12 +764,18 @@ buildMatter();
 // This prototype promises one room, so letting the body walk into unbuilt
 // void would turn an honest stage edge into an accidental second product.
 const BODY_RADIUS = 0.22;
+// The walk-off fields TWO bodies riding cameraRight offsets (±BODY_GAP
+// from the shared logical center), so collision fences the whole
+// formation, not the center point — otherwise an offset body clips wall
+// geometry near the bounds (caught in review).
+const BODY_GAP = 0.62;
+const FORMATION_RADIUS = BODY_RADIUS + BODY_GAP;
 const WALL_HALF = WALL_ART[0].length * PX / 2;
 const WALK_BOUNDS = {
-  minX: gx(0) + WALL_HALF + BODY_RADIUS,
-  maxX: gx(ROOM_W - 1) - WALL_HALF - BODY_RADIUS,
-  minZ: gz(0) + WALL_HALF + BODY_RADIUS,
-  maxZ: gz(ROOM_H - 1) - WALL_HALF - BODY_RADIUS,
+  minX: gx(0) + WALL_HALF + FORMATION_RADIUS,
+  maxX: gx(ROOM_W - 1) - WALL_HALF - FORMATION_RADIUS,
+  minZ: gz(0) + WALL_HALF + FORMATION_RADIUS,
+  maxZ: gz(ROOM_H - 1) - WALL_HALF - FORMATION_RADIUS,
 };
 
 const propColliders = matterSpots
@@ -778,8 +784,8 @@ const propColliders = matterSpots
     const width = artFor(spot)[0].length * PX;
     const depth = depthFor(spot);
     const quarterTurn = Math.abs(Math.sin(spot.rot)) > 0.5;
-    const halfX = (quarterTurn ? depth : width) / 2 + BODY_RADIUS;
-    const halfZ = (quarterTurn ? width : depth) / 2 + BODY_RADIUS;
+    const halfX = (quarterTurn ? depth : width) / 2 + FORMATION_RADIUS;
+    const halfZ = (quarterTurn ? width : depth) / 2 + FORMATION_RADIUS;
     return {
       minX: gx(spot.x) - halfX,
       maxX: gx(spot.x) + halfX,
@@ -912,7 +918,6 @@ let character = null;
 let spriteMaterial = null;
 let spriteMaterial32 = null;
 let bladeLight = null;
-const BODY_GAP = 0.62;   // half the daylight between the two contestants
 
 function buildCipher() {
   // PlaneGeometry is centered by default. Translate its vertices so source
@@ -1150,6 +1155,12 @@ function updateCipher(dt, now) {
   d.spriteB.position.set(cameraRight.x * BODY_GAP, 0, cameraRight.z * BODY_GAP);
   d.blobA.position.set(d.spriteA.position.x, 0.012, d.spriteA.position.z);
   d.blobB.position.set(d.spriteB.position.x, 0.012, d.spriteB.position.z);
+  // the ignition spill belongs to BODY A wherever the orbit put it —
+  // a fixed local offset drifts toward BODY B after a quarter-turn
+  // (caught in review)
+  bladeLight.position.set(
+    d.spriteA.position.x + 0.25, 0.72, d.spriteA.position.z + 0.05
+  );
   canvas.dataset.position =
     `${character.position.x.toFixed(3)},${character.position.z.toFixed(3)}`;
 }

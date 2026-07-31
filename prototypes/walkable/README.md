@@ -51,8 +51,9 @@ python scripts/cipher_mold.py
 The licensed source pack must be present locally at
 `prototypes/FREE_Adventurer 2D Pixel Art/`.
 
-Cipher remains an audition body: the native 96×80 pack format and selout
-dialect are provisional under
-`architecture/art_direction_gba_tactics.md`. This room carries both open
-questions — selout-vs-ink and pack-format-vs-body-law — without presenting
-either as settled canon.
+This body is **canon**. The walk-off (2026-07-31, `walkoff.html` — both
+bodies fielded in this room on one input) decided the two questions this
+room carried: the pack format beat the 32×32 body-law canvas, and the
+selout dialect won with it. The verdict and its costs are recorded in
+the body law's successor section,
+`architecture/art_direction_gba_tactics.md`.
