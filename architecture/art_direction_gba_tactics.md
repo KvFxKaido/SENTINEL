@@ -289,7 +289,9 @@ respect. SRW J's structure wearing SENTINEL's color.
 
 - **Done (2026-07-30): Cipher's walkable body.** A licensed 4-direction
   pack (idle/run/two attacks, 8 frames each) molded into Cipher by a
-  deterministic pipeline — `scripts/cipher_mold.py`: 24-color
+  deterministic pipeline — `scripts/cipher_mold.py` (since promoted to
+  `scripts/roster_mold.py`, 2026-07-31: one mold, five fighters,
+  mark-color ignition and heal): 24-color
   hand-mapped LUT, columnar dread pass, solid visor band (nothing may
   read as an eye from any facing), and the energy blade — dormant dark
   steel sheathed, ignited to the visor's cyan family in attack frames,

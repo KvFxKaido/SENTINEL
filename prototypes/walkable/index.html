@@ -966,7 +966,7 @@ function showAssetFault(error) {
     <div class="gate-box">
       <h2>CIPHER SHEETS NOT LOADED</h2>
       <p>
-        Regenerate them with <code>python scripts/cipher_mold.py</code>.<br>
+        Regenerate them with <code>python scripts/roster_mold.py</code>.<br>
         The licensed source pack must be present locally —
         <code>prototypes/FULL_Adventurer 2D Pixel Art/</code> for all nine
         verbs, or the FREE pack for the core four.
@@ -1068,7 +1068,7 @@ async function bootCipher() {
   if (missing.length > 0 && missing.length < extTotal) {
     showAssetFault(new Error(
       `partial full-pack roster: ${missing.length} of ${extTotal} extended sheets `
-      + `failed (first: ${missing[0]}) — re-run cipher_mold.py with the FULL pack present`
+      + `failed (first: ${missing[0]}) — re-run roster_mold.py with the FULL pack present`
     ));
     return;
   }
