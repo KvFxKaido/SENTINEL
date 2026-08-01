@@ -302,7 +302,14 @@ respect. SRW J's structure wearing SENTINEL's color.
   — both auditions this body carried (selout-vs-ink,
   pack-format-vs-body-law) were decided by the staged walk-off; see the
   body law's successor section. The full pack adds five more verbs
-  (walk / dash / hurt / death / heal), molded by the same pipeline.
+  (walk / dash / hurt / death / heal), molded by the same pipeline —
+  **wired into the walkable room 2026-08-01**: hold-Shift walk, a dash
+  that displaces through the same collision and door machinery as
+  walking, a heal channel (cyan spill only — the effect is authored in
+  the sheet), a hurt flinch, and a death that holds its last frame until
+  a move key rises. The roster is stated on the panel (CANON / FULL vs
+  CANON / CORE), a partial mold faults explicitly, and a lost card at
+  the seam plays the hurt flinch on re-entry.
 
 - Fight card / fighter sheet mock for the Circuit: tabs FIGHTER / LOADOUT /
   RECORD, portrait + insignia slot top-left, every stat in a beveled cell.

@@ -48,7 +48,7 @@ Usage:
 """
 from PIL import Image
 import numpy as np
-import os, sys, glob, hashlib, io
+import os, sys, glob, hashlib, io, shutil
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _FULL = os.path.join(ROOT, 'prototypes', 'FULL_Adventurer 2D Pixel Art', 'Sprites')
@@ -442,6 +442,17 @@ def main():
     if not sheets:
         sys.exit(f'source pack not found at {PACK} — it is untracked by license; '
                  'restore it locally before regenerating')
+    # Outputs mirror exactly ONE pack per fighter. Without this sweep,
+    # molding FULL once and later remolding with only FREE leaves the 20
+    # extended sheets from the old run in every fighter dir — the page
+    # then reads a mixed two-run roster as CANON / FULL (fix ported from
+    # PR #81's cipher_mold patch; five fighters wide it matters more).
+    # Swept per fighter, never OUT_ROOT wholesale: the cipher32 walk-off
+    # strips live beside these and belong to another script.
+    for name in FIGHTERS:
+        stale = os.path.join(OUT_ROOT, name)
+        if os.path.isdir(stale):
+            shutil.rmtree(stale)
     written = []
     for name in FIGHTERS:
         out_dir = os.path.join(OUT_ROOT, name)
