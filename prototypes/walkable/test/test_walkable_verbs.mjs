@@ -7,9 +7,12 @@
 // that lesson is why the watcher exists (caught building this harness).
 //
 // Real molded sheets at assets/sprites/cipher are backed up before the
-// run and restored after — the harness never destroys a real artifact.
+// run and restored after — including when setup itself fails, and a
+// backup stranded by a hard-killed run is reinstated on the next start.
 //
-// Run:  cd prototypes/walkable/test && npm install && node test_walkable_verbs.mjs
+// Run:  cd prototypes/walkable/test
+//       npm install && npx playwright install chromium
+//       node test_walkable_verbs.mjs
 import { chromium } from "playwright";
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -57,21 +60,23 @@ function check(name, ok, detail = "") {
   if (!ok) failures++;
 }
 
-// ---- setup: preserve real sheets, start server, boot browser -------
-fs.rmSync(BACKUP, { recursive: true, force: true });
+// ---- setup: preserve real sheets ----------------------------------
+// A backup left by a run that died before restoring IS the real
+// artifact: reinstate it, never delete it. This also makes a hard-killed
+// run (no finally) self-healing instead of data-destroying on the next
+// start (caught in review: setup failures used to strand the backup,
+// and the next run's cleanup would have eaten it).
+if (fs.existsSync(BACKUP)) {
+  fs.rmSync(SHEETS, { recursive: true, force: true });
+  fs.renameSync(BACKUP, SHEETS);
+}
 if (fs.existsSync(SHEETS)) fs.renameSync(SHEETS, BACKUP);
 
-const server = spawn(PY, ["-m", "http.server", PORT], { cwd: ROOT, stdio: "ignore" });
-let up = false;
-for (let i = 0; i < 50 && !up; i++) {
-  up = await fetch(`http://localhost:${PORT}/`).then(r => r.ok, () => false);
-  if (!up) await new Promise(r => setTimeout(r, 200));
-}
-if (!up) { server.kill(); throw new Error(`server never came up on :${PORT}`); }
-
-const browser = await launch();
-const page = await browser.newPage();
-page.on("pageerror", e => { console.log("PAGEERROR " + e); failures++; });
+// From here on, every failure path — server, browser launch, the checks
+// themselves — runs through the finally that restores the real sheets.
+let server = null;
+let browser = null;
+let page = null;
 
 async function boot() {
   await page.goto(URL);
@@ -107,6 +112,19 @@ const waitAction = (name, timeout = 3000) =>
     .then(() => true, () => false);
 
 try {
+  // ---- server + browser, inside the restoring scope ----------------
+  server = spawn(PY, ["-m", "http.server", PORT], { cwd: ROOT, stdio: "ignore" });
+  let up = false;
+  for (let i = 0; i < 50 && !up; i++) {
+    up = await fetch(`http://localhost:${PORT}/`).then(r => r.ok, () => false);
+    if (!up) await new Promise(r => setTimeout(r, 200));
+  }
+  if (!up) throw new Error(`server never came up on :${PORT}`);
+
+  browser = await launch();
+  page = await browser.newPage();
+  page.on("pageerror", e => { console.log("PAGEERROR " + e); failures++; });
+
   // ---- FULL roster -------------------------------------------------
   gen("full");
   await boot();
@@ -213,8 +231,8 @@ try {
   check("a fresh press rises", await waitAction("run"));
   await page.keyboard.up("KeyW");
 } finally {
-  await browser.close();
-  server.kill();
+  if (browser) await browser.close().catch(() => {});
+  if (server) server.kill();
   clearSheets();
   if (fs.existsSync(BACKUP)) fs.renameSync(BACKUP, SHEETS);
 }

@@ -115,9 +115,10 @@ the body law's successor section,
 
 ```sh
 cd prototypes/walkable/test
-npm install                     # playwright (downloads chromium if none provisioned)
-node test_walkable_verbs.mjs    # 31 checks: verbs, roster states, regressions
-python test_roster_sweep.py     # the roster mold's remold sweep (pillow + numpy)
+npm install                        # the playwright library
+npx playwright install chromium    # the browser itself (skip if one is provisioned)
+node test_walkable_verbs.mjs       # 31 checks: verbs, roster states, regressions
+python test_roster_sweep.py        # the roster mold's remold sweep (pillow + numpy)
 ```
 
 What it does and deliberately does not touch:
