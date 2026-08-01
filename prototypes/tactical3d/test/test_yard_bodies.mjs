@@ -188,37 +188,49 @@ try {
   // eventually breaks. Every remaining verb is reached by the GAME rather
   // than by the harness pretending to be a player.
   // Overwatch is the keyboard-only way to actually SHOOT the crew: a squad
-  // that never fires never breaks their morale, and kneel is a morale
-  // verb. Arming all three each round reaches the yield without the
-  // harness needing to click a hostile it cannot locate on screen.
-  let sawFire = false, sawHurt = false, sawDeath = false, sawKneel = false;
-  const scan = async () => {
-    for (const u of await units()) {
-      if (u.action === "fire") sawFire = true;
-      if (u.action === "hurt") sawHurt = true;
-      if (u.action === "death") sawDeath = true;
-      if (u.action === "kneel") sawKneel = true;
-    }
-  };
-  for (let round = 0; round < 16 && !(sawFire && sawHurt && sawDeath && sawKneel); round++) {
+  // that never fires never breaks their morale, and kneel is a morale verb.
+  //
+  // Two things make this deterministic enough to assert on, and the first
+  // CI run proved both were needed — it polled every 110ms for a fixed 16
+  // rounds, and missed the yield entirely on a slower box.
+  //
+  //  * an in-page rAF observer records every action it EVER renders, so a
+  //    verb that lives four frames cannot fall between two polls;
+  //  * the loop waits on the game's own turn state rather than on sleeps,
+  //    so the input sequence — and therefore the match the seeded rules
+  //    play out — is the same on a fast machine and a slow one.
+  await page.evaluate(() => {
+    window.__seen = new Set();
+    const cv = document.getElementById("cv");
+    (function tick() {
+      for (const s of (cv.dataset.units ?? "").split(",")) {
+        const a = s.split(":")[1];
+        if (a) window.__seen.add(a);
+      }
+      requestAnimationFrame(tick);
+    })();
+  });
+  const opTurn = () => page.waitForFunction(
+    () => /OPERATIVE TURN/.test(document.getElementById("turnlabel").textContent)
+      || !!document.querySelector("#overlay.show"),
+    null, { timeout: 20000 }).then(() => true, () => false);
+  const ended = () => page.evaluate(() => !!document.querySelector("#overlay.show"));
+
+  for (let round = 0; round < 30; round++) {
+    if (await ended()) break;
     for (let i = 0; i < 3; i++) {
       await page.keyboard.press("Tab");
-      await page.waitForTimeout(90);
       await page.keyboard.press("y");
-      await page.waitForTimeout(90);
-      await scan();
     }
+    if (await ended()) break;
     await page.keyboard.press("Enter");
-    for (let tick = 0; tick < 22; tick++) {
-      await page.waitForTimeout(110);
-      await scan();
-    }
-    if (await page.evaluate(() => !!document.querySelector("#overlay.show"))) break;
+    await opTurn();            // the hostile turn resolves before the next input
   }
-  check("a shot plays the fire verb", sawFire);
-  check("a hit plays the hurt verb", sawHurt);
-  check("a downed body plays the death verb", sawDeath);
-  check("a yielded body kneels", sawKneel);
+  const played = await page.evaluate(() => [...window.__seen].sort());
+  check("a shot plays the fire verb", played.includes("fire"), played.join(","));
+  check("a hit plays the hurt verb", played.includes("hurt"), played.join(","));
+  check("a downed body plays the death verb", played.includes("death"), played.join(","));
+  check("a yielded body kneels", played.includes("kneel"), played.join(","));
 
   // ---- a missing verb faults; it never falls back to the old grids ---
   // This is the whole point of the convergence: a quiet fallback would
