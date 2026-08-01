@@ -103,7 +103,7 @@ prototypes/FULL_Adventurer 2D Pixel Art/
 # reference-only free characters (Character Creator 2D) — pose grammar, not architecture
 prototypes/FREE Character 16-bit Thug Outlined/
 prototypes/FREE Character HD Survivor W Bike/
-# regenerable Cipher walk-sprites (scripts/cipher_mold.py)
-assets/sprites/cipher/
-# regenerable System A walk strips (scripts/cipher32_walk.py)
-assets/sprites/cipher32/
+# regenerable sprite outputs — the whole roster (scripts/roster_mold.py)
+# plus the System A walk-off strips (scripts/cipher32_walk.py); the
+# committed scripts are the decision records, the pixels rebuild
+assets/sprites/

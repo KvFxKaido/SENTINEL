@@ -71,7 +71,7 @@ If they are missing, the page stops at an explicit asset message instead of
 substituting a placeholder:
 
 ```powershell
-python scripts/cipher_mold.py
+python scripts/roster_mold.py
 ```
 
 The licensed source pack must be present locally at
