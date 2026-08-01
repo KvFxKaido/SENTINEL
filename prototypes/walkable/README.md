@@ -30,13 +30,25 @@ not run from `file://`.
 
 | Input | Action |
 |-------|--------|
-| `WASD` / arrows | walk, camera-relative |
+| `WASD` / arrows | run, camera-relative |
+| `Shift` + move | walk † |
+| `L` | dash, current facing † |
 | `J` / `Space` | attack 1 |
 | `K` | attack 2 |
+| `H` | heal channel † |
+| `G` | hurt flinch † |
+| `X` | down — any move key rises † |
 | `Q` / `E` | orbit the room 90° |
 | `P` | cycle LCD / crunch / clean |
 
-The north doorway is **live**: walking through it is the seam.
+† Full-pack verbs — inert (and labeled so on the control surface) when
+only the free pack's core four are molded.
+
+The north doorway is **live**: walking through it is the seam — and the
+dash moves through the same collision and door machinery, so dashing the
+doorway deals the card too. On the full roster, walking back out of a
+**lost** card plays the hurt flinch: the record comes back with you, and
+it shows.
 
 ## The seam
 
@@ -66,7 +78,7 @@ passes through to the yard and is used for certification here.
 
 ## Cipher assets
 
-The 16 local sheets are regenerable artifacts and are intentionally untracked.
+The local sheets are regenerable artifacts and are intentionally untracked.
 If they are missing, the page stops at an explicit asset message instead of
 substituting a placeholder:
 
@@ -74,8 +86,20 @@ substituting a placeholder:
 python scripts/cipher_mold.py
 ```
 
-The licensed source pack must be present locally at
-`prototypes/FREE_Adventurer 2D Pixel Art/`.
+The licensed source pack must be present locally —
+`prototypes/FULL_Adventurer 2D Pixel Art/` for all nine verbs (36 sheets),
+or the FREE pack for the core four (16 sheets). Frame counts are read from
+sheet width, never assumed: the full pack varies them per verb (heal runs
+12 frames, hurt 4).
+
+The roster is stated, never guessed at. The core four verbs are required
+to boot; the extended five are all-or-nothing:
+
+- all 20 extended sheets load → **CANON / FULL** on the panel;
+- none present → **CANON / CORE**, with the extended rows on the control
+  surface dimmed and labeled `not molded`;
+- anything in between is a broken regeneration and stops at an explicit
+  asset fault naming the partial state — there is no silent subset.
 
 This body is **canon**. The walk-off (2026-07-31, `walkoff.html` — both
 bodies fielded in this room on one input) decided the two questions this
