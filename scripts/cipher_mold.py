@@ -45,7 +45,7 @@ Usage:
 """
 from PIL import Image
 import numpy as np
-import os, sys, glob, hashlib
+import os, sys, glob, hashlib, shutil
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # the FULL pack carries all nine verbs; the FREE pack is the four-verb
@@ -223,6 +223,13 @@ def main():
     if not sheets:
         sys.exit(f'source pack not found at {PACK} — it is untracked by license; '
                  'restore it locally before regenerating')
+    # Outputs mirror exactly ONE pack. Without this sweep, molding FULL
+    # once and later remolding with only FREE leaves the 20 extended
+    # sheets from the old run on disk — the page then reads a mixed
+    # two-run roster as CANON / FULL (caught in review). Cleared only
+    # after the source check above: no pack, no destructive step.
+    if os.path.isdir(OUT):
+        shutil.rmtree(OUT)
     written = []
     for p in sheets:
         rel = os.path.relpath(p, PACK)

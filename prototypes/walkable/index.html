@@ -1044,13 +1044,26 @@ async function bootCipher() {
     return;
   }
   // The extended five are all-or-nothing. All 20 sheets → FULL roster;
-  // none → CORE roster, said out loud on the panel; anything in between
-  // is a broken regeneration and faults explicitly — no silent subset.
-  const missing = (await Promise.all(extActions.flatMap(
-    action => FACINGS.map(
-      facing => loadSheet(action, facing).then(() => null, () => `${action}_${facing}`)
-    )
-  ))).filter(Boolean);
+  // none PRESENT → CORE roster, said out loud on the panel; anything in
+  // between is a broken regeneration and faults explicitly — no silent
+  // subset. Absence and rejection are different verdicts: a sheet that
+  // exists but fails geometry is a fault even if all 20 fail together
+  // (loadAsync rejects load failures with an event, never an Error, so
+  // the Error class marks our own validation refusing a real file).
+  const missing = [];
+  try {
+    await Promise.all(extActions.flatMap(
+      action => FACINGS.map(
+        facing => loadSheet(action, facing).catch(err => {
+          if (err instanceof Error) throw err;
+          missing.push(`${action}_${facing}`);
+        })
+      )
+    ));
+  } catch (error) {
+    showAssetFault(error);
+    return;
+  }
   const extTotal = extActions.length * FACINGS.length;
   if (missing.length > 0 && missing.length < extTotal) {
     showAssetFault(new Error(
@@ -1290,7 +1303,10 @@ document.addEventListener("keydown", event => {
   if (MOVE_CODES.has(event.code)) {
     event.preventDefault();
     held.add(event.code);
-    downed = false;   // moving is how a downed body rises
+    // moving is how a downed body rises — but rising takes a FRESH
+    // press: OS auto-repeat on a key held since before the fall would
+    // pop the body straight back up (caught in review)
+    if (!event.repeat) downed = false;
     return;
   }
   if (event.repeat) return;
