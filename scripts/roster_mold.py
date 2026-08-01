@@ -51,10 +51,15 @@ import numpy as np
 import os, sys, glob, hashlib, io, shutil
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_FULL = os.path.join(ROOT, 'prototypes', 'FULL_Adventurer 2D Pixel Art', 'Sprites')
-_FREE = os.path.join(ROOT, 'prototypes', 'FREE_Adventurer 2D Pixel Art', 'Sprites')
+# Test hooks: the harness (prototypes/walkable/test/) redirects both roots
+# into temp dirs so it can fake packs and sweep outputs without ever
+# touching the real licensed pack or real molded sheets. Unset, behavior
+# is exactly the paths named in the docstring.
+_PACKS = os.environ.get('ROSTER_MOLD_PACKS', os.path.join(ROOT, 'prototypes'))
+_FULL = os.path.join(_PACKS, 'FULL_Adventurer 2D Pixel Art', 'Sprites')
+_FREE = os.path.join(_PACKS, 'FREE_Adventurer 2D Pixel Art', 'Sprites')
 PACK = _FULL if os.path.isdir(_FULL) else _FREE
-OUT_ROOT = os.path.join(ROOT, 'assets', 'sprites')
+OUT_ROOT = os.environ.get('ROSTER_MOLD_OUT', os.path.join(ROOT, 'assets', 'sprites'))
 
 FRAME_W, FRAME_H = 96, 80   # frame COUNT varies per sheet (heal 12, hurt 4)
 
