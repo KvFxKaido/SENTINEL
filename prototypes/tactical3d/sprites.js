@@ -1,4 +1,19 @@
-/* The yard roster at 32×32 — System A, the audited proportion
+/* LEGACY REGISTER — nothing imports this file since the yard converged
+   (2026-08-01). The board now fields the molded 96×80 pack bodies from
+   assets/sprites/<fighter>/ via ./pack_sprites.js, so that one body
+   crosses the north door instead of changing species there.
+
+   It is kept, not deleted, because the walk-off verdict named 32×32
+   System A the yard's legacy register on the record
+   (art_direction_gba_tactics.md, "Successor" + "The yard converged"),
+   and because these kits are the proof that the per-fighter identities
+   translate deterministically — the roster mold's head passes were
+   derived from exactly these designs. Retiring it is a separate decision
+   with its own paper trail; do not fold it into an unrelated change.
+
+   Everything below describes that legacy register.
+
+   The yard roster at 32×32 — System A, the audited proportion
    (art_direction_gba_tactics.md: ~2.3 heads, displayed 1.10 world units,
    feet on the ground line at row 29 like the Cipher audition specimen
    they are built from, architecture/mocks/cipher_sprites.js).

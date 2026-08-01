@@ -146,6 +146,62 @@ jobs:
         working-directory: prototypes/walkable/test
         run: python test_roster_sweep.py
 
+  # The yard's own suites, in their OWN job so they run beside the walkable
+  # ones rather than after them. Bolted onto walkable-harness they made a
+  # single 11-minute job that set the whole run's wall clock while every
+  # other job finished inside a minute; parallel, the two are ~2m and ~5m.
+  #
+  # They must stay SERIAL within this job. All three back up and restore the
+  # same assets/sprites/<fighter> directories, so running them concurrently
+  # on one runner would have them clobber each other's backups — and those
+  # backups are the real molded sheets. Separate jobs get separate runners,
+  # which is safe; separate steps on one runner are not.
+  yard-harness:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # its own chromium, not one inherited from another job's install:
+      # sharing only worked while both lockfiles happened to resolve the
+      # same playwright, and launch()'s fallback scan does not check the
+      # default user cache, so drift surfaced as an unexplained launch
+      # failure rather than a legible one (caught in review)
+      - name: Install yard harness dependencies
+        working-directory: prototypes/tactical3d/test
+        run: |
+          pip install pillow
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Yard body harness
+        working-directory: prototypes/tactical3d/test
+        run: node test_yard_bodies.mjs
+
+      # Both surfaces alive at once — the only test that can see the claim
+      # the convergence actually makes. Tolerates an unreachable witness
+      # (the room says so out loud); fails on a DISPUTED record.
+      - name: Seam round trip
+        working-directory: prototypes/tactical3d/test
+        run: node test_seam_round_trip.mjs
+
+      # …and the case the seam test cannot reach: an edge that ACCEPTS and
+      # never answers. Intercepted and left hanging, so only the room's own
+      # deadline can settle the session.
+      - name: Witness deadline
+        working-directory: prototypes/tactical3d/test
+        run: node test_witness_deadline.mjs
+
   # The witness Worker against a local wrangler dev (simulated KV): goldens
   # from the edge, certification refusals, and the archive — including the
   # >100-entry bulk that forces /matches to walk KV cursors. The live
