@@ -225,9 +225,41 @@ carries further than mass. The rule this hands forward: **an effect's
 readability is a number you can compute, and a zoomed contact sheet is
 not that number.** The recipe is in `prototypes/walkable/README.md`.
 
-What is left before the yard converges: the board still fields 32×32
-System A sprites. The bill the successor named is now paid on the world
-side, so the crossing is the last species boundary standing.
+### The yard converged (2026-08-01)
+
+The successor's last clause — *"then the yard converges — one body per
+character across the seam, no second species at the door"* — is now true.
+`prototypes/tactical3d/` loads the same molded sheets the walkable room
+does. One body crosses the door.
+
+What the convergence cost and settled:
+
+- **Facing is renderer-owned, and camera-relative.** The board never had
+  unit facing; it had a horizontal mirror on movement. Bodies now pick one
+  of four sheets from a world vector resolved against the camera, so a
+  quarter turn re-faces them. Resolving it off world axes instead is the
+  precise bug the mirror once shipped, and it is now the load-bearing
+  assertion in `test_yard_bodies.mjs` — four quarter turns must produce
+  four *distinct* facing sets. Two weaker versions of that check pass on
+  the broken renderer, which is how the original survived review.
+- **No fallback to the legacy register.** A missing sheet stops the yard
+  at an explicit fault. A quiet substitution would put a 32×32 body on the
+  board while the room shows a pack body — the two-species bug this work
+  exists to kill, wearing a helpful face. `sprites.js` survives as the
+  legacy register the walk-off named; nothing imports it any more.
+- **The seam is now tested, not asserted.** Both surfaces alive at once,
+  the door walked, the card played, the record read back. It fails on a
+  DISPUTED verdict and tolerates an unreachable witness, because one of
+  those is a bug and the other is weather.
+- **Cost accepted:** bodies stand ~1.169 world units against the 1.5-tall
+  walls that carry the cover read — 6% taller than the 32×32 register they
+  replaced. Measured against the walls, cover still reads. The badge and
+  overwatch ring moved up to clear them.
+
+The legacy register is now unused rather than deleted. Retiring
+`sprites.js` is a separate decision with its own paper trail; leaving a
+dead file named in this document is worse than either, so whichever way it
+goes, this paragraph goes with it.
 
 ## UI language
 

@@ -25,6 +25,20 @@
   /* explicit CSS size: the drawing buffer is resized independently so the
      pixel-crunch toggle can render below 1:1 and let the browser upscale */
   canvas#cv { display: block; width: 700px; height: 444px; border: 1px solid var(--line); background: #0a0e0b; image-rendering: pixelated; }
+  #asset-gate {
+    position: absolute; inset: 0; z-index: 20; display: none;
+    align-items: center; justify-content: center; padding: 28px;
+    background: rgba(3,5,4,0.92); text-align: center;
+  }
+  #asset-gate.show { display: flex; }
+  #asset-gate .gate-box {
+    max-width: 520px; border: 1px solid var(--line); background: var(--panel);
+    padding: 16px 18px; box-shadow: inset 1px 1px #203327, inset -1px -1px #050806;
+  }
+  #asset-gate h2 { margin-bottom: 10px; color: var(--amber); font-size: 13px; font-weight: normal; letter-spacing: 3px; }
+  #asset-gate p { color: var(--text-dim); font-size: 11px; line-height: 1.7; }
+  #asset-gate code { color: var(--text); }
+  #asset-gate.asset-error h2 { color: var(--red); }
   /* subtle scanlines */
   #left::after {
     content: ""; position: absolute; inset: 0; pointer-events: none;
@@ -113,7 +127,7 @@
   #card .cgrid { display: flex; gap: 7px; }
   #card .cgrid > div { flex: 1; }
   #card .frow { display: flex; align-items: center; gap: 8px; padding: 2px 0; font-size: 10px; }
-  #card .frow canvas { width: 40px; height: 40px; image-rendering: pixelated; flex: none; }
+  #card .frow canvas { width: 48px; height: 48px; image-rendering: pixelated; flex: none; }
   #card .frow .fname { width: 62px; letter-spacing: 1px; color: var(--text); }
   #card .frow .fstat { color: var(--text-dim); }
   #card .op-side .fname { color: var(--cyan); }
@@ -153,6 +167,12 @@
 <div id="app">
   <div id="left">
     <canvas id="cv"></canvas>
+    <div id="asset-gate" class="show" role="status" aria-live="assertive">
+      <div class="gate-box">
+        <h2>LOADING YARD ROSTER</h2>
+        <p>Five molded bodies · seven yard verbs · four facings</p>
+      </div>
+    </div>
     <div id="labels"></div>
     <div id="overlay">
       <h1 id="ovtitle"></h1>
@@ -246,7 +266,11 @@ import {
   selectUnit, cycleSelect, tryMove, tryShoot, tryFinish, spare, setOverwatch, endPlayerTurn,
 } from "../tactical-core/rules.js";
 import { directorTick } from "../tactical-core/director.js";
-import { spriteFor } from "./sprites.js";
+import {
+  FRAME_W, FRAME_H, GROUND_ROW, BODY_PX, QUAD_W, QUAD_H,
+  FIGHTERS, FACINGS, SHEETS,
+  fighterSlug, idleDownThumb, sheetGeometry, sheetKey, sheetUrl,
+} from "./pack_sprites.js";
 
 // ---- renderer-owned state --------------------------------------
 // Transient presentation only. Anything the rules need to know lives in S.
@@ -384,16 +408,9 @@ async function refreshCareer() {
 }
 
 function spriteThumb(name) {
-  const { grid, pal } = spriteFor(name);
-  const c = document.createElement("canvas");
-  c.width = c.height = 96;   // 3× paint, 48px CSS — integer halving stays crisp
-  const g = c.getContext("2d");
-  grid.forEach((row, y) => [...row].forEach((ch, x) => {
-    if (!pal[ch]) return;
-    g.fillStyle = pal[ch];
-    g.fillRect(x * 3, y * 3, 3, 3);
-  }));
-  return c;
+  const fighter = fighterSlug(name);
+  const sheet = PACK_SHEETS.get(sheetKey(fighter, "idle", "down"));
+  return idleDownThumb(sheet.texture.image);
 }
 
 function fighterRow(u) {
@@ -509,11 +526,23 @@ function onEvent(ev) {
       break;
     case "fire":
       sfx.fire();
+      faceUnitAt(ev.att, ev.def);
+      triggerUnitVerb(ev.att, "fire");
       tracers.push({ x0: ev.att.x, y0: ev.att.y, x1: ev.def.x, y1: ev.def.y, until: performance.now() + 260 });
       break;
-    case "shot":   ev.hit ? sfx.hit() : sfx.miss(); break;
-    case "down":   sfx.down(); break;
-    case "finish": sfx.down(); break;
+    case "shot":
+      ev.hit ? sfx.hit() : sfx.miss();
+      if (ev.hit && ev.def.hp > 0) triggerUnitVerb(ev.def, "hurt");
+      break;
+    case "down":
+      sfx.down();
+      triggerUnitVerb(ev.unit, "death");
+      break;
+    case "finish":
+      sfx.down();
+      faceUnitAt(ev.att, ev.def);
+      triggerUnitVerb(ev.def, "death");
+      break;
     case "yield":  sfx.yield(); break;
     case "yield-decision": sfx.turn(); break;
     // the player's round is opening — arm the director; it speaks on the
@@ -898,13 +927,15 @@ const SHARED = new Set([voxelGeo, voxelMat, wallGeo, crateGeo, proxyMat]);
 function disposeGroup(group) {
   for (const child of [...group.children]) {
     group.remove(child);
+    const ownedTextures = child.userData.ownedTextures ?? new Set();
+    for (const texture of ownedTextures) texture.dispose();
     child.traverse(o => {
       if (o.isInstancedMesh) o.dispose();   // frees instance buffers; the shared box survives
       if (o.geometry && !SHARED.has(o.geometry)) o.geometry.dispose();
       const mats = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
       for (const m of mats) {
         if (SHARED.has(m)) continue;
-        if (m.map && !SHARED.has(m.map)) m.map.dispose();   // sprite textures are shared; badge textures are not
+        if (m.map && !SHARED.has(m.map) && !ownedTextures.has(m.map)) m.map.dispose();
         m.dispose();
       }
     });
@@ -967,61 +998,116 @@ function buildTerrain() {
 
 // ---- units --------------------------------------------------------
 // The 2.5D turn (art_direction_gba_tactics.md, "The view"): units are
-// hand-authored pixel sprites baked to NearestFilter textures and stood
-// upright on billboarded quads. The environment stays 3D — rotate-to-
-// read-cover, occlusion and terrain shadows all survive — while
-// characters get sprite craft instead of capsule geometry. The art is
-// the yard roster (./sprites.js): 32×32 on the audited System A body,
-// per-fighter heads, one SYN design worn by the whole crew.
+// the same 96×80 pack bodies the walkable world fields, consumed directly
+// as nearest-filtered sheets. The environment stays 3D — rotate-to-read-
+// cover, occlusion and terrain shadows all survive — while one authored
+// body now crosses the north door instead of changing species there.
 const unitGroup = new THREE.Group();
 scene.add(unitGroup);
 
-function bakeSpriteTexture(grid, pal) {
+const PACK_SHEETS = new Map();
+const packTextureLoader = new THREE.TextureLoader();
+const assetGate = document.getElementById("asset-gate");
+
+function alphaPixels(image, width, height) {
   const c = document.createElement("canvas");
-  c.width = grid[0].length; c.height = grid.length;
+  c.width = width;
+  c.height = height;
   const g = c.getContext("2d");
-  grid.forEach((row, y) => [...row].forEach((ch, x) => {
-    if (pal[ch]) { g.fillStyle = pal[ch]; g.fillRect(x, y, 1, 1); }
-  }));
-  const tex = new THREE.CanvasTexture(c);
-  tex.magFilter = THREE.NearestFilter;
-  tex.minFilter = THREE.NearestFilter;
-  tex.generateMipmaps = false;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-// Opacity masks for picking: mesh raycasting tests the quad's triangles and
-// ignores the material's alphaTest, so without this the whole quad would be
-// clickable — transparent corners included (caught in review). The mask
-// makes the sprite's silhouette the hit area.
-const bakeMask = (grid, pal) => grid.map(row => [...row].map(ch => !!pal[ch]));
-// Bake once per unique design — the SYN crew shares one grid on purpose,
-// so it also shares one texture and one mask. A design with a kneel frame
-// (only hostiles yield, so today that is only SYN) gets both frames baked;
-// the yield swaps texture AND picking mask, so a kneeling fighter is
-// clickable exactly where the kneeling art is.
-const SPRITE_ASSETS = new Map();
-function spriteAssets(name) {
-  const s = spriteFor(name);
-  if (!SPRITE_ASSETS.has(s.grid)) {
-    const tex = bakeSpriteTexture(s.grid, s.pal);
-    SHARED.add(tex);   // survives unit-group teardown on every reset
-    const assets = { tex, mask: bakeMask(s.grid, s.pal) };
-    if (s.kneel) {
-      assets.kneelTex = bakeSpriteTexture(s.kneel, s.pal);
-      SHARED.add(assets.kneelTex);
-      assets.kneelMask = bakeMask(s.kneel, s.pal);
-    }
-    SPRITE_ASSETS.set(s.grid, assets);
-  }
-  return SPRITE_ASSETS.get(s.grid);
+  g.drawImage(image, 0, 0);   // 1:1 readback for picking; no art is resampled
+  const rgba = g.getImageData(0, 0, width, height).data;
+  const alpha = new Uint8Array(width * height);
+  for (let i = 0; i < alpha.length; i++) alpha[i] = rgba[i * 4 + 3];
+  return alpha;
 }
 
-// 1.10 world units tall — the audited size (art_direction_gba_tactics.md:
-// +20% over the first billboard pass; presence without out-growing the
-// 1.5-tall walls that make cover height readable)
-const spriteGeo = new THREE.PlaneGeometry(1.10, 1.10);
-spriteGeo.translate(0, 0.55, 0);           // feet at the origin, standing on the tile
+async function loadYardSheet(fighter, action, facing) {
+  const url = sheetUrl(fighter, action, facing);
+  let texture;
+  try {
+    texture = await packTextureLoader.loadAsync(url);
+  } catch {
+    throw new Error(`${url} did not load`);
+  }
+  let geometry;
+  try {
+    geometry = sheetGeometry(texture.image, url);
+  } catch (error) {
+    texture.dispose();
+    throw error;
+  }
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  texture.generateMipmaps = false;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.repeat.set(1 / geometry.frames, 1);
+  texture.offset.set(0, 0);
+  const sheet = {
+    texture,
+    frames: geometry.frames,
+    width: geometry.width,
+    alpha: alphaPixels(texture.image, geometry.width, geometry.height),
+  };
+  PACK_SHEETS.set(sheetKey(fighter, action, facing), sheet);
+  SHARED.add(texture);   // source textures survive every match reset
+}
+
+function showAssetFault(errors) {
+  const first = errors[0] instanceof Error ? errors[0].message : "A local sprite request failed.";
+  const more = errors.length > 1 ? ` (${errors.length} sheets failed; first shown)` : "";
+  assetGate.className = "show asset-error";
+  assetGate.innerHTML = `
+    <div class="gate-box">
+      <h2>YARD SHEETS NOT LOADED</h2>
+      <p>
+        Regenerate them with <code>python scripts/roster_mold.py</code>.<br>
+        The licensed source pack must be present locally at
+        <code>prototypes/FULL_Adventurer 2D Pixel Art/</code>.
+      </p>
+      <p id="asset-detail" style="margin-top:10px"></p>
+    </div>`;
+  document.getElementById("asset-detail").textContent = first + more;
+  canvas.dataset.sprites = "error";
+}
+
+async function bootYardRoster() {
+  const required = FIGHTERS.flatMap(fighter =>
+    Object.keys(SHEETS).flatMap(action =>
+      FACINGS.map(facing => loadYardSheet(fighter, action, facing))
+    )
+  );
+  const results = await Promise.allSettled(required);
+  const errors = results.filter(result => result.status === "rejected").map(result => result.reason);
+  if (errors.length) {
+    showAssetFault(errors);
+    return false;
+  }
+  assetGate.className = "";
+  assetGate.setAttribute("aria-hidden", "true");
+  canvas.dataset.sprites = "ready";
+  canvas.dataset.roster = "full";
+  return true;
+}
+
+function unitTexture(state, layer, action, facing) {
+  const key = `${action}:${facing}`;
+  const cache = layer === "ghost" ? state.ghostTextures : state.spriteTextures;
+  if (!cache.has(key)) {
+    const source = PACK_SHEETS.get(sheetKey(state.fighter, action, facing));
+    const texture = source.texture.clone();
+    texture.needsUpdate = true;
+    cache.set(key, texture);
+    state.ownedTextures.add(texture);
+  }
+  return cache.get(key);
+}
+
+// The plane keeps the whole authored canvas. Translating its vertices puts
+// source row 57 — the pack's ground contract — at local Y=0. The ~34px body
+// consequently stands ~1.169 world units without quietly rescaling the art.
+const spriteGeo = new THREE.PlaneGeometry(QUAD_W, QUAD_H);
+spriteGeo.translate(0, GROUND_ROW * BODY_PX - QUAD_H / 2, 0);
 const blobGeo   = new THREE.CircleGeometry(0.30, 20);
 const blobMat   = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.38 });
 const ringGeo   = new THREE.TorusGeometry(0.42, 0.032, 8, 28);
@@ -1041,7 +1127,7 @@ function makeBadge(u) {
   tex.minFilter = THREE.NearestFilter;
   const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
   spr.scale.set(1.15, 1.15 * BADGE_H / BADGE_W, 1);
-  spr.position.y = 1.28;   // clears the 1.10-tall sprite plus its bob
+  spr.position.y = 1.36;   // clears the measured ~1.169 body plus its bob
   spr.renderOrder = 10;
   u._badge = c; u._badgeTex = tex;
   return spr;
@@ -1102,17 +1188,36 @@ function buildUnits() {
   disposeGroup(unitGroup);
   for (const u of S.units) {
     const g = new THREE.Group();
+    const state = {
+      unit: u,
+      fighter: fighterSlug(u.name),
+      spriteTextures: new Map(),
+      ghostTextures: new Map(),
+      ownedTextures: new Set(),
+      facingWorld: new THREE.Vector3(0, 0, u.side === "op" ? -1 : 1),
+      action: "idle",
+      facing: "down",
+      frame: 0,
+      locked: null,
+      downed: false,
+      placed: false,
+      moving: false,
+      moveFrom: new THREE.Vector3(),
+      moveTo: new THREE.Vector3(),
+      moveStarted: 0,
+      moveUntil: 0,
+    };
 
     // Billboarded sprite quad. alphaTest instead of blending keeps the
     // edges crisp with no transparency sorting; the material is unlit
     // because the sprite palette already encodes its own shading.
-    const assets = spriteAssets(u.name);
     const spr = new THREE.Mesh(spriteGeo, new THREE.MeshBasicMaterial({
-      map: assets.tex,
+      map: unitTexture(state, "sprite", "idle", "down"),
       alphaTest: 0.5,
     }));
     spr.userData.unit = u;        // picking resolves quad hits to this unit's tile
-    spr.userData.mask = assets.mask;   // ...but only through opaque texels
+    spr.userData.sheet = PACK_SHEETS.get(sheetKey(state.fighter, "idle", "down"));
+    spr.userData.frame = 0;
     g.add(spr);
 
     // X-ray silhouette. Full-cover walls are 1.5 tall and will hide a unit
@@ -1120,7 +1225,7 @@ function buildUnits() {
     // Toggled on only when the unit is actually occluded (see the frame
     // loop). It is the sprite itself, translucent, not a proxy shape.
     const ghost = new THREE.Mesh(spriteGeo, new THREE.MeshBasicMaterial({
-      map: assets.tex,
+      map: unitTexture(state, "ghost", "idle", "down"),
       transparent: true, opacity: 0.35, alphaTest: 0.05,
       depthTest: false, depthWrite: false,
     }));
@@ -1143,14 +1248,15 @@ function buildUnits() {
     g.add(ring);
 
     const ow = new THREE.Mesh(owGeo, owMat);
-    ow.position.y = 1.5;   // above the badge, which is above the taller sprite
+    ow.position.y = 1.58;   // above the badge, which is above the taller sprite
     ow.visible = false;
     g.add(ow);
 
     const badge = makeBadge(u);
     g.add(badge);
 
-    g.userData = { unit: u, spr, ghost, ring, ow, badge, assets };
+    Object.assign(state, { object: g, spr, ghost, ring, ow, badge });
+    g.userData = state;
     u._obj = g;
     unitGroup.add(g);
     drawBadge(u);
@@ -1202,14 +1308,140 @@ function tileFromEvent(e) {
       return [i % W, Math.floor(i / W)];
     }
     const u = hit.object.userData.unit;
-    const mask = hit.object.userData.mask;
-    if (!u || !mask || !hit.uv) continue;
-    const n = mask.length;
-    const col = Math.min(n - 1, Math.floor(hit.uv.x * n));
-    const row = Math.min(n - 1, Math.floor((1 - hit.uv.y) * n));
-    if (mask[row][col]) return [u.x, u.y];
+    const sheet = hit.object.userData.sheet;
+    if (!u || !sheet || !hit.uv) continue;
+    const col = Math.min(FRAME_W - 1, Math.floor(hit.uv.x * FRAME_W));
+    const row = Math.min(FRAME_H - 1, Math.floor((1 - hit.uv.y) * FRAME_H));
+    const frame = hit.object.userData.frame ?? 0;
+    const pixel = row * sheet.width + frame * FRAME_W + col;
+    if (sheet.alpha[pixel]) return [u.x, u.y];
   }
   return null;
+}
+
+// Facing is renderer-owned presentation. World vectors survive camera turns;
+// screenFacing performs the same camera-relative four-way choice as the
+// walkable room, so Q/E never turns a northbound body into the wrong sheet.
+const WORLD_UP = new THREE.Vector3(0, 1, 0);
+const cameraForward = new THREE.Vector3();
+const cameraRight = new THREE.Vector3();
+const faceVector = new THREE.Vector3();
+
+function updateFacingBasis() {
+  camera.getWorldDirection(cameraForward);
+  cameraForward.y = 0;
+  cameraForward.normalize();
+  cameraRight.crossVectors(cameraForward, WORLD_UP).normalize();
+}
+
+function screenFacing(facingWorld) {
+  const rightward = facingWorld.dot(cameraRight);
+  const forward = facingWorld.dot(cameraForward);
+  if (Math.abs(rightward) > Math.abs(forward)) {
+    return rightward >= 0 ? "right" : "left";
+  }
+  return forward >= 0 ? "up" : "down";
+}
+
+function faceUnitAt(unit, target) {
+  const state = unit?._obj?.userData;
+  if (!state || !target) return;
+  faceVector.set(gx(target.x) - gx(unit.x), 0, gz(target.y) - gz(unit.y));
+  if (faceVector.lengthSq() > 1e-7) state.facingWorld.copy(faceVector).normalize();
+}
+
+function triggerUnitVerb(unit, name) {
+  const state = unit?._obj?.userData;
+  if (!state) return;
+  if (state.downed && name !== "death") return;
+  if (state.locked?.name === "death" && name !== "death") return;
+  // The timestamp belongs to the first rendered frame, not the event. This
+  // is the walkable lock pattern: a slow frame cannot eat a short hurt verb.
+  state.locked = { name, started: null };
+  if (name === "death") state.downed = false;
+}
+
+function setUnitFrame(state, action, facing, frame) {
+  const sheet = PACK_SHEETS.get(sheetKey(state.fighter, action, facing));
+  const spriteTexture = unitTexture(state, "sprite", action, facing);
+  const ghostTexture = unitTexture(state, "ghost", action, facing);
+  if (state.spr.material.map !== spriteTexture) state.spr.material.map = spriteTexture;
+  if (state.ghost.material.map !== ghostTexture) state.ghost.material.map = ghostTexture;
+  spriteTexture.offset.x = frame / sheet.frames;
+  ghostTexture.offset.x = frame / sheet.frames;
+  state.spr.userData.sheet = sheet;
+  state.spr.userData.frame = frame;
+  state.action = action;
+  state.facing = facing;
+  state.frame = frame;
+}
+
+function advanceUnitMove(state, now) {
+  if (!state.moving) return;
+  if (now >= state.moveUntil) {
+    state.object.position.copy(state.moveTo);
+    state.moving = false;
+    return;
+  }
+  const portion = (now - state.moveStarted) / (state.moveUntil - state.moveStarted);
+  state.object.position.lerpVectors(state.moveFrom, state.moveTo, Math.max(0, Math.min(1, portion)));
+}
+
+function queueUnitPosition(state, x, z, now) {
+  const targetChanged = Math.abs(state.moveTo.x - x) > 1e-5 || Math.abs(state.moveTo.z - z) > 1e-5;
+  if (!state.placed) {
+    state.object.position.set(x, 0, z);
+    state.moveFrom.copy(state.object.position);
+    state.moveTo.copy(state.object.position);
+    state.placed = true;
+    return;
+  }
+  if (!targetChanged) return;
+  advanceUnitMove(state, now);
+  state.moveFrom.copy(state.object.position);
+  state.moveTo.set(x, 0, z);
+  faceVector.subVectors(state.moveTo, state.moveFrom);
+  if (faceVector.lengthSq() > 1e-7) state.facingWorld.copy(faceVector).normalize();
+  state.moveStarted = now;
+  state.moveUntil = now + 70;   // tactical-core exposes each path step for 70ms
+  state.moving = true;
+}
+
+function updateUnitAnimation(state, now) {
+  advanceUnitMove(state, now);
+  if (state.unit.id === S.selectedId && S.targetMode && hoverTile) {
+    const target = unitAt(hoverTile[0], hoverTile[1]);
+    if (target?.side === "ho") faceUnitAt(state.unit, target);
+  }
+  const facing = screenFacing(state.facingWorld);
+  let action = state.downed ? "death"
+    : state.locked ? state.locked.name
+      : state.unit.yielded ? "kneel"
+        : state.moving ? "run"
+          : state.unit.id === S.selectedId && S.targetMode ? "aim"
+            : "idle";
+  const sheet = PACK_SHEETS.get(sheetKey(state.fighter, action, facing));
+  let frame = 0;
+
+  if (state.downed) {
+    frame = sheet.frames - 1;
+  } else if (state.locked) {
+    if (state.locked.started === null) state.locked.started = now;
+    frame = Math.floor((now - state.locked.started) / 1000 * SHEETS[action].fps);
+    if (frame >= sheet.frames) {
+      if (SHEETS[action].hold) {
+        state.downed = true;
+        state.locked = null;
+        frame = sheet.frames - 1;
+      } else {
+        state.locked = null;
+        return updateUnitAnimation(state, now);
+      }
+    }
+  } else {
+    frame = Math.floor(now / 1000 * SHEETS[action].fps) % sheet.frames;
+  }
+  setUnitFrame(state, action, facing, frame);
 }
 
 // ---- scene sync ----------------------------------------------------
@@ -1253,47 +1485,22 @@ function syncScene() {
   }
   if (floor.instanceColor) floor.instanceColor.needsUpdate = true;
 
+  const now = performance.now();
   for (const v of S.units) {
     const o = v._obj;
     if (!o) continue;
-    o.visible = v.alive;
-    if (!v.alive) continue;
-    // one facing + horizontal flip on movement — facing isn't a rule, so
-    // the sprite only mirrors to acknowledge travel direction. The delta is
-    // projected onto the camera-right axis so the mirror follows *screen*
-    // direction whatever the current 90° rotation (world-X alone points the
-    // wrong way after Q/E — caught in review); facing is preserved when the
-    // move is straight toward or away from the camera.
-    const nx = gx(v.x), nz = gz(v.y);
-    if (o.userData.placed) {
-      const rightward = (nx - o.position.x) * Math.cos(camAzTarget)
-                      - (nz - o.position.z) * Math.sin(camAzTarget);
-      if (Math.abs(rightward) > 1e-3) {
-        const flip = rightward < 0 ? -1 : 1;
-        o.userData.spr.scale.x = flip;
-        o.userData.ghost.scale.x = flip;
-      }
-    }
-    o.position.set(nx, 0, nz);
-    o.userData.placed = true;
-    o.userData.ring.visible = (v.id === S.selectedId && S.turn === "op");
-    o.userData.ow.visible = v.overwatch;
-    // the yield frame: posture carries it now — texture and picking mask
-    // swap together, so the kneeling art is also the click target. The
-    // tint fallback stays for any design without a kneel frame (today
-    // none can need it: only hostiles yield, and the crew has the frame).
-    const kneel = !!v.yielded;
-    const a = o.userData.assets;
-    const useKneel = kneel && a.kneelTex;
-    const map = useKneel ? a.kneelTex : a.tex;
-    if (o.userData.spr.material.map !== map) {
-      o.userData.spr.material.map = map;
-      o.userData.ghost.material.map = map;
-      o.userData.spr.userData.mask = useKneel ? a.kneelMask : a.mask;
-    }
-    o.userData.spr.material.color.setScalar(kneel && !useKneel ? 0.5 : 1);
-    o.userData.ghost.material.opacity = kneel ? 0.2 : 0.35;
-    drawBadge(v);
+    const d = o.userData;
+    queueUnitPosition(d, gx(v.x), gz(v.y), now);
+    // Death is authored motion now. A rules-dead body remains visible through
+    // the one-shot and holds its final frame; it is still absent from living(),
+    // picking, targeting, and every other rules-facing surface.
+    o.visible = v.alive || d.locked?.name === "death" || d.downed;
+    if (!o.visible) continue;
+    d.ring.visible = v.alive && v.id === S.selectedId && S.turn === "op";
+    d.ow.visible = v.alive && v.overwatch;
+    d.badge.visible = v.alive;
+    d.ghost.material.opacity = v.yielded ? 0.2 : 0.35;
+    if (v.alive) drawBadge(v);
   }
 
   sceneDirty = false;
@@ -1355,6 +1562,7 @@ function frame() {
     camAz += (camAzTarget - camAz) * 0.18;
     placeCamera();
   }
+  updateFacingBasis();
 
   if (sceneDirty) syncScene();
 
@@ -1372,28 +1580,30 @@ function frame() {
     }
   }
 
-  // idle bob, overwatch spin, occlusion test
+  // authored body animation, overwatch spin, occlusion test
   camera.getWorldDirection(viewDir);
   for (const v of S.units) {
-    if (!v.alive || !v._obj) continue;
+    if (!v._obj || !v._obj.visible) continue;
     const d = v._obj.userData;
+    updateUnitAnimation(d, now);
     // vertical billboard: swivel around Y to face the camera azimuth, never
     // tilt back toward the elevated camera — a tilted sprite reads as
     // leaning cardboard, a standing one reads as a person on a tile
     d.spr.rotation.y = camAz;
     d.ghost.rotation.y = camAz;
-    const bob = v.yielded ? 0 : Math.sin(t * 2.2 + v.id * 1.7) * 0.022;
-    d.spr.position.y = bob;
-    d.ghost.position.y = bob;
-    if (d.ow.visible) { d.ow.rotation.y = t * 1.6; d.ow.position.y = 1.5 + Math.sin(t * 2) * 0.05; }
+    if (d.ow.visible) { d.ow.rotation.y = t * 1.6; d.ow.position.y = 1.58 + Math.sin(t * 2) * 0.05; }
 
     // Walk the camera ray backwards from well behind the unit: if terrain
     // stops it before it arrives, the unit is hidden and the ghost goes on.
-    chest.set(gx(v.x), 0.55, gz(v.y));
+    chest.set(d.object.position.x, 0.58, d.object.position.z);
     occRay.set(chest.clone().addScaledVector(viewDir, -OCC_BACK), viewDir);
     const blocked = occRay.intersectObjects(occluders, false);
     d.ghost.visible = blocked.length > 0 && blocked[0].distance < OCC_BACK - 0.3;
   }
+  canvas.dataset.units = S.units.map(v => {
+    const d = v._obj?.userData;
+    return d ? `${v.id}:${d.action}:${d.facing}:${d.frame}` : `${v.id}:none`;
+  }).join(",");
 
   syncLabels();
   if (displayMode === "lcd") {
@@ -1492,7 +1702,10 @@ canvas.addEventListener("mousemove", e => {
   const u = selected();
   if (u && hoverTile) {
     const t = unitAt(hoverTile[0], hoverTile[1]);
-    if (t && t.side === "ho") showSolution(u, t);
+    if (t && t.side === "ho") {
+      showSolution(u, t);
+      if (S.targetMode) faceUnitAt(u, t);
+    }
   }
   if (!S.busy) draw();
 });
@@ -1630,18 +1843,19 @@ function restart(fresh) {
 }
 
 curSeed = initialSeed();
-restart(false);
-frame();
+const yardRosterReady = await bootYardRoster();
 canvas.dataset.booted = "1";   // the boot-check script below reads this
-// The seam's readiness handshake: the parent holds its cut card (and the
-// keyboard) until the yard PROVES it booted — an iframe load event also
-// fires for error pages, and this module can fail after load (caught in
-// review; the boot-check below exists for exactly that failure).
-if (SEAM) {
-  window.parent.postMessage(
-    { type: "sentinel-seam-ready", seed: S.seed.toString(16) },
-    location.origin
-  );
+if (yardRosterReady) {
+  restart(false);
+  frame();
+  // The seam's readiness handshake happens only after every molded sheet is
+  // loaded and validated. An iframe load event is not proof of a usable yard.
+  if (SEAM) {
+    window.parent.postMessage(
+      { type: "sentinel-seam-ready", seed: S.seed.toString(16) },
+      location.origin
+    );
+  }
 }
 </script>
 <script>
@@ -1655,8 +1869,8 @@ window.addEventListener("load", () => {
     ? "This build loads three.js as an ES module, which browsers block over " +
       "<code>file://</code>. Serve the folder instead — double-click " +
       "<code>serve.cmd</code>, or run:<br><br>" +
-      "<code>python -m http.server -d prototypes 8080</code><br><br>" +
-      "then open <code>localhost:8080/tactical3d/</code>."
+      "<code>python -m http.server 8080</code> from the repo root<br><br>" +
+      "then open <code>localhost:8080/prototypes/tactical3d/</code>."
     : "The renderer failed to start. Check the browser console — most likely " +
       "<code>vendor/three.module.js</code> is missing or the machine has no WebGL2.";
 });

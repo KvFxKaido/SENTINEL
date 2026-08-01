@@ -82,7 +82,13 @@ The room does not take the yard's word for it:
   REACHABLE` (counted, and labeled as taken on the yard's word);
 - the hand-off has a readiness handshake: the cut card holds until the
   yard proves it booted, with a 7s timeout and an <kbd>ESC</kbd> abort
-  that put you back in the room if the far side never answers.
+  that put you back in the room if the far side never answers;
+- the certify request has a deadline of its own (8s). A witness that
+  refuses was always labelled `NO WITNESS REACHABLE`; a witness that
+  *accepts and never answers* used to leave the ledger at `ASKING THE
+  EDGE…` forever. A hang is unreachable too, and the room says so and
+  counts the card (caught in review — this room guarded a dead yard
+  behind the door and was not guarding a dead edge in front of it).
 
 Query params: `?deal=6` pins the seed the door deals (the same
 pin-a-board move as tactical3d's `?seed=`); `?witness=http://localhost:8787`
@@ -174,9 +180,14 @@ catches, refusing to pass if it caught too little; the Python suite
 asserts the other half — that the bloom really is drawn on frames 1–3 —
 where every frame is visible.
 
-Both run in CI (`walkable-harness` job). Not covered: the full seam
-round-trip into tactical3d, and anything about how the sheets *look* —
-pixels are judged by walking, not asserted.
+Both run in CI (`walkable-harness` job), alongside the yard's two suites —
+including `prototypes/tactical3d/test/test_seam_round_trip.mjs`, which
+walks this room's north door, plays the card, and reads the verdict this
+room settles on. The seam round trip **is** covered now; it stopped being
+somebody else's problem when the yard started fielding these same bodies.
+
+Not covered: anything about how the sheets *look* — pixels are judged by
+walking, not asserted.
 
 One thing about looks *is* worth measuring, because eyes lie about scale:
 the count of mark-colour pixels a verb lights at its peak. The shipped

@@ -1,0 +1,266 @@
+// Executes the yard's converged-body claims in headless chromium.
+//
+// The yard used to draw hand-authored 32×32 grids with no facing, no
+// frames and one kneel swap. It now fields the same molded 96×80 pack
+// bodies the walkable room does, which means it grew four facings, a
+// verb state machine, async sheet loading and alpha picking — all of it
+// previously untested, in a file whose only prior coverage was the rules
+// module underneath it.
+//
+// The match is DRIVEN BY THE GAME, not by clicking pixels: Tab selects,
+// F toggles target mode, and Enter ends the turn so the hostile AI plays
+// itself. That reaches fire / hurt / death / kneel without the harness
+// ever needing to know where a body is on screen — the one thing a
+// headless test cannot see.
+//
+// Real molded sheets for all five fighters are backed up before the run
+// and restored after, including when setup itself fails; a backup
+// stranded by a hard-killed run is reinstated on the next start.
+//
+// Run:  cd prototypes/tactical3d/test
+//       npm install && npx playwright install chromium
+//       node test_yard_bodies.mjs
+import { chromium } from "playwright";
+import { spawn, spawnSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.resolve(HERE, "..", "..", "..");
+// shared with the walkable harness on purpose: both pages load the SAME
+// molded bodies, so faking them two different ways would let the fixtures
+// drift exactly where the convergence says they must not
+const GEN = path.join(ROOT, "prototypes", "walkable", "test", "make_synthetic_sheets.py");
+const FIGHTERS = ["cipher", "vesper", "koa", "sable", "syn"];
+const PY = process.platform === "win32" ? "python" : "python3";
+const PORT = process.env.YARD_TEST_PORT ?? "8094";
+const URL = `http://localhost:${PORT}/prototypes/tactical3d/?seed=deadbeef`;
+
+const sheetsDir = f => path.join(ROOT, "assets", "sprites", f);
+const backupDir = f => sheetsDir(f) + ".harness-backup";
+
+function gen(mode) {
+  const r = spawnSync(PY, [GEN, mode, FIGHTERS.join(",")], { stdio: "inherit" });
+  if (r.status !== 0) throw new Error(`sheet generation failed (${mode})`);
+}
+const clearSheets = () => {
+  for (const f of FIGHTERS) fs.rmSync(sheetsDir(f), { recursive: true, force: true });
+};
+
+async function launch() {
+  try {
+    return await chromium.launch();
+  } catch (err) {
+    const roots = [process.env.PLAYWRIGHT_BROWSERS_PATH, "/opt/pw-browsers"].filter(Boolean);
+    for (const root of roots) {
+      if (!fs.existsSync(root)) continue;
+      for (const d of fs.readdirSync(root)) {
+        const exe = path.join(root, d, "chrome-linux", "chrome");
+        if (d.startsWith("chromium") && fs.existsSync(exe)) {
+          return chromium.launch({ executablePath: exe });
+        }
+      }
+    }
+    throw err;
+  }
+}
+
+let failures = 0;
+function check(name, ok, detail = "") {
+  console.log(`${ok ? "PASS" : "FAIL"}  ${name}${detail ? "  — " + detail : ""}`);
+  if (!ok) failures++;
+}
+
+// ---- setup: preserve real sheets ----------------------------------
+// A backup left by a run that died before restoring IS the real artifact:
+// reinstate it, never delete it (the walkable harness bought this lesson).
+for (const f of FIGHTERS) {
+  if (fs.existsSync(backupDir(f))) {
+    fs.rmSync(sheetsDir(f), { recursive: true, force: true });
+    fs.renameSync(backupDir(f), sheetsDir(f));
+  }
+  if (fs.existsSync(sheetsDir(f))) fs.renameSync(sheetsDir(f), backupDir(f));
+}
+
+let server = null;
+let browser = null;
+let page = null;
+
+const ds = k => page.evaluate(k => document.getElementById("cv").dataset[k], k);
+// dataset.units is "id:action:facing:frame,..." — the yard's whole visible
+// body state in one string, which is what makes this testable at all
+const units = async () => {
+  const raw = (await ds("units")) ?? "";
+  return raw.split(",").filter(Boolean).map(s => {
+    const [id, action, facing, frame] = s.split(":");
+    return { id: +id, action, facing, frame: +frame };
+  });
+};
+
+async function boot() {
+  await page.goto(URL);
+  await page.waitForFunction(() =>
+    ["ready", "error"].includes(document.getElementById("cv").dataset.sprites),
+    null, { timeout: 15000 });
+}
+const beginCard = async () => {
+  await page.keyboard.press("Enter");          // the card holds the match
+  await page.waitForTimeout(300);
+};
+
+// wait until some unit reaches an action, polling in-page
+const waitVerb = (action, timeout = 6000) =>
+  page.waitForFunction(a => (document.getElementById("cv").dataset.units ?? "")
+    .split(",").some(s => s.split(":")[1] === a), action, { timeout })
+    .then(() => true, () => false);
+
+try {
+  server = spawn(PY, ["-m", "http.server", PORT], { cwd: ROOT, stdio: "ignore" });
+  let up = false;
+  for (let i = 0; i < 50 && !up; i++) {
+    up = await fetch(`http://localhost:${PORT}/`).then(r => r.ok, () => false);
+    if (!up) await new Promise(r => setTimeout(r, 200));
+  }
+  if (!up) throw new Error(`server never came up on :${PORT}`);
+
+  browser = await launch();
+  page = await browser.newPage();
+  page.on("pageerror", e => { console.log("PAGEERROR " + e); failures++; });
+
+  // ---- the roster boots ---------------------------------------------
+  gen("full");
+  await boot();
+  check("yard roster boots", (await ds("sprites")) === "ready", await ds("sprites"));
+  check("roster reads full", (await ds("roster")) === "full");
+  await beginCard();
+
+  const start = await units();
+  check("all six units render bodies", start.length === 6, `${start.length}`);
+  check("every unit starts idle", start.every(u => u.action === "idle"),
+    start.map(u => u.action).join(","));
+  // the two sides face each other across the board — the operatives are
+  // south of the crew, so they look up-screen and the crew looks down
+  const ops = start.filter(u => u.id < 3), hos = start.filter(u => u.id >= 3);
+  check("operatives face the crew", ops.every(u => u.facing === "up"),
+    ops.map(u => u.facing).join(","));
+  check("the crew faces the operatives", hos.every(u => u.facing === "down"),
+    hos.map(u => u.facing).join(","));
+
+  // ---- facing is camera-relative ------------------------------------
+  // The sprite that a body shows must follow the SCREEN, not the world:
+  // the old renderer's mirror-on-move used world X alone and pointed the
+  // wrong way after a quarter turn (caught in review on the 32×32 pass).
+  // Four quarter-turns must return the exact starting facings.
+  const seen = [];
+  for (let turn = 0; turn < 4; turn++) {
+    await page.keyboard.press("q");
+    await page.waitForTimeout(450);            // the camera eases into place
+    seen.push((await units()).map(u => u.facing).join(","));
+  }
+  // The sharp form: a camera-relative renderer produces FOUR DISTINCT
+  // facing sets across four quarter turns. A world-axis one produces four
+  // identical sets and still satisfies both weaker claims below — which is
+  // how the original bug survived review. Keep all three; only this one
+  // has teeth, and the other two say what "correct" also has to look like.
+  check("each quarter turn shows a distinct facing set",
+    new Set(seen).size === 4, seen.join(" | "));
+  check("four quarter turns restore the starting facings",
+    seen[3] === start.map(u => u.facing).join(","), `${seen[3]} vs ${start.map(u => u.facing).join(",")}`);
+  check("opposed sides never share a facing",
+    seen.every(s => { const f = s.split(","); return f[0] !== f[3]; }), seen.join(" | "));
+
+  // ---- aim is a stance the target mode owns -------------------------
+  await page.keyboard.press("Tab");
+  await page.waitForTimeout(200);
+  await page.keyboard.press("f");
+  check("target mode raises the emitter", await waitVerb("aim"));
+  const aiming = (await units()).filter(u => u.action === "aim");
+  check("exactly the selected operative aims", aiming.length === 1, `${aiming.length} aiming`);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(250);
+  check("leaving target mode lowers it",
+    !(await units()).some(u => u.action === "aim"),
+    (await units()).map(u => u.action).join(","));
+
+  // ---- the hostile turn drives the rest -----------------------------
+  // Ending turns hands the board to the AI, which shoots, hits, downs and
+  // eventually breaks. Every remaining verb is reached by the GAME rather
+  // than by the harness pretending to be a player.
+  // Overwatch is the keyboard-only way to actually SHOOT the crew: a squad
+  // that never fires never breaks their morale, and kneel is a morale verb.
+  //
+  // Two things make this deterministic enough to assert on, and the first
+  // CI run proved both were needed — it polled every 110ms for a fixed 16
+  // rounds, and missed the yield entirely on a slower box.
+  //
+  //  * an in-page rAF observer records every action it EVER renders, so a
+  //    verb that lives four frames cannot fall between two polls;
+  //  * the loop waits on the game's own turn state rather than on sleeps,
+  //    so the input sequence — and therefore the match the seeded rules
+  //    play out — is the same on a fast machine and a slow one.
+  await page.evaluate(() => {
+    window.__seen = new Set();
+    const cv = document.getElementById("cv");
+    (function tick() {
+      for (const s of (cv.dataset.units ?? "").split(",")) {
+        const a = s.split(":")[1];
+        if (a) window.__seen.add(a);
+      }
+      requestAnimationFrame(tick);
+    })();
+  });
+  const opTurn = () => page.waitForFunction(
+    () => /OPERATIVE TURN/.test(document.getElementById("turnlabel").textContent)
+      || !!document.querySelector("#overlay.show"),
+    null, { timeout: 20000 }).then(() => true, () => false);
+  const ended = () => page.evaluate(() => !!document.querySelector("#overlay.show"));
+
+  for (let round = 0; round < 30; round++) {
+    if (await ended()) break;
+    for (let i = 0; i < 3; i++) {
+      await page.keyboard.press("Tab");
+      await page.keyboard.press("y");
+    }
+    if (await ended()) break;
+    await page.keyboard.press("Enter");
+    await opTurn();            // the hostile turn resolves before the next input
+  }
+  const played = await page.evaluate(() => [...window.__seen].sort());
+  check("a shot plays the fire verb", played.includes("fire"), played.join(","));
+  check("a hit plays the hurt verb", played.includes("hurt"), played.join(","));
+  check("a downed body plays the death verb", played.includes("death"), played.join(","));
+  check("a yielded body kneels", played.includes("kneel"), played.join(","));
+
+  // ---- a missing verb faults; it never falls back to the old grids ---
+  // This is the whole point of the convergence: a quiet fallback would
+  // put a 32×32 body back on the board while the room shows a pack body,
+  // which is the two-species bug the change exists to kill.
+  clearSheets();
+  gen("full");
+  fs.rmSync(path.join(sheetsDir("koa"), "AIM"), { recursive: true, force: true });
+  await boot();
+  check("a missing verb faults the yard", (await ds("sprites")) === "error", await ds("sprites"));
+  const detail = await page.textContent("#asset-detail").catch(() => "");
+  check("the fault names the sheet that failed", /koa/i.test(detail) && /aim/i.test(detail), detail);
+  check("no bodies are drawn behind the fault",
+    !((await ds("units")) ?? "").includes(":idle:"), (await ds("units")) ?? "");
+
+  // ---- a wrong-geometry sheet is a fault, not an absence ------------
+  clearSheets();
+  gen("badfull");
+  await boot();
+  check("wrong sheet geometry faults", (await ds("sprites")) === "error", await ds("sprites"));
+  check("the geometry fault says so",
+    /expected a row/.test(await page.textContent("#asset-detail").catch(() => "")));
+} finally {
+  if (browser) await browser.close().catch(() => {});
+  if (server) server.kill();
+  clearSheets();
+  for (const f of FIGHTERS) {
+    if (fs.existsSync(backupDir(f))) fs.renameSync(backupDir(f), sheetsDir(f));
+  }
+}
+
+console.log(failures ? `\n${failures} FAILURES` : "\nALL PASS");
+process.exit(failures ? 1 : 0);

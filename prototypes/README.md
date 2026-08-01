@@ -25,11 +25,21 @@ iframe is torn down. The overworld never watches combat happen — and it
 does not trust what it is told: the returned seed must match the dealt
 one, malformed payloads are refused, and the witness Worker's replay of
 the record settles the session ledger (certified / disputed-and-struck /
-unreachable-but-labeled). The hand-off itself is guarded — the cut holds
-until the yard proves it booted, with a timeout and ESC abort — so a
-dead far side never traps the room. One crossing buys exactly one card:
+unreachable-but-labeled). Both ends of that are on a deadline: the cut
+holds until the yard proves it booted, with a timeout and ESC abort, and
+the certify request has its own, so an edge that accepts and never answers
+is *unreachable* too rather than a ledger stuck mid-settlement. Neither a
+dead far side nor a dead witness traps the room. One crossing buys
+exactly one card:
 in seam mode the yard's own re-deal verbs (R / shift+R) are disabled,
 because dealing is the world's move.
+
+Since the convergence (2026-08-01) the same **body** crosses too. Both
+surfaces load the molded pack sheets from `assets/sprites/<fighter>/`, so
+a fighter does not change species at the door — which is also why the
+yard now serves from the repo root and faults explicitly rather than
+falling back when a sheet is missing. `test_seam_round_trip.mjs` walks
+the whole thing with both surfaces alive at once.
 
 And the 1v1 layer: `close-contact/` — the SENTINEL: Close Contact
 fighting prototype (Godot 4.5, limb-mapped inputs, active defense). See
@@ -37,22 +47,25 @@ its own README; the rest of this file is about the tactical slice.
 
 ## Run it
 
-Both renderers import `../tactical-core/rules.js`, so the server root has to
-be **this** folder, not the individual prototype:
+The yard now consumes molded fighter sheets from `assets/`, and the walkable
+room crosses directly into it. Serve both from the **repo root** so the shared
+rules, sheets, and seam all resolve under one origin:
 
 ```sh
-python -m http.server -d prototypes 8080
+python -m http.server 8080
 ```
 
-- 2D → <http://localhost:8080/tactical/>
-- 3D → <http://localhost:8080/tactical3d/>
+- 2D → <http://localhost:8080/prototypes/tactical/>
+- 3D → <http://localhost:8080/prototypes/tactical3d/>
+- walkable seam → <http://localhost:8080/prototypes/walkable/>
 
 Or double-click `tactical3d/serve.cmd`, which does both and opens a browser.
 
 Append `?seed=deadbeef` to pin a specific encounter.
 
-`walkable/` serves from the **repo** root instead — it loads regenerated
-Cipher sheets from `assets/` (see `scripts/roster_mold.py`):
+Both world surfaces load regenerated sheets from `assets/` (see
+`scripts/roster_mold.py`). A second port is optional, not a different serving
+contract:
 
 ```sh
 python -m http.server 8082          # at the repo root
@@ -64,8 +77,24 @@ the seed its door deals; `?witness=…` passes through to the yard.
 ## Run the tests
 
 ```sh
-cd prototypes/tactical-core && node --test
+cd prototypes/tactical-core && node --test        # the rules, with goldens
+
+cd prototypes/walkable/test                       # the room
+npm install && npx playwright install chromium
+node test_walkable_verbs.mjs
+python test_roster_sweep.py
+
+cd prototypes/tactical3d/test                     # the yard, and the door
+npm install
+node test_yard_bodies.mjs
+node test_seam_round_trip.mjs
+node test_witness_deadline.mjs
 ```
+
+All of it runs in CI. The browser suites drive **synthetic sheets** at the
+pack's real geometry from one shared generator, so no licensed pack is
+needed and the two surfaces cannot drift onto different fixtures — they
+field the same bodies now, and the fixtures say so.
 
 ## Why two renderers
 

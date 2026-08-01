@@ -1,0 +1,12 @@
+{
+  "name": "yard-harness",
+  "private": true,
+  "type": "module",
+  "description": "Headless harness for the yard's converged pack bodies: roster boot, camera-relative facing, verb machinery, and the asset fault that must never fall back to the legacy grids",
+  "scripts": {
+    "test": "node test_yard_bodies.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.1"
+  }
+}
