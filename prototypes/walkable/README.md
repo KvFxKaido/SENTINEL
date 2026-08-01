@@ -82,7 +82,13 @@ The room does not take the yard's word for it:
   REACHABLE` (counted, and labeled as taken on the yard's word);
 - the hand-off has a readiness handshake: the cut card holds until the
   yard proves it booted, with a 7s timeout and an <kbd>ESC</kbd> abort
-  that put you back in the room if the far side never answers.
+  that put you back in the room if the far side never answers;
+- the certify request has a deadline of its own (8s). A witness that
+  refuses was always labelled `NO WITNESS REACHABLE`; a witness that
+  *accepts and never answers* used to leave the ledger at `ASKING THE
+  EDGE…` forever. A hang is unreachable too, and the room says so and
+  counts the card (caught in review — this room guarded a dead yard
+  behind the door and was not guarding a dead edge in front of it).
 
 Query params: `?deal=6` pins the seed the door deals (the same
 pin-a-board move as tactical3d's `?seed=`); `?witness=http://localhost:8787`

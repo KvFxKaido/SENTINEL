@@ -147,11 +147,17 @@ jobs:
         run: python test_roster_sweep.py
 
       # The yard fields the same molded bodies since the convergence, so it
-      # gets the same treatment. Its harness reuses the walkable generator
-      # and the chromium installed above; only its own npm deps are new.
+      # gets the same treatment. It installs its OWN chromium rather than
+      # inheriting the one above: that only worked while both lockfiles
+      # happened to resolve the same playwright, and launch()'s fallback
+      # scan does not check the default user cache, so the drift would have
+      # surfaced as an unexplained launch failure (caught in review).
+      # Already-present browsers make this a fast no-op.
       - name: Install yard harness dependencies
         working-directory: prototypes/tactical3d/test
-        run: npm ci
+        run: |
+          npm ci
+          npx playwright install chromium
 
       - name: Yard body harness
         working-directory: prototypes/tactical3d/test
@@ -163,6 +169,13 @@ jobs:
       - name: Seam round trip
         working-directory: prototypes/tactical3d/test
         run: node test_seam_round_trip.mjs
+
+      # …and the case the seam test cannot reach: an edge that ACCEPTS and
+      # never answers. Intercepted and left hanging, so only the room's own
+      # deadline can settle the session.
+      - name: Witness deadline
+        working-directory: prototypes/tactical3d/test
+        run: node test_witness_deadline.mjs
 
   # The witness Worker against a local wrangler dev (simulated KV): goldens
   # from the edge, certification refusals, and the archive — including the

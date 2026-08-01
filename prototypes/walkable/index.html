@@ -1460,6 +1460,14 @@ const seamCut = document.getElementById("seamcut");
 const seamInfo = document.getElementById("seaminfo");
 const ledger = { cards: 0, wins: 0, purse: 0 };
 const SEAM_BOOT_MS = 7000;
+// The witness gets a deadline for the same reason the yard does. A witness
+// that REFUSES already lands in certifySeam's catch and the panel says
+// "NO WITNESS REACHABLE"; a witness that ACCEPTS and never answers used to
+// leave the ledger mid-settlement at "ASKING THE EDGE…" forever, with no
+// abort and nothing said. That is the one failure this room was built not
+// to have — it guards a dead yard behind the door and was not guarding a
+// dead edge in front of it (caught in review on the convergence PR).
+const WITNESS_MS = 8000;
 
 function showCut(name, sub) {
   seamCut.innerHTML = `
@@ -1599,6 +1607,9 @@ async function certifySeam(d) {
         record: d.record,
         fingerprint: d.fingerprint,
       }),
+      // a hang is unreachable too — the abort lands in the catch below, so
+      // the session still settles and still says how
+      signal: AbortSignal.timeout(WITNESS_MS),
     });
     const out = await r.json();
     const agrees = out.certified === true

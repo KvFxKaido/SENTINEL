@@ -33,6 +33,12 @@ export function sheetKey(fighter, action, facing) {
   return `${fighter}:${action}:${facing}`;
 }
 
+// The serving contract, stated once where it is created: this path only
+// resolves when the page is served from the REPO ROOT, which is why
+// serve.cmd roots at %~dp0..\.. and all three READMEs say so. Relocating
+// assets/ breaks the yard, the roster audit and the walkable room together
+// — at load time, and loudly, because a missing sheet is a fault rather
+// than a fallback. That is the coupling working, not the coupling failing.
 export function sheetUrl(fighter, action, facing) {
   const spec = SHEETS[action];
   if (!spec) throw new Error(`no molded verb registered for ${action}`);

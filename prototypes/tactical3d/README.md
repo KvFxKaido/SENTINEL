@@ -123,6 +123,7 @@ cd prototypes/tactical3d/test
 npm install && npx playwright install chromium
 node test_yard_bodies.mjs        # roster boot, facing, verbs, asset faults
 node test_seam_round_trip.mjs    # the door, the card, and the verdict
+node test_witness_deadline.mjs   # an edge that accepts and never answers
 ```
 
 Both run against **synthetic sheets** at the pack's real geometry (shared
@@ -140,6 +141,15 @@ The seam suite is the only test where both surfaces are alive at once. It
 tolerates an unreachable witness (`UNCERTIFIED` is an honest outcome and
 the room says so out loud) and fails on `STRUCK` — the edge replaying the
 record and disagreeing means the match does not reproduce.
+
+The deadline suite covers the case that tolerance was hiding. A witness
+that *refuses* has always landed in `certifySeam`'s catch and been
+labelled; a witness that *accepts and never answers* used to leave the
+ledger at `ASKING THE EDGE…` forever, with no abort and nothing said —
+the room guarded a dead yard behind the door and not a dead edge in front
+of it. The request is intercepted and left hanging, so only the room's own
+`WITNESS_MS` can settle the session. Reverting that deadline fails four of
+its checks and pins the panel at `settling…` for the full test timeout.
 
 ## Notable renderer decisions
 

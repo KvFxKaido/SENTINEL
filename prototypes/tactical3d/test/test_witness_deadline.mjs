@@ -1,23 +1,17 @@
-// Walks the seam end to end, in one browser, with converged bodies.
+// The room's deadline on the WITNESS, not on the yard.
 //
-// This is the claim the yard convergence exists to make: one body crosses
-// the north door instead of changing species there. Nothing else in the
-// suite can see it, because it is the only test where both surfaces are
-// alive at once — the room, the yard inside its iframe, and the contract
-// between them.
+// certifySeam's catch already produced an honest "UNCERTIFIED — NO WITNESS
+// REACHABLE" for an edge that REFUSES. An edge that ACCEPTS and never
+// answers was a different story: the fetch had no deadline, so the ledger
+// sat at "ASKING THE EDGE…" forever with no abort and nothing said. The
+// room guards a dead yard behind the door with SEAM_BOOT_MS and an ESC
+// abort; it was not guarding a dead edge in front of it.
 //
-// It walks the room's north door, boots the yard in the seam frame, plays
-// the card to a finish, takes WALK BACK OUT, and reads the verdict the
-// room settles on. Synthetic sheets throughout: the record the witness
-// replays is rules data and has nothing to do with the art, so this runs
-// without the licensed pack.
+// This drives that exact case. The witness request is intercepted and left
+// hanging — never fulfilled, never aborted by the test — so the only thing
+// that can settle the session is WITNESS_MS firing inside the page.
 //
-// On the witness: CERTIFIED and UNCERTIFIED are both honest outcomes (the
-// Worker may be unreachable from CI, and the room says so out loud). The
-// verdict that must NEVER appear is STRUCK — the edge replaying the record
-// and disagreeing means the match we just played does not reproduce.
-//
-// Run:  cd prototypes/tactical3d/test && node test_seam_round_trip.mjs
+// Run:  cd prototypes/tactical3d/test && node test_witness_deadline.mjs
 import { chromium } from "playwright";
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -29,8 +23,7 @@ const ROOT = path.resolve(HERE, "..", "..", "..");
 const GEN = path.join(ROOT, "prototypes", "walkable", "test", "make_synthetic_sheets.py");
 const FIGHTERS = ["cipher", "vesper", "koa", "sable", "syn"];
 const PY = process.platform === "win32" ? "python" : "python3";
-const PORT = process.env.SEAM_TEST_PORT ?? "8095";
-// ?deal=6 pins the card the door deals, so a failure is reproducible
+const PORT = process.env.WITNESS_TEST_PORT ?? "8096";
 const URL = `http://localhost:${PORT}/prototypes/walkable/?deal=6`;
 
 const sheetsDir = f => path.join(ROOT, "assets", "sprites", f);
@@ -90,83 +83,70 @@ try {
   const page = await browser.newPage();
   page.on("pageerror", e => { console.log("PAGEERROR " + e); failures++; });
 
+  // The black hole: the request is accepted and then simply never answered.
+  // Never fulfilled and never aborted from out here, so if the session
+  // settles, it settled because the PAGE gave up — which is the claim.
+  let asked = 0;
+  await page.route(/\/certify$/, () => { asked++; /* hang, deliberately */ });
+
   await page.goto(URL);
   await page.waitForFunction(() =>
     ["ready", "error"].includes(document.getElementById("cv").dataset.sprites),
     null, { timeout: 20000 });
-  check("the room boots", (await page.evaluate(() =>
-    document.getElementById("cv").dataset.sprites)) === "ready");
 
-  // W is camera-FORWARD, which is diagonal in this 2:1 view — held alone it
-  // slides the body off the door span and pins it on the west wall. W+D is
-  // true north, and the door only deals a card to a body inside its span.
   await page.keyboard.down("KeyW");
   await page.keyboard.down("KeyD");
   const opened = await page.waitForFunction(() => !!document.getElementById("seamframe"),
     null, { timeout: 30000 }).then(() => true, () => false);
   await page.keyboard.up("KeyW");
   await page.keyboard.up("KeyD");
-  check("walking the north door opens the seam", opened);
+  check("the door deals a card", opened);
   if (!opened) throw new Error("the door never dealt");
 
   const frame = await (await page.$("#seamframe")).contentFrame();
   await frame.waitForFunction(() =>
     ["ready", "error"].includes(document.getElementById("cv").dataset.sprites),
     null, { timeout: 20000 });
-  // The room holds the cut until the yard proves it booted, and the yard now
-  // has 140 sheets to load before it can say so. If that ever outgrows
-  // SEAM_BOOT_MS the room aborts the hand-off and this check is what says so.
-  check("the yard boots inside the seam",
-    (await frame.evaluate(() => document.getElementById("cv").dataset.sprites)) === "ready");
-  check("the yard fields the full molded roster",
-    (await frame.evaluate(() => document.getElementById("cv").dataset.roster)) === "full");
+  await frame.press("body", "Enter");
+  await page.waitForTimeout(900);
 
-  await frame.press("body", "Enter");   // begin the card
-  await page.waitForTimeout(1200);
-  const opening = await frame.evaluate(() => document.getElementById("cv").dataset.units);
-  check("both sides render pack bodies across the door", (opening ?? "").split(",").length === 6, opening);
-  check("the yard opens on the same verb vocabulary as the room",
-    (opening ?? "").split(",").every(s => s.split(":")[1] === "idle"), opening);
-
-  // play to a finish — overwatch is the keyboard-only way to fight back
+  // No overwatch here: the squad is meant to lose fast. This test is about
+  // what happens AFTER the card, so the card should be cheap.
   let over = false;
   for (let round = 0; round < 40 && !over; round++) {
-    for (let i = 0; i < 3; i++) {
-      await frame.press("body", "Tab"); await page.waitForTimeout(60);
-      await frame.press("body", "y");   await page.waitForTimeout(60);
-    }
     over = await frame.evaluate(() => !!document.querySelector("#overlay.show"));
-    if (over) break;   // through the door Enter IS the walk home once it ends
+    if (over) break;
     await frame.press("body", "Enter");
-    await page.waitForTimeout(1500);
+    await page.waitForTimeout(900);
     over = await frame.evaluate(() => !!document.querySelector("#overlay.show"));
   }
   check("the card plays to a finish", over);
   if (!over) throw new Error("the match never ended");
 
-  const ending = await frame.evaluate(() => document.getElementById("cv").dataset.units);
-  check("downed bodies hold the last death frame",
-    (ending ?? "").split(",").some(s => s.split(":")[1] === "death"), ending);
-
   await frame.click("#ovwalk");
-  const closed = await page.waitForFunction(() => !document.getElementById("seamframe"),
+  await page.waitForFunction(() => !document.getElementById("seamframe"),
     null, { timeout: 15000 }).then(() => true, () => false);
-  check("walking back out tears the frame down", closed);
 
-  // Poll for a TERMINAL verdict rather than sleeping a fixed span. A slow
-  // edge left the panel at "ASKING THE EDGE…" and failed the settlement
-  // assertion, which made this suite flaky in exactly the way it claims to
-  // tolerate (caught in review). The wait is bounded and says so when it
-  // expires, instead of asserting against a half-written panel.
+  // the panel must pass THROUGH "asking" and come out the other side
+  const asking = await page.textContent("#seaminfo");
+  check("the room asks the edge first", /ASKING THE EDGE/.test(asking), asking.replace(/\s+/g, " ").trim().slice(-60));
+
+  const t0 = Date.now();
   const settled = await page.waitForFunction(
     () => /CERTIFIED|UNCERTIFIED|STRUCK/.test(document.getElementById("seaminfo").textContent),
-    null, { timeout: 25000 }).then(() => true, () => false);
+    null, { timeout: 30000 }).then(() => true, () => false);
+  const waited = Date.now() - t0;
   const verdict = (await page.textContent("#seaminfo")).replace(/\s+/g, " ").trim();
-  check("the room takes the record back", /RATING|PURSE|SQUAD/.test(verdict), verdict);
-  check("the room settles the session", settled, verdict);
-  // The one verdict that is a bug rather than a circumstance: the edge
-  // replayed what we played and got something else.
-  check("the edge does not dispute the record", !/STRUCK/.test(verdict), verdict);
+
+  check("the witness request was actually made", asked > 0, `${asked} asked`);
+  check("a hung witness still settles the session", settled, verdict);
+  // the deadline is 8s in the page; a generous ceiling still proves that
+  // SOMETHING gave up rather than the request eventually completing
+  check("it settles on the page's own deadline", settled && waited < 20000, `${waited}ms`);
+  check("and it says the edge was unreachable", /UNCERTIFIED/.test(verdict), verdict);
+  // the card still counts — an unverified truth LABELED beats a lost one
+  check("the unverified card still counts on the ledger",
+    /1 CARD/.test(verdict), verdict);
 } finally {
   if (browser) await browser.close().catch(() => {});
   if (server) server.kill();

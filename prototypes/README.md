@@ -25,9 +25,12 @@ iframe is torn down. The overworld never watches combat happen — and it
 does not trust what it is told: the returned seed must match the dealt
 one, malformed payloads are refused, and the witness Worker's replay of
 the record settles the session ledger (certified / disputed-and-struck /
-unreachable-but-labeled). The hand-off itself is guarded — the cut holds
-until the yard proves it booted, with a timeout and ESC abort — so a
-dead far side never traps the room. One crossing buys exactly one card:
+unreachable-but-labeled). Both ends of that are on a deadline: the cut
+holds until the yard proves it booted, with a timeout and ESC abort, and
+the certify request has its own, so an edge that accepts and never answers
+is *unreachable* too rather than a ledger stuck mid-settlement. Neither a
+dead far side nor a dead witness traps the room. One crossing buys
+exactly one card:
 in seam mode the yard's own re-deal verbs (R / shift+R) are disabled,
 because dealing is the world's move.
 
@@ -85,6 +88,7 @@ cd prototypes/tactical3d/test                     # the yard, and the door
 npm install
 node test_yard_bodies.mjs
 node test_seam_round_trip.mjs
+node test_witness_deadline.mjs
 ```
 
 All of it runs in CI. The browser suites drive **synthetic sheets** at the
