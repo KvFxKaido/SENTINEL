@@ -30,6 +30,17 @@ not a band (a wide dark stripe read as a blindfold); VESPER's ignition
 is cobalt, clearly apart from Cipher's cyan; VESPER's crest is a ridge
 sunk into the helm dome, not a floating knob.
 
+Pass 3 (2026-08-01) synthesizes the yard's bill — aim / fire / kneel —
+which the pack does not ship. They are built as pack-palette SOURCE
+frames and then run through the same build_frame as everything else, so
+they inherit the head passes, the mark colors, and the flash law without
+a single special case. The emitter's charge cell and its muzzle bloom
+are drawn in the pack's heal greens, which already map to each fighter's
+mark color; the housing is drawn in the pack's steels, which blade_pass
+already sheathes when a sheet is not an ATTACK. Aiming shows cold steel
+and only the shot lights — the blade's own law, read onto a barrel.
+See the pass-3 comment block for the poses and their references.
+
 Frame law: a frame that is mostly light-family IS the damage flash —
 it takes the palette mold and nothing else. The blade classifier would
 read it as one huge blade, and SYN's crew-red swap would repaint it;
@@ -44,6 +55,8 @@ Usage:
     reads  prototypes/FULL_Adventurer 2D Pixel Art/Sprites/**.png
            (or the FREE pack's four verbs if the full one is absent)
     writes assets/sprites/<fighter>/<ACTION>/<sheet>.png (+ preview.png)
+           — 36 molded sheets per fighter, plus 12 synthesized on the
+           full pack (AIM / FIRE / KNEEL)
     then re-runs one sheet per fighter and byte-compares.
 """
 from PIL import Image
@@ -58,7 +71,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _PACKS = os.environ.get('ROSTER_MOLD_PACKS', os.path.join(ROOT, 'prototypes'))
 _FULL = os.path.join(_PACKS, 'FULL_Adventurer 2D Pixel Art', 'Sprites')
 _FREE = os.path.join(_PACKS, 'FREE_Adventurer 2D Pixel Art', 'Sprites')
-PACK = _FULL if os.path.isdir(_FULL) else _FREE
+FULL_PACK = os.path.isdir(_FULL)
+PACK = _FULL if FULL_PACK else _FREE
 OUT_ROOT = os.environ.get('ROSTER_MOLD_OUT', os.path.join(ROOT, 'assets', 'sprites'))
 
 FRAME_W, FRAME_H = 96, 80   # frame COUNT varies per sheet (heal 12, hurt 4)
@@ -368,6 +382,9 @@ FIGHTERS = ['cipher', 'vesper', 'koa', 'sable', 'syn']
 # promotion (2026-07-31, full pack). The run FAILS if this drifts —
 # changing it is a deliberate act a diff will show (see docstring).
 EXPECTED_CIPHER = 'a1b8428d6c84a0b5'
+# and the same discipline over the synthesized verbs (aim/fire/kneel),
+# pinned separately so each golden guards exactly one claim.
+EXPECTED_SYNTH = '7bc6691710be81e8'
 
 HEAL_GREENS = [hx('99e65f'), hx('5ac54f'), hx('33984b')]   # light -> dark
 
@@ -410,17 +427,284 @@ def process_sheet(name, path):
         out[:, x0:x0 + FRAME_W] = build_frame(name, sheet[:, x0:x0 + FRAME_W], ignite)
     return out
 
+def process_frames(name, frames, ignite=False):
+    """assemble a sheet from already-built SOURCE frames (the synthesis path)"""
+    out = np.zeros((FRAME_H, FRAME_W * len(frames), 4), dtype=np.uint8)
+    for i, f in enumerate(frames):
+        out[:, i * FRAME_W:(i + 1) * FRAME_W] = build_frame(name, f, ignite)
+    return out
+
+# ---- pass 3: the yard's bill, synthesized (2026-08-01) ----------------
+#
+# aim / fire / kneel do not exist in the pack. They are synthesized here
+# into pack-palette SOURCE frames and then run through build_frame like
+# any molded sheet, so the head passes, the mark colors, and the flash
+# law apply with no special cases. Two rules carry the whole design:
+#
+#   * the emitter's charge cell and the muzzle bloom are drawn in the
+#     pack's HEAL GREENS, which build_frame already swaps to each
+#     fighter's mark color. Cipher's emitter vents cyan and SYN's vents
+#     red for free — the mark-color law, reused rather than reimplemented.
+#   * the housing is drawn in the pack's steels, so blade_pass sheathes
+#     it to DORMANT here (ignite is False for every folder that is not
+#     ATTACK*). Aiming shows cold steel; the shot is the only thing that
+#     lights. That is the blade's own law, read onto a barrel.
+#
+# The poses are not invented from nothing. AIM lifts the HEAL draw — its
+# frame 1 is the one where the held object sits at the chest, below the
+# scarf, with the hand already closed on it — and replaces the vial with
+# the emitter. The pack's artist drew that grip; we do not redraw it.
+# The reference for what a fired weapon looks like from four sides is the
+# licensed thug pack (`FREE Character 16-bit Thug Outlined`, 8 facings x
+# 8 frames of gunplay): it says the arm is the pose, the flash is the
+# verb, and — the answer to the hard facing — that a shot fired AWAY from
+# the camera shows no weapon at all, only a bloom past the head.
+#
+# Facing up therefore has no vial to convert (measured: heal_up frames
+# 0-4 contain zero green — the body occludes it), so its emitter anchor
+# comes from body geometry rather than from the vial, and only the tip
+# clears the shoulder.
+
+SYNTH_BASE = 1              # HEAL frame 1: object at chest, clear of the scarf
+LEG_TOP, FOOT_TOP = 48, 55  # the pack body's hip->leg and ankle->boot rows
+
+EMIT = {
+    'W': hx('ffffff'), 'w': hx('c7cfdd'), 'l': hx('b4b4b4'),
+    'm': hx('92a1b9'), 'n': hx('858585'), 'K': hx('131313'),
+    'C': hx('5ac54f'), 'H': hx('99e65f'),   # -> ENERGY[2] and ENERGY[1]
+}
+
+# authored as string grids, the dialect cipher32_walk.py established.
+# side grids are drawn barrel-right and mirrored for left.
+EMITTER_SIDE = [
+    '..KKKK....',
+    '.KwWllKKK.',
+    'KKCCCnnmCK',
+    '.KKKKKKKK.',
+    '..KwK.....',
+]
+# pointed at the camera a barrel has no length — only the aperture shows,
+# so the down emitter is a held block with a lit mouth and no protruding
+# stub (the first cut grew one and read as held at the hip).
+EMITTER_DOWN = [
+    '.KKK.',
+    'KwWlK',
+    'KCCCK',
+    'KKnKK',
+]
+# turned away, all that clears the body is the tip past the near shoulder —
+# and it has to break the silhouette to be seen at all against the pack's
+# back-slung sword.
+EMITTER_UP = [
+    '.KKK',
+    'KwlK',
+    'KCCK',
+    '.KKK',
+]
+# muzzle bloom, hot -> spent. drawn barrel-right, pinned by the mouth edge.
+#
+# Sized by measurement, not by eye. Counting mark-colour pixels per frame,
+# the shipped verbs run: blade ignition 706 at its peak, heal channel 38.
+# The first bloom peaked at 21 — dimmer than a heal, and at room scale
+# (a ~34px body drawn ~20px tall) that is a flicker, not a gunshot. These
+# read at a peak near the heal channel's own extent and carry spikes as
+# wide as the body, because at this scale reach carries further than area.
+BLOOM = [
+    ['...H.....',
+     '..HCH..H.',
+     '.HCCCH...',
+     'HCCCCCCHH',
+     '.HCCCH...',
+     '..HCH..H.',
+     '...H.....'],
+    ['..H..',
+     '.HCH.',
+     'HCCCH',
+     '.HCH.',
+     '..H..'],
+    ['.H.',
+     'H.H',
+     '.H.'],
+]
+# where the grid's core column/row lands relative to the anchor
+EMIT_OFFSET = {'right': (-2, -3), 'left': (-2, -3), 'down': (-5, -2), 'up': (-1, 0)}
+
+
+def pack_frame(rel, i):
+    a = np.array(Image.open(os.path.join(PACK, rel.replace('/', os.sep))).convert('RGBA'))
+    return a[:, i * FRAME_W:(i + 1) * FRAME_W].copy()
+
+
+def green_mask(f):
+    m = np.zeros(f.shape[:2], dtype=bool)
+    for c in HEAL_GREENS:
+        m |= eq(f, c)
+    return m
+
+
+def clear_green(f):
+    f[green_mask(f)] = (0, 0, 0, 0)
+
+
+def stamp(f, grid, ay, ax, flip=False):
+    rows = [r[::-1] for r in grid] if flip else grid
+    for j, row in enumerate(rows):
+        for i, ch in enumerate(row):
+            if ch == '.':
+                continue
+            y, x = ay + j, ax + i
+            if 0 <= y < f.shape[0] and 0 <= x < f.shape[1]:
+                f[y, x] = (*EMIT[ch], 255)
+
+
+def emitter_anchor(f, facing):
+    """where the emitter's core sits. Vial centroid where a vial is visible;
+    from the body's own bbox facing up, where it never is."""
+    m = green_mask(f)
+    if m.any():
+        ys, xs = np.where(m)
+        return int(round(ys.mean())), int(round(xs.mean()))
+    ys, xs = np.where(f[:, :, 3] > 0)
+    # chest height on the near shoulder: the only part of a weapon held
+    # away from the camera that clears the body. It overlaps the shoulder
+    # deliberately — held a clear pixel off the silhouette it read as
+    # floating rather than carried.
+    return ys.min() + 12, xs.max() - 2
+
+
+def place_emitter(f, facing, core='C'):
+    """stamp the emitter over the vial and report the muzzle pixel"""
+    ay, ax = emitter_anchor(f, facing)
+    grid = {'down': EMITTER_DOWN, 'up': EMITTER_UP}.get(facing, EMITTER_SIDE)
+    grid = [r.replace('C', core) for r in grid]
+    oy, ox = EMIT_OFFSET[facing]
+    clear_green(f)
+    if facing == 'left':
+        w = len(grid[0])
+        x0 = ax - ox - w + 1
+        stamp(f, grid, ay + oy, x0, flip=True)
+        return ay + oy + 2, x0
+    x0 = ax + ox
+    stamp(f, grid, ay + oy, x0)
+    if facing == 'down':
+        return ay + oy + 2, x0 + 2      # the aperture, mouth-on to the camera
+    if facing == 'up':
+        return ay + oy, x0 + 1          # the tip clearing the shoulder
+    return ay + oy + 2, x0 + len(grid[0]) - 1
+
+
+def bloom(f, facing, my, mx, stage):
+    """muzzle bloom at the muzzle, thrown along the facing.
+
+    The grids are symmetric, so no rotation is needed — only which edge is
+    pinned to the mouth. Firing at the camera is the odd one out: a bloom
+    coming at you has no direction on screen, so it is centred on the
+    aperture rather than thrown past it.
+    """
+    g = BLOOM[stage]
+    h, w = len(g), max(len(r) for r in g)
+    g = [r.ljust(w, '.') for r in g]
+    if facing == 'right':
+        stamp(f, g, my - h // 2, mx + 1)
+    elif facing == 'left':
+        stamp(f, g, my - h // 2, mx - w)
+    elif facing == 'up':
+        stamp(f, g, my - h, mx - w // 2)
+    else:
+        stamp(f, g, my + 1 - h // 2, mx - w // 2)
+
+
+def aim_frames(facing):
+    """held, charged, breathing — the body is still and the cell pulses"""
+    out = []
+    for core in ('C', 'C', 'H', 'C'):
+        f = pack_frame(f'HEAL/heal_{facing}.png', SYNTH_BASE)
+        place_emitter(f, facing, core=core)
+        out.append(f)
+    return out
+
+
+def fire_frames(facing):
+    """one shot: hold, bloom + recoil, settle, hold"""
+    out = []
+    for i, (core, stage) in enumerate([('H', None), ('H', 0), ('H', 1), ('C', 2), ('C', None)]):
+        f = pack_frame(f'HEAL/heal_{facing}.png', SYNTH_BASE)
+        my, mx = place_emitter(f, facing, core=core)
+        if stage is not None:
+            bloom(f, facing, my, mx, stage)
+        # recoil is one pixel, and only where it cannot lift the feet:
+        # a side shot shoves the whole figure back along its own axis
+        if stage in (0, 1) and facing in ('left', 'right'):
+            d = -1 if facing == 'right' else 1
+            out.append(np.roll(f, d, axis=1))
+        else:
+            out.append(f)
+    return out
+
+
+KNEEL_DROP = 6      # rows the body loses; 7 is the most the boots leave room for
+
+
+def kneel_frames(facing):
+    """the legs fold and the body drops onto them; the boots never move.
+
+    Row surgery, not a resample: torso rows are copied down, the hip rows
+    the coat still shows carry the weight, and the shin rows the pose would
+    hide are the ones dropped. The body law forbids scaling a body into
+    being — copying rows is not scaling — and the ground contract holds
+    because the boots stay on the line they were authored on.
+
+    The first cut dropped four rows and read as a shorter man, not a
+    crouching one: this body wears a long coat, so folding the legs edits
+    something the coat already hides. What sells it is the hem — a coat on
+    a dropped body pools outward, so the bottom rows flare a pixel. That
+    flare is the crouch; the height loss alone was not.
+    """
+    out = []
+    for i in (0, 4):
+        src = pack_frame(f'IDLE/idle_{facing}.png', i)
+        f = np.zeros_like(src)
+        d = KNEEL_DROP
+        f[24 + d:LEG_TOP + d] = src[24:LEG_TOP]                  # head + torso
+        f[LEG_TOP + d:FOOT_TOP] = src[LEG_TOP:FOOT_TOP - d]      # what is left of the legs
+        f[FOOT_TOP:] = src[FOOT_TOP:]                            # boots, planted
+        # the hem pools: widen the last three coat rows by one pixel a side
+        for y in range(FOOT_TOP - 4, FOOT_TOP):
+            row = np.where(f[y, :, 3] > 0)[0]
+            if not len(row):
+                continue
+            for x, src_x in ((row.min() - 1, row.min()), (row.max() + 1, row.max())):
+                if 0 <= x < f.shape[1] and f[y, x, 3] == 0:
+                    f[y, x] = f[y, src_x]
+        out.append(f)
+    return out
+
+
+# folder -> (stem, builder, needs the FULL pack). aim and fire read HEAL,
+# which only the full pack ships; kneel reads IDLE, but it rides with them
+# so the page keeps exactly two honest roster states, CORE and FULL.
+SYNTH = {
+    'AIM': ('aim', aim_frames),
+    'FIRE': ('fire', fire_frames),
+    'KNEEL': ('kneel', kneel_frames),
+}
+
+
 def preview(name, out_dir):
     cells = []
     for rel in ['IDLE/idle_down.png', 'RUN/run_right.png', 'ATTACK 1/attack1_right.png',
                 'ATTACK 2/attack2_down.png', 'HURT/hurt_right.png', 'DEATH/death_right.png',
-                'HEAL/heal_down.png']:
+                'HEAL/heal_down.png', 'AIM/aim_right.png', 'FIRE/fire_right.png',
+                'KNEEL/kneel_down.png']:
         p = os.path.join(out_dir, rel.replace('/', os.sep))
         if not os.path.exists(p):
             continue
         with Image.open(p) as im:
             a = np.array(im)
-        fi = min(4, a.shape[1] // FRAME_W - 1)
+        # frame 4 is a fair sample of most verbs, but FIRE's bloom is over
+        # by then — a muzzle-flash verb previewing without its flash is a
+        # picture that lies about the sheet
+        fi = 1 if rel.startswith('FIRE/') else min(4, a.shape[1] // FRAME_W - 1)
         f = a[:, fi * FRAME_W:(fi + 1) * FRAME_W]
         ys, xs = np.where(f[:, :, 3] > 0)
         if not len(ys):
@@ -458,7 +742,7 @@ def main():
         stale = os.path.join(OUT_ROOT, name)
         if os.path.isdir(stale):
             shutil.rmtree(stale)
-    written = []
+    written, synth_written = [], []
     for name in FIGHTERS:
         out_dir = os.path.join(OUT_ROOT, name)
         for p in sheets:
@@ -467,8 +751,16 @@ def main():
             os.makedirs(os.path.dirname(dst), exist_ok=True)
             Image.fromarray(process_sheet(name, p)).save(dst)
             written.append(dst)
+        for folder, (stem, builder) in sorted(SYNTH.items()) if FULL_PACK else []:
+            for facing in ('down', 'left', 'right', 'up'):
+                dst = os.path.join(out_dir, folder, f'{stem}_{facing}.png')
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                Image.fromarray(process_frames(name, builder(facing))).save(dst)
+                synth_written.append(dst)
         preview(name, out_dir)
-        print(f'{name}: {len(sheets)} sheets molded')
+        extra = f' + {len(synth_written) // (FIGHTERS.index(name) + 1)} synthesized' \
+            if synth_written else ''
+        print(f'{name}: {len(sheets)} sheets molded{extra}')
 
     # determinism, executed per fighter on encoded bytes
     ok = True
@@ -483,18 +775,35 @@ def main():
     def _digest(path):
         with open(path, 'rb') as fh:
             return hashlib.sha256(fh.read()).digest()
-    manifest = hashlib.sha256(b''.join(_digest(w) for w in sorted(written))).hexdigest()[:16]
-    cipher_only = hashlib.sha256(b''.join(
-        _digest(w) for w in sorted(written) if os.sep + 'cipher' + os.sep in w
-    )).hexdigest()[:16]
+
+    def _sub(paths, who):
+        return hashlib.sha256(b''.join(
+            _digest(p) for p in sorted(paths) if os.sep + who + os.sep in p
+        )).hexdigest()[:16]
+
+    manifest = hashlib.sha256(b''.join(
+        _digest(w) for w in sorted(written + synth_written))).hexdigest()[:16]
+    # scoped deliberately: EXPECTED_CIPHER guards the succession from
+    # cipher_mold.py, a claim about the MOLDED sheets only. Synthesized
+    # verbs never entered that comparison, so they get their own golden
+    # instead of diluting one that means something else.
+    cipher_only = _sub(written, 'cipher')
     print(f'determinism re-run: {"IDENTICAL" if ok else "MISMATCH"}')
-    print(f'{len(written)} sheets -> {OUT_ROOT}/<fighter>/')
+    print(f'{len(written)} molded + {len(synth_written)} synthesized '
+          f'-> {OUT_ROOT}/<fighter>/')
     print(f'manifest sha256[:16] = {manifest}')
-    print(f'cipher subset        = {cipher_only}  (golden: {EXPECTED_CIPHER})')
-    if cipher_only != EXPECTED_CIPHER:
-        print('cipher subset DRIFTED from the pinned golden — if the pipeline '
-              'change is deliberate, update EXPECTED_CIPHER in the same commit '
-              'and say why; if not, this exit just saved the roster')
+    print(f'cipher molded subset = {cipher_only}  (golden: {EXPECTED_CIPHER})')
+    drift = cipher_only != EXPECTED_CIPHER
+    if synth_written:
+        synth_only = _sub(synth_written, 'cipher')
+        print(f'cipher synth subset  = {synth_only}  (golden: {EXPECTED_SYNTH})')
+        if synth_only != EXPECTED_SYNTH:
+            print('synthesized subset DRIFTED from its pinned golden')
+            drift = True
+    if drift:
+        print('a pinned golden DRIFTED — if the pipeline change is deliberate, '
+              'update the constant in the same commit and say why; if not, '
+              'this exit just saved the roster')
         sys.exit(1)
     if not ok:
         sys.exit(1)

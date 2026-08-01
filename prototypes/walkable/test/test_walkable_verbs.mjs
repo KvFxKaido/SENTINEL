@@ -165,6 +165,36 @@ try {
     hurtMs < healMs && dashMs < healMs,
     `${Math.round(hurtMs)}, ${Math.round(dashMs)} < ${Math.round(healMs)}`);
 
+  // ---- the stances: held, not triggered, and standing-only -----------
+  await page.keyboard.down("KeyR");
+  check("hold R aims", await waitAction("aim"));
+  await page.keyboard.down("KeyC");
+  check("aim outranks kneel while both are held", (await ds("action")) === "aim");
+  await page.keyboard.up("KeyR");
+  check("releasing R falls through to kneel", await waitAction("kneel"));
+  // a stance is a standing pose: no aim-walk sheets exist, so moving must
+  // take the body OUT of it rather than play a stance over a moving body
+  await page.keyboard.down("KeyW");
+  check("moving cancels a held stance", await waitAction("run"));
+  await page.keyboard.up("KeyW");
+  check("stopping returns to the still-held stance", await waitAction("kneel"));
+  await page.keyboard.up("KeyC");
+  check("releasing the stance idles", await waitAction("idle"));
+
+  // fire: 5 frames @14fps ≈ 360ms, a one-shot that ends where it began
+  const fireMs = await measureVerb("KeyF", "fire");
+  check("fire runs its 5 frames", fireMs > 240 && fireMs < 1000, `${Math.round(fireMs)}ms`);
+  check("fire ends in idle", await waitAction("idle"));
+  // and firing out of a held aim returns to the aim, not to idle — the
+  // stance is a held state, so the lock releasing must fall back into it
+  await page.keyboard.down("KeyR");
+  check("aiming again", await waitAction("aim"));
+  await page.keyboard.press("KeyF");
+  check("F fires from the aim", await waitAction("fire"));
+  check("fire returns to the held aim", await waitAction("aim"));
+  await page.keyboard.up("KeyR");
+  check("releasing R after the shot idles", await waitAction("idle"));
+
   // death: plays through, holds the floor, only movement rises
   await page.keyboard.press("KeyX");
   check("X goes down", await waitAction("death"));
@@ -190,6 +220,12 @@ try {
     await page.evaluate(() => document.getElementById("control-surface").classList.contains("core-only")));
   const inertMs = await measureVerb("KeyL", "dash");
   check("dash inert on core roster", inertMs === -1, `watcher says ${inertMs}`);
+  const fireInertMs = await measureVerb("KeyF", "fire");
+  check("fire inert on core roster", fireInertMs === -1, `watcher says ${fireInertMs}`);
+  await page.keyboard.down("KeyR");
+  await page.waitForTimeout(200);
+  check("aim inert on core roster", (await ds("action")) === "idle", await ds("action"));
+  await page.keyboard.up("KeyR");
   const atkMs = await measureVerb("KeyJ", "attack1");
   check("attacks still fire on core roster", atkMs > 450 && atkMs < 1500, `${Math.round(atkMs)}ms`);
 

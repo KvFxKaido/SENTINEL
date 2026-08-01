@@ -360,6 +360,9 @@
         <tr class="verb-ext"><th><kbd>H</kbd></th><td>heal channel</td></tr>
         <tr class="verb-ext"><th><kbd>G</kbd></th><td>hurt flinch</td></tr>
         <tr class="verb-ext"><th><kbd>X</kbd></th><td>down — move to rise</td></tr>
+        <tr class="verb-ext"><th><kbd>R</kbd> hold</th><td>aim — emitter up</td></tr>
+        <tr class="verb-ext"><th><kbd>F</kbd></th><td>fire</td></tr>
+        <tr class="verb-ext"><th><kbd>C</kbd> hold</th><td>kneel</td></tr>
         <tr><th><kbd>Q</kbd> / <kbd>E</kbd></th><td>orbit 90°</td></tr>
         <tr><th><kbd>P</kbd></th><td>LCD / crunch / clean</td></tr>
         <tr><th>NORTH DOOR</th><td>walk it — the yard takes the feed</td></tr>
@@ -918,6 +921,17 @@ const SHEETS = {
     hold: true,   // plays through and stays on the floor
   },
   heal: { folder: "HEAL", stem: "heal", fps: 10, loop: false, core: false },
+  // the yard's bill. These three are synthesized, not molded — the pack
+  // ships no gunplay — but they arrive as ordinary sheets on the same
+  // canvas, so nothing here knows the difference. aim and kneel are
+  // STANCES (held, looping); fire is a one-shot that begins and ends in
+  // the aim pose, which is why it reads standalone and why releasing into
+  // a held aim looks continuous.
+  aim: { folder: "AIM", stem: "aim", fps: 6, loop: true, core: false, stance: true },
+  // 10fps, not 14: the bloom lives on three of five frames, and at 14 the
+  // whole shot was gone in 210ms — long enough to miss at room scale
+  fire: { folder: "FIRE", stem: "fire", fps: 10, loop: false, core: false },
+  kneel: { folder: "KNEEL", stem: "kneel", fps: 2, loop: true, core: false, stance: true },
 };
 const FACINGS = ["down", "up", "left", "right"];
 const textures = new Map();
@@ -1143,8 +1157,11 @@ function setSpriteFrame(action, facing, frame) {
     action === "attack1" ? "ATTACK 1 / IGNITION"
       : action === "attack2" ? "ATTACK 2 / IGNITION"
         : action === "heal" ? "HEAL / CHANNEL"
-          : action === "death" ? (downed ? "DOWN — MOVE TO RISE" : "GOING DOWN")
-            : action.toUpperCase();
+          : action === "aim" ? "AIM / EMITTER COLD"
+            : action === "fire" ? "FIRE / EMITTER LIT"
+              : action === "kneel" ? "KNEEL / STANCE"
+                : action === "death" ? (downed ? "DOWN — MOVE TO RISE" : "GOING DOWN")
+                  : action.toUpperCase();
   facingStateEl.textContent = facing.toUpperCase();
 
   canvas.dataset.action = action;
@@ -1201,6 +1218,19 @@ function wantsWalk() {
   return rosterFull && (held.has("ShiftLeft") || held.has("ShiftRight"));
 }
 
+// Stances are held, not triggered, and only a body that is standing still
+// can take one — there are no aim-walk or crouch-walk sheets, and faking
+// them by playing a stance over a moving body would be the renderer
+// lying about what was authored. Aim outranks kneel because aim is the
+// stance with a verb attached to it (fire); holding both is a real thing
+// a player will do, so the tie is decided here rather than by key order.
+function heldStance() {
+  if (!rosterFull) return null;
+  if (held.has("KeyR")) return "aim";
+  if (held.has("KeyC")) return "kneel";
+  return null;
+}
+
 function updateMovement(dt) {
   const inputX =
     (held.has("KeyD") || held.has("ArrowRight") ? 1 : 0)
@@ -1232,7 +1262,8 @@ function updateCipher(dt, now) {
   let moving = false;
   if (!locked && !downed) moving = updateMovement(dt);
 
-  let action = moving ? (wantsWalk() ? "walk" : "run") : "idle";
+  const stance = moving ? null : heldStance();
+  let action = moving ? (wantsWalk() ? "walk" : "run") : (stance ?? "idle");
   let frame = 0;
   const facing = screenFacing();
 
@@ -1271,6 +1302,12 @@ function updateCipher(dt, now) {
       // channeling, not a spell) — this light is only its spill,
       // same rule as the blade
       bladeLight.intensity = 1.3 + Math.sin(elapsed * 26) * 0.3;
+    } else if (action === "fire") {
+      // the muzzle bloom is authored in the sheet and lasts three frames;
+      // the light is its spill and decays with it, so the room does not
+      // stay lit after the flash is gone
+      const lit = 1 - frame / 3;
+      bladeLight.intensity = lit > 0 ? 3.4 * lit : 0;
     } else {
       bladeLight.intensity = 0;
     }
@@ -1296,8 +1333,13 @@ document.addEventListener("keydown", event => {
     if (!seamReady && event.code === "Escape") abortSeam("YOU PULLED BACK");
     return;
   }
-  if (event.code === "ShiftLeft" || event.code === "ShiftRight") {
-    held.add(event.code);   // the walk modifier rides the held set like a move key
+  if (
+    event.code === "ShiftLeft" || event.code === "ShiftRight"
+    || event.code === "KeyR" || event.code === "KeyC"
+  ) {
+    // modifiers and stances ride the held set like a move key — they are
+    // states the player holds, not verbs they fire
+    held.add(event.code);
     return;
   }
   if (MOVE_CODES.has(event.code)) {
@@ -1336,6 +1378,10 @@ document.addEventListener("keydown", event => {
   }
   if (event.code === "KeyX") {
     triggerLocked("death");
+    return;
+  }
+  if (event.code === "KeyF") {
+    triggerLocked("fire");
     return;
   }
   if (event.code === "KeyQ") {

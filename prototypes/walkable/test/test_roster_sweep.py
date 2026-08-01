@@ -26,6 +26,9 @@ FIGHTERS = ["cipher", "vesper", "koa", "sable", "syn"]
 
 CORE = {"IDLE": "idle", "RUN": "run", "ATTACK 1": "attack1", "ATTACK 2": "attack2"}
 EXT = {"WALK": "walk", "DASH": "dash", "HURT": "hurt", "DEATH": "death", "HEAL": "heal"}
+# synthesized, not molded: no pack folder feeds these, so the sweep is the
+# ONLY thing that removes them on a downgrade — worth its own claim
+SYNTH = {"AIM": "aim", "FIRE": "fire", "KNEEL": "kneel"}
 FACINGS = ["down", "up", "left", "right"]
 
 def fake_pack(base, verbs):
@@ -64,24 +67,35 @@ with tempfile.TemporaryDirectory(prefix="roster-sweep-") as tmp:
 
     fake_pack(full, {**CORE, **EXT})
     r = mold()
-    check("full mold writes 180 sheets", "180 sheets" in r.stdout,
+    check("full mold writes 180 molded sheets", "180 molded" in r.stdout,
           (r.stdout.strip().splitlines() or ["<no output>"])[-1])
+    check("full mold synthesizes 60 more", "60 synthesized" in r.stdout)
     check("determinism IDENTICAL per fighter", "determinism re-run: IDENTICAL" in r.stdout)
     check("cipher golden guard FIRES on synthetic input",
           r.returncode == 1 and "DRIFTED" in r.stdout)
     check("all five fighter dirs written",
           all(os.path.isdir(os.path.join(out, f, "HEAL")) for f in FIGHTERS))
+    check("synthesized verbs written for every fighter",
+          all(os.path.isdir(os.path.join(out, f, d)) for f in FIGHTERS for d in SYNTH))
 
     # the FULL pack goes away; only FREE remains — the review scenario:
     # stale extended outputs must not survive the remold
     shutil.rmtree(os.path.dirname(full))
     fake_pack(free, CORE)
     r = mold()
-    check("free mold writes 80 sheets", "80 sheets" in r.stdout)
+    check("free mold writes 80 molded sheets", "80 molded" in r.stdout)
+    check("free mold synthesizes nothing", "0 synthesized" in r.stdout)
     stale = [f"{f}/{d}" for f in FIGHTERS for d in EXT
              if os.path.isdir(os.path.join(out, f, d))]
     check("stale extended outputs swept in every fighter dir", not stale,
           f"left behind: {stale[:5]}")
+    # aim/fire/kneel have no pack folder to go missing, so nothing but the
+    # sweep can retire them — a downgrade that left them behind would show
+    # the page a FULL roster built from two different runs
+    orphan = [f"{f}/{d}" for f in FIGHTERS for d in SYNTH
+              if os.path.isdir(os.path.join(out, f, d))]
+    check("synthesized verbs swept on a pack downgrade", not orphan,
+          f"left behind: {orphan[:5]}")
     check("core outputs present per fighter",
           all(os.path.isdir(os.path.join(out, f, "IDLE")) for f in FIGHTERS))
     check("sibling cipher32 artifact untouched", os.path.exists(sentinel))

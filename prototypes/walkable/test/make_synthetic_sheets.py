@@ -6,7 +6,7 @@ be executed headless without the licensed pack. Written into the
 gitignored assets dir; the harness backs up any real sheets first and
 restores them after.
 
-Modes: full (nine verbs) / core (four) / badfull (extended sheets
+Modes: full (twelve verbs) / core (four) / badfull (extended sheets
 present but wrong height — must fault on the page, never read as core).
 """
 from PIL import Image, ImageDraw
@@ -27,11 +27,19 @@ VERBS = {
     "hurt": ("HURT", "hurt", 4),
     "death": ("DEATH", "death", 6),
     "heal": ("HEAL", "heal", 12),
+    # the synthesized verbs load through exactly the same path as molded
+    # ones, so the harness fakes them the same way — kneel's 2 frames are
+    # the new shortest sheet, which keeps the width-derived frame logic
+    # honest at the bottom of the range as heal does at the top
+    "aim": ("AIM", "aim", 4),
+    "fire": ("FIRE", "fire", 5),
+    "kneel": ("KNEEL", "kneel", 2),
 }
 COLORS = {
     "idle": (90, 110, 130), "run": (70, 140, 90), "attack1": (170, 90, 60),
     "attack2": (170, 60, 120), "walk": (60, 100, 170), "dash": (220, 200, 80),
     "hurt": (200, 60, 60), "death": (60, 60, 70), "heal": (92, 207, 255),
+    "aim": (150, 150, 165), "fire": (255, 180, 90), "kneel": (110, 90, 140),
 }
 FACINGS = ["down", "up", "left", "right"]
 W, H = 96, 80
