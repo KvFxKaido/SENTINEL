@@ -1112,6 +1112,11 @@ const moveVector = new THREE.Vector3();
 const facingWorld = new THREE.Vector3(0, 0, 1);
 const previousPosition = new THREE.Vector3();
 
+// Per-frame spill for the shot, aligned to the sheet: index i is the light
+// while fire frame i is on screen. Zero on 0 and 4 because those frames
+// carry no bloom — see the FIRE branch in updateCipher.
+const FIRE_SPILL = [0, 3.4, 2.2, 1.1, 0];
+
 const MOVE_SPEED = 3.0;   // run — the default gait, as before
 const WALK_SPEED = 1.35;  // Shift held: the deliberate pace
 const DASH_SPEED = 7.0;   // burst, spent over the dash sheet's frames
@@ -1167,6 +1172,10 @@ function setSpriteFrame(action, facing, frame) {
   canvas.dataset.action = action;
   canvas.dataset.facing = facing;
   canvas.dataset.frame = String(frame);
+  // the spill is published with the frame it belongs to, so the harness can
+  // assert that the room lights WITH the flash and not around it — the
+  // off-by-one this catches shipped precisely because nothing watched it
+  canvas.dataset.light = bladeLight.intensity.toFixed(2);
 }
 
 // One displacement path for every way a body moves — held keys and the
@@ -1292,7 +1301,13 @@ function updateCipher(dt, now) {
         bladeLight.intensity = 0;
       } else {
         locked = null;
-        action = "idle";
+        // fall back into the stance still being HELD, not to idle: firing
+        // out of a held aim otherwise showed one frame of idle between the
+        // last fire frame and the resumed aim, because the stance was only
+        // re-read on the next update. The seam was one frame wide and the
+        // old test could not see it — it polled for the destination, not
+        // for a detour (caught in review)
+        action = stance ?? "idle";
         frame = 0;
       }
     } else if (action === "attack1" || action === "attack2") {
@@ -1303,11 +1318,13 @@ function updateCipher(dt, now) {
       // same rule as the blade
       bladeLight.intensity = 1.3 + Math.sin(elapsed * 26) * 0.3;
     } else if (action === "fire") {
-      // the muzzle bloom is authored in the sheet and lasts three frames;
-      // the light is its spill and decays with it, so the room does not
-      // stay lit after the flash is gone
-      const lit = 1 - frame / 3;
-      bladeLight.intensity = lit > 0 ? 3.4 * lit : 0;
+      // The light is the bloom's spill, so it is indexed by the frames the
+      // bloom is actually ON: fire_frames() draws stages on 1, 2, 3 — frame
+      // 0 is the pre-shot hold and frame 4 the settle. A decay curve keyed
+      // off frame 0 lit the room a frame BEFORE the flash and went dark
+      // while the last bloom was still drawn, which is the opposite of what
+      // the comment here used to claim (caught in review).
+      bladeLight.intensity = FIRE_SPILL[frame] ?? 0;
     } else {
       bladeLight.intensity = 0;
     }

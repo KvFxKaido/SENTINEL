@@ -384,7 +384,12 @@ FIGHTERS = ['cipher', 'vesper', 'koa', 'sable', 'syn']
 EXPECTED_CIPHER = 'a1b8428d6c84a0b5'
 # and the same discipline over the synthesized verbs (aim/fire/kneel),
 # pinned separately so each golden guards exactly one claim.
-EXPECTED_SYNTH = '7bc6691710be81e8'
+# Re-pinned 2026-08-01 for the explicit housing sheathe: the down and up
+# emitters were shipping a LIT barrel because blade_pass skips components
+# under six pixels and their housings are 3px and 2px runs. Only the
+# synthesized sheets move; the molded digest above is unchanged, which is
+# how you can tell the fix stayed inside its own pass.
+EXPECTED_SYNTH = '17ae33e9da943204'
 
 HEAL_GREENS = [hx('99e65f'), hx('5ac54f'), hx('33984b')]   # light -> dark
 
@@ -428,10 +433,20 @@ def process_sheet(name, path):
     return out
 
 def process_frames(name, frames, ignite=False):
-    """assemble a sheet from already-built SOURCE frames (the synthesis path)"""
+    """assemble a sheet from already-built SOURCE frames (the synthesis path).
+
+    Each entry is (frame, housing) — housing being the emitter's own steel
+    cells, sheathed here by name rather than left for blade_pass to find
+    by shape. See place_emitter for why that distinction had teeth.
+    """
     out = np.zeros((FRAME_H, FRAME_W * len(frames), 4), dtype=np.uint8)
-    for i, f in enumerate(frames):
-        out[:, i * FRAME_W:(i + 1) * FRAME_W] = build_frame(name, f, ignite)
+    for i, (f, housing) in enumerate(frames):
+        built = build_frame(name, f, ignite)
+        if housing is not None:
+            for src, dst in DORMANT.items():
+                m = eq(built, src) & housing
+                built[m, 0], built[m, 1], built[m, 2] = dst
+        out[:, i * FRAME_W:(i + 1) * FRAME_W] = built
     return out
 
 # ---- pass 3: the yard's bill, synthesized (2026-08-01) ----------------
@@ -546,7 +561,10 @@ def clear_green(f):
     f[green_mask(f)] = (0, 0, 0, 0)
 
 
-def stamp(f, grid, ay, ax, flip=False):
+STEEL_CHARS = set('Wwlmn')   # the housing tones, as opposed to core and outline
+
+
+def stamp(f, grid, ay, ax, flip=False, mask=None):
     rows = [r[::-1] for r in grid] if flip else grid
     for j, row in enumerate(rows):
         for i, ch in enumerate(row):
@@ -555,6 +573,8 @@ def stamp(f, grid, ay, ax, flip=False):
             y, x = ay + j, ax + i
             if 0 <= y < f.shape[0] and 0 <= x < f.shape[1]:
                 f[y, x] = (*EMIT[ch], 255)
+                if mask is not None and ch in STEEL_CHARS:
+                    mask[y, x] = True
 
 
 def emitter_anchor(f, facing):
@@ -572,8 +592,18 @@ def emitter_anchor(f, facing):
     return ys.min() + 12, xs.max() - 2
 
 
-def place_emitter(f, facing, core='C'):
-    """stamp the emitter over the vial and report the muzzle pixel"""
+def place_emitter(f, facing, core='C', housing=None):
+    """stamp the emitter over the vial and report the muzzle pixel.
+
+    `housing` collects the steel cells this stamp owns. They are sheathed
+    explicitly after the mold rather than left to blade_pass, which finds
+    blades in art it did not author by shape — and skips components under
+    six pixels. The side emitter's housing happened to clear that gate;
+    the down and up emitters (a 3px and a 2px run) did not, so the two
+    facings that matter most shipped a lit barrel while the panel said
+    the emitter was cold (caught in review, and measured before believed).
+    Authored geometry should not be rediscovered by a classifier.
+    """
     ay, ax = emitter_anchor(f, facing)
     grid = {'down': EMITTER_DOWN, 'up': EMITTER_UP}.get(facing, EMITTER_SIDE)
     grid = [r.replace('C', core) for r in grid]
@@ -582,10 +612,10 @@ def place_emitter(f, facing, core='C'):
     if facing == 'left':
         w = len(grid[0])
         x0 = ax - ox - w + 1
-        stamp(f, grid, ay + oy, x0, flip=True)
+        stamp(f, grid, ay + oy, x0, flip=True, mask=housing)
         return ay + oy + 2, x0
     x0 = ax + ox
-    stamp(f, grid, ay + oy, x0)
+    stamp(f, grid, ay + oy, x0, mask=housing)
     if facing == 'down':
         return ay + oy + 2, x0 + 2      # the aperture, mouth-on to the camera
     if facing == 'up':
@@ -619,26 +649,30 @@ def aim_frames(facing):
     out = []
     for core in ('C', 'C', 'H', 'C'):
         f = pack_frame(f'HEAL/heal_{facing}.png', SYNTH_BASE)
-        place_emitter(f, facing, core=core)
-        out.append(f)
+        housing = np.zeros(f.shape[:2], dtype=bool)
+        place_emitter(f, facing, core=core, housing=housing)
+        out.append((f, housing))
     return out
 
 
 def fire_frames(facing):
     """one shot: hold, bloom + recoil, settle, hold"""
     out = []
-    for i, (core, stage) in enumerate([('H', None), ('H', 0), ('H', 1), ('C', 2), ('C', None)]):
+    for core, stage in [('H', None), ('H', 0), ('H', 1), ('C', 2), ('C', None)]:
         f = pack_frame(f'HEAL/heal_{facing}.png', SYNTH_BASE)
-        my, mx = place_emitter(f, facing, core=core)
+        housing = np.zeros(f.shape[:2], dtype=bool)
+        my, mx = place_emitter(f, facing, core=core, housing=housing)
         if stage is not None:
             bloom(f, facing, my, mx, stage)
         # recoil is one pixel, and only where it cannot lift the feet:
-        # a side shot shoves the whole figure back along its own axis
+        # a side shot shoves the whole figure back along its own axis.
+        # The housing mask rides the same roll or it stops naming the
+        # pixels it owns.
         if stage in (0, 1) and facing in ('left', 'right'):
             d = -1 if facing == 'right' else 1
-            out.append(np.roll(f, d, axis=1))
+            out.append((np.roll(f, d, axis=1), np.roll(housing, d, axis=1)))
         else:
-            out.append(f)
+            out.append((f, housing))
     return out
 
 
@@ -676,7 +710,7 @@ def kneel_frames(facing):
             for x, src_x in ((row.min() - 1, row.min()), (row.max() + 1, row.max())):
                 if 0 <= x < f.shape[1] and f[y, x, 3] == 0:
                     f[y, x] = f[y, src_x]
-        out.append(f)
+        out.append((f, None))    # kneel carries no emitter
     return out
 
 
@@ -688,6 +722,7 @@ SYNTH = {
     'FIRE': ('fire', fire_frames),
     'KNEEL': ('kneel', kneel_frames),
 }
+FACINGS = ('down', 'left', 'right', 'up')
 
 
 def preview(name, out_dir):
@@ -752,14 +787,16 @@ def main():
             Image.fromarray(process_sheet(name, p)).save(dst)
             written.append(dst)
         for folder, (stem, builder) in sorted(SYNTH.items()) if FULL_PACK else []:
-            for facing in ('down', 'left', 'right', 'up'):
+            for facing in FACINGS:
                 dst = os.path.join(out_dir, folder, f'{stem}_{facing}.png')
                 os.makedirs(os.path.dirname(dst), exist_ok=True)
                 Image.fromarray(process_frames(name, builder(facing))).save(dst)
                 synth_written.append(dst)
         preview(name, out_dir)
-        extra = f' + {len(synth_written) // (FIGHTERS.index(name) + 1)} synthesized' \
-            if synth_written else ''
+        # stated directly rather than divided out of the running total:
+        # the old form was only correct while every fighter synthesized an
+        # identical count in strict order (caught in review)
+        extra = f' + {len(SYNTH) * len(FACINGS)} synthesized' if FULL_PACK else ''
         print(f'{name}: {len(sheets)} sheets molded{extra}')
 
     # determinism, executed per fighter on encoded bytes

@@ -111,6 +111,32 @@ const waitAction = (name, timeout = 3000) =>
   page.waitForFunction(n => document.getElementById("cv").dataset.action === n, name, { timeout })
     .then(() => true, () => false);
 
+// Record EVERY rendered frame for a span, not just the steady states.
+// Polling can only see where a verb ended up; a one-frame detour or a
+// light that leads its own flash is invisible to it — both shipped past
+// the polling tests and were caught in review instead.
+async function recordFrames(key, ms) {
+  await page.evaluate(d => {
+    const cv = document.getElementById("cv");
+    window.__trace = new Promise(res => {
+      const seen = [];
+      const begin = performance.now();
+      function tick(t) {
+        seen.push(`${cv.dataset.action}:${cv.dataset.frame}:${cv.dataset.light}`);
+        if (t - begin > d) return res(seen);
+        requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    });
+  }, ms);
+  if (key) await page.keyboard.press(key);
+  const raw = await page.evaluate(() => window.__trace);
+  // collapse consecutive duplicates: what matters is the sequence of
+  // distinct rendered states, not how many rAFs each one survived
+  return raw.filter((v, i) => i === 0 || v !== raw[i - 1])
+    .map(v => { const [a, f, l] = v.split(":"); return { a, f: +f, l: +l }; });
+}
+
 try {
   // ---- server + browser, inside the restoring scope ----------------
   server = spawn(PY, ["-m", "http.server", PORT], { cwd: ROOT, stdio: "ignore" });
@@ -189,9 +215,48 @@ try {
   // stance is a held state, so the lock releasing must fall back into it
   await page.keyboard.down("KeyR");
   check("aiming again", await waitAction("aim"));
-  await page.keyboard.press("KeyF");
-  check("F fires from the aim", await waitAction("fire"));
-  check("fire returns to the held aim", await waitAction("aim"));
+  // Headless rAF skips frames, so one shot sees only some of the five.
+  // Accumulate across shots until every frame index has been observed —
+  // a light assertion that passes because it saw nothing is not a test.
+  // Headless rAF runs around 5fps against a 500ms sheet, and the sample
+  // phase cannot be walked: locked.started is stamped on the verb's first
+  // RENDERED frame, so delaying the keypress shifts nothing. Frames 0 and
+  // 2 are what this environment can see, and that is enough to judge —
+  // the off-by-one being guarded moved BOTH of them (0: 0→3.4, 2: 2.2→1.1).
+  const lit = {};
+  let detour = null, sawFire = false;
+  for (let shotN = 0; shotN < 6 && Object.keys(lit).length < 5; shotN++) {
+    await page.waitForTimeout(120);
+    const trace = await recordFrames("KeyF", 900);
+    const first = trace.findIndex(s => s.a === "fire");
+    if (first < 0) continue;
+    sawFire = true;
+    for (const s of trace) if (s.a === "fire") lit[s.f] = s.l;
+    // the seam is one frame wide, so only a per-frame trace can see it
+    const after = trace.slice(first);
+    if (detour === null && after.some(s => s.a === "idle")) {
+      detour = after.map(s => `${s.a}${s.f}`).join(" ");
+    }
+  }
+  check("F fires from the aim", sawFire);
+  check("no idle frame between the shot and the held aim",
+    detour === null, detour ?? "");
+  // The spill must ride the frames the bloom is actually drawn on:
+  // fire_frames() puts stages on 1,2,3 — 0 is the pre-shot hold, 4 the
+  // settle. This exact curve is the contract with the sheet; the Python
+  // sweep test asserts the other half, that the bloom really is on 1-3.
+  //
+  // Every frame the trace DID catch must match, and the check must not be
+  // able to pass by observing nothing — frame 0 above all, because the
+  // off-by-one this guards lit frame 0 at full intensity before any bloom
+  // was drawn.
+  const EXPECT = [0, 3.4, 2.2, 1.1, 0];
+  const seen = Object.keys(lit).map(Number).sort();
+  check("enough shot frames observed to judge, including frame 0",
+    seen.length >= 2 && lit[0] !== undefined, `saw ${seen.join(",")}`);
+  const wrong = seen.filter(f => lit[f] !== EXPECT[f]).map(f => `f${f}: ${lit[f]}≠${EXPECT[f]}`);
+  check("the spill lights exactly the bloom frames it belongs to",
+    !wrong.length, wrong.length ? wrong.join(" ") : `f${seen.join(",f")} all match`);
   await page.keyboard.up("KeyR");
   check("releasing R after the shot idles", await waitAction("idle"));
 

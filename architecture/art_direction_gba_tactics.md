@@ -188,10 +188,15 @@ across the squad. The decisions worth keeping:
   something else entirely. A feature that needs no new law is evidence
   the old law was cut along the grain.
 - **Aiming shows cold steel; only the shot lights.** The housing is
-  drawn in the pack's steels, which the blade pass already sheathes on
-  any non-attack sheet. This fell out of the pipeline rather than being
-  specified — and it is right, so it is now the rule: *the blade's law,
-  read onto a barrel.*
+  drawn in the pack's steels, and the emitter's own cells are sheathed
+  **by name** after the mold. The first cut left that to the blade pass,
+  which finds blades in art it did not author by shape — and skips
+  components under six pixels. The side emitter's housing happened to
+  clear that gate; the down and up emitters (3px and 2px runs) did not,
+  so the two facings that matter most shipped a *lit* barrel while the
+  panel read `EMITTER COLD` (caught in review; measured before believed).
+  Authored geometry should not be rediscovered by a classifier — and a
+  rule that holds only because one case got lucky was never holding.
 - **The poses are lifted, not invented.** Aim is the HEAL draw with the
   vial replaced, so the grip is still the pack artist's hand. Where the
   pack could not answer — a body turned away has no vial to convert

@@ -78,6 +78,27 @@ with tempfile.TemporaryDirectory(prefix="roster-sweep-") as tmp:
     check("synthesized verbs written for every fighter",
           all(os.path.isdir(os.path.join(out, f, d)) for f in FIGHTERS for d in SYNTH))
 
+    # The room's FIRE_SPILL curve is indexed by frame and must light exactly
+    # the frames that carry a bloom. The page harness can only observe a
+    # couple of frames (headless rAF is far slower than the sheet), so the
+    # sheet half of that contract is asserted here, where every frame is
+    # visible: frames 1-3 carry the bloom, 0 and 4 do not.
+    import numpy as np
+    fire = np.array(Image.open(os.path.join(out, "cipher", "FIRE", "fire_right.png")))
+    frames = [fire[:, i * 96:(i + 1) * 96] for i in range(fire.shape[1] // 96)]
+    ink = [int((f[:, :, 3] > 0).sum()) for f in frames]
+    check("FIRE is five frames", len(frames) == 5, f"{len(frames)}")
+    # The bloom is the only thing that grows the figure between frames, so
+    # ANY growth over the bloomless baseline marks a bloom frame — exact,
+    # not thresholded. A threshold missed frame 3, whose spent ring is four
+    # pixels; the tolerance was hiding a real frame rather than noise.
+    base = min(ink)
+    bloomy = [i for i, n in enumerate(ink) if n > base]
+    check("bloom is drawn on frames 1-3, matching FIRE_SPILL",
+          bloomy == [1, 2, 3], f"grew on {bloomy} (ink {ink})")
+    check("bloom decays across those frames",
+          ink[1] > ink[2] > ink[3], f"{ink[1]} > {ink[2]} > {ink[3]}")
+
     # the FULL pack goes away; only FREE remains — the review scenario:
     # stale extended outputs must not survive the remold
     shutil.rmtree(os.path.dirname(full))

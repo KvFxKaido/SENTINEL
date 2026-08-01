@@ -145,7 +145,7 @@ the body law's successor section,
 cd prototypes/walkable/test
 npm install                        # the playwright library
 npx playwright install chromium    # the browser itself (skip if one is provisioned)
-node test_walkable_verbs.mjs       # 45 checks: verbs, stances, roster states, regressions
+node test_walkable_verbs.mjs       # 47 checks: verbs, stances, light, roster states, regressions
 python test_roster_sweep.py        # the roster mold's remold sweep (pillow + numpy)
 ```
 
@@ -162,6 +162,17 @@ What it does and deliberately does not touch:
   licensed packs and molded outputs are never touched. On synthetic
   input the pinned cipher golden is EXPECTED to fire; the test asserts
   that it does.
+
+Two claims are split deliberately across the suites, because neither
+runner can see the whole thing. The room's `FIRE_SPILL` curve must light
+exactly the frames that carry a muzzle bloom — but headless rAF runs
+around 5fps against a 500ms sheet, so the browser can only ever observe
+a couple of frames (and the phase cannot be walked: `locked.started` is
+stamped on the verb's first *rendered* frame, so delaying the keypress
+shifts nothing). So the browser asserts light-per-frame on whatever it
+catches, refusing to pass if it caught too little; the Python suite
+asserts the other half — that the bloom really is drawn on frames 1–3 —
+where every frame is visible.
 
 Both run in CI (`walkable-harness` job). Not covered: the full seam
 round-trip into tactical3d, and anything about how the sheets *look* —
