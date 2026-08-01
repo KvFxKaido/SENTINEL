@@ -107,3 +107,34 @@ room carried: the pack format beat the 32×32 body-law canvas, and the
 selout dialect won with it. The verdict and its costs are recorded in
 the body law's successor section,
 `architecture/art_direction_gba_tactics.md`.
+
+## Tests
+
+`test/` holds the headless harness that guards this page's claims — the
+"caught in test" comments in `index.html` point at it:
+
+```sh
+cd prototypes/walkable/test
+npm install                        # the playwright library
+npx playwright install chromium    # the browser itself (skip if one is provisioned)
+node test_walkable_verbs.mjs       # 31 checks: verbs, roster states, regressions
+python test_roster_sweep.py        # the roster mold's remold sweep (pillow + numpy)
+```
+
+What it does and deliberately does not touch:
+
+- The browser harness drives the page against **synthetic sheets** at the
+  pack's real geometry (no licensed pack needed), measuring verb
+  durations in-page against per-sheet frame counts. Real molded sheets
+  at `assets/sprites/cipher/` are backed up before the run and restored
+  after.
+- The mold test runs the actual `scripts/roster_mold.py` twice against
+  fake packs — **fully sandboxed in a temp dir** via the mold's
+  `ROSTER_MOLD_PACKS` / `ROSTER_MOLD_OUT` test hooks, so the real
+  licensed packs and molded outputs are never touched. On synthetic
+  input the pinned cipher golden is EXPECTED to fire; the test asserts
+  that it does.
+
+Both run in CI (`walkable-harness` job). Not covered: the full seam
+round-trip into tactical3d, and anything about how the sheets *look* —
+pixels are judged by walking, not asserted.

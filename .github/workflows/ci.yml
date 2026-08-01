@@ -109,6 +109,43 @@ jobs:
         working-directory: prototypes/tactical-core
         run: node --test
 
+  # The walkable prototype's verb machinery and the roster mold's sweep,
+  # driven for real: headless chromium walks the page against synthetic
+  # sheets (verb durations measured in-page against per-sheet frame
+  # counts, all three roster states), and the actual roster_mold.py runs
+  # twice in a sandbox to prove remolds sweep stale outputs. This is the
+  # harness the "caught in test" comments in walkable/index.html cite.
+  walkable-harness:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install harness dependencies
+        working-directory: prototypes/walkable/test
+        run: |
+          pip install pillow numpy
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Browser harness
+        working-directory: prototypes/walkable/test
+        run: node test_walkable_verbs.mjs
+
+      - name: Roster mold sweep
+        working-directory: prototypes/walkable/test
+        run: python test_roster_sweep.py
+
   # The witness Worker against a local wrangler dev (simulated KV): goldens
   # from the edge, certification refusals, and the archive — including the
   # >100-entry bulk that forces /matches to walk KV cursors. The live
