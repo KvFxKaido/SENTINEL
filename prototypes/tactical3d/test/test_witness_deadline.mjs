@@ -108,17 +108,24 @@ try {
     ["ready", "error"].includes(document.getElementById("cv").dataset.sprites),
     null, { timeout: 20000 });
   await frame.press("body", "Enter");
-  await page.waitForTimeout(900);
+  await frame.waitForFunction(() =>
+    (document.getElementById("cv").dataset.units ?? "").split(",").length === 6,
+    null, { timeout: 15000 });
 
   // No overwatch here: the squad is meant to lose fast. This test is about
-  // what happens AFTER the card, so the card should be cheap.
+  // what happens AFTER the card, so the card should be cheap — and waiting
+  // on the turn state rather than sleeping is what makes it cheap.
+  const ended = () => frame.evaluate(() => !!document.querySelector("#overlay.show"));
+  const opTurn = () => frame.waitForFunction(
+    () => /OPERATIVE TURN/.test(document.getElementById("turnlabel").textContent)
+      || !!document.querySelector("#overlay.show"),
+    null, { timeout: 20000 }).then(() => true, () => false);
   let over = false;
-  for (let round = 0; round < 40 && !over; round++) {
-    over = await frame.evaluate(() => !!document.querySelector("#overlay.show"));
+  for (let round = 0; round < 40; round++) {
+    over = await ended();
     if (over) break;
     await frame.press("body", "Enter");
-    await page.waitForTimeout(900);
-    over = await frame.evaluate(() => !!document.querySelector("#overlay.show"));
+    await opTurn();
   }
   check("the card plays to a finish", over);
   if (!over) throw new Error("the match never ended");

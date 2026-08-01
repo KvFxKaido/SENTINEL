@@ -122,24 +122,36 @@ try {
     (await frame.evaluate(() => document.getElementById("cv").dataset.roster)) === "full");
 
   await frame.press("body", "Enter");   // begin the card
-  await page.waitForTimeout(1200);
+  await frame.waitForFunction(() =>
+    (document.getElementById("cv").dataset.units ?? "").split(",").length === 6,
+    null, { timeout: 15000 });
   const opening = await frame.evaluate(() => document.getElementById("cv").dataset.units);
   check("both sides render pack bodies across the door", (opening ?? "").split(",").length === 6, opening);
   check("the yard opens on the same verb vocabulary as the room",
     (opening ?? "").split(",").every(s => s.split(":")[1] === "idle"), opening);
 
-  // play to a finish — overwatch is the keyboard-only way to fight back
+  // Play to a finish the CHEAPEST way: end turns and let the squad lose.
+  // This suite's claims are about the door and the record, not about
+  // winning, and a loss certifies exactly as well as a win. Fighting back
+  // with overwatch prolonged the match and made this the slowest job in
+  // CI at 4m42s.
+  //
+  // It also waits on the game's own turn state instead of sleeping a worst
+  // case — the same flaw that fed the seeded rules a different match on a
+  // slower box and turned the yard suite's kneel check red in CI and green
+  // locally. Fixed in one file first; the lesson is cheaper applied to all
+  // three at once.
+  const ended = () => frame.evaluate(() => !!document.querySelector("#overlay.show"));
+  const opTurn = () => frame.waitForFunction(
+    () => /OPERATIVE TURN/.test(document.getElementById("turnlabel").textContent)
+      || !!document.querySelector("#overlay.show"),
+    null, { timeout: 20000 }).then(() => true, () => false);
   let over = false;
-  for (let round = 0; round < 40 && !over; round++) {
-    for (let i = 0; i < 3; i++) {
-      await frame.press("body", "Tab"); await page.waitForTimeout(60);
-      await frame.press("body", "y");   await page.waitForTimeout(60);
-    }
-    over = await frame.evaluate(() => !!document.querySelector("#overlay.show"));
+  for (let round = 0; round < 40; round++) {
+    over = await ended();
     if (over) break;   // through the door Enter IS the walk home once it ends
     await frame.press("body", "Enter");
-    await page.waitForTimeout(1500);
-    over = await frame.evaluate(() => !!document.querySelector("#overlay.show"));
+    await opTurn();
   }
   check("the card plays to a finish", over);
   if (!over) throw new Error("the match never ended");
