@@ -106,6 +106,41 @@ black canvas.
 `vendor/three.module.js` + `vendor/three.core.js` are three.js r0.185.1,
 unmodified, MIT.
 
+Since the convergence the server root is the **repository**, not
+`prototypes/` — the page loads molded sheets from `assets/`. `serve.cmd`
+does this for you; by hand it is `python -m http.server 8080` at the repo
+root, then <http://localhost:8080/prototypes/tactical3d/>. Regenerate the
+sheets with `python scripts/roster_mold.py` (the licensed source pack must
+be present locally); without them the page stops at an explicit fault.
+
+## Tests
+
+`test/` holds two headless suites, both wired into the `walkable-harness`
+CI job:
+
+```sh
+cd prototypes/tactical3d/test
+npm install && npx playwright install chromium
+node test_yard_bodies.mjs        # roster boot, facing, verbs, asset faults
+node test_seam_round_trip.mjs    # the door, the card, and the verdict
+```
+
+Both run against **synthetic sheets** at the pack's real geometry (shared
+generator with the walkable harness — the two pages load the same bodies,
+so faking them two different ways would let the fixtures drift exactly
+where the convergence says they must not). Real sheets are backed up and
+restored around every run, including on setup failure.
+
+The body suite drives the match through the *game* — `Tab` selects, `F`
+takes target mode, overwatch plus `Enter` hands the board to the AI — so
+it reaches fire / hurt / death / kneel without needing to know where a
+body is on screen, which is the one thing a headless test cannot see.
+
+The seam suite is the only test where both surfaces are alive at once. It
+tolerates an unreachable witness (`UNCERTIFIED` is an honest outcome and
+the room says so out loud) and fails on `STRUCK` — the edge replaying the
+record and disagreeing means the match does not reproduce.
+
 ## Notable renderer decisions
 
 - **Floor is one `InstancedMesh`.** 100 tiles, one draw call. The movement
@@ -120,6 +155,21 @@ unmodified, MIT.
 - **`draw()` kept its name.** Every call site from the 2D version still calls
   `draw()`; it now just sets a dirty flag that the frame loop reconciles.
   That is the immediate-mode → retained-mode shift, isolated to one function.
+- **Units are the walkable world's bodies.** Since the convergence
+  (2026-08-01) the board loads the same molded 96×80 pack sheets the
+  walkable room does, from `assets/sprites/<fighter>/` — four facings, a
+  verb per game state, frame counts read from sheet width. There is no
+  fallback to the retired 32×32 grids: a missing sheet stops the page at
+  an explicit fault, because a quiet substitution would put a different
+  species back on the board while the room shows a pack body, which is
+  the exact bug the convergence exists to kill. Facing is chosen
+  camera-relative, so a quarter turn re-faces every body instead of
+  pointing them the wrong way.
+- **Picking reads the sheet's alpha at the current frame.** Mesh
+  raycasting ignores `alphaTest`, so without a mask the whole quad —
+  3.30 × 2.75 world units, mostly empty — would be clickable. The mask
+  is the PNG's own alpha, indexed by the frame on screen, so a body is
+  clickable exactly where it is drawn *this frame*.
 - **Units are vertical billboards, not camera-facing sprites.** A
   `THREE.Sprite` tilts back toward the 30°-elevated camera and reads as
   leaning cardboard; a vertical quad swiveling around Y only stays standing
@@ -137,8 +187,12 @@ unmodified, MIT.
 ## Still deliberately not here
 
 Everything the 2D README already ruled out — no campaign, no classes, no
-research tree. Plus, specific to this build: no unit facing, no move-path
-preview arc, no camera zoom, no hit/miss reaction animation.
+research tree. Plus, specific to this build: no move-path preview arc and
+no camera zoom.
+
+(Unit facing and hit/miss reaction animation used to be on that list. The
+convergence took them off it — bodies face four ways and flinch, because
+the molded sheets that arrived from the walkable side had the frames.)
 
 The organ-replacement questions are still the actual point: simultaneous
 turns, degrading cover, social energy as the morale system, positioning that

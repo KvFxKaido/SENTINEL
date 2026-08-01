@@ -1,19 +1,27 @@
-"""Synthetic Cipher sheets for exercising the walkable page's loader.
+"""Synthetic fighter sheets for exercising the world pages' loaders.
 
 NOT sprites — flat-colored frames at the pack's real geometry (96x80
 rows, variable frame counts) so the roster/boot/animation code paths can
 be executed headless without the licensed pack. Written into the
-gitignored assets dir; the harness backs up any real sheets first and
+gitignored assets dir; each harness backs up any real sheets first and
 restores them after.
+
+Shared by two harnesses on purpose — the walkable room and the yard load
+the SAME molded bodies, so faking them two different ways would let the
+fixtures drift exactly where the convergence says they must not.
 
 Modes: full (twelve verbs) / core (four) / badfull (extended sheets
 present but wrong height — must fault on the page, never read as core).
+
+Usage:  make_synthetic_sheets.py [mode] [fighter,fighter,...]
+        fighters default to cipher (the walkable body); the yard passes
+        all five because its roster is the whole squad.
 """
 from PIL import Image, ImageDraw
 import os, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-OUT = os.path.join(ROOT, "assets", "sprites", "cipher")
+SPRITES = os.path.join(ROOT, "assets", "sprites")
 
 # verb -> (folder, stem, frames): counts deliberately varied to prove the
 # width-derived frame logic (heal 12 and hurt 4 match the real full pack)
@@ -46,20 +54,24 @@ W, H = 96, 80
 CORE = ["idle", "run", "attack1", "attack2"]
 
 mode = sys.argv[1] if len(sys.argv) > 1 else "full"
+fighters = (sys.argv[2].split(",") if len(sys.argv) > 2 else ["cipher"])
 wanted = CORE if mode == "core" else list(VERBS)
 
-for verb in wanted:
-    folder, stem, frames = VERBS[verb]
-    height = 64 if (mode == "badfull" and verb not in CORE) else H
-    for facing in FACINGS:
-        img = Image.new("RGBA", (W * frames, height), (0, 0, 0, 0))
-        d = ImageDraw.Draw(img)
-        for i in range(frames):
-            x0 = i * W
-            # a body-ish rectangle standing on ground row 57, wobbling per frame
-            d.rectangle([x0 + 36, 20 + (i % 3), x0 + 60, min(57, height - 3)],
-                        fill=(*COLORS[verb], 255))
-        os.makedirs(os.path.join(OUT, folder), exist_ok=True)
-        img.save(os.path.join(OUT, folder, f"{stem}_{facing}.png"))
+for fighter in fighters:
+    out = os.path.join(SPRITES, fighter)
+    for verb in wanted:
+        folder, stem, frames = VERBS[verb]
+        height = 64 if (mode == "badfull" and verb not in CORE) else H
+        for facing in FACINGS:
+            img = Image.new("RGBA", (W * frames, height), (0, 0, 0, 0))
+            d = ImageDraw.Draw(img)
+            for i in range(frames):
+                x0 = i * W
+                # a body-ish rectangle standing on ground row 57, wobbling per frame
+                d.rectangle([x0 + 36, 20 + (i % 3), x0 + 60, min(57, height - 3)],
+                            fill=(*COLORS[verb], 255))
+            os.makedirs(os.path.join(out, folder), exist_ok=True)
+            img.save(os.path.join(out, folder, f"{stem}_{facing}.png"))
 
-print(f"synthetic sheets: {mode} roster, {len(wanted)} verbs x 4 facings")
+print(f"synthetic sheets: {mode} roster, {len(wanted)} verbs x 4 facings "
+      f"x {len(fighters)} fighter(s): {','.join(fighters)}")

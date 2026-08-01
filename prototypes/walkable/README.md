@@ -174,9 +174,14 @@ catches, refusing to pass if it caught too little; the Python suite
 asserts the other half — that the bloom really is drawn on frames 1–3 —
 where every frame is visible.
 
-Both run in CI (`walkable-harness` job). Not covered: the full seam
-round-trip into tactical3d, and anything about how the sheets *look* —
-pixels are judged by walking, not asserted.
+Both run in CI (`walkable-harness` job), alongside the yard's two suites —
+including `prototypes/tactical3d/test/test_seam_round_trip.mjs`, which
+walks this room's north door, plays the card, and reads the verdict this
+room settles on. The seam round trip **is** covered now; it stopped being
+somebody else's problem when the yard started fielding these same bodies.
+
+Not covered: anything about how the sheets *look* — pixels are judged by
+walking, not asserted.
 
 One thing about looks *is* worth measuring, because eyes lie about scale:
 the count of mark-colour pixels a verb lights at its peak. The shipped

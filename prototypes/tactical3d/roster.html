@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>SENTINEL — Yard Roster (System A)</title>
+<title>SENTINEL — Yard Roster (Pack Bodies)</title>
 <style>
   body { background: #0a0f0c; color: #9fc7ab; font: 13px/1.5 monospace; padding: 24px; }
   h1 { font-size: 14px; letter-spacing: 2px; color: #cfe8d6; }
@@ -10,46 +10,48 @@
   .card { text-align: center; }
   .card .name { margin-top: 8px; letter-spacing: 1px; }
   canvas { image-rendering: pixelated; display: block; margin: 0 auto; background: #111813; }
+  #big canvas { width: 192px; height: 192px; }
+  #strip canvas { width: 48px; height: 48px; }
   .strip canvas { background: #070a08; }
   .note { color: #5e7a66; max-width: 70ch; }
+  #gate { border: 1px solid #304b38; max-width: 70ch; padding: 12px 14px; color: #cfe8d6; }
+  #gate.error { color: #ff5c5c; }
 </style>
 </head>
 <body>
-<h1>YARD ROSTER — SYSTEM A, 32×32</h1>
-<p class="note">The five fighters of Kestrel Yard on the audited body (1.10 world
-units, feet on row 29). Ops share the uniform and the blue chest band —
-identity lives in the head. The SYN crew is one design worn three times,
-because that is what a crew looks like. Right-most strip: 1× and flipped,
-roughly the size the yard actually shows them at combat zoom.</p>
+<h1>YARD ROSTER — PACK BODY, 96×80</h1>
+<p class="note">The five molded fighters on the one body canvas shared by the
+walkable world and Kestrel Yard. Each preview is a native crop from frame zero
+of <code>IDLE/idle_down.png</code>: 4× on the audit row, 1× and flipped on the
+combat-scale strip. No preview resamples the authored pixels.</p>
+<div id="gate">LOADING FIVE MOLDED BODIES</div>
 <div id="big" class="row"></div>
 <div id="strip" class="row strip"></div>
 <script type="module">
-  import { SPRITES, spriteFor, validate } from "./sprites.js";
-  const bad = validate();
-  if (bad.length) document.body.insertAdjacentHTML("beforeend", `<pre style="color:#ff5c5c">${bad.join("\n")}</pre>`);
+  import { FIGHTERS, idleDownThumb, loadSheetImage } from "./pack_sprites.js";
 
-  const ORDER = ["VESPER", "KOA", "SABLE", "SYN-1", "SYN-2", "SYN-3", "SYN.kneel"];
-  function paint(name, scale, flip = false) {
-    const kneel = name.endsWith(".kneel");
-    const s = spriteFor(kneel ? name.slice(0, -6) : name);
-    const grid = kneel ? s.kneel : s.grid, pal = s.pal;
-    const c = document.createElement("canvas");
-    c.width = c.height = 32 * scale;
-    const g = c.getContext("2d");
-    g.imageSmoothingEnabled = false;
-    grid.forEach((row, y) => [...row].forEach((ch, x) => {
-      if (!pal[ch]) return;
-      g.fillStyle = pal[ch];
-      g.fillRect((flip ? 31 - x : x) * scale, y * scale, scale, scale);
-    }));
-    return c;
+  const gate = document.getElementById("gate");
+  const results = await Promise.allSettled(
+    FIGHTERS.map(async fighter => [fighter, await loadSheetImage(fighter, "idle", "down")])
+  );
+  const errors = results.filter(result => result.status === "rejected").map(result => result.reason);
+  if (errors.length) {
+    gate.className = "error";
+    gate.innerHTML = `YARD ROSTER SHEETS NOT LOADED<br><span class="note">` +
+      `Regenerate them with <code>python scripts/roster_mold.py</code>.<br>` +
+      `${errors[0].message}${errors.length > 1 ? ` (${errors.length} sheets failed; first shown)` : ""}</span>`;
+    throw errors[0];
   }
+  gate.remove();
+
   const big = document.getElementById("big");
   const strip = document.getElementById("strip");
-  for (const name of ORDER) {
+  for (const result of results) {
+    const [fighter, image] = result.value;
+    const name = fighter.toUpperCase();
     const card = document.createElement("div");
     card.className = "card";
-    card.appendChild(paint(name, 8));
+    card.appendChild(idleDownThumb(image));
     card.insertAdjacentHTML("beforeend", `<div class="name">${name}</div>`);
     big.appendChild(card);
 
@@ -57,8 +59,10 @@ roughly the size the yard actually shows them at combat zoom.</p>
     small.className = "card";
     const pair = document.createElement("div");
     pair.style.display = "flex"; pair.style.gap = "6px";
-    pair.appendChild(paint(name, 2));
-    pair.appendChild(paint(name, 2, true));
+    pair.appendChild(idleDownThumb(image));
+    const flipped = idleDownThumb(image);
+    flipped.style.transform = "scaleX(-1)";
+    pair.appendChild(flipped);
     small.appendChild(pair);
     strip.appendChild(small);
   }

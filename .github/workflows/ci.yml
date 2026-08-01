@@ -146,6 +146,24 @@ jobs:
         working-directory: prototypes/walkable/test
         run: python test_roster_sweep.py
 
+      # The yard fields the same molded bodies since the convergence, so it
+      # gets the same treatment. Its harness reuses the walkable generator
+      # and the chromium installed above; only its own npm deps are new.
+      - name: Install yard harness dependencies
+        working-directory: prototypes/tactical3d/test
+        run: npm ci
+
+      - name: Yard body harness
+        working-directory: prototypes/tactical3d/test
+        run: node test_yard_bodies.mjs
+
+      # Both surfaces alive at once — the only test that can see the claim
+      # the convergence actually makes. Tolerates an unreachable witness
+      # (the room says so out loud); fails on a DISPUTED record.
+      - name: Seam round trip
+        working-directory: prototypes/tactical3d/test
+        run: node test_seam_round_trip.mjs
+
   # The witness Worker against a local wrangler dev (simulated KV): goldens
   # from the edge, certification refusals, and the archive — including the
   # >100-entry bulk that forces /matches to walk KV cursors. The live
