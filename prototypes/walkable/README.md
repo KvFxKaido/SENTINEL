@@ -38,11 +38,23 @@ not run from `file://`.
 | `H` | heal channel † |
 | `G` | hurt flinch † |
 | `X` | down — any move key rises † |
+| `R` hold | aim — emitter up † |
+| `F` | fire † |
+| `C` hold | kneel † |
 | `Q` / `E` | orbit the room 90° |
 | `P` | cycle LCD / crunch / clean |
 
 † Full-pack verbs — inert (and labeled so on the control surface) when
 only the free pack's core four are molded.
+
+`R` and `C` are **stances**: held, not triggered, and standing-only.
+There are no aim-walk or crouch-walk sheets, so moving takes the body
+out of a stance rather than playing one over a moving body — releasing
+the key, or stopping again, puts it back. Holding both is a real thing a
+player does, so the tie is decided rather than left to key order: aim
+wins, because aim is the stance with a verb attached to it. `F` fires
+from anywhere, and because the shot begins and ends in the aim pose it
+reads standalone *and* falls back into a held aim without a seam.
 
 The north doorway is **live**: walking through it is the seam — and the
 dash moves through the same collision and door machinery, so dashing the
@@ -87,15 +99,31 @@ python scripts/roster_mold.py
 ```
 
 The licensed source pack must be present locally —
-`prototypes/FULL_Adventurer 2D Pixel Art/` for all nine verbs (36 sheets),
-or the FREE pack for the core four (16 sheets). Frame counts are read from
-sheet width, never assumed: the full pack varies them per verb (heal runs
-12 frames, hurt 4).
+`prototypes/FULL_Adventurer 2D Pixel Art/` for all nine molded verbs (36
+sheets), or the FREE pack for the core four (16 sheets). Frame counts are
+read from sheet width, never assumed: the full pack varies them per verb
+(heal runs 12 frames, hurt 4, and synthesized kneel 2).
+
+On the full pack the mold also **synthesizes** three verbs the pack does
+not ship — `AIM`, `FIRE`, `KNEEL`, 12 more sheets — so a fighter carries
+48. They are ordinary sheets on the same canvas; nothing in this page
+knows the difference. What makes them the pack's own rather than
+imported: aim lifts the HEAL draw (the frame where the held object sits
+at the chest, hand already closed on it) and replaces the vial with the
+emitter, so the grip is still the pack artist's; the emitter's charge and
+its muzzle bloom are drawn in the pack's heal greens, which the mold
+already swaps to each fighter's mark color; and the housing is drawn in
+the pack's steels, which the blade pass already sheathes on any
+non-attack sheet. **Aiming shows cold steel; only the shot lights** —
+the blade's law, read onto a barrel. Kneel is row surgery on IDLE: the
+torso is copied down, the boots never move, and the coat hem flares a
+pixel, because on a body in a long coat the height loss alone read as a
+shorter man rather than a crouching one.
 
 The roster is stated, never guessed at. The core four verbs are required
-to boot; the extended five are all-or-nothing:
+to boot; the extended eight are all-or-nothing:
 
-- all 20 extended sheets load → **CANON / FULL** on the panel;
+- all 32 extended sheets load → **CANON / FULL** on the panel;
 - none present → **CANON / CORE**, with the extended rows on the control
   surface dimmed and labeled `not molded`;
 - anything in between is a broken regeneration and stops at an explicit
@@ -117,7 +145,7 @@ the body law's successor section,
 cd prototypes/walkable/test
 npm install                        # the playwright library
 npx playwright install chromium    # the browser itself (skip if one is provisioned)
-node test_walkable_verbs.mjs       # 31 checks: verbs, roster states, regressions
+node test_walkable_verbs.mjs       # 47 checks: verbs, stances, light, roster states, regressions
 python test_roster_sweep.py        # the roster mold's remold sweep (pillow + numpy)
 ```
 
@@ -135,6 +163,36 @@ What it does and deliberately does not touch:
   input the pinned cipher golden is EXPECTED to fire; the test asserts
   that it does.
 
+Two claims are split deliberately across the suites, because neither
+runner can see the whole thing. The room's `FIRE_SPILL` curve must light
+exactly the frames that carry a muzzle bloom — but headless rAF runs
+around 5fps against a 500ms sheet, so the browser can only ever observe
+a couple of frames (and the phase cannot be walked: `locked.started` is
+stamped on the verb's first *rendered* frame, so delaying the keypress
+shifts nothing). So the browser asserts light-per-frame on whatever it
+catches, refusing to pass if it caught too little; the Python suite
+asserts the other half — that the bloom really is drawn on frames 1–3 —
+where every frame is visible.
+
 Both run in CI (`walkable-harness` job). Not covered: the full seam
 round-trip into tactical3d, and anything about how the sheets *look* —
 pixels are judged by walking, not asserted.
+
+One thing about looks *is* worth measuring, because eyes lie about scale:
+the count of mark-colour pixels a verb lights at its peak. The shipped
+verbs run blade ignition 706 and heal channel 38; the muzzle bloom's
+first cut peaked at 21, which on a ~34px body drawn ~28px tall is a
+flicker rather than a gunshot. It was resized against those numbers, not
+against a zoomed contact sheet where everything reads fine:
+
+```sh
+python - <<'PY'
+from PIL import Image; import numpy as np, os
+R, E = 'assets/sprites/cipher', [(0xea,0xff,0xff),(0xa5,0xec,0xff),(0x5c,0xcf,0xff),(0x21,0x96,0xd8),(0x1d,0x7f,0xc0)]
+for rel in ['ATTACK 1/attack1_right.png','HEAL/heal_right.png','FIRE/fire_right.png']:
+    a = np.array(Image.open(os.path.join(R, rel)).convert('RGBA'))
+    pk = [int(sum(((f[:,:,0]==c[0])&(f[:,:,1]==c[1])&(f[:,:,2]==c[2])&(f[:,:,3]>0)).sum() for c in E))
+          for f in (a[:, i*96:(i+1)*96] for i in range(a.shape[1]//96))]
+    print(f'{rel:26} peak={max(pk)}')
+PY
+```

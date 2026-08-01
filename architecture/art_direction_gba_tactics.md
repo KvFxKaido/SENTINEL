@@ -152,8 +152,11 @@ What survives unchanged — the law's spine was never the number 32:
   authored body form; integer zoom on flat surfaces, projective camera
   + nearest filtering + LCD quantizer on world surfaces.
 - **Frames, never formats.** The full pack's nine verbs (idle / walk /
-  run / dash / two attacks / hurt / death / heal) are the current frame
-  set; every new verb joins the same canvas.
+  run / dash / two attacks / hurt / death / heal) are the frame set the
+  pack shipped; aim / fire / kneel were synthesized onto the same canvas
+  on 2026-08-01 (see "The yard's bill, paid" below), which is this rule
+  working rather than an exception to it — every new verb joins the
+  canvas, whoever authored it.
 - **The 2:1 density agreement.** Bodies at 1.10/32 world per pixel,
   matter at 1.10/16. The pack body already obeyed it — that obedience
   is much of why it won under the same glass — so the coupling holds
@@ -164,6 +167,67 @@ Cost accepted with the verdict: the ~2.3-head System A proportion pick
 (2026-07-28) now governs only the legacy yard register; the world body
 runs the pack's ~3.4 heads. Close Contact consumes the pack canvas
 under the same integer-zoom rule when it grows sprites.
+
+### The yard's bill, paid: aim / fire / kneel (decided 2026-08-01)
+
+The successor above promised these three would be "authored in this
+dialect by the deterministic-pass pipeline that minted the roster." They
+are — `scripts/roster_mold.py` pass 3, twelve sheets a fighter, sixty
+across the squad. The decisions worth keeping:
+
+- **Synthesized verbs are ordinary sheets.** They are built as
+  pack-palette *source* frames and then run through the same
+  `build_frame` as every molded sheet. No consumer knows the difference,
+  and none should: a verb the pack shipped and a verb we authored have
+  to be the same kind of thing, or the canvas grows two classes of
+  citizen and the law starts needing exceptions.
+- **The mark-colour law was reused, not reimplemented.** The emitter's
+  charge cell and muzzle bloom are drawn in the pack's *heal greens*,
+  which the mold already swaps to each fighter's mark colour. Cipher's
+  emitter vents cyan and SYN's vents red because of a rule written for
+  something else entirely. A feature that needs no new law is evidence
+  the old law was cut along the grain.
+- **Aiming shows cold steel; only the shot lights.** The housing is
+  drawn in the pack's steels, and the emitter's own cells are sheathed
+  **by name** after the mold. The first cut left that to the blade pass,
+  which finds blades in art it did not author by shape — and skips
+  components under six pixels. The side emitter's housing happened to
+  clear that gate; the down and up emitters (3px and 2px runs) did not,
+  so the two facings that matter most shipped a *lit* barrel while the
+  panel read `EMITTER COLD` (caught in review; measured before believed).
+  Authored geometry should not be rediscovered by a classifier — and a
+  rule that holds only because one case got lucky was never holding.
+- **The poses are lifted, not invented.** Aim is the HEAL draw with the
+  vial replaced, so the grip is still the pack artist's hand. Where the
+  pack could not answer — a body turned away has no vial to convert
+  (measured: `heal_up` frames 0–4 contain zero green) — the licensed
+  thug pack did: the arm is the pose, the flash is the verb, and a shot
+  fired away from the camera shows no weapon at all, only a bloom past
+  the head. That is a reference pack earning its keep as *reference*,
+  which is what the rejected gba-ify experiment (2026-07-31) bought us:
+  body **language** cannot be LUT'd, but body **grammar** can be read.
+- **Kneel is row surgery, and the hem is what sells it.** Torso rows are
+  copied down, the boots never move (the ground contract is why), and
+  the shin rows a crouch would hide are the ones dropped. Copying rows
+  is not scaling, so "authored once, never resampled" holds. The first
+  cut dropped four rows and read as a *shorter man*: on a body in a long
+  coat, folding the legs edits something the coat already hides. Flaring
+  the hem one pixel is the crouch; the height loss alone was not.
+
+**Scale is measured, not eyeballed.** Counting mark-colour pixels per
+frame, the shipped verbs run blade ignition 706 at peak and heal channel
+38. The first muzzle bloom peaked at **21** — dimmer than a heal, which
+on a ~34px body drawn ~28px tall is a flicker, not a gunshot. It looked
+correct on a 6× contact sheet, which is exactly the trap: zoom flatters
+everything. Resized against those numbers it peaks at 37, and the reach
+was bought with spikes rather than area, because at this scale extent
+carries further than mass. The rule this hands forward: **an effect's
+readability is a number you can compute, and a zoomed contact sheet is
+not that number.** The recipe is in `prototypes/walkable/README.md`.
+
+What is left before the yard converges: the board still fields 32×32
+System A sprites. The bill the successor named is now paid on the world
+side, so the crossing is the last species boundary standing.
 
 ## UI language
 
