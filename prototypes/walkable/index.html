@@ -217,6 +217,11 @@
 
   .controls td { color: var(--text-dim); }
 
+  /* the free-pack state is legitimate and labeled, never silent: the
+     extended verbs stay listed, dimmed, and say why they are inert */
+  .controls.core-only tr.verb-ext { opacity: 0.45; }
+  .controls.core-only tr.verb-ext td::after { content: " · not molded"; }
+
   kbd {
     border: 1px solid var(--line);
     padding: 0 4px;
@@ -323,7 +328,7 @@
     <div id="asset-gate" class="show" role="status" aria-live="assertive">
       <div class="gate-box">
         <h2>LOADING CIPHER</h2>
-        <p>16 local sprite sheets · idle / run / two attacks</p>
+        <p>Local sprite sheets · four core verbs, nine when the full pack is molded</p>
       </div>
     </div>
   </section>
@@ -346,10 +351,15 @@
 
     <section class="box">
       <h2>CONTROL SURFACE</h2>
-      <table class="controls">
-        <tr><th><kbd>WASD</kbd> / <kbd>↑↓←→</kbd></th><td>walk, camera-relative</td></tr>
+      <table class="controls" id="control-surface">
+        <tr><th><kbd>WASD</kbd> / <kbd>↑↓←→</kbd></th><td>run, camera-relative</td></tr>
+        <tr class="verb-ext"><th><kbd>Shift</kbd> + move</th><td>walk</td></tr>
+        <tr class="verb-ext"><th><kbd>L</kbd></th><td>dash, current facing</td></tr>
         <tr><th><kbd>J</kbd> / <kbd>Space</kbd></th><td>attack 1</td></tr>
         <tr><th><kbd>K</kbd></th><td>attack 2</td></tr>
+        <tr class="verb-ext"><th><kbd>H</kbd></th><td>heal channel</td></tr>
+        <tr class="verb-ext"><th><kbd>G</kbd></th><td>hurt flinch</td></tr>
+        <tr class="verb-ext"><th><kbd>X</kbd></th><td>down — move to rise</td></tr>
         <tr><th><kbd>Q</kbd> / <kbd>E</kbd></th><td>orbit 90°</td></tr>
         <tr><th><kbd>P</kbd></th><td>LCD / crunch / clean</td></tr>
         <tr><th>NORTH DOOR</th><td>walk it — the yard takes the feed</td></tr>
@@ -867,7 +877,6 @@ const DOOR = {
 // ---- Cipher sheet pipeline ---------------------------------------
 const FRAME_W = 96;
 const FRAME_H = 80;
-const FRAME_COUNT = 8;
 const GROUND_ROW = 57;
 // The decided density ratio is matter 1.10/16, bodies 1.10/32. This pack
 // body is provisional, but its pixels still pay the body's half-size rate.
@@ -875,21 +884,40 @@ const BODY_PX = 1.10 / 32;
 const QUAD_W = FRAME_W * BODY_PX;
 const QUAD_H = FRAME_H * BODY_PX;
 
+// Frame counts are read from sheet width, never assumed — the full pack
+// varies them per verb (heal runs 12, hurt 4). The core four are required
+// to boot; the extended five exist only when the FULL pack was on disk at
+// mold time, and the roster is all-or-nothing: a partial set is a broken
+// regeneration, not a fallback case.
 const SHEETS = {
-  idle: { folder: "IDLE", stem: "idle", fps: 7, loop: true },
-  run: { folder: "RUN", stem: "run", fps: 11, loop: true },
+  idle: { folder: "IDLE", stem: "idle", fps: 7, loop: true, core: true },
+  run: { folder: "RUN", stem: "run", fps: 11, loop: true, core: true },
   attack1: {
     folder: "ATTACK%201",
     stem: "attack1",
     fps: 14,
     loop: false,
+    core: true,
   },
   attack2: {
     folder: "ATTACK%202",
     stem: "attack2",
     fps: 13,
     loop: false,
+    core: true,
   },
+  walk: { folder: "WALK", stem: "walk", fps: 8, loop: true, core: false },
+  dash: { folder: "DASH", stem: "dash", fps: 14, loop: false, core: false },
+  hurt: { folder: "HURT", stem: "hurt", fps: 12, loop: false, core: false },
+  death: {
+    folder: "DEATH",
+    stem: "death",
+    fps: 10,
+    loop: false,
+    core: false,
+    hold: true,   // plays through and stays on the floor
+  },
+  heal: { folder: "HEAL", stem: "heal", fps: 10, loop: false, core: false },
 };
 const FACINGS = ["down", "up", "left", "right"];
 const textures = new Map();
@@ -905,20 +933,29 @@ async function loadSheet(action, facing) {
   const texture = await textureLoader.loadAsync(url);
   const width = texture.image.naturalWidth || texture.image.width;
   const height = texture.image.naturalHeight || texture.image.height;
-  if (width !== FRAME_W * FRAME_COUNT || height !== FRAME_H) {
+  if (height !== FRAME_H || width === 0 || width % FRAME_W !== 0) {
     texture.dispose();
     throw new Error(
-      `${url} is ${width}×${height}; expected 768×80`
+      `${url} is ${width}×${height}; expected a row of ${FRAME_W}×${FRAME_H} frames`
     );
   }
+  const frames = width / FRAME_W;
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.magFilter = THREE.NearestFilter;
   texture.minFilter = THREE.NearestFilter;
   texture.generateMipmaps = false;
   texture.wrapS = THREE.RepeatWrapping;
-  texture.repeat.set(1 / FRAME_COUNT, 1);
+  texture.repeat.set(1 / frames, 1);
   texture.offset.set(0, 0);
+  texture.userData.frames = frames;
   textures.set(`${action}:${facing}`, texture);
+}
+
+// frame counts live on the loaded textures, one sheet at a time — a verb
+// is never assumed to run the same length across facings or packs
+function framesOf(action, facing) {
+  const texture = textures.get(`${action}:${facing}`);
+  return texture ? texture.userData.frames : 1;
 }
 
 const assetGate = document.getElementById("asset-gate");
@@ -930,8 +967,9 @@ function showAssetFault(error) {
       <h2>CIPHER SHEETS NOT LOADED</h2>
       <p>
         Regenerate them with <code>python scripts/roster_mold.py</code>.<br>
-        The licensed source pack must be present locally at
-        <code>prototypes/FREE_Adventurer 2D Pixel Art/</code>.
+        The licensed source pack must be present locally —
+        <code>prototypes/FULL_Adventurer 2D Pixel Art/</code> for all nine
+        verbs, or the FREE pack for the core four.
       </p>
       <p id="asset-detail" style="margin-top:10px"></p>
     </div>`;
@@ -992,22 +1030,59 @@ function buildCipher() {
   scene.add(character);
 }
 
+let rosterFull = false;
+
 async function bootCipher() {
+  const coreActions = Object.keys(SHEETS).filter(a => SHEETS[a].core);
+  const extActions = Object.keys(SHEETS).filter(a => !SHEETS[a].core);
   try {
-    const jobs = [];
-    for (const action of Object.keys(SHEETS)) {
-      for (const facing of FACINGS) jobs.push(loadSheet(action, facing));
-    }
-    await Promise.all(jobs);
-    buildCipher();
-    assetGate.className = "";
-    assetGate.setAttribute("aria-hidden", "true");
-    bodyStateEl.textContent = "CANON / READY";
-    canvas.dataset.sprites = "ready";
-    canvas.dataset.ready = "1";
+    await Promise.all(coreActions.flatMap(
+      action => FACINGS.map(facing => loadSheet(action, facing))
+    ));
   } catch (error) {
     showAssetFault(error);
+    return;
   }
+  // The extended five are all-or-nothing. All 20 sheets → FULL roster;
+  // none PRESENT → CORE roster, said out loud on the panel; anything in
+  // between is a broken regeneration and faults explicitly — no silent
+  // subset. Absence and rejection are different verdicts: a sheet that
+  // exists but fails geometry is a fault even if all 20 fail together
+  // (loadAsync rejects load failures with an event, never an Error, so
+  // the Error class marks our own validation refusing a real file).
+  const missing = [];
+  try {
+    await Promise.all(extActions.flatMap(
+      action => FACINGS.map(
+        facing => loadSheet(action, facing).catch(err => {
+          if (err instanceof Error) throw err;
+          missing.push(`${action}_${facing}`);
+        })
+      )
+    ));
+  } catch (error) {
+    showAssetFault(error);
+    return;
+  }
+  const extTotal = extActions.length * FACINGS.length;
+  if (missing.length > 0 && missing.length < extTotal) {
+    showAssetFault(new Error(
+      `partial full-pack roster: ${missing.length} of ${extTotal} extended sheets `
+      + `failed (first: ${missing[0]}) — re-run roster_mold.py with the FULL pack present`
+    ));
+    return;
+  }
+  rosterFull = missing.length === 0;
+  buildCipher();
+  assetGate.className = "";
+  assetGate.setAttribute("aria-hidden", "true");
+  bodyStateEl.textContent = rosterFull ? "CANON / FULL" : "CANON / CORE";
+  if (!rosterFull) {
+    document.getElementById("control-surface").classList.add("core-only");
+  }
+  canvas.dataset.sprites = "ready";
+  canvas.dataset.roster = rosterFull ? "full" : "core";
+  canvas.dataset.ready = "1";
 }
 
 // ---- movement and animation --------------------------------------
@@ -1023,15 +1098,28 @@ const moveVector = new THREE.Vector3();
 const facingWorld = new THREE.Vector3(0, 0, 1);
 const previousPosition = new THREE.Vector3();
 
-const MOVE_SPEED = 3.0;
-let attack = null;
+const MOVE_SPEED = 3.0;   // run — the default gait, as before
+const WALK_SPEED = 1.35;  // Shift held: the deliberate pace
+const DASH_SPEED = 7.0;   // burst, spent over the dash sheet's frames
+
+// One non-loop verb owns the body at a time — attacks, dash, hurt, heal,
+// death all ride the same lock the attacks already used.
+let locked = null;
+// Death holds: the verb ends but the body stays down until a move key.
+let downed = false;
 
 const actionStateEl = document.getElementById("action-state");
 const facingStateEl = document.getElementById("facing-state");
 
-function triggerAttack(name, now) {
-  if (!character || attack) return;
-  attack = { name, started: now };
+function triggerLocked(name) {
+  if (!character || locked || downed) return;
+  // extended verbs are inert on the core roster — the control surface
+  // says so; the key doing nothing is the labeled state, not a mystery
+  if (!SHEETS[name].core && !rosterFull) return;
+  // started is stamped on the verb's FIRST rendered frame, not here: a
+  // keydown reads the loop timer stale (frozen at the last update), and
+  // on a janky frame that gap ate a 4-frame flinch whole (caught in test)
+  locked = { name, started: null };
 }
 
 function screenFacing() {
@@ -1046,7 +1134,7 @@ function screenFacing() {
 function setSpriteFrame(action, facing, frame) {
   const texture = textures.get(`${action}:${facing}`);
   if (spriteMaterial.map !== texture) spriteMaterial.map = texture;
-  texture.offset.x = frame / FRAME_COUNT;
+  texture.offset.x = frame / texture.userData.frames;
   character.userData.action = action;
   character.userData.facing = facing;
   character.userData.frame = frame;
@@ -1054,7 +1142,9 @@ function setSpriteFrame(action, facing, frame) {
   actionStateEl.textContent =
     action === "attack1" ? "ATTACK 1 / IGNITION"
       : action === "attack2" ? "ATTACK 2 / IGNITION"
-        : action.toUpperCase();
+        : action === "heal" ? "HEAL / CHANNEL"
+          : action === "death" ? (downed ? "DOWN — MOVE TO RISE" : "GOING DOWN")
+            : action.toUpperCase();
   facingStateEl.textContent = facing.toUpperCase();
 
   canvas.dataset.action = action;
@@ -1062,29 +1152,17 @@ function setSpriteFrame(action, facing, frame) {
   canvas.dataset.frame = String(frame);
 }
 
-function updateMovement(dt) {
-  const inputX =
-    (held.has("KeyD") || held.has("ArrowRight") ? 1 : 0)
-    - (held.has("KeyA") || held.has("ArrowLeft") ? 1 : 0);
-  const inputY =
-    (held.has("KeyW") || held.has("ArrowUp") ? 1 : 0)
-    - (held.has("KeyS") || held.has("ArrowDown") ? 1 : 0);
-
+// One displacement path for every way a body moves — held keys and the
+// dash burst clamp, collide, and arm the door identically.
+function stepBody(dx, dz) {
   previousPosition.copy(character.position);
-  if (!inputX && !inputY) return false;
-
-  moveVector
-    .copy(cameraRight).multiplyScalar(inputX)
-    .addScaledVector(cameraForward, inputY);
-  if (moveVector.lengthSq() > 1) moveVector.normalize();
-  moveVector.multiplyScalar(MOVE_SPEED * dt);
 
   // Inside the doorway the X corridor narrows to the door span; within
   // the door span the Z floor drops to the threshold depth. Everywhere
   // else the room's bounds are exactly what they were.
   const inDoorway = character.position.z < WALK_BOUNDS.minZ;
   const nextX = clamp(
-    character.position.x + moveVector.x,
+    character.position.x + dx,
     inDoorway ? DOOR.minX : WALK_BOUNDS.minX,
     inDoorway ? DOOR.maxX : WALK_BOUNDS.maxX
   );
@@ -1095,7 +1173,7 @@ function updateMovement(dt) {
   const inDoorSpan =
     character.position.x >= DOOR.minX && character.position.x <= DOOR.maxX;
   const nextZ = clamp(
-    character.position.z + moveVector.z,
+    character.position.z + dz,
     inDoorSpan ? DOOR.depthZ : WALK_BOUNDS.minZ,
     WALK_BOUNDS.maxZ
   );
@@ -1119,6 +1197,30 @@ function updateMovement(dt) {
   return true;
 }
 
+function wantsWalk() {
+  return rosterFull && (held.has("ShiftLeft") || held.has("ShiftRight"));
+}
+
+function updateMovement(dt) {
+  const inputX =
+    (held.has("KeyD") || held.has("ArrowRight") ? 1 : 0)
+    - (held.has("KeyA") || held.has("ArrowLeft") ? 1 : 0);
+  const inputY =
+    (held.has("KeyW") || held.has("ArrowUp") ? 1 : 0)
+    - (held.has("KeyS") || held.has("ArrowDown") ? 1 : 0);
+
+  previousPosition.copy(character.position);
+  if (!inputX && !inputY) return false;
+
+  moveVector
+    .copy(cameraRight).multiplyScalar(inputX)
+    .addScaledVector(cameraForward, inputY);
+  if (moveVector.lengthSq() > 1) moveVector.normalize();
+  moveVector.multiplyScalar((wantsWalk() ? WALK_SPEED : MOVE_SPEED) * dt);
+
+  return stepBody(moveVector.x, moveVector.z);
+}
+
 function updateCipher(dt, now) {
   if (!character) return;
 
@@ -1128,32 +1230,58 @@ function updateCipher(dt, now) {
   cameraRight.crossVectors(cameraForward, WORLD_UP).normalize();
 
   let moving = false;
-  if (!attack) moving = updateMovement(dt);
+  if (!locked && !downed) moving = updateMovement(dt);
 
-  let action = moving ? "run" : "idle";
+  let action = moving ? (wantsWalk() ? "walk" : "run") : "idle";
   let frame = 0;
+  const facing = screenFacing();
 
-  if (attack) {
-    action = attack.name;
+  if (downed) {
+    // the held state after death plays through: last frame, no light
+    action = "death";
+    frame = framesOf(action, facing) - 1;
+    bladeLight.intensity = 0;
+  } else if (locked) {
+    action = locked.name;
     const spec = SHEETS[action];
-    const elapsed = now - attack.started;
+    if (locked.started === null) locked.started = now;
+    const elapsed = now - locked.started;
     frame = Math.floor(elapsed * spec.fps);
-    if (frame >= FRAME_COUNT) {
-      attack = null;
-      action = "idle";
-      frame = 0;
-    } else {
+
+    // dash is a locked verb that MOVES: the burst rides the same clamp,
+    // collision, and door trigger as walking — dashing the north door
+    // deals the card
+    if (action === "dash") stepBody(facingWorld.x * DASH_SPEED * dt, facingWorld.z * DASH_SPEED * dt);
+
+    if (frame >= framesOf(action, facing)) {
+      if (spec.hold) {
+        downed = true;   // the floor holds the state now, not the lock —
+        locked = null;   // a stale lock here re-downed a rising body (caught in test)
+        frame = framesOf(action, facing) - 1;
+        bladeLight.intensity = 0;
+      } else {
+        locked = null;
+        action = "idle";
+        frame = 0;
+      }
+    } else if (action === "attack1" || action === "attack2") {
       bladeLight.intensity = 2.6 + Math.sin(elapsed * 42) * 0.35;
+    } else if (action === "heal") {
+      // the heal effect is authored cyan in the sheets (a device
+      // channeling, not a spell) — this light is only its spill,
+      // same rule as the blade
+      bladeLight.intensity = 1.3 + Math.sin(elapsed * 26) * 0.3;
+    } else {
+      bladeLight.intensity = 0;
     }
   }
 
-  if (!attack) {
+  if (!locked && !downed) {
     bladeLight.intensity = 0;
     const spec = SHEETS[action];
-    frame = Math.floor(now * spec.fps) % FRAME_COUNT;
+    frame = Math.floor(now * spec.fps) % framesOf(action, facing);
   }
 
-  const facing = screenFacing();
   setSpriteFrame(action, facing, frame);
   character.userData.sprite.rotation.y = camAz;
   canvas.dataset.position =
@@ -1168,21 +1296,46 @@ document.addEventListener("keydown", event => {
     if (!seamReady && event.code === "Escape") abortSeam("YOU PULLED BACK");
     return;
   }
+  if (event.code === "ShiftLeft" || event.code === "ShiftRight") {
+    held.add(event.code);   // the walk modifier rides the held set like a move key
+    return;
+  }
   if (MOVE_CODES.has(event.code)) {
     event.preventDefault();
     held.add(event.code);
+    // moving is how a downed body rises — but rising takes a FRESH
+    // press: OS auto-repeat on a key held since before the fall would
+    // pop the body straight back up (caught in review)
+    if (!event.repeat) downed = false;
     return;
   }
   if (event.repeat) return;
+  if (downed) return;   // nothing but movement reaches a body on the floor
 
   if (event.code === "KeyJ" || event.code === "Space") {
     event.preventDefault();
-    triggerAttack("attack1", timer.getElapsed());   // one clock: the loop's timer, never performance.now (caught in review)
+    triggerLocked("attack1");
     return;
   }
   if (event.code === "KeyK") {
     event.preventDefault();
-    triggerAttack("attack2", timer.getElapsed());
+    triggerLocked("attack2");
+    return;
+  }
+  if (event.code === "KeyL") {
+    triggerLocked("dash");
+    return;
+  }
+  if (event.code === "KeyH") {
+    triggerLocked("heal");
+    return;
+  }
+  if (event.code === "KeyG") {
+    triggerLocked("hurt");
+    return;
+  }
+  if (event.code === "KeyX") {
+    triggerLocked("death");
     return;
   }
   if (event.code === "KeyQ") {
@@ -1202,9 +1355,9 @@ document.addEventListener("keydown", event => {
 });
 
 document.addEventListener("keyup", event => {
-  if (MOVE_CODES.has(event.code)) held.delete(event.code);
+  held.delete(event.code);   // move keys and the shift modifier alike
 });
-window.addEventListener("blur", () => { held.clear(); attack = null; });   // no key survives a blur — neither does a lock (caught in review)
+window.addEventListener("blur", () => { held.clear(); locked = null; });   // no key survives a blur — neither does a lock (caught in review); a body on the floor stays there
 
 /* ---- the seam ------------------------------------------------------
    Crossing the north door hands the feed to the yard: tactical3d loads
@@ -1277,7 +1430,7 @@ function beginSeam() {
   seamOpen = true;
   seamReady = false;
   held.clear();
-  attack = null;
+  locked = null;
   const seed = DEAL ?? (Math.random() * 0xffffffff) >>> 0;
   seamDealt = seed.toString(16);
   showCut("KESTREL YARD", `THE FEED CUTS TO THE CARD · seed ${seamDealt}`);
@@ -1343,6 +1496,12 @@ function endSeam(result) {
   if (seamFrame) { seamFrame.remove(); seamFrame = null; }
   window.focus();
   stepBackInside();
+
+  // the record comes back with you, and on the full roster the body says
+  // so: a lost card plays the hurt flinch as you re-enter the room
+  if (result.result === "loss" && rosterFull) {
+    locked = { name: "hurt", started: null };
+  }
 
   // the entry renders now; the SESSION ledger settles only after the
   // edge rules on the card — a disputed result must never count
