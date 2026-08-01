@@ -52,7 +52,7 @@ Or double-click `tactical3d/serve.cmd`, which does both and opens a browser.
 Append `?seed=deadbeef` to pin a specific encounter.
 
 `walkable/` serves from the **repo** root instead — it loads regenerated
-Cipher sheets from `assets/` (see `scripts/cipher_mold.py`):
+Cipher sheets from `assets/` (see `scripts/roster_mold.py`):
 
 ```sh
 python -m http.server 8082          # at the repo root
