@@ -146,6 +146,15 @@ jobs:
         working-directory: prototypes/walkable/test
         run: python test_roster_sweep.py
 
+      # The sweep proves the golden guard FIRES; it cannot prove what the
+      # blade classifier DECIDES, because the goldens come from the
+      # gitignored licensed pack. This pins the decision itself against
+      # synthetic shapes, so a regression in blade_pass is caught here
+      # rather than by someone noticing a bright sword months later.
+      - name: Blade classifier
+        working-directory: prototypes/walkable/test
+        run: python test_blade_classifier.py
+
   # The yard's own suites, in their OWN job so they run beside the walkable
   # ones rather than after them. Bolted onto walkable-harness they made a
   # single 11-minute job that set the whole run's wall clock while every

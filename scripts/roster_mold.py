@@ -98,6 +98,12 @@ LUT_HEX = {
 }
 LUT = {hx(k): hx(v) for k, v in LUT_HEX.items()}
 
+# blade_pass's broad-diagonal window, named so a test can pin it without
+# the licensed pack. Measured 2026-08-02 across five fighters, twelve verbs
+# and every frame: back blades occupy 41..67px, the largest non-blade light
+# component is a 39px DASH motion streak.
+BLADE_BROAD_MIN, BLADE_BROAD_MAX = 40, 75
+
 HAIR_D, HAIR_E, HAIR_R = hx('171310'), hx('332a1f'), hx('4a3d2c')
 # Deepened 2026-08-02 to agree with Cipher's portrait, which reads far
 # darker than the sprites did (cheek ~#4c3637, jaw ~#261b1f sampled from
@@ -192,7 +198,23 @@ def head_geometry(src):
 
 def blade_pass(out, name, ignite):
     """light-family components classified by SHAPE (PCA elongation / size);
-    dormant steel sheathed, mark-color energy + halo when attacking"""
+    dormant steel sheathed, mark-color energy + halo when attacking.
+
+    The BROAD clause exists because elongation alone cannot see a diagonal.
+    PCA measures spread along each axis, and a blade drawn corner-to-corner
+    spreads across BOTH — so the back-slung sword scores 3.22, nowhere near
+    the 5.0 thin-line bar, and at 66px never reaches the 90px bulk bar. It
+    therefore shipped as bright silver on the _up sheet of every fighter
+    from this script's first run until 2026-08-02, and the same blind spot
+    left ATTACK 2's swing arc unignited on frame 3.
+
+    The 40px bar is measured, not guessed. Across all five fighters, twelve
+    verbs and every frame, the surviving light components in 40..70px are
+    the back blade (all on _up sheets) plus exactly four swing arcs on
+    attack2_right — and the largest thing that must NOT be caught is a 39px
+    DASH motion streak. One pixel of margin is thin, so the elongation floor
+    guards it too: a future round blob needs both bars to be swallowed.
+    """
     light = np.zeros(out.shape[:2], dtype=bool)
     for c in LIGHTS:
         light |= eq(out, c)
@@ -206,7 +228,16 @@ def blade_pass(out, name, ignite):
         pts = np.stack([cy, cx]).astype(float)
         pts -= pts.mean(axis=1, keepdims=True)
         ev = np.linalg.eigvalsh(pts @ pts.T / size)
-        if (ev[1] + 0.01) / (ev[0] + 0.01) > 5.0 or size > 90:
+        elongation = (ev[1] + 0.01) / (ev[0] + 0.01)
+        thin = elongation > 5.0                    # a drawn blade, edge-on
+        bulk = size > 90                           # a full swing sheet
+        # A blade seen diagonally. Bounded at BOTH ends: the observed blades
+        # run 41..67px, so 75 leaves headroom without opening the window to
+        # everything between 68 and the bulk bar. The floor's nearest miss is
+        # a 39px DASH streak — one pixel — so the range is kept as tight as
+        # the evidence allows rather than as wide as it could be.
+        broad = BLADE_BROAD_MIN <= size <= BLADE_BROAD_MAX and elongation > 2.0
+        if thin or bulk or broad:
             blade[lab == i] = True
     table = dict(zip(LIGHTS, ENERGY[name])) if ignite else DORMANT
     for src, dst in table.items():
@@ -394,7 +425,16 @@ FIGHTERS = ['cipher', 'vesper', 'koa', 'sable', 'syn']
 # fighter carries it. Verified before re-pinning: the visor band's
 # integrity is byte-identical across all 324 Cipher frames, same 11
 # pre-existing ATTACK frames on both sides, none introduced.
-EXPECTED_CIPHER = '88870f4033a215eb'
+# Re-pinned again 2026-08-02 for blade_pass's BROAD clause — the
+# back-slung sword, which this script had shipped as bright silver on
+# every fighter's _up sheet since its first run. Diffed old against new
+# across the whole roster: exactly 60 sheets move, and they are the 11
+# _up sheets plus attack2_right for each of the five fighters. All 180
+# others are byte-identical. Every changed pixel is light-family (or
+# SYN's crew-red equivalent) going to dormant steel, plus 72 pixels of
+# ignition halo on the newly-caught swing arc. Damage-flash frames are
+# untouched, as they must be — they return before blade_pass.
+EXPECTED_CIPHER = '9c0c36ae3fe20782'
 # and the same discipline over the synthesized verbs (aim/fire/kneel),
 # pinned separately so each golden guards exactly one claim.
 # Re-pinned 2026-08-01 for the explicit housing sheathe: the down and up
@@ -404,8 +444,9 @@ EXPECTED_CIPHER = '88870f4033a215eb'
 # how you can tell the fix stayed inside its own pass.
 # Re-pinned again 2026-08-02: the synthesized verbs are built from
 # pack-palette source frames and run through the same build_frame, so
-# they inherit the deepened skin ramp too.
-EXPECTED_SYNTH = 'c2b984f4172b6d74'
+# they inherit the deepened skin ramp too — and, now, the broad blade
+# clause: aim_up and fire_up carry the same back-slung sword.
+EXPECTED_SYNTH = 'a8a7f1d98b2e2288'
 
 HEAL_GREENS = [hx('99e65f'), hx('5ac54f'), hx('33984b')]   # light -> dark
 
