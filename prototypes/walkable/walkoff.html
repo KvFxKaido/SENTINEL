@@ -1133,9 +1133,15 @@ function setSpriteFrame(action, facing, frame, now) {
     const textureGen = texturesGen.get(`${animGen}:${facing}`);
     if (spriteMaterialGen.map !== textureGen) spriteMaterialGen.map = textureGen;
     textureGen.offset.x = frameGen / specGen.frames;
+    // The guard is generic, not a south-only special case: a composed body
+    // whose source lacks a verb for some facing holds its idle and SAYS so,
+    // rather than borrowing another facing's cycle. Cipher currently has
+    // every facing, so this branch does not fire for him — it stays because
+    // the next character may not, and a renderer that silently substitutes
+    // a cycle it does not have would stage a roster that does not exist.
     genStateEl.textContent = hasWalk
-      ? `WALK ${frameGen + 1}/8`
-      : wantsWalk ? "SOUTH ONLY / STATIC" : "IDLE";
+      ? `WALK ${frameGen + 1}/${specGen.frames}`
+      : wantsWalk ? `NO WALK SHEET (${facing})` : "IDLE";
     canvas.dataset.frameGen = String(frameGen);
     canvas.dataset.genWalk = hasWalk ? "1" : "0";
   }

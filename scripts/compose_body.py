@@ -53,6 +53,7 @@ LIGHTS = [hx(c) for c in ("e8f1f7", "c2d3e0", "93aabf", "6b8199", "68809a")]
 
 FACE_MAP = {"down": "south", "up": "north",
             "left": "south-west", "right": "south-east"}
+FRAME_W, FRAME_H = 96, 80
 
 
 def eq(x, c):
@@ -209,23 +210,52 @@ def main():
     ap.add_argument("--verbs", nargs="+", default=["IDLE", "WALK"])
     a = ap.parse_args()
 
+    # A partial set is worse than no set. walkoff.html loads every idle/walk
+    # facing through one Promise.all, so a single missing facing stops BODY C
+    # loading at all — and a skipped facing leaves STALE frames from a prior
+    # run in place, which pack_strip then ships as current. Collect every
+    # fault and fail once, loudly, before writing anything.
+    faults, jobs = [], []
     for verb in a.verbs:
         stem = verb.split()[0].lower()
         for facing, rot in FACE_MAP.items():
             sheet_p = os.path.join(a.src, verb, f"{stem}_{facing}.png")
             head_p = os.path.join(a.gen, f"{rot}.png")
-            if not (os.path.exists(sheet_p) and os.path.exists(head_p)):
-                print(f"  skip {stem}_{facing}: missing input")
+            for p, what in ((sheet_p, "source sheet"), (head_p, "generated rotation")):
+                if not os.path.exists(p):
+                    faults.append(f"{stem}_{facing}: missing {what} {p}")
+            if faults and (not os.path.exists(sheet_p) or not os.path.exists(head_p)):
                 continue
             sheet = Image.open(sheet_p).convert("RGBA")
-            head = Image.open(head_p).convert("RGBA")
-            d = os.path.join(a.out, f"{stem}_{facing}")
-            os.makedirs(d, exist_ok=True)
-            n = sheet.width // 96
-            for i in range(n):
-                frame = sheet.crop((i * 96, 0, i * 96 + 96, 80))
-                compose(frame, head).save(os.path.join(d, f"f{i + 1:02d}.png"))
-            print(f"  {stem}_{facing}: {n} frames  (head = {rot})")
+            # Validate here so a malformed sheet fails LOCALLY. Otherwise the
+            # crop silently truncates, writes plausible-looking frames, and
+            # the wrong count/height only surfaces in loadSheetGen's throw,
+            # a renderer away from the cause.
+            if sheet.width % FRAME_W or sheet.height != FRAME_H:
+                faults.append(
+                    f"{stem}_{facing}: sheet is {sheet.width}x{sheet.height}; "
+                    f"expected a multiple of {FRAME_W} wide and exactly {FRAME_H} tall")
+                continue
+            jobs.append((stem, facing, rot, sheet_p, head_p, sheet.width // FRAME_W))
+
+    if faults:
+        print("compose aborted — inputs are not usable:", file=sys.stderr)
+        for f in faults:
+            print(f"  {f}", file=sys.stderr)
+        return 1
+
+    for stem, facing, rot, sheet_p, head_p, n in jobs:
+        sheet = Image.open(sheet_p).convert("RGBA")
+        head = Image.open(head_p).convert("RGBA")
+        d = os.path.join(a.out, f"{stem}_{facing}")
+        os.makedirs(d, exist_ok=True)
+        for stale in os.listdir(d):          # never let a prior run survive
+            if stale.lower().endswith(".png"):
+                os.remove(os.path.join(d, stale))
+        for i in range(n):
+            frame = sheet.crop((i * FRAME_W, 0, i * FRAME_W + FRAME_W, FRAME_H))
+            compose(frame, head).save(os.path.join(d, f"f{i + 1:02d}.png"))
+        print(f"  {stem}_{facing}: {n} frames  (head = {rot})")
     return 0
 
 

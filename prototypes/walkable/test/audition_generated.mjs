@@ -33,12 +33,19 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 async function main() {
   fs.mkdirSync(OUT, { recursive: true });
+  // Launch INSIDE the cleanup scope. If chromium is absent or playwright
+  // rejects the launch (a provisioned-browser version mismatch does this),
+  // an await out here throws past the finally and strands the python server
+  // holding AUDITION_PORT — so the next run cannot bind, and the failure
+  // looks like a port problem rather than a missing browser.
   const server = serve();
-  const browser = await chromium.launch();
-  const page = await browser.newPage({ viewport: { width: 1100, height: 620 } });
   const fails = [];
+  let browser = null;
+  let page = null;
 
   try {
+    browser = await chromium.launch();
+    page = await browser.newPage({ viewport: { width: 1100, height: 620 } });
     await sleep(900);
     await page.goto(URL);
     await page.waitForFunction(
@@ -119,7 +126,7 @@ async function main() {
     console.log(`east-facing BODY C readout: ${sideways}`);
     console.log(`shots -> ${OUT}`);
   } finally {
-    await browser.close();
+    if (browser) await browser.close();
     server.kill();
   }
 
