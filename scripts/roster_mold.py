@@ -85,7 +85,7 @@ LUT_HEX = {
     '391f21': '171310', '5d2c28': '332a1f',                      # hair -> dread darks
     '800020': '131c26', '571c27': '1d2a37',                      # coat reds ->
     '891e2b': '2b3a4a', 'c42430': '41586e',                      #   jacket steels
-    'bf6f4a': '6b4a32', 'e69c69': '82603f', 'f6ca9f': '9a7850',  # skin ramp
+    'bf6f4a': '4a3020', 'e69c69': '66452e', 'f6ca9f': '7d5840',  # skin ramp
     '8a4836': '3a2d20',                                          # leather strap
     'ffffff': 'e8f1f7', 'c7cfdd': 'c2d3e0', 'b4b4b4': '93aabf',  # scarf + blade
     '92a1b9': '6b8199', '858585': '68809a',                      #   lights
@@ -99,7 +99,14 @@ LUT_HEX = {
 LUT = {hx(k): hx(v) for k, v in LUT_HEX.items()}
 
 HAIR_D, HAIR_E, HAIR_R = hx('171310'), hx('332a1f'), hx('4a3d2c')
-SKINS = [hx('6b4a32'), hx('82603f'), hx('9a7850')]   # dark, mid, light
+# Deepened 2026-08-02 to agree with Cipher's portrait, which reads far
+# darker than the sprites did (cheek ~#4c3637, jaw ~#261b1f sampled from
+# assets/portraits/npcs/cipher.png). MUST stay in lockstep with the skin
+# ramp's LUT destinations above: SKINS detects on the MOLDED frame, so if
+# the two drift apart the visor pass stops recognising skin and the band
+# breaks. Floor is set by HAIR_E (L=43.1) — a darker ramp than this
+# collapses the shadowed face into the dreads at 34px.
+SKINS = [hx('4a3020'), hx('66452e'), hx('7d5840')]   # dark, mid, light
 VISOR_A = hx('5ccfff')
 OUTLINE = hx('10151c')
 LIGHTS = [hx('e8f1f7'), hx('c2d3e0'), hx('93aabf'), hx('6b8199'), hx('68809a')]
@@ -381,7 +388,13 @@ FIGHTERS = ['cipher', 'vesper', 'koa', 'sable', 'syn']
 # The succession golden: sha256[:16] over Cipher's 36 sheets, pinned at
 # promotion (2026-07-31, full pack). The run FAILS if this drifts —
 # changing it is a deliberate act a diff will show (see docstring).
-EXPECTED_CIPHER = 'a1b8428d6c84a0b5'
+# Re-pinned 2026-08-02 for the deepened skin ramp (SKINS + its LUT
+# destinations, moved together). Both goldens move here because skin is
+# in the shared wardrobe, not in a head pass — every sheet of every
+# fighter carries it. Verified before re-pinning: the visor band's
+# integrity is byte-identical across all 324 Cipher frames, same 11
+# pre-existing ATTACK frames on both sides, none introduced.
+EXPECTED_CIPHER = '88870f4033a215eb'
 # and the same discipline over the synthesized verbs (aim/fire/kneel),
 # pinned separately so each golden guards exactly one claim.
 # Re-pinned 2026-08-01 for the explicit housing sheathe: the down and up
@@ -389,7 +402,10 @@ EXPECTED_CIPHER = 'a1b8428d6c84a0b5'
 # under six pixels and their housings are 3px and 2px runs. Only the
 # synthesized sheets move; the molded digest above is unchanged, which is
 # how you can tell the fix stayed inside its own pass.
-EXPECTED_SYNTH = '17ae33e9da943204'
+# Re-pinned again 2026-08-02: the synthesized verbs are built from
+# pack-palette source frames and run through the same build_frame, so
+# they inherit the deepened skin ramp too.
+EXPECTED_SYNTH = 'c2b984f4172b6d74'
 
 HEAL_GREENS = [hx('99e65f'), hx('5ac54f'), hx('33984b')]   # light -> dark
 
