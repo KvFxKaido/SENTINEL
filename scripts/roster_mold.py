@@ -98,6 +98,12 @@ LUT_HEX = {
 }
 LUT = {hx(k): hx(v) for k, v in LUT_HEX.items()}
 
+# blade_pass's broad-diagonal window, named so a test can pin it without
+# the licensed pack. Measured 2026-08-02 across five fighters, twelve verbs
+# and every frame: back blades occupy 41..67px, the largest non-blade light
+# component is a 39px DASH motion streak.
+BLADE_BROAD_MIN, BLADE_BROAD_MAX = 40, 75
+
 HAIR_D, HAIR_E, HAIR_R = hx('171310'), hx('332a1f'), hx('4a3d2c')
 # Deepened 2026-08-02 to agree with Cipher's portrait, which reads far
 # darker than the sprites did (cheek ~#4c3637, jaw ~#261b1f sampled from
@@ -225,7 +231,12 @@ def blade_pass(out, name, ignite):
         elongation = (ev[1] + 0.01) / (ev[0] + 0.01)
         thin = elongation > 5.0                    # a drawn blade, edge-on
         bulk = size > 90                           # a full swing sheet
-        broad = size >= 40 and elongation > 2.0    # a blade seen diagonally
+        # A blade seen diagonally. Bounded at BOTH ends: the observed blades
+        # run 41..67px, so 75 leaves headroom without opening the window to
+        # everything between 68 and the bulk bar. The floor's nearest miss is
+        # a 39px DASH streak — one pixel — so the range is kept as tight as
+        # the evidence allows rather than as wide as it could be.
+        broad = BLADE_BROAD_MIN <= size <= BLADE_BROAD_MAX and elongation > 2.0
         if thin or bulk or broad:
             blade[lab == i] = True
     table = dict(zip(LIGHTS, ENERGY[name])) if ignite else DORMANT
