@@ -68,7 +68,13 @@ def eq(x, c):
     return (x[:, :, 0] == c[0]) & (x[:, :, 1] == c[1]) & (x[:, :, 2] == c[2]) & (x[:, :, 3] > 0)
 
 
-def _elong(mask, thr, minsz):
+def _elong(mask, thr, minsz, broad=False):
+    """Components selected by shape. `broad` adds roster_mold's clause for a
+    blade seen DIAGONALLY, which spreads across both axes and so never
+    reaches a thin-line elongation bar — the same blind spot blade_pass had.
+    Needed on the dormant family since 2026-08-02: the mold now sheathes the
+    back-slung sword, so it arrives here as dark steel rather than light, and
+    a check that only looks for thin lines walks straight past it."""
     lab, n = ndimage.label(mask, structure=np.ones((3, 3)))
     out = np.zeros_like(mask)
     for i in range(1, n + 1):
@@ -79,7 +85,8 @@ def _elong(mask, thr, minsz):
         p = np.stack([cy, cx]).astype(float)
         p -= p.mean(axis=1, keepdims=True)
         ev = np.linalg.eigvalsh(p @ p.T / s)
-        if (ev[1] + .01) / (ev[0] + .01) > thr or s > 90:
+        el = (ev[1] + .01) / (ev[0] + .01)
+        if el > thr or s > 90 or (broad and s >= 40 and el > 2.0):
             out[lab == i] = True
     return out
 
@@ -133,7 +140,7 @@ def strip(img):
     dorm = np.zeros(a.shape[:2], bool)
     for c in DORM:
         dorm |= eq(a, c)
-    kill = _elong(lea, 4.0, 8) | _elong(dorm, 5.0, 6) | back_blade(a)
+    kill = _elong(lea, 4.0, 8) | _elong(dorm, 5.0, 6, broad=True) | back_blade(a)
     coat = np.zeros(a.shape[:2], bool)
     for c in COAT:
         coat |= eq(a, c)
