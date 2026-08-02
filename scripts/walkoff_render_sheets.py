@@ -16,7 +16,7 @@ the anchor cannot be read off the frames that ship.
 The raw canvas ships as generated: no re-centring, no scaling, no
 re-framing. Per-frame re-centring injects sideways shimmy (pack_canvas.py
 learned this the hard way), and the walk-off shows this body on its own
-68x68 canvas the way BODY B always rode its own 32x32 — the audition is
+own canvas the way BODY B always rode its own 32x32 — the audition is
 the render as it came, not the render after grooming.
 
 Ground line measured, not chosen (pack_canvas discipline): every frame's
@@ -25,6 +25,14 @@ four rotations — that number is what walkoff.html hard-codes as the
 render's ground row. Locomotion frames may dip below it; that is the
 gait, not the anchor. A standing spread wider than one row is a framing
 fault in the source and stops the run.
+
+Validated, then published (caught in review): every strip is built in
+memory and every check — fetch, per-frame size, the cross-facing
+standing-row invariant — runs before a single file is written. A molder
+that fails mid-run must leave the previous set intact; publishing as it
+goes leaves a mix of fresh and stale facings that walkoff.html would
+load as current, which is the exact partial-set lie compose_body.py
+already refuses to tell.
 """
 import io
 import json
@@ -61,10 +69,13 @@ def main() -> int:
     base = record["cdn_base"]
     frames_n = record["frames_per_facing"]
     canvas_w, canvas_h = (int(n) for n in record["raw_canvas"].split("x"))
-    os.makedirs(OUT, exist_ok=True)
 
+    # Build and check EVERYTHING before writing ANYTHING — see the
+    # validated-then-published clause in the docstring.
     idle_n = record["idle_frames_per_facing"]
     standing_rows = {}
+    built = []
+    report = []
     for facing, pl_facing in record["facing_map"].items():
         rotation = fetch(f"{base}/rotations/{pl_facing}.png")
         if rotation.size != (canvas_w, canvas_h):
@@ -86,16 +97,23 @@ def main() -> int:
                                      f"expected {canvas_w}x{canvas_h}")
                 rows.append(last_opaque_row(frame))
                 strip.paste(frame, (canvas_w * i, 0))
-            strip.save(os.path.join(OUT, f"{anim}_{facing}.png"))
+            built.append((f"{anim}_{facing}.png", strip))
             rows_by_anim[anim] = rows
-        print(f"{facing:5s} stand row {standing_rows[facing]}  "
-              f"idle rows {rows_by_anim['idle']}  "
-              f"walk rows {rows_by_anim['walk']}")
+        report.append(f"{facing:5s} stand row {standing_rows[facing]}  "
+                      f"idle rows {rows_by_anim['idle']}  "
+                      f"walk rows {rows_by_anim['walk']}")
 
     spread = sorted(set(standing_rows.values()))
     if spread[-1] - spread[0] > 1:
         raise ValueError(f"standing ground rows disagree by more than one: "
                          f"{standing_rows} — framing fault at the source")
+
+    os.makedirs(OUT, exist_ok=True)
+    for name, strip in built:
+        strip.save(os.path.join(OUT, name))
+    for line in report:
+        print(line)
+
     anchor = spread[-1]
     floaters = [f for f, row in standing_rows.items() if row != anchor]
     print(f"ground row {anchor} (standing last-opaque row, pack_canvas "

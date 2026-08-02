@@ -346,7 +346,7 @@
    BODY A, the canon 96×80 pack body (screen left); BODY C, the hybrid
    — pack frames, generated head, composed by scripts/compose_body.py
    (centre); and BODY B, the whole-generated PixelLab render wearing
-   the template walk on its own 68×68 canvas, packed by
+   the template walk on its own 64×64 canvas, packed by
    scripts/walkoff_render_sheets.py (screen right). Same room, same
    camera, same LCD pass, same light — the verdict is whichever body
    feels like the game while you walk it. No rules, no witness; still
@@ -1013,7 +1013,8 @@ function buildCipher() {
   });
   const spriteA = new THREE.Mesh(spriteGeo, spriteMaterial);
 
-  // BODY B: the render's own 68×68 canvas at the law's density. Same
+  // BODY B: the render's own canvas (REN_CANVAS) at the law's density.
+  // Same
   // anchor discipline as spriteGeo: translate so the measured standing
   // ground row sits at local Y=0.
   const geoRen = new THREE.PlaneGeometry(
