@@ -1,0 +1,24 @@
+{
+  "_what": "Cipher canonical generated appearance. The reproducible INPUT; the sprites it produces are build output under assets/sprites/generated/cipher/.",
+  "_decided": "2026-08-02 - short fade + deepened skin (D1), chosen from a hair spread and a two-step skin bracket. Locked as Cipher everywhere.",
+  "_scale": "size 36 lands a 22x32 body, essentially the pack nominal 22x34. size 40 overshoots to 39 tall and size must be a multiple of 4, so 36 is the size. Re-frame to the 96x80 body canvas with scripts/pack_canvas.py - translation only, never scaling (body law: one canvas, integer zoom).",
+  "provider": "pixellab.ai",
+  "tool": "create_character",
+  "character_id": "ffff6237-b710-41d4-88ce-1e38f6640554",
+  "settings": {
+    "mode": "v3",
+    "size": 36,
+    "outline": "selective outline",
+    "view": "low top-down",
+    "body_type": "humanoid",
+    "directions": 8
+  },
+  "measured": {
+    "raw_canvas": "64x64",
+    "raw_body_south": "22x32",
+    "packed_canvas": "96x80",
+    "ground_row": 57,
+    "centre_x": 46.5
+  },
+  "description": "Small pixel art fighter sprite for a retro GBA-style tactics game, standing idle facing south (front view). Lean adult humanoid, slight build, about 2.5 heads tall. Deep dark brown skin, richly melanated - warm umber midtone near #5d3f2b, shadows near #3d2718, restrained highlight near #74513a. Noticeably darker than mid-brown. Short twisted locs cropped close on top with faded shaved sides, tight to the skull, near-black with warm brown highlights. NO VISIBLE EYES: a solid horizontal glowing cyan visor band runs straight across the eye line from temple to temple, unbroken, completely replacing the eyes - this is the character's signature and no eye may show anywhere. Faint pale surgical scar marks at both temples where the band meets the head. Utilitarian post-collapse streetwear in muted brown-grays: charcoal gray-brown jacket with a high collar over a darker undershirt, one simple diagonal strap across the chest, loose dark gray-brown trousers, worn brown boots, pale wrapped gloves. Minimal visible tech: a small cyan-lit device band on the left forearm, nothing ornate. Single accent color: cyan (#5ccfff) used sparingly - the visor band and the forearm device only. Everything else muted and desaturated: two or three close tones per material, gentle dithering, clustered dark shades, one soft rim highlight on the right shoulder. Selective outlining: dark outline around the outer silhouette, softer color-derived edges inside. No anti-aliasing, crisp single pixels, strong readable silhouette. Quiet grounded posture, weight even, arms relaxed at sides, no weapon drawn - a ghost operative from an underground fighting circuit who was erased from every record, practical and unshowy, not a fantasy hero."
+}
