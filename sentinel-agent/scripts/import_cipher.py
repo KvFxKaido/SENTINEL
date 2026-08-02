@@ -23,7 +23,7 @@ def create_cipher_campaign() -> Campaign:
     cipher = Character(
         name="Cipher",
         callsign="CIPHER",
-        pronouns="they/them",
+        pronouns="he/him",
         age="late 20s–early 30s (uncertain)",
         appearance="Quiet posture, utilitarian clothing, subtle surgical traces near temples, keeps tech minimal and visible",
         background=Background.GHOST,
