@@ -298,6 +298,7 @@
       <div class="cell"><span>FACING</span><b id="facing-state">DOWN</b></div>
       <div class="cell"><span>DISPLAY</span><b id="display-state">LCD</b></div>
       <div class="cell"><span>VIEW</span><b id="view-state">QTR 0</b></div>
+      <div class="cell" id="gen-cell" hidden><span>BODY C</span><b id="gen-state">—</b></div>
       <div class="cell"><span>MATTER</span><b>16 PX / 1.10</b></div>
     </section>
 
@@ -843,6 +844,46 @@ const textureLoader = new THREE.TextureLoader();
 const C32_SHEETS = {
   idle: { frames: 1, fps: 1 },
   walk: { frames: 4, fps: 7 },
+}
+
+// ---- BODY C: the generated body, behind ?generated=1 ----------------
+// Opt-in because the two-body walk-off is a decision record: its default
+// staging is the audition that settled the body canvas, and a third
+// figure standing in it silently would rewrite what that page shows.
+//
+// BODY C is COMPOSED, not generated whole: the pack's own frames with the
+// stave and chest strap lifted off by shape, the generated head swapped in
+// anchored to the shoulder band, and the outfit neutralised at constant
+// luminance. So it inherits the pack's animation exactly — arms, bob, gait,
+// every facing — and only identity comes from the generated art. The
+// SOUTH ONLY caveat that applied to the generated-whole walk is gone,
+// because nothing here was generated as a cycle.
+const SHOW_GENERATED = new URLSearchParams(location.search).has("generated");
+const GEN_SHEETS = {
+  idle: { frames: 8, fps: 7, facings: FACINGS },
+  walk: { frames: 8, fps: 11, facings: FACINGS },
+};
+const texturesGen = new Map();
+
+async function loadSheetGen(anim, facing) {
+  const spec = GEN_SHEETS[anim];
+  const url = `../../assets/sprites/generated/cipher/sheets/${anim}_${facing}.png`;
+  const texture = await textureLoader.loadAsync(url);
+  const width = texture.image.naturalWidth || texture.image.width;
+  const height = texture.image.naturalHeight || texture.image.height;
+  if (width !== FRAME_W * spec.frames || height !== FRAME_H) {
+    texture.dispose();
+    throw new Error(
+      `${url} is ${width}×${height}; expected ${FRAME_W * spec.frames}×${FRAME_H}`);
+  }
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  texture.generateMipmaps = false;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.repeat.set(1 / spec.frames, 1);
+  texture.offset.set(0, 0);
+  texturesGen.set(`${anim}:${facing}`, texture);
 };
 const textures32 = new Map();
 
@@ -917,6 +958,7 @@ function showAssetFault(error) {
 let character = null;
 let spriteMaterial = null;
 let spriteMaterial32 = null;
+let spriteMaterialGen = null;
 let bladeLight = null;
 
 function buildCipher() {
@@ -963,13 +1005,32 @@ function buildCipher() {
   blobB.rotation.x = -Math.PI / 2;
   blobB.position.y = 0.012;
 
+  // BODY C rides the pack's own canvas and ground line — it was re-framed
+  // to 96×80 with feet on row 57 by scripts/pack_canvas.py — so it shares
+  // spriteGeo's translation exactly and needs no bespoke sink.
+  let spriteC = null, blobC = null;
+  if (SHOW_GENERATED) {
+    spriteMaterialGen = new THREE.MeshBasicMaterial({
+      map: texturesGen.get("idle:down"),
+      alphaTest: 0.05,
+    });
+    spriteC = new THREE.Mesh(spriteGeo, spriteMaterialGen);
+    blobC = new THREE.Mesh(blobGeo, blobMat.clone());
+    blobC.material.opacity = 0.40;
+    blobC.rotation.x = -Math.PI / 2;
+    blobC.position.y = 0.012;
+  }
+
   character = new THREE.Group();
   character.position.set(0, 0.002, 0.6);
   character.add(blobA, blobB, spriteA, spriteB);
+  if (spriteC) character.add(blobC, spriteC);
   character.userData.spriteA = spriteA;
   character.userData.spriteB = spriteB;
+  character.userData.spriteC = spriteC;
   character.userData.blobA = blobA;
   character.userData.blobB = blobB;
+  character.userData.blobC = blobC;
   character.userData.action = "idle";
   character.userData.facing = "down";
   character.userData.frame = 0;
@@ -992,11 +1053,19 @@ async function bootCipher() {
     for (const anim of Object.keys(C32_SHEETS)) {
       for (const facing of FACINGS) jobs.push(loadSheet32(anim, facing));
     }
+    if (SHOW_GENERATED) {
+      for (const [anim, spec] of Object.entries(GEN_SHEETS)) {
+        for (const facing of spec.facings) jobs.push(loadSheetGen(anim, facing));
+      }
+    }
     await Promise.all(jobs);
     buildCipher();
     assetGate.className = "";
     assetGate.setAttribute("aria-hidden", "true");
-    bodyStateEl.textContent = "PACK + SYS A / READY";
+    bodyStateEl.textContent = SHOW_GENERATED
+      ? "PACK + SYS A + GEN / READY"
+      : "PACK + SYS A / READY";
+    if (SHOW_GENERATED) document.getElementById("gen-cell").hidden = false;
     canvas.dataset.sprites = "ready";
     canvas.dataset.ready = "1";
   } catch (error) {
@@ -1022,6 +1091,7 @@ let attack = null;
 
 const actionStateEl = document.getElementById("action-state");
 const facingStateEl = document.getElementById("facing-state");
+const genStateEl = document.getElementById("gen-state");
 
 function triggerAttack(name, now) {
   if (!character || attack) return;
@@ -1050,6 +1120,25 @@ function setSpriteFrame(action, facing, frame, now) {
   const texture32 = textures32.get(`${anim32}:${facing}`);
   if (spriteMaterial32.map !== texture32) spriteMaterial32.map = texture32;
   texture32.offset.x = frame32 / spec32.frames;
+
+  // BODY C only claims what it has. Its walk is south-facing only, so any
+  // other facing holds the idle and the HUD says SOUTH ONLY — the page
+  // states the gap rather than covering it with a borrowed cycle.
+  if (SHOW_GENERATED && spriteMaterialGen) {
+    const wantsWalk = action === "run";
+    const hasWalk = wantsWalk && GEN_SHEETS.walk.facings.includes(facing);
+    const animGen = hasWalk ? "walk" : "idle";
+    const specGen = GEN_SHEETS[animGen];
+    const frameGen = Math.floor(now * specGen.fps) % specGen.frames;
+    const textureGen = texturesGen.get(`${animGen}:${facing}`);
+    if (spriteMaterialGen.map !== textureGen) spriteMaterialGen.map = textureGen;
+    textureGen.offset.x = frameGen / specGen.frames;
+    genStateEl.textContent = hasWalk
+      ? `WALK ${frameGen + 1}/8`
+      : wantsWalk ? "SOUTH ONLY / STATIC" : "IDLE";
+    canvas.dataset.frameGen = String(frameGen);
+    canvas.dataset.genWalk = hasWalk ? "1" : "0";
+  }
 
   character.userData.action = action;
   character.userData.facing = facing;
@@ -1155,6 +1244,14 @@ function updateCipher(dt, now) {
   d.spriteB.position.set(cameraRight.x * BODY_GAP, 0, cameraRight.z * BODY_GAP);
   d.blobA.position.set(d.spriteA.position.x, 0.012, d.spriteA.position.z);
   d.blobB.position.set(d.spriteB.position.x, 0.012, d.spriteB.position.z);
+  // BODY C sits centre, between the two auditioned bodies. It rides the
+  // same cameraRight basis, so it stays put through an orbit, and it uses
+  // no offset beyond BODY_GAP — collision fencing is unchanged.
+  if (d.spriteC) {
+    d.spriteC.rotation.y = camAz;
+    d.spriteC.position.set(0, 0, 0);
+    d.blobC.position.set(0, 0.012, 0);
+  }
   // the ignition spill belongs to BODY A wherever the orbit put it —
   // a fixed local offset drifts toward BODY B after a quarter-turn
   // (caught in review)
