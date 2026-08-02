@@ -42,12 +42,17 @@ OUT = os.environ.get("ROTO_OUT", ".")
 N = int(os.environ.get("ROTO_FRAMES", "8"))
 FACING = os.environ.get("ROTO_FACING", "S")
 # ortho_scale maps to the LARGER render dimension (96), so body height scales
-# inversely with it. 2.89 was calibrated by rendering and MEASURING, not by
-# arithmetic: it puts the body at 34px, matching canon exactly.
-SCALE = float(os.environ.get("ROTO_SCALE", "2.89"))
+# inversely with it. 3.50 was calibrated by rendering and MEASURING, not by
+# arithmetic: it puts the body at 34px, matching canon exactly. (It was 2.89
+# while every part was accidentally half-size; fixing the geometry made the
+# figure taller, so the camera had to pull back.)
+SCALE = float(os.environ.get("ROTO_SCALE", "3.50"))
 
 RES_W, RES_H = 96, 80          # the pack's canvas
-CANON_GROUND_ROW = 58          # canon's last opaque row is 57
+# The row the FEET occupy, not the empty row beneath them: canon's standing
+# verbs put their last opaque row at 57, and the rig's z=0 plane is where the
+# soles sit, so the projection of z=0 must land on 57 to match.
+CANON_GROUND_ROW = 57
 SWING_LEG = math.radians(26)
 SWING_ARM = math.radians(18)
 BOB = 0.045
@@ -64,16 +69,29 @@ def clean():
             block.remove(b)
 
 
-def box(name, size, loc, parent=None, pivot=None):
-    """A limb segment. `pivot` moves the object origin to the JOINT: a leg
-    swings from the hip, not from the middle of the thigh."""
+def box(name, size, loc, parent=None, hang=False):
+    """A block of exactly `size` world units.
+
+    primitive_cube_add(size=1) spans +/-0.5, i.e. ONE unit across, so the
+    object scale is `size` — not size/2. Halving it (the first version) made
+    every part half its intended dimension and opened a 0.18-unit gap between
+    torso and head: a disconnected mannequin that still validated, because
+    the check read Euler angles and never looked at geometry.
+
+    `hang=True` shifts the mesh down by its LOCAL half-extent (0.5, before
+    scaling) so the object origin sits on the segment's TOP face. The object
+    is then placed at the joint, and the limb hangs from it — a leg swings
+    from the hip, not from a point inside the thigh. Offsetting by a
+    figure-space value here instead is the bug fugu caught: it gets scaled
+    again and lands ~0.044 units from centre, well inside the segment.
+    """
     bpy.ops.mesh.primitive_cube_add(size=1, location=loc)
     ob = bpy.context.object
     ob.name = name
-    ob.scale = tuple(s / 2 for s in size)
-    if pivot is not None:
+    if hang:
         for v in ob.data.vertices:
-            v.co.z -= pivot
+            v.co.z -= 0.5
+    ob.scale = tuple(size)
     if parent:
         ob.parent = parent
         ob.matrix_parent_inverse = parent.matrix_world.inverted()
@@ -83,21 +101,42 @@ def box(name, size, loc, parent=None, pivot=None):
 def build():
     """Roughly the pack's 2.3-head figure, in blocks."""
     clean()
-    HEAD, TORSO, LIMB = 0.34, 0.46, 0.42
+    # Anatomy from the ground up, so the parts actually meet:
+    #   legs   0.00 .. 0.42   (hip at 0.42, limb hangs down)
+    #   torso  0.42 .. 0.88
+    #   arms   0.42 .. 0.84   (shoulder at 0.84)
+    #   head   0.88 .. 1.22
+    LIMB, TORSO_H, HEAD_H = 0.42, 0.46, 0.34
+    HIP_Z, SHOULDER_Z = 0.42, 0.84
     root = bpy.data.objects.new("root", None)
     bpy.context.collection.objects.link(root)
     parts = {
-        "torso": box("torso", (0.30, 0.18, TORSO), (0, 0, 0.62), root),
-        "head": box("head", (HEAD, HEAD * 0.8, HEAD), (0, 0, 1.00), root),
-        "arm_L": box("arm_L", (0.10, 0.10, LIMB), (-0.22, 0, 0.60), root, LIMB / 2),
-        "arm_R": box("arm_R", (0.10, 0.10, LIMB), (0.22, 0, 0.60), root, LIMB / 2),
-        "leg_L": box("leg_L", (0.12, 0.12, LIMB), (-0.09, 0, 0.20), root, LIMB / 2),
-        "leg_R": box("leg_R", (0.12, 0.12, LIMB), (0.09, 0, 0.20), root, LIMB / 2),
+        "torso": box("torso", (0.30, 0.18, TORSO_H), (0, 0, HIP_Z + TORSO_H / 2), root),
+        "head": box("head", (HEAD_H, HEAD_H * 0.8, HEAD_H),
+                    (0, 0, HIP_Z + TORSO_H + HEAD_H / 2), root),
+        "arm_L": box("arm_L", (0.10, 0.10, LIMB), (-0.20, 0, SHOULDER_Z), root, hang=True),
+        "arm_R": box("arm_R", (0.10, 0.10, LIMB), (0.20, 0, SHOULDER_Z), root, hang=True),
+        "leg_L": box("leg_L", (0.12, 0.12, LIMB), (-0.08, 0, HIP_Z), root, hang=True),
+        "leg_R": box("leg_R", (0.12, 0.12, LIMB), (0.08, 0, HIP_Z), root, hang=True),
     }
-    mat = bpy.data.materials.new("flat")
-    mat.use_nodes = False
-    mat.diffuse_color = (0.75, 0.75, 0.78, 1)
-    for ob in parts.values():
+    # Colour-separated limbs. Once the parts actually touch, a single-material
+    # figure renders as one undifferentiated blob at 34px and cannot be traced
+    # — you cannot tell an arm from the torso it is flush against. Distinct
+    # flat colours make the articulation readable at target size. Borrowed
+    # from the Vinchy top-down template, which does exactly this and is the
+    # one genuinely reusable idea in it.
+    PALETTE = {
+        "head": (0.92, 0.78, 0.60, 1),
+        "torso": (0.35, 0.55, 0.85, 1),
+        "arm_L": (0.85, 0.30, 0.30, 1),   # near arm  — warm
+        "arm_R": (0.55, 0.35, 0.75, 1),   # far arm   — violet
+        "leg_L": (0.35, 0.70, 0.40, 1),   # near leg  — green
+        "leg_R": (0.90, 0.50, 0.70, 1),   # far leg   — pink
+    }
+    for name, ob in parts.items():
+        mat = bpy.data.materials.new(f"flat_{name}")
+        mat.use_nodes = False
+        mat.diffuse_color = PALETTE[name]
         ob.data.materials.append(mat)
     parts["root"] = root
     return parts
@@ -171,8 +210,12 @@ def validate(parts, n=N):
         for k in rot:
             rot[k].append(parts[k].rotation_euler.x)
         bob.append(parts["root"].location.z)
-    peaks = sum(1 for i in range(1, len(bob) - 1)
-                if bob[i] >= bob[i - 1] and bob[i] >= bob[i + 1])
+    # CYCLIC neighbours: the walk is a loop, so the first and last samples
+    # have neighbours too. A non-cyclic range drops them and miscounts at
+    # small frame counts — at ROTO_FRAMES=4 the samples are [0,max,0,max] and
+    # a range(1, n-1) scan reports one peak for a gait that plainly has two.
+    peaks = sum(1 for i in range(len(bob))
+                if bob[i] >= bob[i - 1] and bob[i] >= bob[(i + 1) % len(bob)])
     checks = [
         ("left arm opposes left leg", corr(rot["arm_L"], rot["leg_L"]), -1.0),
         ("right arm opposes right leg", corr(rot["arm_R"], rot["leg_R"]), -1.0),

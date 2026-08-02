@@ -8,7 +8,7 @@ shifted -2,-1,0,-1,-2,-1,0,-1 — the bob was not hidden, it was rewritten,
 differently per facing.
 
 So the anchor comes from the RIG's ground origin projected into the render
-(recorded by mannequin.py), not from any frame's pixels. One translation
+(recorded by roto_mannequin.py), not from any frame's pixels. One translation
 per strip; every frame keeps its position relative to the ground.
 
 Usage: python anchor_strip.py SRC_DIR DST_DIR ground_NAME.json [--ground-row 58]
@@ -36,7 +36,12 @@ def main():
         meta = json.load(fh)
     # half-up, matching pack_canvas: banker's rounding alternates on .5 and
     # would shift some facings a pixel differently from others for no reason
-    dy = math.floor(a.ground_row - meta["ground_row"] + 0.5)
+    # Prefer the renderer's own value so writer and reader cannot drift:
+    # roto_mannequin.py records canon_ground_row alongside the projection,
+    # and a --ground-row flag given explicitly still wins.
+    target = a.ground_row if a.ground_row != CANON_GROUND_ROW else meta.get(
+        "canon_ground_row", a.ground_row)
+    dy = math.floor(target - meta["ground_row"] + 0.5)
     os.makedirs(a.dst, exist_ok=True)
 
     names = sorted(n for n in os.listdir(a.src) if n.lower().endswith(".png"))
@@ -56,7 +61,8 @@ def main():
         b = img.getbbox()
         moved.append(b[3] - 1 if b else None)
 
-    print(f"{meta['facing']}: dy={dy:+d} applied to all {len(names)} frames; "
+    print(f"{meta['facing']}: ground_row {meta['ground_row']:.2f} -> {target}; "
+          f"dy={dy:+d} applied to all {len(names)} frames; "
           f"last opaque rows now {moved}")
     return 0
 
