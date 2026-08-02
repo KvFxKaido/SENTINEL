@@ -27,6 +27,7 @@ Usage:
     python pack_canvas.py IN_DIR OUT_DIR            (every *.png in dir)
 """
 import argparse
+import math
 import os
 import sys
 
@@ -50,7 +51,13 @@ def place(src: Image.Image, feet_y: int = FEET_Y, cx: float = CENTER_X) -> Image
             f"body {w}x{h} does not fit {CANVAS_W}x{CANVAS_H} — regenerate smaller, "
             "do not scale (body law: one canvas, integer zoom)")
 
-    x0 = int(round(cx - w / 2))
+    # Half-up, not round(): Python rounds halves to even, so on a centre of
+    # 46.5 the even widths alternate 46.0 / 47.0 as w steps 16, 18, 20 — a
+    # full pixel of horizontal swing between frames. Body width changes
+    # frame to frame across an animation, so that lands as sideways shimmy
+    # in the cycle. Half-up pins every width to 46.5 or 47.0, which is the
+    # irreducible spread when placing an even-width body on a .5 centre.
+    x0 = math.floor(cx - w / 2 + 0.5)
     y0 = feet_y - h + 1
     if x0 < 0 or y0 < 0 or x0 + w > CANVAS_W or y0 + h > CANVAS_H:
         raise ValueError(f"body {w}x{h} at ({x0},{y0}) falls outside the canvas")
