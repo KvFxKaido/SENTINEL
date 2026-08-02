@@ -1121,9 +1121,7 @@ function setSpriteFrame(action, facing, frame, now) {
   if (spriteMaterial32.map !== texture32) spriteMaterial32.map = texture32;
   texture32.offset.x = frame32 / spec32.frames;
 
-  // BODY C only claims what it has. Its walk is south-facing only, so any
-  // other facing holds the idle and the HUD says SOUTH ONLY — the page
-  // states the gap rather than covering it with a borrowed cycle.
+  // BODY C selects only a walk sheet explicitly declared for this facing.
   if (SHOW_GENERATED && spriteMaterialGen) {
     const wantsWalk = action === "run";
     const hasWalk = wantsWalk && GEN_SHEETS.walk.facings.includes(facing);

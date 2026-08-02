@@ -50,9 +50,17 @@ COAT = [hx(c) for c in ("2b3a4a", "41586e", "28374a", "1d2733", "161e28",
                         "141920", "1d2a37", "2b3947", "44586c", "223040")]
 DORM = [hx(c) for c in ("44586c", "384756", "2b3947", "223040", "1d2a37")]
 LIGHTS = [hx(c) for c in ("e8f1f7", "c2d3e0", "93aabf", "6b8199", "68809a")]
+# roster_mold's per-fighter ignition ramp. The outfit greys; the MARK never
+# does. Without this the attack sheets' cyan arc desaturates into a white
+# smear — the pass runs clean and destroys the one thing the frame is for.
+# Cipher's ramp; a different fighter needs their own ENERGY row here.
+MARK = [hx(c) for c in ("eaffff", "a5ecff", "5ccfff", "2196d8", "1d7fc0")]
 
 FACE_MAP = {"down": "south", "up": "north",
             "left": "south-west", "right": "south-east"}
+# The numbered attack directories contain a space; their sheet filenames do
+# not. Every other pack verb uses its lowercase directory name as the stem.
+SHEET_STEMS = {"ATTACK 1": "attack1", "ATTACK 2": "attack2"}
 FRAME_W, FRAME_H = 96, 80
 
 
@@ -177,20 +185,22 @@ def swap(pack_img, gen_img):
 def grey(img):
     """Neutralise the outfit at constant luminance — desaturated, not
     flattened, so the pack's shading survives. The head is left alone and so
-    is skin wherever it appears, which is what keeps the hands from greying.
-    Boots and wrist leather stay brown as a side effect of the shared
-    #4a3020: the palette cannot separate them from skin."""
+    is skin wherever it appears, which is what keeps the hands from greying,
+    and so is the MARK ramp, which is what keeps an attack's ignition arc from
+    desaturating into a white smear. Boots and wrist leather stay brown as a
+    side effect of the shared #4a3020: the palette cannot separate them from
+    skin."""
     a = np.array(img.convert("RGBA")).copy()
     al = a[:, :, 3] > 0
     ys, _ = np.where(al)
     top, bot = ys.min(), ys.max()
     hl = top + int((bot - top + 1) * 0.45)
-    skin = np.zeros(a.shape[:2], bool)
-    for c in SKINS:
-        skin |= eq(a, c)
+    spare = np.zeros(a.shape[:2], bool)
+    for c in SKINS + MARK:
+        spare |= eq(a, c)
     tgt = al.copy()
     tgt[:hl] = False
-    tgt &= ~skin
+    tgt &= ~spare
     rgb = a[:, :, :3].astype(float)
     lum = 0.2126 * rgb[:, :, 0] + 0.7152 * rgb[:, :, 1] + 0.0722 * rgb[:, :, 2]
     for ch in range(3):
@@ -217,7 +227,7 @@ def main():
     # fault and fail once, loudly, before writing anything.
     faults, jobs = [], []
     for verb in a.verbs:
-        stem = verb.split()[0].lower()
+        stem = SHEET_STEMS.get(verb, verb.lower())
         for facing, rot in FACE_MAP.items():
             sheet_p = os.path.join(a.src, verb, f"{stem}_{facing}.png")
             head_p = os.path.join(a.gen, f"{rot}.png")
