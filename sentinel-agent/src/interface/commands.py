@@ -777,7 +777,7 @@ def cmd_char(manager: CampaignManager, agent: SentinelAgent, args: list[str]):
     if args and args[0].lower() == "quick":
         character = Character(
             name="Cipher",
-            pronouns="they/them",
+            pronouns="he/him",
             background=Background.SURVIVOR,
             social_energy=SocialEnergy(current=75),
         )
