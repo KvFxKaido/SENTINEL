@@ -1,11 +1,12 @@
-// Stages BODY C — the generated Cipher — in walkoff.html and captures it
-// under the real camera, LCD pass and terrain, walking south.
+// Stages the three-body walk-off — pack (A, left), hybrid (C, centre),
+// whole-generated render (B, right) — and captures it under the real
+// camera, LCD pass and terrain, walking south.
 //
 // Not a CI test. This is an AUDITION harness: it produces frames a human
 // judges, the same way the walk-off itself was decided. It asserts only
-// the things a picture cannot show (did the sheets load, did the walk
-// actually advance, does the south-only gap report itself) and leaves the
-// verdict to the eye.
+// the things a picture cannot show (did the sheets load, did each walk
+// actually advance, does a missing-facing gap report itself) and leaves
+// the verdict to the eye.
 //
 // Chrome throttles requestAnimationFrame in a hidden tab, so the render
 // loop stalls and any rAF-based measurement hangs — headless playwright
@@ -22,7 +23,7 @@ import { fileURLToPath } from "node:url";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..", "..");
 const PORT = process.env.AUDITION_PORT ?? "8094";
-const URL = `http://localhost:${PORT}/prototypes/walkable/walkoff.html?generated=1`;
+const URL = `http://localhost:${PORT}/prototypes/walkable/walkoff.html`;
 const OUT = process.env.AUDITION_OUT ?? path.join(HERE, "audition-shots");
 const PY = process.platform === "win32" ? "python" : "python3";
 
@@ -55,9 +56,12 @@ async function main() {
     const ds = k => page.evaluate(k => document.getElementById("cv").dataset[k], k);
     const bodyState = await page.evaluate(() => document.getElementById("body-state").textContent);
     const genState = () => page.evaluate(() => document.getElementById("gen-state").textContent);
+    const renState = () => page.evaluate(() => document.getElementById("ren-state").textContent);
 
     if (await ds("sprites") !== "ready") fails.push("sheets did not load");
-    if (!bodyState.includes("GEN")) fails.push(`BODY readout lacks GEN: ${bodyState}`);
+    if (!bodyState.includes("HYBRID") || !bodyState.includes("RENDER")) {
+      fails.push(`BODY readout lacks HYBRID/RENDER: ${bodyState}`);
+    }
 
     await page.screenshot({ path: path.join(OUT, "01-idle-down.png") });
 
@@ -81,22 +85,28 @@ async function main() {
     await page.waitForFunction(
       () => {
         const d = document.getElementById("cv").dataset;
-        return d.action === "run" && d.facing === "down" && d.genWalk === "1";
+        return d.action === "run" && d.facing === "down"
+          && d.genWalk === "1" && d.renWalk === "1";
       }, null, { timeout: 4000 })
-      .catch(() => fails.push("never reached run+down+genWalk while holding KeyS"));
+      .catch(() => fails.push("never reached run+down+genWalk+renWalk while holding KeyS"));
 
     // Sample on a timer, not rAF: headless throttles animation frames hard
     // enough that an rAF sampler aliases against a 9fps cycle and reports
     // three frames out of eight (measured — it read 1,4,7 and called the
     // walk broken). The page's own clock is unaffected; only the observer
     // was wrong. Sampling runs CONCURRENTLY with the captures, inside the
-    // same window of real southward travel.
+    // same window of real southward travel. Both generated walks are
+    // sampled in the same window: they share the clock, not the cycle.
     const sampler = page.evaluate(() => new Promise(res => {
       const cv = document.getElementById("cv");
-      const seen = new Set(); const t0 = performance.now();
+      const gen = new Set(); const ren = new Set();
+      const t0 = performance.now();
       const id = setInterval(() => {
-        if (cv.dataset.genWalk === "1") seen.add(cv.dataset.frameGen);
-        if (performance.now() - t0 > 3000) { clearInterval(id); res([...seen]); }
+        if (cv.dataset.genWalk === "1") gen.add(cv.dataset.frameGen);
+        if (cv.dataset.renWalk === "1") ren.add(cv.dataset.frameRen);
+        if (performance.now() - t0 > 3000) {
+          clearInterval(id); res({ gen: [...gen], ren: [...ren] });
+        }
       }, 20);
     }));
 
@@ -104,26 +114,44 @@ async function main() {
       await page.screenshot({ path: path.join(OUT, `02-walk-south-${i}.png`) });
       await sleep(320);
     }
+    // The floor is 3, not 4: headless renders ~5fps and the south run only
+    // lasts ~2.3s before the fence stops it, so a 9fps 8-frame cycle yields
+    // 3-5 distinct sampled frames depending on aliasing. 4 sat exactly on
+    // that edge and false-faulted on two of four otherwise-identical runs
+    // (measured 2026-08-02). Three distinct frames still proves the sheet
+    // advances — a stuck sheet shows one — and smoothness is the eye's call
+    // from the shots, not this counter's.
     const walked = await sampler;
-    if (walked.length < 4) fails.push(`generated walk barely advanced: frames seen ${walked}`);
+    if (walked.gen.length < 3) {
+      fails.push(`hybrid walk barely advanced: frames seen ${walked.gen}`);
+    }
+    if (walked.ren.length < 3) {
+      fails.push(`render walk barely advanced: frames seen ${walked.ren}`);
+    }
 
-    // BODY C is composed from the pack's own frames, so every facing the
-    // pack walks, it walks. The SOUTH ONLY state this used to assert was a
-    // property of the generated-whole walk and no longer exists; asserting
-    // it now would be pinning a limitation we removed.
+    // Every facing both generated bodies declare, they walk. The SOUTH
+    // ONLY state this used to assert was a property of the v3 generated-
+    // whole walk and no longer exists on either body; the render's
+    // template walk was generated for all four cardinals.
     await page.keyboard.up("KeyS");
     await page.keyboard.down("KeyD");
     await sleep(600);
-    const sideways = await genState();
-    if (!/WALK/.test(sideways)) {
-      fails.push(`east-facing BODY C should walk, read: ${sideways}`);
+    const sidewaysGen = await genState();
+    const sidewaysRen = await renState();
+    if (!/WALK/.test(sidewaysGen)) {
+      fails.push(`east-facing hybrid should walk, read: ${sidewaysGen}`);
+    }
+    if (!/WALK/.test(sidewaysRen)) {
+      fails.push(`east-facing render should walk, read: ${sidewaysRen}`);
     }
     if (await ds("genWalk") !== "1") fails.push("genWalk not set while walking east");
+    if (await ds("renWalk") !== "1") fails.push("renWalk not set while walking east");
     await page.screenshot({ path: path.join(OUT, "03-east-walk.png") });
     await page.keyboard.up("KeyD");
 
-    console.log(`frames seen in the generated walk: ${walked.sort().join(",")}`);
-    console.log(`east-facing BODY C readout: ${sideways}`);
+    console.log(`hybrid frames seen: ${walked.gen.sort().join(",")}`);
+    console.log(`render frames seen: ${walked.ren.sort().join(",")}`);
+    console.log(`east-facing readouts — hybrid: ${sidewaysGen}  render: ${sidewaysRen}`);
     console.log(`shots -> ${OUT}`);
   } finally {
     if (browser) await browser.close();
