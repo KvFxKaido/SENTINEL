@@ -100,6 +100,14 @@ gha-creds-*.json
 # licensed source packs — usable in the project, not redistributable as assets
 prototypes/FREE_Adventurer 2D Pixel Art/
 prototypes/FULL_Adventurer 2D Pixel Art/
+# Licensed pack directories are NEVER committed — the licenses permit use in
+# a project but not redistribution as an asset, and this repo is public.
+# Glob rather than name each one: a pack that arrives before its ignore line
+# does gets committed by the next `git add -A`, which is exactly how
+# NEW-TopDownCharacter-v1.3 reached master in 4c384a9.
+prototypes/NEW-TopDownCharacter-v1.3/
+prototypes/*TopDownCharacter*/
+prototypes/*Pixel Art*/
 # reference-only free characters (Character Creator 2D) — pose grammar, not architecture
 prototypes/FREE Character 16-bit Thug Outlined/
 prototypes/FREE Character HD Survivor W Bike/
