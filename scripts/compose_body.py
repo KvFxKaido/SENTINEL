@@ -420,14 +420,24 @@ def grey(img, pal, generated):
 
     WHAT COUNTS AS THE HEAD is swap()'s own mask, not a horizontal line.
     This pass used to spare everything above 45% of body height, which is a
-    proxy for "generated" and is wrong exactly where the two meet: when the
-    generated head is taller than the pack's, the pack's SHOULDERS sit above
-    that line and were left in raw pack blue-grey while the torso under them
-    neutralised. Measured across the shipped set before the fix: 1767 pixels
-    on 124 of 1300 frames, all of it Cipher and Sable, whose heads run
-    tallest. SYN never showed it because his head is bulkier still and the
-    line fell below his shoulders — which is the tell that the line was
-    never measuring the right thing."""
+    proxy for "generated" and is wrong exactly where the two meet.
+
+    The mechanism, measured rather than assumed: swap() clears pack pixels
+    above the PACK's 45% line (pl) and pastes the head there, but this pass
+    recomputed 45% on the COMPOSED silhouette (hl). When the generated head
+    block is SHORTER than the pack's, the composed body is shorter overall
+    and hl lands BELOW pl — so the pack rows in the gap [pl, hl) survive
+    swap's clear and then get spared here, staying raw pack blue-grey while
+    the torso beneath them neutralises. On idle_up: Cipher's generated head
+    block is 13 against the pack's 15 and spares row 39; Sable's is 14 and
+    spares row 38; SYN's is 15, hl lands on pl, and he spares nothing. That
+    is why the defect looked like it belonged to two fighters rather than to
+    the rule. Across the shipped set before the fix: 1767 pixels on 124 of
+    1300 frames.
+
+    (An earlier version of this note had the cause backwards — it blamed
+    heads that were TALLER than the pack's. The direction is the opposite,
+    and the numbers above are from the frames themselves.)"""
     a = np.array(img.convert("RGBA")).copy()
     al = a[:, :, 3] > 0
     spare = np.zeros(a.shape[:2], bool)

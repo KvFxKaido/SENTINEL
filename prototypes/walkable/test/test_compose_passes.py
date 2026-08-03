@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unit-test compose_body's palette() and selout() (2026-08-03).
+"""Unit-test compose_body's palette(), selout() and the head mask (2026-08-03).
 
 These two passes were shipping untested: test_roster_sweep.py only drives
 roster_mold, and the .mjs harnesses feed the PAGE synthetic flat sheets
@@ -7,7 +7,8 @@ that never reach compose_body at all. Both passes hold contracts that a
 future KEY_LUM / PROBE_MAX / palette tweak could quietly break for every
 fighter at once, and both have already broken once each in review —
 KOA's hands greying to nothing, and KOA's headband scattering across her
-crown. Those two are pinned here by name.
+crown. Those two are pinned here by name, and so is the third: pack
+shoulders left un-neutralised by grey()'s old 45% line.
 
 Runs on synthetic heads built in memory. No licensed pack, no network, no
 molded sheets — so this can run anywhere the browser harnesses cannot.
@@ -23,7 +24,8 @@ from PIL import Image
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "scripts"))
 
-from compose_body import KEY_LUM, PROBE_MAX, palette, selout  # noqa: E402
+from compose_body import (KEY_LUM, PROBE_MAX, grey, palette,  # noqa: E402
+                          selout, swap)
 from roster_mold import BALA, KOA_SKIN, SKINS  # noqa: E402
 
 failures = []
@@ -130,6 +132,75 @@ check("PROBE_MAX is short enough to have stopped the headband",
       PROBE_MAX < 4, PROBE_MAX)
 check("KEY_LUM separates the keyline from the material it borrows",
       KEY_LUM > 0 and 0.2126 * 120 + 0.7152 * 80 + 0.0722 * 50 > KEY_LUM)
+
+# ---- swap() + grey(): the shoulder boundary ---------------------------
+# The regression this pins: grey() used to spare everything above 45% of
+# the COMPOSED body's height, while swap() clears the pack only above 45%
+# of the PACK's height. A generated head block shorter than the pack's
+# makes the composed body shorter, drops the composed line BELOW the pack
+# line, and the pack rows in that gap survive both — raw wardrobe sitting
+# above a boundary that was never measuring the right thing.
+WARDROBE, HEADCOL = (40, 60, 90), (200, 100, 50)
+
+
+def slab(colour, top, height, w=40, h=40, x0=18, x1=22):
+    a = np.zeros((h, w, 4), np.uint8)
+    a[top:top + height, x0:x1, :3] = colour
+    a[top:top + height, x0:x1, 3] = 255
+    return Image.fromarray(a)
+
+
+# pack body 22 tall from row 10; generated head block deliberately SHORT,
+# which is the arrangement that produced the bug on Cipher and Sable.
+pack_frame = slab(WARDROBE, 10, 22)
+gen_head = slab(HEADCOL, 0, 14)
+swapped, generated = swap(pack_frame, gen_head)
+composed = np.array(grey(swapped, palette("cipher"), generated).convert("RGBA"))
+
+alive = composed[:, :, 3] > 0
+ys, _ = np.where(alive)
+old_line = ys.min() + int((ys.max() - ys.min() + 1) * 0.45)
+survivors = np.all(composed[:, :, :3] == WARDROBE, axis=2) & alive
+above_old_line = survivors[:old_line]
+
+check("swap reports a non-empty generated mask", generated.any())
+check("the mask covers only what swap wrote",
+      not (generated & ~alive).any())
+check("no raw pack wardrobe survives anywhere", not survivors.any(),
+      f"{int(survivors.sum())} px")
+check("in particular none survives above the old 45% cutoff",
+      not above_old_line.any(), f"{int(above_old_line.sum())} px")
+# The case must actually exercise the bug — a synthetic that never puts
+# pack pixels above the composed line would pass while proving nothing.
+pack_rows = sorted({int(y) for y in np.where(alive & ~generated)[0]})
+check("the synthetic really does straddle the old cutoff",
+      any(r < old_line for r in pack_rows),
+      f"pack rows {pack_rows[:4]}, old line {old_line}")
+gen_px = composed[generated]
+check("the generated head keeps its colour", len(gen_px) and
+      all(tuple(p[:3]) == HEADCOL for p in gen_px))
+neutral = composed[alive & ~generated][:, :3]
+check("every surviving pack pixel is neutralised to greyscale",
+      len(neutral) and all(p[0] == p[1] == p[2] for p in neutral))
+
+# The symmetric hazard, and the reason the fix is a mask rather than a
+# better line: a TALL generated head puts its own lower pixels BELOW the
+# composed 45% line, where the old rule greyed everything. A line can be
+# wrong in both directions at once; swap()'s mask cannot.
+tall_pack = slab(WARDROBE, 10, 22)
+tall_head = slab(HEADCOL, 0, 30)
+tall_swapped, tall_mask = swap(tall_pack, tall_head)
+tall = np.array(grey(tall_swapped, palette("cipher"), tall_mask).convert("RGBA"))
+tal = tall[:, :, 3] > 0
+tys, _ = np.where(tal)
+tall_line = tys.min() + int((tys.max() - tys.min() + 1) * 0.45)
+below = tall_mask.copy()
+below[:tall_line] = False
+check("the tall synthetic really does cross the composed line",
+      below.any(), f"line {tall_line}")
+check("generated pixels below the line keep their colour, not luminance",
+      all(tuple(p[:3]) == HEADCOL for p in tall[below]),
+      f"{int(below.sum())} px checked")
 
 print()
 if failures:
