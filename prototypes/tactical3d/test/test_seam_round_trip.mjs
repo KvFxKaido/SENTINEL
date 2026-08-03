@@ -33,7 +33,7 @@ const PORT = process.env.SEAM_TEST_PORT ?? "8095";
 // ?deal=6 pins the card the door deals, so a failure is reproducible
 const URL = `http://localhost:${PORT}/prototypes/walkable/?deal=6`;
 
-const sheetsDir = f => path.join(ROOT, "assets", "sprites", f);
+const sheetsDir = f => path.join(ROOT, "assets", "sprites", "composed", f);
 const backupDir = f => sheetsDir(f) + ".harness-backup";
 const clearSheets = () => {
   for (const f of FIGHTERS) fs.rmSync(sheetsDir(f), { recursive: true, force: true });

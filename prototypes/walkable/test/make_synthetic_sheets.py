@@ -10,8 +10,8 @@ Shared by two harnesses on purpose — the walkable room and the yard load
 the SAME molded bodies, so faking them two different ways would let the
 fixtures drift exactly where the convergence says they must not.
 
-Modes: full (twelve verbs) / core (four) / badfull (extended sheets
-present but wrong height — must fault on the page, never read as core).
+Modes: full (ten verbs) / badgeom (sheets present but wrong height —
+must fault on the page, loudly, rather than degrade).
 
 Usage:  make_synthetic_sheets.py [mode] [fighter,fighter,...]
         fighters default to cipher (the walkable body); the yard passes
@@ -21,15 +21,13 @@ from PIL import Image, ImageDraw
 import os, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-SPRITES = os.path.join(ROOT, "assets", "sprites")
+SPRITES = os.path.join(ROOT, "assets", "sprites", "composed")
 
 # verb -> (folder, stem, frames): counts deliberately varied to prove the
 # width-derived frame logic (heal 12 and hurt 4 match the real full pack)
 VERBS = {
     "idle": ("IDLE", "idle", 8),
     "run": ("RUN", "run", 8),
-    "attack1": ("ATTACK 1", "attack1", 8),
-    "attack2": ("ATTACK 2", "attack2", 8),
     "walk": ("WALK", "walk", 8),
     "dash": ("DASH", "dash", 6),
     "hurt": ("HURT", "hurt", 4),
@@ -44,24 +42,28 @@ VERBS = {
     "kneel": ("KNEEL", "kneel", 2),
 }
 COLORS = {
-    "idle": (90, 110, 130), "run": (70, 140, 90), "attack1": (170, 90, 60),
-    "attack2": (170, 60, 120), "walk": (60, 100, 170), "dash": (220, 200, 80),
+    "idle": (90, 110, 130), "run": (70, 140, 90),
+    "walk": (60, 100, 170), "dash": (220, 200, 80),
     "hurt": (200, 60, 60), "death": (60, 60, 70), "heal": (92, 207, 255),
     "aim": (150, 150, 165), "fire": (255, 180, 90), "kneel": (110, 90, 140),
 }
 FACINGS = ["down", "up", "left", "right"]
 W, H = 96, 80
-CORE = ["idle", "run", "attack1", "attack2"]
+# The room composes ONE roster now — the free-pack "core four" state went
+# away with the blade (2026-08-02), so there is no reduced set to fake.
+# What still needs faking is the two ways a roster can be broken, which is
+# what the room's two fault paths are for.
+ALWAYS = ["idle", "run"]
 
 mode = sys.argv[1] if len(sys.argv) > 1 else "full"
 fighters = (sys.argv[2].split(",") if len(sys.argv) > 2 else ["cipher"])
-wanted = CORE if mode == "core" else list(VERBS)
+wanted = list(VERBS)
 
 for fighter in fighters:
     out = os.path.join(SPRITES, fighter)
     for verb in wanted:
         folder, stem, frames = VERBS[verb]
-        height = 64 if (mode == "badfull" and verb not in CORE) else H
+        height = 64 if (mode == "badgeom" and verb not in ALWAYS) else H
         for facing in FACINGS:
             img = Image.new("RGBA", (W * frames, height), (0, 0, 0, 0))
             d = ImageDraw.Draw(img)

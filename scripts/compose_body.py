@@ -12,6 +12,8 @@ MOLDED pack frames, and identity is the only thing that comes from elsewhere:
 
   strip()  lift the back-slung stave, the chest strap and the blade-from-
            behind, filling from coat colours only
+  selout() reconcile the generated head's hard keyline with the pack's
+           selective one — measured off the pack, not chosen
   swap()   drop the generated head in, anchored to the SHOULDER band
   grey()   neutralise the outfit at constant luminance, sparing skin
 
@@ -39,22 +41,62 @@ import numpy as np
 from PIL import Image
 from scipy import ndimage
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# The mold is the palette's single source of truth. This file used to carry
+# its own copies with a "must track roster_mold.py" comment on top — a drift
+# waiting to happen, and the ENERGY row was hard-coded to Cipher besides.
+from roster_mold import (BALA, CREW_RED, DORMANT, ENERGY,  # noqa: E402
+                         FIGHTERS, LIGHTS, OUTLINE, RUST, SKINS)
+
 hx = lambda s: tuple(int(s[i:i + 2], 16) for i in (0, 2, 4))
 
-# Must track roster_mold.py's SKINS. Note #4a3020 is shared with the pack's
-# leather: one source colour serves both, so skin and strap cannot be told
-# apart by palette alone — the strap is found by SHAPE below for that reason.
-SKINS = [hx(c) for c in ("4a3020", "66452e", "7d5840")]
+# Note #4a3020 is shared between SKINS and the pack's leather: one source
+# colour serves both, so skin and strap cannot be told apart by palette
+# alone — the strap is found by SHAPE below for that reason.
 LEATHER = [hx("3a2d20"), hx("4a3020")]
 COAT = [hx(c) for c in ("2b3a4a", "41586e", "28374a", "1d2733", "161e28",
                         "141920", "1d2a37", "2b3947", "44586c", "223040")]
-DORM = [hx(c) for c in ("44586c", "384756", "2b3947", "223040", "1d2a37")]
-LIGHTS = [hx(c) for c in ("e8f1f7", "c2d3e0", "93aabf", "6b8199", "68809a")]
-# roster_mold's per-fighter ignition ramp. The outfit greys; the MARK never
-# does. Without this the attack sheets' cyan arc desaturates into a white
-# smear — the pass runs clean and destroys the one thing the frame is for.
-# Cipher's ramp; a different fighter needs their own ENERGY row here.
-MARK = [hx(c) for c in ("eaffff", "a5ecff", "5ccfff", "2196d8", "1d7fc0")]
+DORM = list(DORMANT.values())
+
+
+def palette(fighter):
+    """The colour families as they exist ON THIS FIGHTER'S molded sheets.
+
+    Four of the five share one wardrobe: the mold's head passes only touch
+    the head, so cipher/vesper/koa/sable measure an identical 189 coat and
+    91 dormant-steel pixels on idle_up. SYN does not. His build_frame runs
+    RUST and CREW_RED swaps over the WHOLE frame after the blade pass, which
+    moves 136 of those coat pixels and 26 steel pixels out of the base
+    families — measured, not assumed (2026-08-02).
+
+    That matters because strip() fills the holes it cuts from COAT pixels
+    only. Run with the base families, SYN has 53 coat pixels to fill from
+    instead of 189, so the nearest-coat lookup reaches across the body and
+    smears; the sword's own steel half-escapes the kill gate as well. The
+    families are therefore DERIVED here by replaying the mold's swaps rather
+    than duplicated, so a palette change in the mold cannot silently desync
+    this pass. His skin row collapses to the balaclava for the same reason:
+    head_syn paints every SKINS pixel — gloves included — BALA, so a crew
+    body has no skin anywhere to spare.
+    """
+    if fighter not in FIGHTERS:
+        raise ValueError(f"unknown fighter {fighter!r}; expected one of {FIGHTERS}")
+    swaps = dict(RUST) | dict(CREW_RED) if fighter == "syn" else {}
+    fam = lambda colours: [swaps.get(c, c) for c in colours]
+    return {
+        "coat": fam(COAT),
+        "dorm": fam(DORM),
+        "leather": fam(LEATHER),
+        "lights": fam(LIGHTS),
+        # The outfit greys; the MARK never does. Without this the attack
+        # sheets' ignition arc desaturates into a white smear — the pass runs
+        # clean and destroys the one thing the frame is for.
+        "mark": ENERGY[fighter],
+        "skins": [BALA] if fighter == "syn" else list(SKINS),
+        # The mold's own keyline tone. Not swapped for SYN: RUST and
+        # CREW_RED do not touch it, so the squad shares one outline value.
+        "outline": OUTLINE,
+    }
 
 FACE_MAP = {"down": "south", "up": "north",
             "left": "south-west", "right": "south-east"}
@@ -91,7 +133,7 @@ def _elong(mask, thr, minsz, broad=False):
     return out
 
 
-def back_blade(a):
+def back_blade(a, pal):
     """The blade seen from BEHIND — a broad diagonal, not a thin line.
 
     roster_mold's blade_pass misses this and always has: it classifies by
@@ -107,7 +149,7 @@ def back_blade(a):
     """
     al = a[:, :, 3] > 0
     light = np.zeros(a.shape[:2], bool)
-    for c in LIGHTS:
+    for c in pal["lights"]:
         light |= eq(a, c)
     if light.sum() > 0.5 * al.sum():          # damage flash — hands off
         return np.zeros_like(light)
@@ -155,7 +197,7 @@ def _back_sheathed(mask):
     return out
 
 
-def strip(img, facing):
+def strip(img, facing, pal):
     """Lift the stave, the chest strap and the blade-from-behind.
 
     Holes are filled from COAT colours only. Filling from the nearest
@@ -164,16 +206,16 @@ def strip(img, facing):
     """
     a = np.array(img.convert("RGBA")).copy()
     lea = np.zeros(a.shape[:2], bool)
-    for c in LEATHER:
+    for c in pal["leather"]:
         lea |= eq(a, c)
     dorm = np.zeros(a.shape[:2], bool)
-    for c in DORM:
+    for c in pal["dorm"]:
         dorm |= eq(a, c)
-    kill = _elong(lea, 4.0, 8) | _elong(dorm, 5.0, 6, broad=True) | back_blade(a)
+    kill = _elong(lea, 4.0, 8) | _elong(dorm, 5.0, 6, broad=True) | back_blade(a, pal)
     if facing == "up":
         kill |= _back_sheathed(dorm)
     coat = np.zeros(a.shape[:2], bool)
-    for c in COAT:
+    for c in pal["coat"]:
         coat |= eq(a, c)
     coat &= ~kill
     idx = ndimage.distance_transform_edt(~coat, return_distances=False, return_indices=True)
@@ -188,6 +230,109 @@ def _geom(a):
     al = a[:, :, 3] > 0
     ys, _ = np.where(al)
     return ys.min(), ys.max(), ys.min() + int((ys.max() - ys.min() + 1) * 0.45)
+
+
+# Separates a keyline pixel from a material pixel sitting on the silhouette.
+# Measured on a composed frame: the pack's keyline runs #101010-#181818
+# (luma 16-24) and the generated head's runs #000000-#040007, while the
+# lightest thing the pack lets touch its own open edges is #7b7b7b (luma
+# 123). 40 sits in the gap with room on both sides.
+KEY_LUM = 40
+# How far the "full" mode may reach inward for the material that replaces an
+# opened keyline pixel. Enough for a doubled outline, not enough to tunnel
+# through a feature. Three rows, not two: the KOA headband pixels that leaked
+# across her crown under an unbounded probe sit at distance FOUR, measured, so
+# three clears them with a row to spare while reaching material that two left
+# stranded. See the KOA note in selout().
+PROBE_MAX = 3
+
+
+def _luma(rgb):
+    return 0.2126 * rgb[..., 0] + 0.7152 * rgb[..., 1] + 0.0722 * rgb[..., 2]
+
+
+def selout(head_img, mode, pal):
+    """Reconcile the generated head's HARD outline with the pack's SELECTIVE one.
+
+    PixelLab draws a keyline all the way around — measured on Cipher's
+    composed idle_down, 100% of the generated head's silhouette edge is
+    near-black on every side. The pack does not. Measured on the SAME
+    frame's pack-drawn body, the keyline covers:
+
+        up 10%   left 47%   right 53%   down 46%
+
+    i.e. the top of the silhouette is left OPEN, material colour running
+    straight to the boundary, because the light is overhead; the sides and
+    bottom carry a keyline about half the time. Asking the generator for
+    this does not work — `outline: "selective outline"` is soft guidance and
+    all five heads came back hard-keylined anyway — so it is reconciled here,
+    deterministically, by a rule read off the pack rather than invented:
+
+      "tone"  re-tone the keyline from the generator's #000000 to the mold's
+              own OUTLINE. Value only; coverage untouched. The safe half.
+      "full"  additionally OPEN the up-facing edges: each up-facing keyline
+              pixel takes the colour of the material directly beneath it, so
+              the silhouette keeps its exact shape and the boundary becomes
+              colour-derived — which is what the pack's own open edges are.
+              Deleting those pixels instead would erode the head a pixel and
+              change its outline, which the body law does not permit.
+
+    How close that lands depends on the fighter's own art, and the spread is
+    the point. Measured on the shipped sheets against the pack body's
+    up 10% / left 47% / right 53%:
+
+        SABLE   up 11%  left 53%  right 47%   — canon, to the pixel
+        VESPER  up 25%  left 69%  right 50%
+        SYN     up 29%  left 87%  right 73%
+        KOA     up 44%  left 75%  right 75%
+        CIPHER  up 65%  left 79%  right 71%
+
+    Cipher converges least and that is not a failure: the pack can open its
+    top edge because its hair is lighter than the void behind it, and his
+    dreads are near-black, so 6 of his 20 up-facing edge pixels have no
+    non-keyline material within reach at ANY distance. Opening those would
+    swap a keyline for a colour indistinguishable from one. A dark feature
+    keeps its outline; the convergence is partial ON PURPOSE.
+
+    (The first version of this docstring claimed "up 0%, left/right 50/50,
+    almost exactly the pack's numbers". That was measured before PROBE_MAX
+    existed, when the probe tunnelled and opened everything — the same run
+    that scattered KOA's headband across her crown. The numbers above are
+    from the shipped sheets.)
+
+    Runs on the head image ONCE per facing, before swap: every pixel here is
+    generated, so the pass cannot reach the pack's own drawing by accident.
+    """
+    if mode == "off":
+        return head_img
+    a = np.array(head_img.convert("RGBA")).copy()
+    al = a[:, :, 3] > 0
+    dark = al & (_luma(a[:, :, :3].astype(float)) < KEY_LUM)
+
+    h, w = al.shape
+    pad = np.zeros((h + 2, w + 2), bool)
+    pad[1:-1, 1:-1] = al
+    empty_up = ~pad[:-2, 1:-1]
+    boundary = al & (empty_up | ~pad[2:, 1:-1] | ~pad[1:-1, :-2] | ~pad[1:-1, 2:])
+    key = boundary & dark
+
+    if mode == "full":
+        # The borrow reaches at most PROBE_MAX rows down, because on the
+        # pack's own open edges the material is IMMEDIATELY inside the
+        # boundary. Unbounded, the probe tunnels through a dark feature and
+        # takes its colour from whatever it eventually hits: on KOA it drove
+        # through the cap and came back with the mint headband, scattering
+        # band pixels along her crown (caught by looking, after the coverage
+        # numbers said the pass was working). A crown too dark to have
+        # material within reach is a crown whose keyline should simply stay.
+        for y, x in zip(*np.where(key & empty_up)):
+            for probe in range(y + 1, min(y + 1 + PROBE_MAX, h)):
+                if al[probe, x] and not dark[probe, x]:
+                    a[y, x, :3] = a[probe, x, :3]
+                    key[y, x] = False          # no longer a keyline pixel
+                    break
+    a[key, :3] = pal["outline"]
+    return Image.fromarray(a)
 
 
 def swap(pack_img, gen_img):
@@ -220,21 +365,26 @@ def swap(pack_img, gen_img):
     return Image.fromarray(out)
 
 
-def grey(img):
+def grey(img, pal):
     """Neutralise the outfit at constant luminance — desaturated, not
     flattened, so the pack's shading survives. The head is left alone and so
     is skin wherever it appears, which is what keeps the hands from greying,
     and so is the MARK ramp, which is what keeps an attack's ignition arc from
     desaturating into a white smear. Boots and wrist leather stay brown as a
     side effect of the shared #4a3020: the palette cannot separate them from
-    skin."""
+    skin.
+
+    The wardrobe neutralises for every fighter, SYN's rust and crew-red
+    included: under the composed treatment identity is carried by the head
+    and the mark, not the coat, so sparing one fighter's wardrobe colour
+    would make him the exception to the thing the treatment is FOR."""
     a = np.array(img.convert("RGBA")).copy()
     al = a[:, :, 3] > 0
     ys, _ = np.where(al)
     top, bot = ys.min(), ys.max()
     hl = top + int((bot - top + 1) * 0.45)
     spare = np.zeros(a.shape[:2], bool)
-    for c in SKINS + MARK:
+    for c in pal["skins"] + pal["mark"]:
         spare |= eq(a, c)
     tgt = al.copy()
     tgt[:hl] = False
@@ -246,8 +396,8 @@ def grey(img):
     return Image.fromarray(a)
 
 
-def compose(pack_frame, gen_head, facing):
-    return grey(swap(strip(pack_frame, facing), gen_head))
+def compose(pack_frame, gen_head, facing, pal):
+    return grey(swap(strip(pack_frame, facing, pal), gen_head), pal)
 
 
 def main():
@@ -256,7 +406,25 @@ def main():
     ap.add_argument("--gen", required=True, help="generated rotations dir")
     ap.add_argument("--out", required=True, help="output dir for frame folders")
     ap.add_argument("--verbs", nargs="+", default=["IDLE", "WALK"])
+    ap.add_argument("--fighter", default=None,
+                    help=f"palette row to compose against, one of {FIGHTERS}; "
+                         "defaults to the basename of --src")
+    ap.add_argument("--selout", choices=["off", "tone", "full"], default="full",
+                    help="reconcile the generated head's hard keyline with the "
+                         "pack's selective one: off keeps the generator's black, "
+                         "tone re-values it to the mold's outline, full also "
+                         "opens the up-facing edges (see selout). Default full, "
+                         "decided 2026-08-02 by walking all three")
     a = ap.parse_args()
+
+    # Defaulting off --src keeps the old cipher invocation working verbatim
+    # and makes the roster call read as the same command with a new path.
+    fighter = a.fighter or os.path.basename(os.path.normpath(a.src))
+    try:
+        pal = palette(fighter)
+    except ValueError as exc:
+        print(f"compose aborted — {exc}", file=sys.stderr)
+        return 1
 
     # A partial set is worse than no set. walkoff.html loads every idle/walk
     # facing through one Promise.all, so a single missing facing stops BODY C
@@ -294,7 +462,9 @@ def main():
 
     for stem, facing, rot, sheet_p, head_p, n in jobs:
         sheet = Image.open(sheet_p).convert("RGBA")
-        head = Image.open(head_p).convert("RGBA")
+        # Once per facing, not once per frame: the head image is the same
+        # for every frame of a sheet, so the outline pass runs here.
+        head = selout(Image.open(head_p).convert("RGBA"), a.selout, pal)
         d = os.path.join(a.out, f"{stem}_{facing}")
         os.makedirs(d, exist_ok=True)
         for stale in os.listdir(d):          # never let a prior run survive
@@ -302,8 +472,9 @@ def main():
                 os.remove(os.path.join(d, stale))
         for i in range(n):
             frame = sheet.crop((i * FRAME_W, 0, i * FRAME_W + FRAME_W, FRAME_H))
-            compose(frame, head, facing).save(os.path.join(d, f"f{i + 1:02d}.png"))
-        print(f"  {stem}_{facing}: {n} frames  (head = {rot})")
+            compose(frame, head, facing, pal).save(os.path.join(d, f"f{i + 1:02d}.png"))
+        print(f"  {stem}_{facing}: {n} frames  (head = {rot}, palette = {fighter}, "
+              f"selout = {a.selout})")
     return 0
 
 

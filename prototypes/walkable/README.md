@@ -32,20 +32,22 @@ not run from `file://`.
 |-------|--------|
 | `WASD` / arrows | run, camera-relative |
 | `Shift` + move | walk † |
-| `L` | dash, current facing † |
-| `J` / `Space` | attack 1 |
-| `K` | attack 2 |
-| `H` | heal channel † |
-| `G` | hurt flinch † |
-| `X` | down — any move key rises † |
-| `R` hold | aim — emitter up † |
-| `F` | fire † |
-| `C` hold | kneel † |
+| `L` | dash, current facing |
+| `H` | heal channel |
+| `G` | hurt flinch |
+| `X` | down — any move key rises |
+| `R` hold | aim — emitter up |
+| `F` | fire |
+| `C` hold | kneel |
 | `Q` / `E` | orbit the room 90° |
 | `P` | cycle LCD / crunch / clean |
 
-† Full-pack verbs — inert (and labeled so on the control surface) when
-only the free pack's core four are molded.
+`J` and `K` swung the pack's sword until 2026-08-02 and are gone. No rule
+ever consulted them: `tactical-core` models overwatch, shot, cover and
+line of sight and contains no melee concept at all, and the yard's own
+verb table never registered an attack. They were art with nothing behind
+them, so the body that ships has no blade and the keys that swung it are
+retired rather than left bound to nothing.
 
 `R` and `C` are **stances**: held, not triggered, and standing-only.
 There are no aim-walk or crouch-walk sheets, so moving takes the body
@@ -101,14 +103,23 @@ If they are missing, the page stops at an explicit asset message instead of
 substituting a placeholder:
 
 ```powershell
-python scripts/roster_mold.py
+python scripts/roster_mold.py     # licensed pack -> assets/sprites/<fighter>/
+python scripts/compose_body.py --gen assets/sprites/generated/cipher `
+                               --src assets/sprites/cipher `
+                               --out <frames> --verbs IDLE RUN WALK AIM FIRE `
+                                                     HURT DEATH HEAL KNEEL DASH
+# then scripts/pack_strip.py each frame dir -> assets/sprites/composed/cipher/
 ```
 
-The licensed source pack must be present locally —
-`prototypes/FULL_Adventurer 2D Pixel Art/` for all nine molded verbs (36
-sheets), or the FREE pack for the core four (16 sheets). Frame counts are
-read from sheet width, never assumed: the full pack varies them per verb
-(heal runs 12 frames, hurt 4, and synthesized kneel 2).
+Two stages, and this page reads the SECOND one: `assets/sprites/composed/`,
+the mold's body with the generated head composed in and the sword stripped
+(the walk-off verdict, 2026-08-02 — see `architecture/art_direction_gba_tactics.md`).
+The licensed source pack must be present locally at
+`prototypes/FULL_Adventurer 2D Pixel Art/`; the FREE pack cannot serve this
+page at all, because composing needs the synthesized AIM / FIRE / KNEEL that
+only the full pack's mold produces. Frame counts are read from sheet width,
+never assumed: the pack varies them per verb (heal runs 12 frames, hurt 4,
+and synthesized kneel 2).
 
 On the full pack the mold also **synthesizes** three verbs the pack does
 not ship — `AIM`, `FIRE`, `KNEEL`, 12 more sheets — so a fighter carries
@@ -126,14 +137,21 @@ torso is copied down, the boots never move, and the coat hem flares a
 pixel, because on a body in a long coat the height loss alone read as a
 shorter man rather than a crouching one.
 
-The roster is stated, never guessed at. The core four verbs are required
-to boot; the extended eight are all-or-nothing:
+The roster is stated, never guessed at, and it is now ONE tier: all ten
+verbs are required, and the panel reads **COMPOSED / READY** or nothing at
+all.
 
-- all 32 extended sheets load → **CANON / FULL** on the panel;
-- none present → **CANON / CORE**, with the extended rows on the control
-  surface dimmed and labeled `not molded`;
-- anything in between is a broken regeneration and stops at an explicit
-  asset fault naming the partial state — there is no silent subset.
+- every sheet loads → **COMPOSED / READY**;
+- any sheet missing → an explicit fault naming the count and the first
+  casualty, pointing at both regeneration stages;
+- a sheet that exists but fails geometry faults on its own message, because
+  rejection and absence are different verdicts.
+
+The old CORE/FULL split went away with the blade. It distinguished a
+free-pack four-verb body from a full-pack nine-verb one, and the composed
+body has no free-pack form — so a reduced roster is always a broken
+regeneration, and reporting it as a healthy state would be the silent
+fallback this gate exists to prevent.
 
 This body is **canon**. The walk-off (2026-07-31, `walkoff.html` — both
 bodies fielded in this room on one input) decided the two questions this
@@ -151,7 +169,7 @@ the body law's successor section,
 cd prototypes/walkable/test
 npm install                        # the playwright library
 npx playwright install chromium    # the browser itself (skip if one is provisioned)
-node test_walkable_verbs.mjs       # 47 checks: verbs, stances, light, roster states, regressions
+node test_walkable_verbs.mjs       # verbs, stances, light, roster faults, regressions
 python test_roster_sweep.py        # the roster mold's remold sweep (pillow + numpy)
 ```
 

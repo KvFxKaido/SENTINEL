@@ -42,7 +42,7 @@ export function sheetKey(fighter, action, facing) {
 export function sheetUrl(fighter, action, facing) {
   const spec = SHEETS[action];
   if (!spec) throw new Error(`no molded verb registered for ${action}`);
-  return `../../assets/sprites/${fighter}/${spec.folder}/${spec.stem}_${facing}.png`;
+  return `../../assets/sprites/composed/${fighter}/${spec.folder}/${spec.stem}_${facing}.png`;
 }
 
 export function sheetGeometry(image, url) {
