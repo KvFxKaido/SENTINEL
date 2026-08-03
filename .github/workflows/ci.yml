@@ -134,7 +134,9 @@ jobs:
       - name: Install harness dependencies
         working-directory: prototypes/walkable/test
         run: |
-          pip install pillow numpy
+          # scipy is compose_body's, not the mold's: ndimage does the
+          # connected-component labelling every strip/selout pass needs.
+          pip install pillow numpy scipy
           npm ci
           npx playwright install --with-deps chromium
 
