@@ -1,0 +1,62 @@
+{
+  "_what": "The squad's generated heads — VESPER / KOA / SABLE / SYN. The reproducible INPUT; the composed sheets they produce are build output under assets/sprites/generated/<fighter>/.",
+  "_decided": "2026-08-02 - first roster pass, generated the same day the walk-off designated the composed hybrid canon. These are the first rendered FACES these four have ever had: roster_mold's head passes are deterministic pixel surgery on the pack's own head (recolor, drawn band, crest ridge), so until now nobody had seen Vesper's helm or Koa's face as art rather than as a translation of the audited 32x32 kit.",
+  "_authored": "No lore exists for these four outside the sprite layer — canon wiki, core rules and the circuit design say nothing about them. What IS canon is the kit one-liner in roster_mold.py's header and the fighter's ENERGY mark colour, so every description below is built from those two and the human details are new authorship, open to judgement.",
+  "_claim_under_test": "The walk-off designated the hybrid canon on the grounds that its costs amortize — 'the marginal character costs a head and a palette entry.' This pass is that claim executed: 2 generations per fighter, ZERO animation generations (compose takes motion from the pack and only identity from these stills), plus one one-time palette fix. Four citizens for eight generations.",
+  "_finding_palette": "SYN is where the pipeline was secretly Cipher-shaped. cipher/vesper/koa/sable measure an identical 189 coat and 91 dormant-steel pixels on idle_up — the mold's head passes only touch the head, so the wardrobe is shared. SYN's build_frame runs RUST and CREW_RED over the whole frame after the blade pass, moving 136 coat and 26 steel pixels out of the base families. Composed against the base palette he keeps his back-slung sword (83 pixels of surviving steel, measured A/B) because the dormant family no longer matches his steel. compose_body.palette() now derives the families by replaying the mold's swaps.",
+  "provider": "pixellab.ai",
+  "tool": "create_character",
+  "settings": {
+    "mode": "v3",
+    "size": 36,
+    "outline": "selective outline",
+    "view": "low top-down",
+    "body_type": "humanoid",
+    "directions": 8
+  },
+  "_scale_note": "Same size 36 that landed Cipher a 22x32 body produced 33-36 tall bodies here — v3 variance, not a settings difference. The head block swap() transplants runs 14-16px tall against Cipher's 14, so KOA and SYN read very slightly large next to him. Re-framing is translation only (pack_canvas.py); a smaller head is a re-roll, never a resample.",
+  "rotations_used": ["south", "north", "south-west", "south-east"],
+  "_rotations_note": "Only four are re-framed and composed: compose_body's FACE_MAP pairs the pack's left/right THREE-QUARTER sheets with the 45-degree generated rotations. The 90-degree west/east rotations exist on each character and are deliberately unused.",
+  "fighters": {
+    "vesper": {
+      "character_id": "652331e6-bc13-4524-a491-ac7ae3fbc7e1",
+      "character_name": "VESPER D1",
+      "kit": "crested helm + visor slit",
+      "mark": "cobalt #4a68e8",
+      "raw_canvas": "72x72",
+      "body_south": "22x35",
+      "_residual": "The helm generated with a wide brim, reading closer to a WWI shell helmet than the crested combat helm the kit describes; the crest ridge does not clearly read. Weakest kit match of the four — a re-roll candidate, recorded rather than quietly accepted.",
+      "description": "Small pixel art fighter sprite for a retro GBA-style tactics game, standing idle facing south (front view). Lean adult humanoid, upright military bearing, about 2.5 heads tall. A CRESTED COMBAT HELM covers the entire head - smooth dark steel dome in cool gunmetal grays, with a single narrow horizontal VISOR SLIT across the eye line glowing faint cobalt. NO FACE AND NO EYES ARE VISIBLE ANYWHERE - the helm is closed, the slit is the only opening. A low crest ridge runs front-to-back over the crown, SUNK INTO the dome as a raised spine of the same steel, never a floating knob or plume. Warm brown jaw and neck skin shows only in the narrow gap beneath the helm rim, midtone near #6b4530. Utilitarian post-collapse squad gear in muted brown-grays: charcoal gray-brown jacket with a high collar, one diagonal strap across the chest, loose dark trousers, worn boots, pale wrapped gloves. Single accent color: cobalt blue (#4a68e8) used sparingly - the visor slit and one small device band on the forearm, nothing else. Everything else muted and desaturated, two or three close tones per material, gentle dithering, clustered dark shades, one soft rim highlight on the right shoulder. Selective outlining: dark outline around the outer silhouette, softer color-derived edges inside. No anti-aliasing, crisp single pixels, strong readable silhouette. Disciplined grounded posture, weight even, arms relaxed at sides, no weapon drawn - a squad operator who never removes the helm."
+    },
+    "koa": {
+      "character_id": "4b4649de-056e-4c16-ba4c-44652cde1dce",
+      "character_name": "KOA D1",
+      "kit": "topknot + mint headband + bare face",
+      "mark": "mint #6fd9a0",
+      "raw_canvas": "72x72",
+      "body_south": "22x36",
+      "_residual": "Reads the kit cleanly — mint band, bare brown face, separated eye points (the roster-sheet review fix: eyes are per-cluster points, never a band). Head is 16px against Cipher's 14, the largest of the four.",
+      "description": "Small pixel art fighter sprite for a retro GBA-style tactics game, standing idle facing south (front view). Lean adult humanoid, athletic build, about 2.5 heads tall. BARE FACE, FULLY VISIBLE AND UNMASKED - no visor, no goggles, no covering of any kind. Warm brown skin, rich midtone near #8a5a3a, shadows near #5c3a24, restrained highlight near #a5744c. Dark near-black hair pulled up into a TIGHT TOPKNOT on the crown, sides close-cropped. A MINT GREEN HEADBAND runs straight across the forehead just below the hairline, a clean narrow band. Eyes are two small separate dark points, one per eye, well apart with skin visible between them - never a continuous dark stripe or band across the face. Calm level expression, simple nose and mouth suggested in one or two pixels each. Utilitarian post-collapse squad gear in muted brown-grays: charcoal gray-brown jacket with a high collar over a darker undershirt, one diagonal strap across the chest, loose dark trousers, worn boots, pale wrapped gloves. Single accent color: mint green (#6fd9a0) used sparingly - the headband and one small device band on the forearm, nothing else. Everything else muted and desaturated, two or three close tones per material, gentle dithering, clustered dark shades, one soft rim highlight on the right shoulder. Selective outlining: dark outline around the outer silhouette, softer color-derived edges inside. No anti-aliasing, crisp single pixels, strong readable silhouette. Open grounded posture, weight even, arms relaxed at sides, no weapon drawn - the squad's plain-faced one, who hides nothing."
+    },
+    "sable": {
+      "character_id": "c25b1445-75cd-4c8a-89d9-6a40c6b58c7e",
+      "character_name": "SABLE D1",
+      "kit": "cowl + shadowed face + lit goggles",
+      "mark": "ice #b8e6ff",
+      "raw_canvas": "68x68",
+      "body_south": "21x33",
+      "_residual": "Closest to Cipher in scale (33 vs 32 tall, head 14px — identical head block). Two separated ice lenses in a shadowed cowl, as the kit describes.",
+      "description": "Small pixel art fighter sprite for a retro GBA-style tactics game, standing idle facing south (front view). Lean adult humanoid, slight wiry build, about 2.5 heads tall. A DEEP COWL HOOD is pulled up over the head, dark gray-brown cloth falling to the shoulders, its opening a pocket of near-black SHADOW. The face inside is almost entirely lost in that shadow - no skin, nose or mouth reads, only a faint cool edge where light catches the cheekbone. Set within the shadow are ROUND LIT GOGGLES, two distinct circular lenses glowing pale icy blue, clearly separated, the single bright feature of the whole sprite. No other facial detail whatsoever. Utilitarian post-collapse squad gear in muted brown-grays: charcoal gray-brown coat with a high collar under the cowl, one diagonal strap across the chest, loose dark trousers, worn boots, pale wrapped gloves. Single accent color: pale ice blue (#b8e6ff) used sparingly - the two lenses and one small device band on the forearm, nothing else. Everything else muted and desaturated, two or three close tones per material, gentle dithering, clustered dark shades, one soft rim highlight on the right shoulder. Selective outlining: dark outline around the outer silhouette, softer color-derived edges inside. No anti-aliasing, crisp single pixels, strong readable silhouette. Quiet withdrawn posture, weight even, arms relaxed at sides, no weapon drawn - the squad's watcher, who is mostly shadow and two cold lenses."
+    },
+    "syn": {
+      "character_id": "633c83c6-dde8-451d-bced-ea8845a01553",
+      "character_name": "SYN D1",
+      "kit": "cap + balaclava + red lenses + rust",
+      "mark": "red #ff5c5c",
+      "raw_canvas": "72x72",
+      "body_south": "28x36",
+      "_residual": "Generated bulkier than the squad — 28 wide against everyone else's 21-22 — so his cap reads wide on the pack's shoulders. The palette finding above is his; he is the fighter who proved compose was Cipher-shaped.",
+      "description": "Small pixel art fighter sprite for a retro GBA-style tactics game, standing idle facing south (front view). Lean adult humanoid, compact scrappy build, about 2.5 heads tall. The whole head is covered: a dark BALACLAVA sheathes the face and neck completely - no skin, nose or mouth visible anywhere - with a flat-brimmed CAP pulled low over it in worn rust-brown canvas. Set into the balaclava at the eye line are TWO SMALL RED LENSES, distinct round points, well apart, glowing dull red under the cap's brim. No other facial feature of any kind. Utilitarian post-collapse squad gear in muted brown-grays with rust accents: charcoal gray-brown jacket with a high collar, one diagonal strap across the chest, rust-brown patches at the elbow and shoulder, loose dark trousers, worn boots, pale wrapped gloves. Single accent color: signal red (#ff5c5c) used sparingly - the two lenses and one small device band on the forearm, nothing else; the rust canvas is a muted earth tone, not a second accent. Everything else muted and desaturated, two or three close tones per material, gentle dithering, clustered dark shades, one soft rim highlight on the right shoulder. Selective outlining: dark outline around the outer silhouette, softer color-derived edges inside. No anti-aliasing, crisp single pixels, strong readable silhouette. Restless coiled posture, weight even, arms relaxed at sides, no weapon drawn - the squad's scavenger, masked and patched together."
+    }
+  }
+}

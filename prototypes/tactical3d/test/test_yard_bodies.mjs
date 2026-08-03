@@ -37,7 +37,7 @@ const PY = process.platform === "win32" ? "python" : "python3";
 const PORT = process.env.YARD_TEST_PORT ?? "8094";
 const URL = `http://localhost:${PORT}/prototypes/tactical3d/?seed=deadbeef`;
 
-const sheetsDir = f => path.join(ROOT, "assets", "sprites", f);
+const sheetsDir = f => path.join(ROOT, "assets", "sprites", "composed", f);
 const backupDir = f => sheetsDir(f) + ".harness-backup";
 
 function gen(mode) {
@@ -248,7 +248,7 @@ try {
 
   // ---- a wrong-geometry sheet is a fault, not an absence ------------
   clearSheets();
-  gen("badfull");
+  gen("badgeom");
   await boot();
   check("wrong sheet geometry faults", (await ds("sprites")) === "error", await ds("sprites"));
   check("the geometry fault says so",

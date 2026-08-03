@@ -1061,7 +1061,11 @@ function showAssetFault(errors) {
     <div class="gate-box">
       <h2>YARD SHEETS NOT LOADED</h2>
       <p>
-        Regenerate them with <code>python scripts/roster_mold.py</code>.<br>
+        The yard reads COMPOSED sheets, which take all three stages in
+        order: <code>roster_mold.py</code> molds the licensed pack,
+        <code>compose_body.py</code> composes per-frame directories, and
+        <code>pack_strip.py</code> packs those into the sheets loaded here.
+        Stopping after the second leaves frame directories and no sheets.<br>
         The licensed source pack must be present locally at
         <code>prototypes/FULL_Adventurer 2D Pixel Art/</code>.
       </p>

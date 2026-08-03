@@ -1,7 +1,7 @@
 // Executes the walkable page's verb claims in headless chromium.
 //
 // Serves the repo root, boots the page against synthetic sheets, and
-// drives the keyboard through every verb plus the three roster states.
+// drives the keyboard through every verb plus the roster fault states.
 // Verb durations are measured IN PAGE via rAF: evaluate round-trips can
 // be slower than a 4-frame flinch, so sleep-then-read checks lie —
 // that lesson is why the watcher exists (caught building this harness).
@@ -22,7 +22,7 @@ import { fileURLToPath } from "node:url";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..", "..");
 const GEN = path.join(HERE, "make_synthetic_sheets.py");
-const SHEETS = path.join(ROOT, "assets", "sprites", "cipher");
+const SHEETS = path.join(ROOT, "assets", "sprites", "composed", "cipher");
 const BACKUP = SHEETS + ".harness-backup";
 const PY = process.platform === "win32" ? "python" : "python3";
 const PORT = process.env.WALKABLE_TEST_PORT ?? "8093";
@@ -151,13 +151,13 @@ try {
   page = await browser.newPage();
   page.on("pageerror", e => { console.log("PAGEERROR " + e); failures++; });
 
-  // ---- FULL roster -------------------------------------------------
+  // ---- the composed roster -----------------------------------------
   gen("full");
   await boot();
-  check("full roster boots", (await ds("sprites")) === "ready");
-  check("roster reads full", (await ds("roster")) === "full");
-  check("BODY cell says CANON / FULL",
-    (await page.textContent("#body-state")) === "CANON / FULL");
+  check("composed roster boots", (await ds("sprites")) === "ready");
+  check("roster reads composed", (await ds("roster")) === "composed");
+  check("BODY cell says COMPOSED / READY",
+    (await page.textContent("#body-state")) === "COMPOSED / READY");
 
   // walk: hold shift + move (steady states)
   await page.keyboard.down("Shift");
@@ -266,33 +266,12 @@ try {
   await page.waitForTimeout(1200);
   check("death holds the floor", (await ds("action")) === "death");
   check("held frame is the last", (await ds("frame")) === "5");
-  await page.keyboard.press("KeyJ");
+  await page.keyboard.press("KeyF");
   await page.waitForTimeout(300);
-  check("attacks don't reach the floor", (await ds("action")) === "death");
+  check("verbs don't reach the floor", (await ds("action")) === "death");
   await page.keyboard.down("KeyS");
   check("movement rises", await waitAction("run"));
   await page.keyboard.up("KeyS");
-
-  // ---- CORE roster -------------------------------------------------
-  clearSheets();
-  gen("core");
-  await boot();
-  check("core roster boots", (await ds("sprites")) === "ready");
-  check("roster reads core", (await ds("roster")) === "core");
-  check("BODY cell says CANON / CORE",
-    (await page.textContent("#body-state")) === "CANON / CORE");
-  check("control surface labeled core-only",
-    await page.evaluate(() => document.getElementById("control-surface").classList.contains("core-only")));
-  const inertMs = await measureVerb("KeyL", "dash");
-  check("dash inert on core roster", inertMs === -1, `watcher says ${inertMs}`);
-  const fireInertMs = await measureVerb("KeyF", "fire");
-  check("fire inert on core roster", fireInertMs === -1, `watcher says ${fireInertMs}`);
-  await page.keyboard.down("KeyR");
-  await page.waitForTimeout(200);
-  check("aim inert on core roster", (await ds("action")) === "idle", await ds("action"));
-  await page.keyboard.up("KeyR");
-  const atkMs = await measureVerb("KeyJ", "attack1");
-  check("attacks still fire on core roster", atkMs > 450 && atkMs < 1500, `${Math.round(atkMs)}ms`);
 
   // ---- PARTIAL roster is a fault -----------------------------------
   clearSheets();
@@ -301,14 +280,14 @@ try {
   fs.rmSync(path.join(SHEETS, "DASH"), { recursive: true, force: true });
   await boot();
   check("partial roster faults", (await ds("sprites")) === "error");
-  check("fault names the partial state",
-    (await page.textContent("#asset-detail")).includes("partial full-pack roster"));
+  check("fault names the incomplete state",
+    (await page.textContent("#asset-detail")).includes("composed roster incomplete"));
 
-  // ---- rejection is not absence: bad geometry faults, never CORE ----
+  // ---- rejection is not absence: bad geometry faults on its own ----
   clearSheets();
-  gen("badfull");
+  gen("badgeom");
   await boot();
-  check("all-rejected extended sheets fault, not core roster",
+  check("wrong-height sheets fault rather than degrade",
     (await ds("sprites")) === "error");
   check("geometry fault names the sheet",
     (await page.textContent("#asset-detail")).includes("expected a row"));

@@ -217,11 +217,6 @@
 
   .controls td { color: var(--text-dim); }
 
-  /* the free-pack state is legitimate and labeled, never silent: the
-     extended verbs stay listed, dimmed, and say why they are inert */
-  .controls.core-only tr.verb-ext { opacity: 0.45; }
-  .controls.core-only tr.verb-ext td::after { content: " · not molded"; }
-
   kbd {
     border: 1px solid var(--line);
     padding: 0 4px;
@@ -328,7 +323,7 @@
     <div id="asset-gate" class="show" role="status" aria-live="assertive">
       <div class="gate-box">
         <h2>LOADING CIPHER</h2>
-        <p>Local sprite sheets · four core verbs, nine when the full pack is molded</p>
+        <p>Composed sheets · ten verbs, all required</p>
       </div>
     </div>
   </section>
@@ -353,16 +348,14 @@
       <h2>CONTROL SURFACE</h2>
       <table class="controls" id="control-surface">
         <tr><th><kbd>WASD</kbd> / <kbd>↑↓←→</kbd></th><td>run, camera-relative</td></tr>
-        <tr class="verb-ext"><th><kbd>Shift</kbd> + move</th><td>walk</td></tr>
-        <tr class="verb-ext"><th><kbd>L</kbd></th><td>dash, current facing</td></tr>
-        <tr><th><kbd>J</kbd> / <kbd>Space</kbd></th><td>attack 1</td></tr>
-        <tr><th><kbd>K</kbd></th><td>attack 2</td></tr>
-        <tr class="verb-ext"><th><kbd>H</kbd></th><td>heal channel</td></tr>
-        <tr class="verb-ext"><th><kbd>G</kbd></th><td>hurt flinch</td></tr>
-        <tr class="verb-ext"><th><kbd>X</kbd></th><td>down — move to rise</td></tr>
-        <tr class="verb-ext"><th><kbd>R</kbd> hold</th><td>aim — emitter up</td></tr>
-        <tr class="verb-ext"><th><kbd>F</kbd></th><td>fire</td></tr>
-        <tr class="verb-ext"><th><kbd>C</kbd> hold</th><td>kneel</td></tr>
+        <tr><th><kbd>Shift</kbd> + move</th><td>walk</td></tr>
+        <tr><th><kbd>L</kbd></th><td>dash, current facing</td></tr>
+        <tr><th><kbd>H</kbd></th><td>heal channel</td></tr>
+        <tr><th><kbd>G</kbd></th><td>hurt flinch</td></tr>
+        <tr><th><kbd>X</kbd></th><td>down — move to rise</td></tr>
+        <tr><th><kbd>R</kbd> hold</th><td>aim — emitter up</td></tr>
+        <tr><th><kbd>F</kbd></th><td>fire</td></tr>
+        <tr><th><kbd>C</kbd> hold</th><td>kneel</td></tr>
         <tr><th><kbd>Q</kbd> / <kbd>E</kbd></th><td>orbit 90°</td></tr>
         <tr><th><kbd>P</kbd></th><td>LCD / crunch / clean</td></tr>
         <tr><th>NORTH DOOR</th><td>walk it — the yard takes the feed</td></tr>
@@ -887,51 +880,48 @@ const BODY_PX = 1.10 / 32;
 const QUAD_W = FRAME_W * BODY_PX;
 const QUAD_H = FRAME_H * BODY_PX;
 
-// Frame counts are read from sheet width, never assumed — the full pack
-// varies them per verb (heal runs 12, hurt 4). The core four are required
-// to boot; the extended five exist only when the FULL pack was on disk at
-// mold time, and the roster is all-or-nothing: a partial set is a broken
-// regeneration, not a fallback case.
+// Frame counts are read from sheet width, never assumed — the pack varies
+// them per verb (heal runs 12, hurt 4). Every verb here is required: the
+// composed body is all-or-nothing by construction, so a partial set is a
+// broken regeneration, never a fallback case.
+//
+// The FREE-pack "core four" roster is gone with the blade (2026-08-02).
+// It existed because the free pack shipped idle / run / attack1 / attack2
+// and nothing else; the composed body cannot come from that pack at all,
+// since compose needs AIM / FIRE / KNEEL, which only the full pack's
+// synthesis produces. A CORE state that can no longer be reached would be
+// a fallback for a broken mold wearing a healthy label.
+//
+// ATTACK 1 and ATTACK 2 are gone for a different reason: no rule consults
+// them. tactical-core models overwatch, shot, cover and line of sight and
+// contains no melee concept at all, so the pack's sword swings were art
+// with nothing behind them. The gunplay verbs the rules DO use — aim,
+// fire — are here.
 const SHEETS = {
-  idle: { folder: "IDLE", stem: "idle", fps: 7, loop: true, core: true },
-  run: { folder: "RUN", stem: "run", fps: 11, loop: true, core: true },
-  attack1: {
-    folder: "ATTACK%201",
-    stem: "attack1",
-    fps: 14,
-    loop: false,
-    core: true,
-  },
-  attack2: {
-    folder: "ATTACK%202",
-    stem: "attack2",
-    fps: 13,
-    loop: false,
-    core: true,
-  },
-  walk: { folder: "WALK", stem: "walk", fps: 8, loop: true, core: false },
-  dash: { folder: "DASH", stem: "dash", fps: 14, loop: false, core: false },
-  hurt: { folder: "HURT", stem: "hurt", fps: 12, loop: false, core: false },
+  idle: { folder: "IDLE", stem: "idle", fps: 7, loop: true },
+  run: { folder: "RUN", stem: "run", fps: 11, loop: true },
+  walk: { folder: "WALK", stem: "walk", fps: 8, loop: true },
+  dash: { folder: "DASH", stem: "dash", fps: 14, loop: false },
+  hurt: { folder: "HURT", stem: "hurt", fps: 12, loop: false },
   death: {
     folder: "DEATH",
     stem: "death",
     fps: 10,
     loop: false,
-    core: false,
     hold: true,   // plays through and stays on the floor
   },
-  heal: { folder: "HEAL", stem: "heal", fps: 10, loop: false, core: false },
+  heal: { folder: "HEAL", stem: "heal", fps: 10, loop: false },
   // the yard's bill. These three are synthesized, not molded — the pack
   // ships no gunplay — but they arrive as ordinary sheets on the same
   // canvas, so nothing here knows the difference. aim and kneel are
   // STANCES (held, looping); fire is a one-shot that begins and ends in
   // the aim pose, which is why it reads standalone and why releasing into
   // a held aim looks continuous.
-  aim: { folder: "AIM", stem: "aim", fps: 6, loop: true, core: false, stance: true },
+  aim: { folder: "AIM", stem: "aim", fps: 6, loop: true, stance: true },
   // 10fps, not 14: the bloom lives on three of five frames, and at 14 the
   // whole shot was gone in 210ms — long enough to miss at room scale
-  fire: { folder: "FIRE", stem: "fire", fps: 10, loop: false, core: false },
-  kneel: { folder: "KNEEL", stem: "kneel", fps: 2, loop: true, core: false, stance: true },
+  fire: { folder: "FIRE", stem: "fire", fps: 10, loop: false },
+  kneel: { folder: "KNEEL", stem: "kneel", fps: 2, loop: true, stance: true },
 };
 const FACINGS = ["down", "up", "left", "right"];
 const textures = new Map();
@@ -939,7 +929,7 @@ const textureLoader = new THREE.TextureLoader();
 
 function sheetUrl(action, facing) {
   const spec = SHEETS[action];
-  return `../../assets/sprites/cipher/${spec.folder}/${spec.stem}_${facing}.png`;
+  return `../../assets/sprites/composed/cipher/${spec.folder}/${spec.stem}_${facing}.png`;
 }
 
 async function loadSheet(action, facing) {
@@ -980,10 +970,15 @@ function showAssetFault(error) {
     <div class="gate-box">
       <h2>CIPHER SHEETS NOT LOADED</h2>
       <p>
-        Regenerate them with <code>python scripts/roster_mold.py</code>.<br>
-        The licensed source pack must be present locally —
-        <code>prototypes/FULL_Adventurer 2D Pixel Art/</code> for all nine
-        verbs, or the FREE pack for the core four.
+        Three stages, in order: <code>roster_mold.py</code> molds the
+        licensed pack, <code>compose_body.py</code> composes the shipped
+        body into per-frame directories, and <code>pack_strip.py</code>
+        packs those into the sheets this page loads — stopping after the
+        second leaves frame directories and no sheets.<br>
+        The licensed source pack must be present locally at
+        <code>prototypes/FULL_Adventurer 2D Pixel Art/</code> — the FREE
+        pack cannot serve this page, which needs the synthesized
+        AIM / FIRE / KNEEL the full pack's mold produces.
       </p>
       <p id="asset-detail" style="margin-top:10px"></p>
     </div>`;
@@ -1036,7 +1031,7 @@ function buildCipher() {
   character.userData.facing = "down";
   character.userData.frame = 0;
 
-  // The blade is authored in the attack sheets. This light is only spill on
+  // The emitter's bloom is authored in the sheets. This light is only spill on
   // nearby matter — no surrogate blade and no effect when the sheet is idle.
   bladeLight = new THREE.PointLight(0x5ccfff, 0, 3.1, 2);
   bladeLight.position.set(0.25, 0.72, 0.05);
@@ -1044,30 +1039,22 @@ function buildCipher() {
   scene.add(character);
 }
 
-let rosterFull = false;
-
 async function bootCipher() {
-  const coreActions = Object.keys(SHEETS).filter(a => SHEETS[a].core);
-  const extActions = Object.keys(SHEETS).filter(a => !SHEETS[a].core);
-  try {
-    await Promise.all(coreActions.flatMap(
-      action => FACINGS.map(facing => loadSheet(action, facing))
-    ));
-  } catch (error) {
-    showAssetFault(error);
-    return;
-  }
-  // The extended five are all-or-nothing. All 20 sheets → FULL roster;
-  // none PRESENT → CORE roster, said out loud on the panel; anything in
-  // between is a broken regeneration and faults explicitly — no silent
-  // subset. Absence and rejection are different verdicts: a sheet that
-  // exists but fails geometry is a fault even if all 20 fail together
-  // (loadAsync rejects load failures with an event, never an Error, so
-  // the Error class marks our own validation refusing a real file).
+  // One tier now, and it is all-or-nothing: every verb in SHEETS must load
+  // or the page faults naming what failed. The old two-tier gate sorted a
+  // FREE-pack core from a FULL-pack extension; the composed body has no
+  // free-pack form, so a missing verb is always a broken regeneration and
+  // there is nothing left to degrade gracefully INTO. Reporting a reduced
+  // roster here would be the silent fallback the fault exists to prevent.
+  const actions = Object.keys(SHEETS);
   const missing = [];
   try {
-    await Promise.all(extActions.flatMap(
+    await Promise.all(actions.flatMap(
       action => FACINGS.map(
+        // Absence and rejection stay different verdicts: loadAsync rejects
+        // a missing file with an event, never an Error, so the Error class
+        // still marks our own validation refusing a real file — that one
+        // rethrows and faults immediately with its own message.
         facing => loadSheet(action, facing).catch(err => {
           if (err instanceof Error) throw err;
           missing.push(`${action}_${facing}`);
@@ -1078,24 +1065,20 @@ async function bootCipher() {
     showAssetFault(error);
     return;
   }
-  const extTotal = extActions.length * FACINGS.length;
-  if (missing.length > 0 && missing.length < extTotal) {
+  if (missing.length > 0) {
     showAssetFault(new Error(
-      `partial full-pack roster: ${missing.length} of ${extTotal} extended sheets `
-      + `failed (first: ${missing[0]}) — re-run roster_mold.py with the FULL pack present`
+      `composed roster incomplete: ${missing.length} of `
+      + `${actions.length * FACINGS.length} sheets missing (first: ${missing[0]}) `
+      + `— re-run roster_mold.py, then compose_body.py, then pack_strip.py`
     ));
     return;
   }
-  rosterFull = missing.length === 0;
   buildCipher();
   assetGate.className = "";
   assetGate.setAttribute("aria-hidden", "true");
-  bodyStateEl.textContent = rosterFull ? "CANON / FULL" : "CANON / CORE";
-  if (!rosterFull) {
-    document.getElementById("control-surface").classList.add("core-only");
-  }
+  bodyStateEl.textContent = "COMPOSED / READY";
   canvas.dataset.sprites = "ready";
-  canvas.dataset.roster = rosterFull ? "full" : "core";
+  canvas.dataset.roster = "composed";
   canvas.dataset.ready = "1";
 }
 
@@ -1132,9 +1115,6 @@ const facingStateEl = document.getElementById("facing-state");
 
 function triggerLocked(name) {
   if (!character || locked || downed) return;
-  // extended verbs are inert on the core roster — the control surface
-  // says so; the key doing nothing is the labeled state, not a mystery
-  if (!SHEETS[name].core && !rosterFull) return;
   // started is stamped on the verb's FIRST rendered frame, not here: a
   // keydown reads the loop timer stale (frozen at the last update), and
   // on a janky frame that gap ate a 4-frame flinch whole (caught in test)
@@ -1159,9 +1139,7 @@ function setSpriteFrame(action, facing, frame) {
   character.userData.frame = frame;
 
   actionStateEl.textContent =
-    action === "attack1" ? "ATTACK 1 / IGNITION"
-      : action === "attack2" ? "ATTACK 2 / IGNITION"
-        : action === "heal" ? "HEAL / CHANNEL"
+    action === "heal" ? "HEAL / CHANNEL"
           : action === "aim" ? "AIM / EMITTER COLD"
             : action === "fire" ? "FIRE / EMITTER LIT"
               : action === "kneel" ? "KNEEL / STANCE"
@@ -1224,7 +1202,7 @@ function stepBody(dx, dz) {
 }
 
 function wantsWalk() {
-  return rosterFull && (held.has("ShiftLeft") || held.has("ShiftRight"));
+  return held.has("ShiftLeft") || held.has("ShiftRight");
 }
 
 // Stances are held, not triggered, and only a body that is standing still
@@ -1234,7 +1212,6 @@ function wantsWalk() {
 // stance with a verb attached to it (fire); holding both is a real thing
 // a player will do, so the tie is decided here rather than by key order.
 function heldStance() {
-  if (!rosterFull) return null;
   if (held.has("KeyR")) return "aim";
   if (held.has("KeyC")) return "kneel";
   return null;
@@ -1310,8 +1287,6 @@ function updateCipher(dt, now) {
         action = stance ?? "idle";
         frame = 0;
       }
-    } else if (action === "attack1" || action === "attack2") {
-      bladeLight.intensity = 2.6 + Math.sin(elapsed * 42) * 0.35;
     } else if (action === "heal") {
       // the heal effect is authored cyan in the sheets (a device
       // channeling, not a spell) — this light is only its spill,
@@ -1371,16 +1346,6 @@ document.addEventListener("keydown", event => {
   if (event.repeat) return;
   if (downed) return;   // nothing but movement reaches a body on the floor
 
-  if (event.code === "KeyJ" || event.code === "Space") {
-    event.preventDefault();
-    triggerLocked("attack1");
-    return;
-  }
-  if (event.code === "KeyK") {
-    event.preventDefault();
-    triggerLocked("attack2");
-    return;
-  }
   if (event.code === "KeyL") {
     triggerLocked("dash");
     return;
@@ -1568,9 +1533,9 @@ function endSeam(result) {
   window.focus();
   stepBackInside();
 
-  // the record comes back with you, and on the full roster the body says
-  // so: a lost card plays the hurt flinch as you re-enter the room
-  if (result.result === "loss" && rosterFull) {
+  // the record comes back with you, and the body says so: a lost card
+  // plays the hurt flinch as you re-enter the room
+  if (result.result === "loss") {
     locked = { name: "hurt", started: null };
   }
 

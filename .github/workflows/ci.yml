@@ -134,7 +134,9 @@ jobs:
       - name: Install harness dependencies
         working-directory: prototypes/walkable/test
         run: |
-          pip install pillow numpy
+          # scipy is compose_body's, not the mold's: ndimage does the
+          # connected-component labelling every strip/selout pass needs.
+          pip install pillow numpy scipy
           npm ci
           npx playwright install --with-deps chromium
 
@@ -145,6 +147,14 @@ jobs:
       - name: Roster mold sweep
         working-directory: prototypes/walkable/test
         run: python test_roster_sweep.py
+
+      # compose_body's palette() and selout() run in neither of the above:
+      # the sweep drives roster_mold only, and the browser harness feeds the
+      # page synthetic sheets that never reach compose. Both passes have
+      # already regressed once in review.
+      - name: Compose passes
+        working-directory: prototypes/walkable/test
+        run: python test_compose_passes.py
 
       # The sweep proves the golden guard FIRES; it cannot prove what the
       # blade classifier DECIDES, because the goldens come from the

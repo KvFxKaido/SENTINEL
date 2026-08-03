@@ -26,7 +26,7 @@ const PY = process.platform === "win32" ? "python" : "python3";
 const PORT = process.env.WITNESS_TEST_PORT ?? "8096";
 const URL = `http://localhost:${PORT}/prototypes/walkable/?deal=6`;
 
-const sheetsDir = f => path.join(ROOT, "assets", "sprites", f);
+const sheetsDir = f => path.join(ROOT, "assets", "sprites", "composed", f);
 const backupDir = f => sheetsDir(f) + ".harness-backup";
 const clearSheets = () => {
   for (const f of FIGHTERS) fs.rmSync(sheetsDir(f), { recursive: true, force: true });
