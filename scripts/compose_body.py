@@ -376,51 +376,74 @@ def swap(pack_img, gen_img):
     they also sway a full pixel across a walk cycle, so the anchor is
     recomputed per frame and the head rides the sway instead of sliding
     against it.
+
+    Returns the composed frame AND the mask of pixels this pass wrote, so
+    the passes after it can tell generated art from pack art exactly rather
+    than guessing with a horizontal line. grey() used to guess, and it was
+    wrong at the shoulders — see its docstring.
     """
     p = np.array(pack_img.convert("RGBA")).copy()
     g = np.array(gen_img.convert("RGBA"))
     _, _, pl = _geom(p)
     _, _, gl = _geom(g)
-    pal = p[:, :, 3] > 0
-    ph = pal[:pl]
-    _, sx = np.where(pal[pl:pl + 6])
+    alpha = p[:, :, 3] > 0
+    ph = alpha[:pl]
+    _, sx = np.where(alpha[pl:pl + 6])
     pcx = (sx.min() + sx.max()) / 2
     gy, gx = np.where(g[:gl, :, 3] > 0)
     gcx = (gx.min() + gx.max()) / 2
     dx, dy = math.floor(pcx - gcx + 0.5), int(pl - gl)
     out = p.copy()
     out[:pl][ph] = 0
+    generated = np.zeros(p.shape[:2], bool)
     for y, x in zip(gy, gx):
         ny, nx = y + dy, x + dx
         if 0 <= ny < out.shape[0] and 0 <= nx < out.shape[1]:
             out[ny, nx] = g[y, x]
-    return Image.fromarray(out)
+            generated[ny, nx] = True
+    return Image.fromarray(out), generated
 
 
-def grey(img, pal):
+def grey(img, pal, generated):
     """Neutralise the outfit at constant luminance — desaturated, not
-    flattened, so the pack's shading survives. The head is left alone and so
-    is skin wherever it appears, which is what keeps the hands from greying,
-    and so is the MARK ramp, which is what keeps an attack's ignition arc from
-    desaturating into a white smear. Boots and wrist leather stay brown as a
-    side effect of the shared #4a3020: the palette cannot separate them from
-    skin.
+    flattened, so the pack's shading survives. The generated head is left
+    alone and so is skin wherever it appears, which is what keeps the hands
+    from greying, and so is the MARK ramp, which is what keeps an attack's
+    ignition arc from desaturating into a white smear. Boots and wrist
+    leather stay brown as a side effect of the shared #4a3020: the palette
+    cannot separate them from skin.
 
     The wardrobe neutralises for every fighter, SYN's rust and crew-red
     included: under the composed treatment identity is carried by the head
     and the mark, not the coat, so sparing one fighter's wardrobe colour
-    would make him the exception to the thing the treatment is FOR."""
+    would make him the exception to the thing the treatment is FOR.
+
+    WHAT COUNTS AS THE HEAD is swap()'s own mask, not a horizontal line.
+    This pass used to spare everything above 45% of body height, which is a
+    proxy for "generated" and is wrong exactly where the two meet.
+
+    The mechanism, measured rather than assumed: swap() clears pack pixels
+    above the PACK's 45% line (pl) and pastes the head there, but this pass
+    recomputed 45% on the COMPOSED silhouette (hl). When the generated head
+    block is SHORTER than the pack's, the composed body is shorter overall
+    and hl lands BELOW pl — so the pack rows in the gap [pl, hl) survive
+    swap's clear and then get spared here, staying raw pack blue-grey while
+    the torso beneath them neutralises. On idle_up: Cipher's generated head
+    block is 13 against the pack's 15 and spares row 39; Sable's is 14 and
+    spares row 38; SYN's is 15, hl lands on pl, and he spares nothing. That
+    is why the defect looked like it belonged to two fighters rather than to
+    the rule. Across the shipped set before the fix: 1767 pixels on 124 of
+    1300 frames.
+
+    (An earlier version of this note had the cause backwards — it blamed
+    heads that were TALLER than the pack's. The direction is the opposite,
+    and the numbers above are from the frames themselves.)"""
     a = np.array(img.convert("RGBA")).copy()
     al = a[:, :, 3] > 0
-    ys, _ = np.where(al)
-    top, bot = ys.min(), ys.max()
-    hl = top + int((bot - top + 1) * 0.45)
     spare = np.zeros(a.shape[:2], bool)
     for c in pal["skins"] + pal["mark"]:
         spare |= eq(a, c)
-    tgt = al.copy()
-    tgt[:hl] = False
-    tgt &= ~spare
+    tgt = al & ~generated & ~spare
     rgb = a[:, :, :3].astype(float)
     lum = 0.2126 * rgb[:, :, 0] + 0.7152 * rgb[:, :, 1] + 0.0722 * rgb[:, :, 2]
     for ch in range(3):
@@ -429,7 +452,8 @@ def grey(img, pal):
 
 
 def compose(pack_frame, gen_head, facing, pal):
-    return grey(swap(strip(pack_frame, facing, pal), gen_head), pal)
+    swapped, generated = swap(strip(pack_frame, facing, pal), gen_head)
+    return grey(swapped, pal, generated)
 
 
 def main():
