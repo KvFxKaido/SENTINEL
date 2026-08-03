@@ -498,14 +498,35 @@ def holster(img, facing, pal):
     top, bot = ys.min(), ys.max()
     height = bot - top + 1
     row0 = top + int(height * HOLSTER_BAND[0])
-    edges = []
+    # Anchored to the edge of the LEG at the row the holster attaches at.
+    #
+    # Not the row's outermost pixel, which is what the first cut used: on a
+    # pose with an extended limb that pixel is the HAND, and the sidearm
+    # stamps into empty space beside it. Cipher's heal_left frame 5 hung a
+    # holster four pixels clear of his body that way, and it survived two
+    # rounds of verification because both were contaminated — one measured
+    # the anchor on the already-stamped sheet, the other compared the x
+    # anchor while the regression was in the start row. Looking at the
+    # frame is what found it.
+    #
+    # So the search takes the contiguous RUN that contains the body's
+    # centre line, which is the torso/leg mass, and reads its outer edge.
+    # A limb flung out to the side is a separate run and is ignored.
+    _, cols = np.where(al)
+    centre = (cols.min() + cols.max()) // 2
+    x = None
     for y in range(row0, min(top + int(height * HOLSTER_BAND[1]), a.shape[0] - 1) + 1):
         row = np.where(al[y])[0]
-        if len(row):
-            edges.append(row.min() if side == "left" else row.max())
-    if not edges:
+        if not len(row):
+            continue
+        runs = np.split(row, np.where(np.diff(row) > 1)[0] + 1)
+        trunk = min(runs, key=lambda r: min(abs(int(r[0]) - centre),
+                                            abs(int(r[-1]) - centre)))
+        x = int(trunk.min()) if side == "left" else int(trunk.max())
+        row0 = y
+        break
+    if x is None:
         return img
-    x = min(edges) if side == "left" else max(edges)
     step = -1 if side == "left" else 1
     for dy, lit in enumerate(HOLSTER_OUTER):
         y = row0 + dy

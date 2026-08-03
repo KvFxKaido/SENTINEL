@@ -25,8 +25,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "scripts"))
 
 from compose_body import (HOLSTER_SIDE, HOLSTER_SKIP, KEY_LUM,  # noqa: E402
-                          PROBE_MAX, _luma, grey, holster, palette,
-                          selout, swap)
+                          PROBE_MAX, SHEET_STEMS, _luma, grey,
+                          holster, palette, selout, swap)
 from roster_mold import BALA, KOA_SKIN, SKINS  # noqa: E402
 
 failures = []
@@ -240,8 +240,31 @@ check("the anchor follows the body, not the canvas",
 
 check("the near side flips with the facing",
       HOLSTER_SIDE["down"] != HOLSTER_SIDE["up"])
-check("the verbs that raise the weapon do not also wear it",
-      HOLSTER_SKIP == {"aim", "fire"}, HOLSTER_SKIP)
+
+# It hangs from where it attaches, so the attach row must touch the body
+# even when the contour recedes below it. A taper: wide at the top of the
+# band, narrow underneath.
+taper = np.zeros((40, 40, 4), np.uint8)
+taper[10:34, 16:24, :3] = WARDROBE
+taper[10:34, 16:24, 3] = 255
+taper[28:34, 16:20, 3] = 0                        # the near side falls away
+tapered = np.array(holster(Image.fromarray(taper), "down",
+                           palette("cipher")).convert("RGBA"))
+t_added = (tapered[:, :, 3] > 0) & ~(taper[:, :, 3] > 0)
+ty, tx = np.where(t_added)
+attach_row = np.where(taper[ty.min(), :, 3] > 0)[0]
+check("the attach row touches the body on a receding contour",
+      len(attach_row) and tx.max() + 1 >= attach_row.min(),
+      f"stamp reaches x={tx.max()}, body starts x={attach_row.min() if len(attach_row) else None}")
+
+# compose() is handed the sheet STEM as the verb, so the skip set has to
+# match what SHEET_STEMS actually produces — an "AIM" that stemmed to
+# anything else would silently wear the holster while raising the weapon.
+check("the raising verbs stem to exactly the skip set",
+      {SHEET_STEMS.get(v, v.lower()) for v in ("AIM", "FIRE")} == HOLSTER_SKIP,
+      {SHEET_STEMS.get(v, v.lower()) for v in ("AIM", "FIRE")})
+check("no skip entry is uppercase or unstemmed",
+      all(s == s.lower() and " " not in s for s in HOLSTER_SKIP), HOLSTER_SKIP)
 
 print()
 if failures:
