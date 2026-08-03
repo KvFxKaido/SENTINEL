@@ -126,7 +126,36 @@ def back_blade(a):
     return out
 
 
-def strip(img):
+def _back_sheathed(mask):
+    """The sheathed sword seen from STRAIGHT BEHIND — a blob, not a line.
+
+    Third blade blind spot, same family as the first two: blade_pass missed
+    the thin line, _elong's broad clause was added for the diagonal band,
+    and both walk past the rear view, where the scabbard mass measures
+    80-91px at elongation 1.15-1.72 on idle/walk — under the broad clause's
+    2.0 bar, over nothing. The old gate fired only on the two frames that
+    happened to hit 91px (s > 90): idle f0 and walk f6, which is why the
+    sword vanished from exactly one idle frame and survived seven.
+
+    Shape cannot see this one, so the gate is size alone — safe ONLY
+    because it is facing-scoped by the caller: measured across every verb's
+    _up sheet (2026-08-02), the sole dormant component >= 40px is this mass
+    (41-109px, verb by verb). Bounded at 120 like back_blade, for the same
+    reason. CAVEAT for verbs beyond IDLE/WALK: the attack sheets' swung
+    blade passes through this window on _up frames — when compose grows
+    attack verbs, whether a bladeless body may swing a blade is a design
+    decision, not a default.
+    """
+    lab, n = ndimage.label(mask, structure=np.ones((3, 3)))
+    out = np.zeros_like(mask)
+    for i in range(1, n + 1):
+        s = int((lab == i).sum())
+        if 40 <= s <= 120:
+            out[lab == i] = True
+    return out
+
+
+def strip(img, facing):
     """Lift the stave, the chest strap and the blade-from-behind.
 
     Holes are filled from COAT colours only. Filling from the nearest
@@ -141,6 +170,8 @@ def strip(img):
     for c in DORM:
         dorm |= eq(a, c)
     kill = _elong(lea, 4.0, 8) | _elong(dorm, 5.0, 6, broad=True) | back_blade(a)
+    if facing == "up":
+        kill |= _back_sheathed(dorm)
     coat = np.zeros(a.shape[:2], bool)
     for c in COAT:
         coat |= eq(a, c)
@@ -215,8 +246,8 @@ def grey(img):
     return Image.fromarray(a)
 
 
-def compose(pack_frame, gen_head):
-    return grey(swap(strip(pack_frame), gen_head))
+def compose(pack_frame, gen_head, facing):
+    return grey(swap(strip(pack_frame, facing), gen_head))
 
 
 def main():
@@ -271,7 +302,7 @@ def main():
                 os.remove(os.path.join(d, stale))
         for i in range(n):
             frame = sheet.crop((i * FRAME_W, 0, i * FRAME_W + FRAME_W, FRAME_H))
-            compose(frame, head).save(os.path.join(d, f"f{i + 1:02d}.png"))
+            compose(frame, head, facing).save(os.path.join(d, f"f{i + 1:02d}.png"))
         print(f"  {stem}_{facing}: {n} frames  (head = {rot})")
     return 0
 

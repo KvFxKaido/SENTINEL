@@ -1,0 +1,37 @@
+{
+  "_what": "The whole-generated render fielded in the walk-off (walkoff.html BODY B slot, screen right). The reproducible INPUT; the sheets it produces are build output under assets/sprites/generated/cipher_render/.",
+  "_decided": "2026-08-02 - staged for audition, not canon. Re-pointed the same day from 'CIPHER (canon test)' (d8632f4a, 68x68, a pre-lock cousin with its own face) to the LOCKED D1 appearance (pixellab_cipher.json), so the hybrid and the render wear the same identity and the audition's only variable is pack animation vs whole generation.",
+  "_finding": "The template skeleton holds the walk the v3 prompts could not: contralateral arm/leg phase is correct on every generated facing, because the phase comes from the rig, not from the prompt. Verified frame-by-frame 2026-08-02 on the canon-test cousin first (east view is the legible one). The dead_ends note in pixellab_cipher.json ('template re-poses and repaints; destroys the face and visor') is the caveat this staging exists to judge by eye, now on the locked character itself.",
+  "_caveat": "The room's left/right facings map to PixelLab's south-west/south-east, not west/east: the pack's side sheets are 3/4 views, and a true-profile render standing next to them would be auditioning a different dialect, not a different body. The west/east template walks exist in the same animation group but are not molded into sheets.",
+  "provider": "pixellab.ai",
+  "character_id": "ffff6237-b710-41d4-88ce-1e38f6640554",
+  "character_name": "CIPHER D1_darker (locked appearance)",
+  "animation_group_id": "458d3161-852f-4f3d-a0d5-f9f421fa9f23",
+  "animation_type": "walking-8-frames (template)",
+  "raw_canvas": "64x64",
+  "frames_per_facing": 8,
+  "cdn_base": "https://backblaze.pixellab.ai/file/pixellab-characters/91e1cb96-29ca-4130-bab4-9a05267cc348/ffff6237-b710-41d4-88ce-1e38f6640554",
+  "facing_map": {
+    "down": "south",
+    "up": "north",
+    "left": "south-west",
+    "right": "south-east"
+  },
+  "walk_animation_dirs": {
+    "south": "640ee87e-ab5b-4d94-9f26-b7d2e86e36b3",
+    "north": "fcf79410-857a-4b9a-b1be-57bf2a22b693",
+    "south-west": "0953e818-7f00-4f83-9b06-d37c264293e8",
+    "south-east": "d5c1f1db-2099-4711-a652-449be7dbdd55"
+  },
+  "idle_from": "breathing-idle template frames (4/facing). The rotation stills are no longer molded as idle — they remain the GROUND-ROW measurement source, because the anchor is the standing row and the breath bobs.",
+  "idle_animation_type": "breathing-idle (template) for south/south-west/south-east; north is v3 custom pinned to the north rotation still",
+  "idle_animation_group_id": "89c8f3cd-29a5-4254-8be0-a88a51a926f1",
+  "idle_frames_per_facing": 4,
+  "idle_animation_dirs": {
+    "south": "9d13d776-5890-4450-b521-3d45e73151a4",
+    "north": "70fe8564-9874-4e04-b3c6-3f481e3ff817",
+    "south-west": "a1dc56f1-10c8-484f-94ee-15ba0e9f256b",
+    "south-east": "382199bd-6b09-4f0d-88da-fff7a53e1fe3"
+  },
+  "_idle_north_dead_end": "The template breathing-idle painted the full visor band on the BACK of the head in 3 of 4 north frames (frame 2 was correct; the north WALK was correct, so the template does not force a face). A same-template re-roll is blocked by dedup; delete-and-regenerate would re-roll the three good facings. Fix: v3 with custom_start_frame pinned to the north rotation and a state-shaped prompt ('hair only in every frame') - the 'ask for a state, not a motion' finding, third confirmation. Measured: 0 visor-cyan head pixels in all 4 v3 frames vs 8 in each bad template frame."
+}

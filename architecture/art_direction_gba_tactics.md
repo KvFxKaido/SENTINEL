@@ -261,6 +261,52 @@ The legacy register is now unused rather than deleted. Retiring
 dead file named in this document is worse than either, so whichever way it
 goes, this paragraph goes with it.
 
+### Cipher ships composed: the three-body walk-off (verdict, 2026-08-02)
+
+COURT 01 staged again, three bodies on one input this time. BODY A, the
+pack-mold Cipher — the canon body form, unchanged by anything here. BODY
+C, the composed hybrid: pack frames, generated head, no sword
+(`scripts/compose_body.py`). BODY B, the whole-generated PixelLab render
+— the locked D1 appearance wearing mocap-template walks and a breathing
+idle on its own 64×64 canvas (input record
+`scripts/pixellab_walkoff_render.json`, molded by
+`scripts/walkoff_render_sheets.py`). System A stood in B's slot before;
+its 2026-07-31 verdict stands and its evidence stays regenerable.
+
+The staging was made fair before anyone called it: B re-pointed to the
+same locked head as C so identity stopped being a confound, side facings
+molded from the 3/4 rotations because the pack's side sheets are 3/4
+views, and a breathing idle added so B was not judged as a statue.
+
+The verdict, called by walking (designer, Codex concurring): **Cipher
+ships composed. C is canon.** A remains the animation and legibility
+reference. B is a pipeline experiment — retained, instrumented, not
+discarded.
+
+The grounds are economic, which is what makes the designation stable
+rather than a taste call to relitigate after the next model update: C's
+costs amortize (one generated head per character, one item pass per
+roster, because every character shares the pack body), while B's are
+per-character-per-outfit-per-roll and nothing composes after the fact.
+The audition agreed with the ledger — B's losses at game scale (a 46–48
+baseline wobble across one cycle, one-pixel costume chatter, frame-to-
+frame identity flicker) are each individually improvable, and were not
+the reason to decide.
+
+Costs accepted on the record:
+
+- **Composed Cipher carries no sword.** The pack's attack verbs swing
+  one. Whether a bladeless body may swing a blade is a design decision
+  deferred until compose grows past idle/walk — flagged where the next
+  author will trip over it (`compose_body.py::_back_sheathed`).
+- **B's route lands 2px short of the pack's 34px body** — generation
+  size steps by 4 and nothing lands 34. A property of the route, not a
+  defect; it exists only where the two stand side by side.
+- **The walk-off stays on the record as evidence**, same clause as its
+  predecessor: `walkoff.html` is the stage, the input records and
+  molders regenerate the bodies, and this paragraph is why none of it
+  gets deleted.
+
 ## UI language
 
 - **Every datum is a cell**: label plate + value box, adjacent, both boxed.
