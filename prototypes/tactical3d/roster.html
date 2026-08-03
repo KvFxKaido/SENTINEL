@@ -38,7 +38,9 @@ combat-scale strip. No preview resamples the authored pixels.</p>
   if (errors.length) {
     gate.className = "error";
     gate.innerHTML = `YARD ROSTER SHEETS NOT LOADED<br><span class="note">` +
-      `Regenerate them with <code>python scripts/roster_mold.py</code>.<br>` +
+      `Regenerate with all three stages: <code>roster_mold.py</code> → ` +
+      `<code>compose_body.py</code> → <code>pack_strip.py</code>; the audit reads ` +
+      `the composed sheets the last one writes.<br>` +
       `${errors[0].message}${errors.length > 1 ? ` (${errors.length} sheets failed; first shown)` : ""}</span>`;
     throw errors[0];
   }

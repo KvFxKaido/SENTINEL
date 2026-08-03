@@ -46,7 +46,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # its own copies with a "must track roster_mold.py" comment on top — a drift
 # waiting to happen, and the ENERGY row was hard-coded to Cipher besides.
 from roster_mold import (BALA, CREW_RED, DORMANT, ENERGY,  # noqa: E402
-                         FIGHTERS, LIGHTS, OUTLINE, RUST, SKINS)
+                         FIGHTERS, KOA_SKIN, LIGHTS, OUTLINE, RUST, SKINS)
 
 hx = lambda s: tuple(int(s[i:i + 2], 16) for i in (0, 2, 4))
 
@@ -57,6 +57,26 @@ LEATHER = [hx("3a2d20"), hx("4a3020")]
 COAT = [hx(c) for c in ("2b3a4a", "41586e", "28374a", "1d2733", "161e28",
                         "141920", "1d2a37", "2b3947", "44586c", "223040")]
 DORM = list(DORMANT.values())
+
+# Two head passes recolour OUTSIDE the head, and both say so in the mold:
+# head_koa remaps skin "everywhere on the body" and head_syn paints every
+# skin pixel — gloves included — the balaclava tone, because a crew body
+# shows no skin anywhere. Their hands and their wrist leather therefore
+# never carry the base tones, which is why these have to be replayed here
+# and not assumed. Measured on the molded idle_down sheets: KOA and SYN
+# report 0 base-skin pixels where the other three report 22-42, and their
+# LEATHER drops 42/34 -> 28 because #4a3020 is shared between skin and
+# leather and the remap takes it with the skin (caught in review — Koa's
+# composed hands were greying to nothing).
+SKIN_REMAP = {
+    "koa": dict(KOA_SKIN),
+    "syn": {tone: BALA for tone in SKINS},
+}
+# Fighters whose build_frame runs RUST and CREW_RED over the WHOLE frame
+# after the blade pass. Named here rather than string-compared inline: the
+# invariant lives in roster_mold.build_frame, and if a second crew fighter
+# ever joins, this set is the one place that has to learn about it.
+CREW_RECOLOR = {"syn"}
 
 
 def palette(fighter):
@@ -81,8 +101,20 @@ def palette(fighter):
     """
     if fighter not in FIGHTERS:
         raise ValueError(f"unknown fighter {fighter!r}; expected one of {FIGHTERS}")
-    swaps = dict(RUST) | dict(CREW_RED) if fighter == "syn" else {}
-    fam = lambda colours: [swaps.get(c, c) for c in colours]
+    remap = SKIN_REMAP.get(fighter, {})
+    swaps = dict(RUST) | dict(CREW_RED) if fighter in CREW_RECOLOR else {}
+
+    def fam(colours):
+        # Replayed in the mold's own order: the head pass runs first, then
+        # the crew recolour over the whole frame. Deduped because a remap
+        # can collapse three skin tones onto one balaclava.
+        out = []
+        for colour in colours:
+            landed = swaps.get(remap.get(colour, colour), remap.get(colour, colour))
+            if landed not in out:
+                out.append(landed)
+        return out
+
     return {
         "coat": fam(COAT),
         "dorm": fam(DORM),
@@ -92,7 +124,7 @@ def palette(fighter):
         # sheets' ignition arc desaturates into a white smear — the pass runs
         # clean and destroys the one thing the frame is for.
         "mark": ENERGY[fighter],
-        "skins": [BALA] if fighter == "syn" else list(SKINS),
+        "skins": fam(SKINS),
         # The mold's own keyline tone. Not swapped for SYN: RUST and
         # CREW_RED do not touch it, so the squad shares one outline value.
         "outline": OUTLINE,

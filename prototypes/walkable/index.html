@@ -970,10 +970,11 @@ function showAssetFault(error) {
     <div class="gate-box">
       <h2>CIPHER SHEETS NOT LOADED</h2>
       <p>
-        Two stages, in order: <code>python scripts/roster_mold.py</code>
-        molds the licensed pack, then
-        <code>python scripts/compose_body.py</code> composes the shipped
-        body from it.<br>
+        Three stages, in order: <code>roster_mold.py</code> molds the
+        licensed pack, <code>compose_body.py</code> composes the shipped
+        body into per-frame directories, and <code>pack_strip.py</code>
+        packs those into the sheets this page loads — stopping after the
+        second leaves frame directories and no sheets.<br>
         The licensed source pack must be present locally at
         <code>prototypes/FULL_Adventurer 2D Pixel Art/</code> — the FREE
         pack cannot serve this page, which needs the synthesized
@@ -1068,7 +1069,7 @@ async function bootCipher() {
     showAssetFault(new Error(
       `composed roster incomplete: ${missing.length} of `
       + `${actions.length * FACINGS.length} sheets missing (first: ${missing[0]}) `
-      + `— re-run roster_mold.py, then compose_body.py`
+      + `— re-run roster_mold.py, then compose_body.py, then pack_strip.py`
     ));
     return;
   }

@@ -146,6 +146,14 @@ jobs:
         working-directory: prototypes/walkable/test
         run: python test_roster_sweep.py
 
+      # compose_body's palette() and selout() run in neither of the above:
+      # the sweep drives roster_mold only, and the browser harness feeds the
+      # page synthetic sheets that never reach compose. Both passes have
+      # already regressed once in review.
+      - name: Compose passes
+        working-directory: prototypes/walkable/test
+        run: python test_compose_passes.py
+
       # The sweep proves the golden guard FIRES; it cannot prove what the
       # blade classifier DECIDES, because the goldens come from the
       # gitignored licensed pack. This pins the decision itself against
