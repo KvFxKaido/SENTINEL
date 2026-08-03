@@ -16,6 +16,8 @@ MOLDED pack frames, and identity is the only thing that comes from elsewhere:
            selective one — measured off the pack, not chosen
   swap()   drop the generated head in, anchored to the SHOULDER band
   grey()   neutralise the outfit at constant luminance, sparing skin
+  holster() stamp the default sidearm on the thigh, anchored per frame —
+           every verb but the two that raise it
 
 Everything animation-shaped — arm phase, bob, gait, loop closure, every
 facing — is inherited untouched, because it is never touched. Measured on
@@ -451,9 +453,79 @@ def grey(img, pal, generated):
     return Image.fromarray(a)
 
 
-def compose(pack_frame, gen_head, facing, pal):
+# The default sidearm, holstered. Two columns: the OUTER one protrudes past
+# the silhouette and carries the light, the inner one is a dark separation
+# where it meets the coat.
+#
+# That order is the whole trick and it was wrong twice before it read. The
+# first cut used the pack's dormant steel and vanished — grey() neutralises
+# the wardrobe, and the composed emitter greys with it, so a blue item was
+# both invisible against a dark body and the only coloured thing on it. The
+# second cut was greyscale but put the dark outline OUTSIDE, against a
+# near-black room, where an outline contributes nothing. The pack's own
+# gloves read at this size for exactly one reason: light sits at the
+# boundary. So does this.
+HOLSTER_OUTER = [(146, 146, 146), (112, 112, 112), (112, 112, 112), (74, 74, 74)]
+# Where on the body: below the gloves (which end at 62% of body height,
+# measured) and above the leg split. 70-84% is thigh — a drop-leg rig,
+# which is also the only band wide enough to hang something off.
+HOLSTER_BAND = (0.70, 0.84)
+# NEAR hip on every facing, which is a readability choice over anatomy and
+# should be read as one. A strict character's-right rule would hide the
+# sidearm on half the facings, and the entire reason it exists is so a body
+# reads as armed while standing still.
+HOLSTER_SIDE = {"down": "left", "left": "left", "up": "right", "right": "right"}
+# Not on the verbs where the weapon is in the hands. The holster and the
+# emitter the AIM/FIRE sheets raise are the SAME object; a body cannot wear
+# it and point it at once.
+HOLSTER_SKIP = {"aim", "fire"}
+
+
+def holster(img, facing, pal):
+    """Stamp the default sidearm on the near thigh, anchored per frame.
+
+    Anchored off the body's own silhouette rather than a fixed offset, the
+    same discipline swap() uses for the head: the hip sways a pixel across
+    a walk cycle, and a stamp that ignores that slides against the body it
+    is supposed to hang from.
+    """
+    a = np.array(img.convert("RGBA")).copy()
+    al = a[:, :, 3] > 0
+    if not al.any():
+        return img
+    side = HOLSTER_SIDE[facing]
+    ys, _ = np.where(al)
+    top, bot = ys.min(), ys.max()
+    height = bot - top + 1
+    row0 = top + int(height * HOLSTER_BAND[0])
+    edges = []
+    for y in range(row0, min(top + int(height * HOLSTER_BAND[1]), a.shape[0] - 1) + 1):
+        row = np.where(al[y])[0]
+        if len(row):
+            edges.append(row.min() if side == "left" else row.max())
+    if not edges:
+        return img
+    x = min(edges) if side == "left" else max(edges)
+    step = -1 if side == "left" else 1
+    for dy, lit in enumerate(HOLSTER_OUTER):
+        y = row0 + dy
+        if not 0 <= y < a.shape[0]:
+            continue
+        for dx, colour in ((step, lit), (0, pal["outline"])):
+            if 0 <= x + dx < a.shape[1]:
+                a[y, x + dx, :3] = colour
+                a[y, x + dx, 3] = 255
+    return Image.fromarray(a)
+
+
+def compose(pack_frame, gen_head, facing, pal, verb=None):
     swapped, generated = swap(strip(pack_frame, facing, pal), gen_head)
-    return grey(swapped, pal, generated)
+    body = grey(swapped, pal, generated)
+    # Stamped last, on top of a finished body: the sidearm is gear, not
+    # wardrobe, so grey() must not reach it.
+    if verb not in HOLSTER_SKIP:
+        body = holster(body, facing, pal)
+    return body
 
 
 def main():
@@ -528,7 +600,8 @@ def main():
                 os.remove(os.path.join(d, stale))
         for i in range(n):
             frame = sheet.crop((i * FRAME_W, 0, i * FRAME_W + FRAME_W, FRAME_H))
-            compose(frame, head, facing, pal).save(os.path.join(d, f"f{i + 1:02d}.png"))
+            compose(frame, head, facing, pal, stem).save(
+                os.path.join(d, f"f{i + 1:02d}.png"))
         print(f"  {stem}_{facing}: {n} frames  (head = {rot}, palette = {fighter}, "
               f"selout = {a.selout})")
     return 0

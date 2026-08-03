@@ -24,7 +24,8 @@ from PIL import Image
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "scripts"))
 
-from compose_body import (KEY_LUM, PROBE_MAX, grey, palette,  # noqa: E402
+from compose_body import (HOLSTER_SIDE, HOLSTER_SKIP, KEY_LUM,  # noqa: E402
+                          PROBE_MAX, _luma, grey, holster, palette,
                           selout, swap)
 from roster_mold import BALA, KOA_SKIN, SKINS  # noqa: E402
 
@@ -201,6 +202,46 @@ check("the tall synthetic really does cross the composed line",
 check("generated pixels below the line keep their colour, not luminance",
       all(tuple(p[:3]) == HEADCOL for p in tall[below]),
       f"{int(below.sum())} px checked")
+
+# ---- holster(): the default sidearm -----------------------------------
+# The invariant that took three tries to get right: LIGHT protrudes past
+# the silhouette and dark separates inside it. Reversed, the stamp is a
+# dark outline against a near-black room, which contributes nothing — it
+# is present in the file and invisible on screen.
+torso = slab(WARDROBE, 10, 30, x0=16, x1=24)
+worn = np.array(holster(torso, "down", palette("cipher")).convert("RGBA"))
+bare = np.array(torso.convert("RGBA"))
+
+check("the stamp widens the silhouette",
+      int((worn[:, :, 3] > 0).sum()) > int((bare[:, :, 3] > 0).sum()))
+added = (worn[:, :, 3] > 0) & ~(bare[:, :, 3] > 0)
+check("it protrudes on the near side, not into the body", added.any())
+ay, ax = np.where(added)
+lum_added = [_luma(worn[y, x, :3].astype(float)) for y, x in zip(ay, ax)]
+check("what protrudes is LIGHT, not the outline",
+      min(lum_added) > KEY_LUM, f"dimmest protruding px luma {min(lum_added):.0f}")
+inner = worn[ay, ax + 1, :3]                      # one step back toward the body
+check("the column behind it is the dark separation",
+      all(_luma(p.astype(float)) < KEY_LUM for p in inner))
+
+# It has to sit on the thigh: below the gloves and above the leg split.
+band = (ay.min() - 10) / 30.0
+check("the stamp lands in the thigh band, clear of the hands",
+      0.65 <= band <= 0.90, f"{band:.0%} of body height")
+
+# Anchored to the body, not to the canvas: shift the body and the stamp
+# must follow, or it slides against the hip across a walk cycle.
+shifted = slab(WARDROBE, 10, 30, x0=20, x1=28)
+worn2 = np.array(holster(shifted, "down", palette("cipher")).convert("RGBA"))
+a2 = (worn2[:, :, 3] > 0) & ~(np.array(shifted.convert("RGBA"))[:, :, 3] > 0)
+check("the anchor follows the body, not the canvas",
+      np.where(a2)[1].min() - ax.min() == 4,
+      f"body moved 4px, stamp moved {np.where(a2)[1].min() - ax.min()}px")
+
+check("the near side flips with the facing",
+      HOLSTER_SIDE["down"] != HOLSTER_SIDE["up"])
+check("the verbs that raise the weapon do not also wear it",
+      HOLSTER_SKIP == {"aim", "fire"}, HOLSTER_SKIP)
 
 print()
 if failures:
