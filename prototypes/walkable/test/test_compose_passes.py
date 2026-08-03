@@ -24,8 +24,9 @@ from PIL import Image
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "scripts"))
 
-from compose_body import (KEY_LUM, PROBE_MAX, grey, palette,  # noqa: E402
-                          selout, swap)
+from compose_body import (HOLSTER_SIDE, HOLSTER_SKIP, KEY_LUM,  # noqa: E402
+                          PROBE_MAX, SHEET_STEMS, _luma, grey,
+                          holster, palette, selout, swap)
 from roster_mold import BALA, KOA_SKIN, SKINS  # noqa: E402
 
 failures = []
@@ -201,6 +202,69 @@ check("the tall synthetic really does cross the composed line",
 check("generated pixels below the line keep their colour, not luminance",
       all(tuple(p[:3]) == HEADCOL for p in tall[below]),
       f"{int(below.sum())} px checked")
+
+# ---- holster(): the default sidearm -----------------------------------
+# The invariant that took three tries to get right: LIGHT protrudes past
+# the silhouette and dark separates inside it. Reversed, the stamp is a
+# dark outline against a near-black room, which contributes nothing — it
+# is present in the file and invisible on screen.
+torso = slab(WARDROBE, 10, 30, x0=16, x1=24)
+worn = np.array(holster(torso, "down", palette("cipher")).convert("RGBA"))
+bare = np.array(torso.convert("RGBA"))
+
+check("the stamp widens the silhouette",
+      int((worn[:, :, 3] > 0).sum()) > int((bare[:, :, 3] > 0).sum()))
+added = (worn[:, :, 3] > 0) & ~(bare[:, :, 3] > 0)
+check("it protrudes on the near side, not into the body", added.any())
+ay, ax = np.where(added)
+lum_added = [_luma(worn[y, x, :3].astype(float)) for y, x in zip(ay, ax)]
+check("what protrudes is LIGHT, not the outline",
+      min(lum_added) > KEY_LUM, f"dimmest protruding px luma {min(lum_added):.0f}")
+inner = worn[ay, ax + 1, :3]                      # one step back toward the body
+check("the column behind it is the dark separation",
+      all(_luma(p.astype(float)) < KEY_LUM for p in inner))
+
+# It has to sit on the thigh: below the gloves and above the leg split.
+band = (ay.min() - 10) / 30.0
+check("the stamp lands in the thigh band, clear of the hands",
+      0.65 <= band <= 0.90, f"{band:.0%} of body height")
+
+# Anchored to the body, not to the canvas: shift the body and the stamp
+# must follow, or it slides against the hip across a walk cycle.
+shifted = slab(WARDROBE, 10, 30, x0=20, x1=28)
+worn2 = np.array(holster(shifted, "down", palette("cipher")).convert("RGBA"))
+a2 = (worn2[:, :, 3] > 0) & ~(np.array(shifted.convert("RGBA"))[:, :, 3] > 0)
+check("the anchor follows the body, not the canvas",
+      np.where(a2)[1].min() - ax.min() == 4,
+      f"body moved 4px, stamp moved {np.where(a2)[1].min() - ax.min()}px")
+
+check("the near side flips with the facing",
+      HOLSTER_SIDE["down"] != HOLSTER_SIDE["up"])
+
+# It hangs from where it attaches, so the attach row must touch the body
+# even when the contour recedes below it. A taper: wide at the top of the
+# band, narrow underneath.
+taper = np.zeros((40, 40, 4), np.uint8)
+taper[10:34, 16:24, :3] = WARDROBE
+taper[10:34, 16:24, 3] = 255
+taper[28:34, 16:20, 3] = 0                        # the near side falls away
+tapered = np.array(holster(Image.fromarray(taper), "down",
+                           palette("cipher")).convert("RGBA"))
+t_added = (tapered[:, :, 3] > 0) & ~(taper[:, :, 3] > 0)
+ty, tx = np.where(t_added)
+attach_row = np.where(taper[ty.min(), :, 3] > 0)[0]
+check("the attach row touches the body on a receding contour",
+      len(attach_row) and tx.max() + 1 >= attach_row.min(),
+      f"stamp reaches x={tx.max()}, body starts x={attach_row.min() if len(attach_row) else None}")
+
+# compose() is handed the sheet STEM as the verb, so the skip set has to
+# match what SHEET_STEMS actually produces — an "AIM" that stemmed to
+# anything else would silently wear the holster while raising the weapon.
+check("the raising verbs stem to exactly the skip set",
+      {SHEET_STEMS.get(v, v.lower()) for v in ("AIM", "FIRE")} == HOLSTER_SKIP,
+      {SHEET_STEMS.get(v, v.lower()) for v in ("AIM", "FIRE")})
+check("no skip entry is uppercase or unstemmed",
+      all(s == s.lower() and " " not in s for s in HOLSTER_SKIP), HOLSTER_SKIP)
 
 print()
 if failures:
