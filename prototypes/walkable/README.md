@@ -41,6 +41,7 @@ not run from `file://`.
 | `C` hold | kneel |
 | `Q` / `E` | orbit the room 90° |
 | `P` | cycle LCD / crunch / clean |
+| `Shift` + `N` | close the run, open a fresh one |
 
 `J` and `K` swung the pack's sword until 2026-08-02 and are gone. No rule
 ever consulted them: `tactical-core` models overwatch, shot, cover and
@@ -58,6 +59,14 @@ wins, because aim is the stance with a verb attached to it. `F` fires
 from anywhere, and because the shot begins and ends in the aim pose it
 reads standalone *and* falls back into a held aim without a seam.
 
+`Shift`+`N` closes the run — the panel's only destructive verb, so it
+does not destroy what it cannot preserve. It archives first and opens a
+fresh run only if the archive actually took (read back, not assumed), and
+it refuses outright while a card is still settling at the edge: a card in
+flight belongs to the run that dealt it, and closing mid-settlement used
+to archive the run *without* its final card and then bank that card onto
+the fresh one.
+
 The north doorway is **live**: walking through it is the seam — and the
 dash moves through the same collision and door machinery, so dashing the
 doorway deals the card too. On the full roster, walking back out of a
@@ -70,18 +79,26 @@ Crossing the north door hands the feed to `tactical3d/` in a fullscreen
 iframe with a seed this room dealt (`?seam=1&seed=…`). The yard plays
 exactly one card — its own re-deal verbs are disabled in seam mode — and
 when you take **WALK BACK OUT** on the post-match overlay, it posts
-`{seed, record, result, rating, purse, fingerprint}` home and the frame
-is torn down. You return standing just inside the walls; walking the
-door again deals a fresh card.
+`{seed, record, result, rating, purse, ledger, down, fingerprint}` home
+and the frame is torn down. You return standing just inside the walls;
+walking the door again deals a fresh card.
+
+`ledger` and `down` are the **aftermath** — walked / finished / lost, and
+the names of your dead. They ride home because the run banks what a card
+cost, and cost is not in the yard's `end` event. The counts are the same
+three the witness certificate carries, so the edge checks them; the names
+are the yard's own word and must at least agree with its own count.
 
 The room does not take the yard's word for it:
 
 - the returned **seed must match the one it dealt**, and the payload must
   be shaped like a replayable record — anything else is refused;
 - the record is sent to the witness Worker, whose **replay settles the
-  session ledger**: `CERTIFIED AT THE EDGE`, `EDGE DISPUTES THE FEED —
+  run**: `CERTIFIED AT THE EDGE`, `EDGE DISPUTES THE FEED —
   STRUCK` (the card never counts), or `UNCERTIFIED — NO WITNESS
-  REACHABLE` (counted, and labeled as taken on the yard's word);
+  REACHABLE` (counted, and labeled as taken on the yard's word).
+  The aftermath is checked the same way the outcome always was: a page
+  that misreports what a card cost is struck, not banked;
 - the hand-off has a readiness handshake: the cut card holds until the
   yard proves it booted, with a 7s timeout and an <kbd>ESC</kbd> abort
   that put you back in the room if the far side never answers;

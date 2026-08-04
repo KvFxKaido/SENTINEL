@@ -285,9 +285,12 @@
   #seamcut .cutname { color: var(--amber); font-size: 22px; letter-spacing: 8px; }
   #seamcut .cutsub { color: var(--text); font-size: 11px; letter-spacing: 2px; }
 
-  #seaminfo { color: var(--text-dim); font-size: 10px; line-height: 1.7; }
-  #seaminfo b { color: var(--amber); font-weight: normal; }
-  #seaminfo .fp { color: var(--cyan); }
+  #seaminfo, #runinfo { color: var(--text-dim); font-size: 10px; line-height: 1.7; }
+  #seaminfo b, #runinfo b { color: var(--amber); font-weight: normal; }
+  #seaminfo .fp, #runinfo .fp { color: var(--cyan); }
+  /* Caveats read as caveats: a run carrying struck cards, unwitnessed
+     cards or a rules change must not look like a clean one at a glance. */
+  #seaminfo .warn, #runinfo .warn { color: var(--red); }
 
   @media (max-width: 1015px) {
     #app {
@@ -358,8 +361,14 @@
         <tr><th><kbd>C</kbd> hold</th><td>kneel</td></tr>
         <tr><th><kbd>Q</kbd> / <kbd>E</kbd></th><td>orbit 90°</td></tr>
         <tr><th><kbd>P</kbd></th><td>LCD / crunch / clean</td></tr>
+        <tr><th><kbd>Shift</kbd>+<kbd>N</kbd></th><td>close the run, open a fresh one</td></tr>
         <tr><th>NORTH DOOR</th><td>walk it — the yard takes the feed</td></tr>
       </table>
+    </section>
+
+    <section class="box" id="runbox">
+      <h2>THE RUN</h2>
+      <div id="runinfo">Opening…</div>
     </section>
 
     <section class="box" id="yardbox">
@@ -395,9 +404,17 @@
    logic it runs. This file borrows tactical3d's visual machinery because
    the audition only means anything when world, body, camera and display
    pass are the same machinery already under review.
+
+   It DOES import run-core, and that is not the same wall. run-core holds
+   no rules and decides no match: it banks what a returned card cost and
+   nothing else. The room stays unable to compute an outcome, which is
+   the property the no-rules wall exists to protect.
    ================================================================ */
 
 import * as THREE from "../tactical3d/vendor/three.module.js";
+import {
+  bindStore, loadRun, saveRun, applyCard, closeRun, openRun, summary,
+} from "../run-core/run.js";
 
 // ---- room coordinates ---------------------------------------------
 const ROOM_W = 12;
@@ -1325,6 +1342,41 @@ document.addEventListener("keydown", event => {
     if (!seamReady && event.code === "Escape") abortSeam("YOU PULLED BACK");
     return;
   }
+  // Closing the run is the one destructive verb the room has, so it wants
+  // the shift the stances already use and it does not delete: the closed
+  // run is archived, and the panel says what it banked on its way out.
+  if (event.code === "KeyN" && event.shiftKey && !event.repeat) {
+    // A card in flight belongs to the run that dealt it. Closing now would
+    // archive that run without its final card and bank the card onto the
+    // fresh one when the edge finally answers.
+    if (settling > 0) {
+      runNote = '<span class="warn">A CARD IS STILL SETTLING — CLOSE THE RUN ONCE IT LANDS</span>';
+      renderRun();
+      return;
+    }
+    const gone = summary(run);
+    const at = new Date().toISOString();
+    const out = storageLive
+      ? closeRun(run, at)
+      // With no storage there is nothing to archive and nothing to lose:
+      // closing is just starting over in memory, and the panel already
+      // says this run is not being persisted at all. closeRun would
+      // otherwise refuse here, because its read-back cannot tell an inert
+      // store from a full one — and it is right not to guess.
+      : { run: openRun(at), archived: false, closed: true };
+    run = out.run;
+    // closeRun refuses rather than destroying what it could not preserve,
+    // so this reports what happened instead of assuming it worked
+    runNote = !out.closed
+      ? '<span class="warn">COULD NOT ARCHIVE — THE RUN IS STILL OPEN</span>'
+      : gone.cards || gone.struck
+        ? `PREVIOUS RUN CLOSED · ${gone.cards} CARD${gone.cards === 1 ? "" : "S"}` +
+          ` · ${gone.record} · ${gone.purse}c` + (out.archived ? " · ARCHIVED" : "")
+        : "PREVIOUS RUN CLOSED · IT HAD NOTHING IN IT";
+    if (out.closed && out.saved === false) persistFailed = true;
+    renderRun();
+    return;
+  }
   if (
     event.code === "ShiftLeft" || event.code === "ShiftRight"
     || event.code === "KeyR" || event.code === "KeyC"
@@ -1423,8 +1475,148 @@ let seamBootTimer = 0;
 let cutTimers = [];
 const seamCut = document.getElementById("seamcut");
 const seamInfo = document.getElementById("seaminfo");
-const ledger = { cards: 0, wins: 0, purse: 0 };
 const SEAM_BOOT_MS = 7000;
+
+/* ---- the run: what survives the door -----------------------------
+   Replaces the session ledger this box used to hold. The policy is
+   unchanged — certified counts, unwitnessed counts and says so, struck
+   does not count — and only its lifetime is different, which is the
+   whole change: the numbers now outlive the tab.
+
+   Storage is probed rather than assumed. Private mode, a blocked
+   origin and a sandboxed frame all make localStorage throw ON ACCESS,
+   not on write, so the feature test has to touch it. A room that
+   cannot persist still plays; it just says the run will not survive
+   the page instead of quietly forgetting at the end of it. */
+const runInfo = document.getElementById("runinfo");
+const storageLive = (() => {
+  try {
+    const probe = "sentinel.run.probe";
+    localStorage.setItem(probe, "1");
+    localStorage.removeItem(probe);
+    return true;
+  } catch { return false; }
+})();
+if (storageLive) {
+  bindStore({
+    read: k => localStorage.getItem(k),
+    write: (k, v) => localStorage.setItem(k, v),
+    remove: k => localStorage.removeItem(k),
+  });
+}
+const opened = loadRun(new Date().toISOString());
+let run = opened.run;
+// Two kinds of thing the panel has to say, kept apart because they have
+// different lifetimes. A CONDITION is true until the page reloads; a NOTE
+// is about the last thing that happened and stops being true once
+// something else does. Rolling them into one line meant a stale "PREVIOUS
+// RUN CLOSED" hanging around under the next card's numbers.
+const runCondition = storageLive
+  ? null
+  : '<span class="warn">STORAGE UNAVAILABLE — THIS RUN WILL NOT SURVIVE THE PAGE</span>';
+// "orphaned" means something was stored that this schema cannot read. It
+// was moved aside rather than dropped, and the surface owes the player
+// that sentence — a run that silently restarts looks exactly like a run
+// that was never saved.
+let runNote = opened.how === "orphaned"
+  ? '<span class="warn">A RUN FROM AN OLDER SCHEMA WAS SET ASIDE — FRESH RUN OPEN</span>'
+  : null;
+// Storage that passed the one-byte probe can still refuse a full run —
+// quota is about bytes, and the probe is one byte. A write that fails
+// after the panel has already drawn the card would leave the surface
+// claiming a card the next reload cannot produce, so a failed save
+// becomes a standing condition rather than a silence (caught in review).
+let persistFailed = false;
+// Cards in flight: raised when one comes home, lowered when the edge has
+// ruled on it. Closing the run in that window used to archive the old run
+// WITHOUT its final card and then bank that card onto the fresh one
+// (caught in review) — the settlement is async and had no idea which run
+// it began under. Refusing to close mid-settlement is the fix; the window
+// is at most the witness deadline, and the panel says what it waits for.
+//
+// A COUNT rather than a flag, because the door is three steps away and the
+// deadline is 8s: a player can walk a second card while the first is still
+// hanging, and a boolean would be cleared by whichever settled first while
+// the other was still in the air.
+let settling = 0;
+// A fresh run takes the live slot immediately — including the one opened
+// after an orphan, so the set-aside path leaves storage in the same state
+// as a first visit rather than in a third state nothing else expects.
+if (storageLive && opened.how !== "restored") saveRun(run);
+
+const pct = n => `${Math.round(n * 100)}%`;
+// Everything the run renders came from somewhere else — a restored blob
+// on a shared origin, or a JSON field the edge returned — and all of it
+// lands in innerHTML. run-core refuses a structurally wrong run, and this
+// makes the renderer safe even when that check is the thing that is wrong.
+const esc = s => String(s).replace(/[&<>"']/g, c =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+function renderRun() {
+  const s = summary(run);
+  const rows = [];
+  if (s.cards === 0 && s.struck === 0) {
+    rows.push(`<b>RUN OPEN</b> · NO CARDS YET · the north door is live`);
+  } else {
+    rows.push(`<b>${s.cards} CARD${s.cards === 1 ? "" : "S"}</b> · ${s.record} · <b>${s.purse}c</b> BANKED`);
+    const streak = s.streak > 1 ? ` · ${s.streak} STRAIGHT` : "";
+    rows.push(`BEST RATING ${s.best}${streak}${s.longest > 1 ? ` · LONGEST ${s.longest}` : ""}`);
+    // The mercy ledger is the run's actual thesis: across every card, how
+    // often a yield was honored rather than collected on. Rendered as a
+    // rate only once somebody has yielded — 0 of 0 is not 0%.
+    rows.push(
+      `MERCY · ${s.walked} WALKED · ${s.finished} FINISHED` +
+      (s.mercyRate === null ? "" : ` · <b>${pct(s.mercyRate)}</b> HONORED`)
+    );
+    rows.push(s.wounded.length
+      ? `DOWN · ${s.wounded.map(([n, c]) => `${esc(n)}${c > 1 ? ` ×${c}` : ""}`).join(" · ")}`
+      : `DOWN · NOBODY OF YOURS, YET`);
+    // The card log, newest first — the one view that shows shape rather
+    // than totals. Struck cards appear here and NOWHERE in the numbers
+    // above, which is the honest way to show a card that happened and
+    // was banked by nobody.
+    rows.push("RECENT · " + run.recent.slice(0, 8).map(c =>
+      c.cert === "struck"
+        ? `<span class="warn">${c.result === "win" ? "W" : "L"}${c.rating}✗</span>`
+        : `${c.result === "win" ? "W" : "L"}${c.rating}`
+    ).join(" "));
+  }
+  // Caveats last and marked, so a run carrying them never reads clean.
+  if (s.struck) rows.push(`<span class="warn">${s.struck} CARD${s.struck === 1 ? "" : "S"} STRUCK — BANKED BY NOBODY</span>`);
+  if (s.unwitnessed) rows.push(`<span class="warn">${s.unwitnessed} COUNTED UNWITNESSED</span>`);
+  if (s.drift) {
+    rows.push(
+      `<span class="warn">RULES CHANGED MID-RUN</span> · earned under ` +
+      `<span class="fp">${esc(s.drift.from)}</span> → now <span class="fp">${esc(s.drift.to)}</span>`
+    );
+  }
+  rows.push(`OPENED ${run.opened.slice(0, 10)}${storageLive ? "" : " · NOT PERSISTED"}`);
+  if (runCondition) rows.push(runCondition);
+  if (persistFailed) {
+    rows.push('<span class="warn">STORAGE REFUSED THE LAST WRITE — WHAT IS ON SCREEN IS AHEAD OF WHAT IS SAVED</span>');
+  }
+  if (runNote) rows.push(runNote);
+  runInfo.innerHTML = rows.join("<br>");
+  // the harness reads the run off the surface rather than out of storage:
+  // what is asserted is what a player would actually see
+  canvas.dataset.run = `${s.cards}:${s.record}:${s.purse}:${s.walked}:${s.finished}:${s.struck}`;
+}
+
+// Bank a returned card and redraw. One place writes the run, so the
+// stored copy and the rendered one cannot disagree.
+function bankCard(card) {
+  const { run: next, accepted, counted, why } = applyCard(run, card);
+  run = next;
+  runNote = null;   // a card is newer news than whatever the note was about
+  // the return value is the point: a save that failed and said nothing
+  // leaves the panel describing a run the next reload will not produce
+  if (storageLive && !saveRun(run)) persistFailed = true;
+  renderRun();
+  return { accepted, counted, why };
+}
+
+canvas.dataset.settling = "0";   // the attribute exists before the first card
+renderRun();
 // The witness gets a deadline for the same reason the yard does. A witness
 // that REFUSES already lands in certifySeam's catch and the panel says
 // "NO WITNESS REACHABLE"; a witness that ACCEPTS and never answers used to
@@ -1513,14 +1705,28 @@ function abortSeam(why) {
 // what a returned card must look like before the room believes a word of
 // it: the seed IT dealt, a sane outcome, a replayable-shaped record
 function seamResultValid(d) {
+  const count = n => Number.isInteger(n) && n >= 0 && n <= 16;
   return d.seed === seamDealt
     && (d.result === "win" || d.result === "loss")
-    && Number.isFinite(d.rating)
-    && Number.isFinite(d.purse)
+    // integers in the domain the rules clamp to, not merely finite: these
+    // are banked now, and a fractional rating truncated on its way into a
+    // run would be a silent disagreement between what the panel showed
+    // and what the run kept
+    && Number.isInteger(d.rating) && d.rating >= 0 && d.rating <= 100
+    && Number.isInteger(d.purse) && d.purse >= 0 && d.purse <= 10000
     && typeof d.fingerprint === "string"
     && Array.isArray(d.record)
     && d.record.length <= 1024
-    && d.record.every(c => Array.isArray(c));
+    && d.record.every(c => Array.isArray(c))
+    // the aftermath rides home beside the outcome, because the run banks
+    // what a card COST and that is not in the end event. The counts are
+    // checked against the edge's own replay below; the names are the
+    // yard's word, and must at least agree with its own count.
+    && !!d.ledger
+    && count(d.ledger.walked) && count(d.ledger.finished) && count(d.ledger.lost)
+    && Array.isArray(d.down)
+    && d.down.length === d.ledger.lost
+    && d.down.every(n => typeof n === "string" && n.length > 0 && n.length <= 16);
 }
 
 function endSeam(result) {
@@ -1539,16 +1745,23 @@ function endSeam(result) {
     locked = { name: "hurt", started: null };
   }
 
-  // the entry renders now; the SESSION ledger settles only after the
-  // edge rules on the card — a disputed result must never count
+  // the entry renders now; the RUN settles only after the edge rules on
+  // the card — a disputed result must never be banked
   seamInfo.innerHTML =
     `<b>${result.result === "win" ? "YARD CLEARED" : "SQUAD LOST"}</b>` +
     ` · RATING ${result.rating} · PURSE ${result.purse}c<br>` +
-    `seed ${result.seed} · ${result.record.length} commands` +
-    ` · fp <span class="fp">${result.fingerprint}</span><br>` +
+    `${result.ledger.walked} WALKED · ${result.ledger.finished} FINISHED` +
+    ` · ${result.ledger.lost} OF YOURS DOWN` +
+    (result.down.length ? ` (${result.down.map(esc).join(", ")})` : "") + `<br>` +
+    `seed ${esc(result.seed)} · ${result.record.length} commands` +
+    ` · fp <span class="fp">${esc(result.fingerprint)}</span><br>` +
     `<span id="seamcert">CERT · ASKING THE EDGE…</span><br>` +
-    `<span id="seamtotals">SESSION · settling…</span>`;
+    `<span id="seamtotals">RUN · settling…</span>`;
   canvas.dataset.lastResult = result.result;
+  // raised BEFORE the await starts, so there is no frame in which the card
+  // is in flight and the run can still be closed out from under it
+  settling += 1;
+  canvas.dataset.settling = String(settling);
   certifySeam(result);
 
   showCut("FEED RETURNED", "THE RECORD CAME BACK WITH YOU");
@@ -1562,7 +1775,8 @@ function endSeam(result) {
 // panel SAYS so — an unverified truth labeled beats a silent one.
 async function certifySeam(d) {
   let verdict;
-  let counts;
+  let cert;
+  let rules = null;
   try {
     const r = await fetch(`${WITNESS}/certify`, {
       method: "POST",
@@ -1573,38 +1787,72 @@ async function certifySeam(d) {
         fingerprint: d.fingerprint,
       }),
       // a hang is unreachable too — the abort lands in the catch below, so
-      // the session still settles and still says how
+      // the run still settles and still says how
       signal: AbortSignal.timeout(WITNESS_MS),
     });
     const out = await r.json();
     const agrees = out.certified === true
       && out.result === d.result
       && out.rating === d.rating
-      && out.purse === d.purse;
+      && out.purse === d.purse
+      // The aftermath is checked the same way the outcome always was.
+      // It has to be: the run banks mercy and wounds off these numbers,
+      // so a page that misreports what a card cost would write a run
+      // history the edge never attested to. The certificate carries the
+      // same three counts off its own replay.
+      && !!out.ledger
+      && out.ledger.walked === d.ledger.walked
+      && out.ledger.finished === d.ledger.finished
+      && out.ledger.lost === d.ledger.lost;
     if (agrees) {
       verdict = '<span class="fp">CERTIFIED AT THE EDGE</span>';
-      counts = true;
+      cert = "certified";
+      // stamped so the run can notice a rules deploy underneath it rather
+      // than presenting one total across two different rule sets
+      rules = typeof out.rules === "string" ? out.rules : null;
     } else {
-      verdict = `<b>EDGE DISPUTES THE FEED — STRUCK</b> · ${out.error ?? "outcome mismatch"}`;
-      counts = false;
+      verdict = `<b>EDGE DISPUTES THE FEED — STRUCK</b> · ${esc(out.error ?? "outcome mismatch")}`;
+      cert = "struck";
     }
   } catch {
     verdict = "UNCERTIFIED — NO WITNESS REACHABLE";
-    counts = true;
+    cert = "unwitnessed";
   }
   const certEl = document.getElementById("seamcert");
   if (certEl) certEl.innerHTML = `CERT · ${verdict}`;
-  if (counts) {
-    ledger.cards += 1;
-    if (d.result === "win") ledger.wins += 1;
-    ledger.purse += d.purse | 0;
-  }
+
+  // this card has landed on the run that dealt it; closing is safe again
+  // once nothing else is still in the air
+  settling = Math.max(0, settling - 1);
+  canvas.dataset.settling = String(settling);
+
+  const { accepted, counted } = bankCard({
+    seed: d.seed,
+    result: d.result,
+    rating: d.rating,
+    purse: d.purse,
+    ledger: d.ledger,
+    down: d.down,
+    cert,
+    rules,
+    at: new Date().toISOString(),
+  });
+
   const totEl = document.getElementById("seamtotals");
   if (totEl) {
-    totEl.textContent =
-      `SESSION · ${ledger.cards} CARD${ledger.cards === 1 ? "" : "S"}` +
-      ` · ${ledger.wins}–${ledger.cards - ledger.wins} · ${ledger.purse}c` +
-      (counts ? "" : " · LAST CARD STRUCK");
+    const s = summary(run);
+    // Three outcomes, three sentences. A card the run REFUSED is a bug in
+    // this page, not a dispute at the edge, and must never be reported as
+    // one — the room validated this payload already, so reaching here
+    // means the two validators disagree and somebody should look.
+    const totals = `${s.cards} CARD${s.cards === 1 ? "" : "S"} · ${s.record} · ${s.purse}c`;
+    totEl.innerHTML = !accepted
+      ? '<span class="warn">RUN REFUSED THIS CARD — NOT BANKED (this is a bug, not a dispute)</span>'
+      : counted
+        ? `BANKED TO THE RUN · ${totals}`
+        // said this way round on purpose: the totals follow the word
+        // UNCHANGED, so a struck card can never look like it moved them
+        : `<span class="warn">NOT BANKED — CARD STRUCK</span> · RUN UNCHANGED AT ${totals}`;
   }
 }
 

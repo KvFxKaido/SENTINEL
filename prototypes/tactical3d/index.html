@@ -387,6 +387,14 @@ const WITNESS = new URLSearchParams(location.search).get("witness")
 // the re-deal verbs (R / shift+R) belong to the world while this is set.
 const SEAM = new URLSearchParams(location.search).get("seam") !== null;
 var lastEnd = null;   // the "end" event, held for the walk home
+// The aftermath, held for the same trip. The world's run layer banks what
+// a card COST, and cost is not in the "end" event: who walked, who was
+// finished, and which of yours went down are read off the final board.
+// The counts are the same three the witness certificate carries, so the
+// edge checks them; the NAMES are this page's own word, and the run layer
+// says so rather than implying the edge attested to them.
+var lastLedger = null;
+var lastDown = null;
 
 // The archive, summarized: every filed card, win or lose, purse paid
 // across all of them. Labeled ARCHIVE and not CAREER on purpose — the
@@ -596,7 +604,12 @@ function showEnd(ev) {
   // yielded stays true on the dead — that is how the ending knows what you did
   const spared   = S.units.filter(u => u.side === "ho" && u.alive && u.yielded).length;
   const finished = S.units.filter(u => u.side === "ho" && !u.alive && u.yielded).length;
-  const lost     = S.units.filter(u => u.side === "op" && !u.alive).length;
+  const downed   = S.units.filter(u => u.side === "op" && !u.alive);
+  const lost     = downed.length;
+  // read once, off the same board the ledger line is drawn from, so the
+  // number the player sees and the number the world banks cannot diverge
+  lastLedger = { walked: spared, finished, lost };
+  lastDown = downed.map(u => u.name);
   if (result === "win") {
     t.textContent = "YARD CLEARED"; t.className = "win";
     p.textContent =
@@ -1821,6 +1834,8 @@ document.getElementById("ovwalk").onclick = () => {
     result: lastEnd.result,
     rating: lastEnd.rating,
     purse: lastEnd.purse,
+    ledger: lastLedger,
+    down: lastDown,
     fingerprint: fnv(matchLines.join("\n")),
     lines: matchLines.length,
   }, location.origin);

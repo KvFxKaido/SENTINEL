@@ -8,6 +8,9 @@ enough to replay twice. One rules layer, two renderers, one test suite.
 ```
 tactical-core/   rules: rng, LOS, cover, firing solutions, movement, AI
                  no DOM — runs under `node --test`, guarded in CI
+run-core/        the run: what survives the door. Banks what a card COST
+                 — purse, mercy, wounds — and never what a card IS.
+                 No DOM, no rules import; `node --test`, guarded in CI
 tactical/        2D canvas renderer (immediate-mode, pixel sprites)
 tactical3d/      three.js renderer (retained-mode, 2:1 isometric)
 walkable/        walkable interior (COURT 01): one room, one body, and a
@@ -15,17 +18,27 @@ walkable/        walkable interior (COURT 01): one room, one body, and a
                  the outcome back — the seam
 ```
 
+Three modules, three walls. `tactical-core` is trustworthy because it has
+no host; `run-core` is safe because it holds no rules; `walkable` stays
+honest because it can still not compute an outcome. The renderers are the
+only things that know about all of it.
+
 ## The seam
 
 `walkable/` and `tactical3d/` meet at a door, not a shared state. Crossing
 the walkable room's north door loads tactical3d in an iframe with a seed
 the room dealt (`?seam=1&seed=…`); when the player walks out, the yard
-posts back `{seed, record, result, rating, purse, fingerprint}` and the
-iframe is torn down. The overworld never watches combat happen — and it
+posts back `{seed, record, result, rating, purse, ledger, down,
+fingerprint}` and the iframe is torn down. The overworld never watches
+combat happen — and it
 does not trust what it is told: the returned seed must match the dealt
 one, malformed payloads are refused, and the witness Worker's replay of
-the record settles the session ledger (certified / disputed-and-struck /
-unreachable-but-labeled). Both ends of that are on a deadline: the cut
+the record settles the run (certified / disputed-and-struck /
+unreachable-but-labeled). The aftermath rides home beside the outcome
+because the run banks what a card *cost*: `ledger` is the same
+walked/finished/lost the certificate carries, so the edge checks it, and
+`down` names your dead — the yard's own word, agreeing with its own count.
+Both ends of that are on a deadline: the cut
 holds until the yard proves it booted, with a timeout and ESC abort, and
 the certify request has its own, so an edge that accepts and never answers
 is *unreachable* too rather than a ledger stuck mid-settlement. Neither a
@@ -33,6 +46,26 @@ dead far side nor a dead witness traps the room. One crossing buys
 exactly one card:
 in seam mode the yard's own re-deal verbs (R / shift+R) are disabled,
 because dealing is the world's move.
+
+## The run
+
+What survives the door, and the reason to cross it twice. The room's
+session ledger became a **run** (2026-08-04): purse, the mercy ledger, and
+who went down now outlive the tab, in `localStorage`, under
+[`run-core/`](run-core/).
+
+The run banks what a card **cost**. It does not change what a card **is** —
+the next card is still fought by the canonical three at full strength,
+because `seed + record IS the match` is what lets the witness certify
+anything at all. Wounds are a record, not a modifier; making them a
+modifier is a doctrine change and `run-core/README.md` prices it.
+
+Nothing is silently migrated or dropped: a stored run this schema cannot
+read is *moved aside*, a fresh one opens, and the panel says so. A room
+that cannot persist at all still plays, and says the run will not survive
+the page. `Shift`+`N` closes a run and archives it — refusing if it cannot
+archive, and refusing while a card is still settling at the edge, because
+a card in flight belongs to the run that dealt it.
 
 Since the convergence (2026-08-01) the same **body** crosses too. Both
 surfaces load the molded pack sheets from `assets/sprites/<fighter>/`, so

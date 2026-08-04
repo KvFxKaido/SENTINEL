@@ -109,6 +109,26 @@ jobs:
         working-directory: prototypes/tactical-core
         run: node --test
 
+  # The run layer — what survives the north door. Nothing here is in the
+  # determinism chain (that is the point of it being a third module), so
+  # there are no goldens to guard; what it does have is a policy about what
+  # a card is allowed to change and a store it does not own. Both are
+  # tested, including storage that lies and storage that refuses.
+  run-rules:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Run run-layer tests
+        working-directory: prototypes/run-core
+        run: node --test
+
   # The walkable prototype's verb machinery and the roster mold's sweep,
   # driven for real: headless chromium walks the page against synthetic
   # sheets (verb durations measured in-page against per-sheet frame
