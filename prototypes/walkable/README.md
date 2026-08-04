@@ -59,6 +59,14 @@ wins, because aim is the stance with a verb attached to it. `F` fires
 from anywhere, and because the shot begins and ends in the aim pose it
 reads standalone *and* falls back into a held aim without a seam.
 
+`Shift`+`N` closes the run — the panel's only destructive verb, so it
+does not destroy what it cannot preserve. It archives first and opens a
+fresh run only if the archive actually took (read back, not assumed), and
+it refuses outright while a card is still settling at the edge: a card in
+flight belongs to the run that dealt it, and closing mid-settlement used
+to archive the run *without* its final card and then bank that card onto
+the fresh one.
+
 The north doorway is **live**: walking through it is the seam — and the
 dash moves through the same collision and door machinery, so dashing the
 doorway deals the card too. On the full roster, walking back out of a

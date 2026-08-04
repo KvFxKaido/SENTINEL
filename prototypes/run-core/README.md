@@ -108,6 +108,12 @@ Only the *first* drift is kept. `from` has to stay the stamp the banked
 numbers were actually earned under; overwriting it on each later card
 would quietly rewrite that history.
 
+**Only banked cards define provenance.** The stamp logic sits *below* the
+struck early-return: a disputed card banks nothing, so letting it set the
+stamp meant a first struck card under A set `rules=A`, and the first card
+that actually counted — under B — then reported drift A→B, even though
+every number in the run was earned under B.
+
 ## Storage
 
 Injected, like `io` in the rules core, and inert by default — the module
@@ -117,20 +123,40 @@ is fully usable and fully testable with no browser at all.
 bindStore({ read, write, remove });
 ```
 
-Three keys, all under `sentinel.run.`:
+Three keys, all under `sentinel.run`:
 
 | Key | Holds |
 |-----|-------|
-| `sentinel.run.v1` | the live run |
-| `sentinel.run.v1.closed` | the last run the player closed |
+| `sentinel.run` | the live run |
+| `sentinel.run.closed` | the last run the player closed |
 | `sentinel.run.orphan` | a stored run this schema could not read |
+
+**The live key is not versioned, and that is the point.** It was
+`sentinel.run.v${RUN_V}` at first, which made the orphan path below
+unreachable in the one situation it exists for: bumping `RUN_V` to 2 would
+point `loadRun` at an empty `sentinel.run.v2`, report a fresh run, and
+leave the real v1 run under a key nothing reads — never moved, never
+surfaced, with this README claiming otherwise. One stable slot with the
+version carried *in the payload* is what makes the next line a behaviour
+instead of a sentence.
 
 **Nothing is ever silently migrated or dropped.** A run from another
 schema version is *moved* to the orphan key and a fresh one opens, and
 `loadRun` returns `how: "orphaned"` so the surface can say a run was set
 aside. A run that is structurally wrong — hand-edited in devtools,
 clobbered by another page on the origin — takes the same path: storage is
-not a trusted input.
+not a trusted input, and the structural check goes *inside* the
+collections rather than stopping at "is it an array".
+
+**Closing is not best-effort.** `closeRun` archives first and only then
+replaces the live run, because storage with room for the one-byte startup
+probe but not a second full run would otherwise lose the run from *both*
+slots while the surface said `ARCHIVED`. Success is **read back** rather
+than inferred from the write not throwing — a store that silently drops
+writes (the inert default is one) would otherwise report a successful
+archive of nothing. A close that cannot archive returns the run unchanged
+and says so; the destructive half only happens if the preserving half
+worked.
 
 The room probes storage rather than assuming it. Private mode, a blocked
 origin, and a sandboxed frame all make `localStorage` throw *on access*,
@@ -149,10 +175,15 @@ applyCard(run, card)               → {run, accepted, counted, why}; pure
 cardValid(card)                    the boundary check, exported for callers
 loadRun(at)                        → {run, how: fresh|restored|orphaned}
 saveRun(run)                       → false if storage refused, never throws
-closeRun(run, at)                  archive and open a fresh one
+closeRun(run, at)                  → {run, archived, closed, saved}; refuses
+                                     to close what it could not archive
 readClosed()                       the archived run, or null
 summary(run)                       every number the surface renders
 ```
+
+`saveRun`'s return value is not decoration — the room raises a standing
+warning when a write fails after the probe passed, because a panel
+describing a run the next reload cannot produce is the surface lying.
 
 `summary()` exists so the room renders numbers and does not compute them.
 Anything that could be got wrong in two places is got right in one.

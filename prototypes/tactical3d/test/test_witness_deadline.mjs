@@ -138,6 +138,26 @@ try {
   const asking = await page.textContent("#seaminfo");
   check("the room asks the edge first", /ASKING THE EDGE/.test(asking), asking.replace(/\s+/g, " ").trim().slice(-60));
 
+  // ---- the run cannot be closed out from under a card in flight -------
+  // This suite owns the claim because it is the only place the settling
+  // window is guaranteed wide: the witness here never answers, so there
+  // are seconds of it rather than milliseconds. Closing mid-settlement
+  // used to archive the run WITHOUT its final card and then bank that
+  // card onto the freshly opened one (caught in review).
+  check("a card is in flight", (await page.evaluate(() =>
+    document.getElementById("cv").dataset.settling)) === "1");
+  await page.keyboard.down("Shift");
+  await page.keyboard.press("KeyN");
+  await page.keyboard.up("Shift");
+  await page.waitForTimeout(150);
+  const midFlight = (await page.textContent("#runinfo")).replace(/\s+/g, " ").trim();
+  check("closing is refused while a card is settling",
+    /STILL SETTLING/.test(midFlight), midFlight);
+  check("and the refusal did not close it anyway",
+    !/PREVIOUS RUN CLOSED/.test(midFlight)
+    && await page.evaluate(() => localStorage.getItem("sentinel.run.closed") === null),
+    midFlight);
+
   const t0 = Date.now();
   const settled = await page.waitForFunction(
     () => /CERTIFIED|UNCERTIFIED|STRUCK/.test(document.getElementById("seaminfo").textContent),

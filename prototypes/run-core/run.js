@@ -56,15 +56,24 @@
    ============================================================ */
 
 export const RUN_V = 1;
-export const RUN_KEY = `sentinel.run.v${RUN_V}`;
+// The live key is deliberately NOT versioned. It used to be
+// `sentinel.run.v${RUN_V}`, which made the orphan path below unreachable
+// in the only situation it exists for: bumping RUN_V to 2 would point
+// loadRun at an empty `sentinel.run.v2`, report a fresh run, and leave
+// the real v1 run abandoned under a key nothing reads — never moved,
+// never surfaced, and the README claiming otherwise (caught in review).
+// One stable slot with the version carried IN the payload is what makes
+// "nothing is silently dropped" a behaviour instead of a sentence.
+export const RUN_KEY = "sentinel.run";
 // A run closed by the player is archived here rather than dropped. One
 // slot, last-closed-wins: enough that "I meant to keep that" is
 // recoverable, not so much that this becomes an archive with no reader.
-export const CLOSED_KEY = `sentinel.run.v${RUN_V}.closed`;
+export const CLOSED_KEY = "sentinel.run.closed";
 // A stored run from a DIFFERENT schema version is set aside under its own
 // key instead of migrated or deleted. Silent migration is the failure the
 // design philosophy names outright — if the shape changed, the honest move
-// is a fresh run and a surface that says a run was set aside.
+// is a fresh run and a surface that says a run was set aside. One slot,
+// same as CLOSED_KEY: a second orphan replaces the first.
 export const ORPHAN_KEY = "sentinel.run.orphan";
 
 // Bounds, so a malformed payload can enlarge a stat but never the state.
@@ -179,18 +188,6 @@ export function applyCard(run, card) {
     recent: run.recent.slice(),
   };
 
-  // The stamp is adopted from the first card that carries one, and after
-  // that a change is recorded rather than absorbed. Only the FIRST drift
-  // is kept: `from` must stay the stamp the run's banked numbers were
-  // actually earned under, and overwriting it on every subsequent card
-  // would quietly rewrite that history.
-  if (typeof card.rules === "string") {
-    if (next.rules === null) next.rules = card.rules;
-    else if (next.rules !== card.rules && next.drift === null) {
-      next.drift = { from: next.rules, to: card.rules, at: card.at };
-    }
-  }
-
   const entry = {
     seed: card.seed,
     result: card.result,
@@ -211,6 +208,25 @@ export function applyCard(run, card) {
     // any, and those are very different runs.
     next.struck += 1;
     return { run: next, accepted: true, counted: false, why: "the edge disputed this card" };
+  }
+
+  // The stamp is adopted from the first card that carries one, and after
+  // that a change is recorded rather than absorbed. Only the FIRST drift
+  // is kept: `from` must stay the stamp the run's banked numbers were
+  // actually earned under, and overwriting it on every subsequent card
+  // would quietly rewrite that history.
+  //
+  // BELOW the struck return, not above it (caught in review). A disputed
+  // card banks nothing, so letting it define the run's provenance meant a
+  // first struck card under stamp A set rules=A, and the first card that
+  // actually counted — under B — then reported drift A→B, even though
+  // every banked number in the run was earned under B. Only banked cards
+  // get to say what the run's numbers were earned under.
+  if (typeof card.rules === "string") {
+    if (next.rules === null) next.rules = card.rules;
+    else if (next.rules !== card.rules && next.drift === null) {
+      next.drift = { from: next.rules, to: card.rules, at: card.at };
+    }
   }
 
   next.cards += 1;
@@ -269,7 +285,11 @@ function sane(r) {
   const ints = ["cards", "wins", "purse", "best", "streak", "longest", "struck", "unwitnessed"];
   if (!ints.every(k => Number.isInteger(r[k]) && r[k] >= 0)) return false;
   if (typeof r.opened !== "string") return false;
-  if (!r.mercy || !Number.isInteger(r.mercy.walked) || !Number.isInteger(r.mercy.finished)) return false;
+  // non-negative, not merely integral: a hand-edited {walked:-1} restored
+  // fine and rendered a -100% mercy rate, which is the made-up number this
+  // module refuses to print elsewhere (caught in review)
+  if (!r.mercy || !intIn(r.mercy.walked, 0, Number.MAX_SAFE_INTEGER)
+      || !intIn(r.mercy.finished, 0, Number.MAX_SAFE_INTEGER)) return false;
   if (!r.wounds || typeof r.wounds !== "object" || Array.isArray(r.wounds)) return false;
   if (!Object.keys(r.wounds).every(isName)) return false;
   if (!Object.values(r.wounds).every(n => Number.isInteger(n) && n >= 0)) return false;
@@ -295,15 +315,32 @@ export function saveRun(run) {
   catch { return false; }   // private mode, quota, a user who said no
 }
 
-// Close the run and open a fresh one. The closed run is archived rather
-// than deleted: this is the one destructive verb the surface exposes, and
-// it should not be the only one in the codebase that cannot be walked
-// back.
+/* Close the run and open a fresh one. The closed run is archived rather
+   than deleted: this is the one destructive verb the surface exposes, and
+   it should not be the only thing here that cannot be walked back.
+
+   Which is exactly why the archive is not best-effort. It used to be —
+   the write was wrapped in a bare catch and the live slot was overwritten
+   regardless, so a storage that accepted the one-byte startup probe but
+   refused a second full run would lose the run from BOTH slots while the
+   panel said "ARCHIVED" (caught in review). The destructive half now only
+   happens if the preserving half actually worked.
+
+   And "actually worked" is read back rather than inferred from the write
+   not throwing. A store that silently drops writes — the inert default
+   here is one — would otherwise report a successful archive of nothing. */
 export function closeRun(run, at) {
-  try { store.write(CLOSED_KEY, JSON.stringify({ ...run, closed: at })); } catch { /* archive is best effort */ }
+  let archived = false;
+  try {
+    const blob = JSON.stringify({ ...run, closed: at });
+    store.write(CLOSED_KEY, blob);
+    archived = store.read(CLOSED_KEY) === blob;
+  } catch { archived = false; }
+  // refused: the run stays open and live, and the caller is told why.
+  // A player who cannot archive is better off with the run they have.
+  if (!archived) return { run, archived: false, closed: false };
   const fresh = openRun(at);
-  saveRun(fresh);
-  return fresh;
+  return { run: fresh, archived: true, closed: true, saved: saveRun(fresh) };
 }
 
 export function readClosed() {

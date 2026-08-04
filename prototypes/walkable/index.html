@@ -413,7 +413,7 @@
 
 import * as THREE from "../tactical3d/vendor/three.module.js";
 import {
-  bindStore, loadRun, saveRun, applyCard, closeRun, summary,
+  bindStore, loadRun, saveRun, applyCard, closeRun, openRun, summary,
 } from "../run-core/run.js";
 
 // ---- room coordinates ---------------------------------------------
@@ -1346,15 +1346,34 @@ document.addEventListener("keydown", event => {
   // the shift the stances already use and it does not delete: the closed
   // run is archived, and the panel says what it banked on its way out.
   if (event.code === "KeyN" && event.shiftKey && !event.repeat) {
+    // A card in flight belongs to the run that dealt it. Closing now would
+    // archive that run without its final card and bank the card onto the
+    // fresh one when the edge finally answers.
+    if (settling > 0) {
+      runNote = '<span class="warn">A CARD IS STILL SETTLING — CLOSE THE RUN ONCE IT LANDS</span>';
+      renderRun();
+      return;
+    }
     const gone = summary(run);
-    // closeRun works either way: with no storage bound it writes to the
-    // module's inert default and still hands back a fresh run, so this
-    // path needs no second version of "what an empty run looks like"
-    run = closeRun(run, new Date().toISOString());
-    runNote = gone.cards || gone.struck
-      ? `PREVIOUS RUN CLOSED · ${gone.cards} CARD${gone.cards === 1 ? "" : "S"}` +
-        ` · ${gone.record} · ${gone.purse}c` + (storageLive ? " · ARCHIVED" : "")
-      : "PREVIOUS RUN CLOSED · IT HAD NOTHING IN IT";
+    const at = new Date().toISOString();
+    const out = storageLive
+      ? closeRun(run, at)
+      // With no storage there is nothing to archive and nothing to lose:
+      // closing is just starting over in memory, and the panel already
+      // says this run is not being persisted at all. closeRun would
+      // otherwise refuse here, because its read-back cannot tell an inert
+      // store from a full one — and it is right not to guess.
+      : { run: openRun(at), archived: false, closed: true };
+    run = out.run;
+    // closeRun refuses rather than destroying what it could not preserve,
+    // so this reports what happened instead of assuming it worked
+    runNote = !out.closed
+      ? '<span class="warn">COULD NOT ARCHIVE — THE RUN IS STILL OPEN</span>'
+      : gone.cards || gone.struck
+        ? `PREVIOUS RUN CLOSED · ${gone.cards} CARD${gone.cards === 1 ? "" : "S"}` +
+          ` · ${gone.record} · ${gone.purse}c` + (out.archived ? " · ARCHIVED" : "")
+        : "PREVIOUS RUN CLOSED · IT HAD NOTHING IN IT";
+    if (out.closed && out.saved === false) persistFailed = true;
     renderRun();
     return;
   }
@@ -1502,6 +1521,24 @@ const runCondition = storageLive
 let runNote = opened.how === "orphaned"
   ? '<span class="warn">A RUN FROM AN OLDER SCHEMA WAS SET ASIDE — FRESH RUN OPEN</span>'
   : null;
+// Storage that passed the one-byte probe can still refuse a full run —
+// quota is about bytes, and the probe is one byte. A write that fails
+// after the panel has already drawn the card would leave the surface
+// claiming a card the next reload cannot produce, so a failed save
+// becomes a standing condition rather than a silence (caught in review).
+let persistFailed = false;
+// Cards in flight: raised when one comes home, lowered when the edge has
+// ruled on it. Closing the run in that window used to archive the old run
+// WITHOUT its final card and then bank that card onto the fresh one
+// (caught in review) — the settlement is async and had no idea which run
+// it began under. Refusing to close mid-settlement is the fix; the window
+// is at most the witness deadline, and the panel says what it waits for.
+//
+// A COUNT rather than a flag, because the door is three steps away and the
+// deadline is 8s: a player can walk a second card while the first is still
+// hanging, and a boolean would be cleared by whichever settled first while
+// the other was still in the air.
+let settling = 0;
 // A fresh run takes the live slot immediately — including the one opened
 // after an orphan, so the set-aside path leaves storage in the same state
 // as a first visit rather than in a third state nothing else expects.
@@ -1555,6 +1592,9 @@ function renderRun() {
   }
   rows.push(`OPENED ${run.opened.slice(0, 10)}${storageLive ? "" : " · NOT PERSISTED"}`);
   if (runCondition) rows.push(runCondition);
+  if (persistFailed) {
+    rows.push('<span class="warn">STORAGE REFUSED THE LAST WRITE — WHAT IS ON SCREEN IS AHEAD OF WHAT IS SAVED</span>');
+  }
   if (runNote) rows.push(runNote);
   runInfo.innerHTML = rows.join("<br>");
   // the harness reads the run off the surface rather than out of storage:
@@ -1568,11 +1608,14 @@ function bankCard(card) {
   const { run: next, accepted, counted, why } = applyCard(run, card);
   run = next;
   runNote = null;   // a card is newer news than whatever the note was about
-  if (storageLive) saveRun(run);
+  // the return value is the point: a save that failed and said nothing
+  // leaves the panel describing a run the next reload will not produce
+  if (storageLive && !saveRun(run)) persistFailed = true;
   renderRun();
   return { accepted, counted, why };
 }
 
+canvas.dataset.settling = "0";   // the attribute exists before the first card
 renderRun();
 // The witness gets a deadline for the same reason the yard does. A witness
 // that REFUSES already lands in certifySeam's catch and the panel says
@@ -1715,6 +1758,10 @@ function endSeam(result) {
     `<span id="seamcert">CERT · ASKING THE EDGE…</span><br>` +
     `<span id="seamtotals">RUN · settling…</span>`;
   canvas.dataset.lastResult = result.result;
+  // raised BEFORE the await starts, so there is no frame in which the card
+  // is in flight and the run can still be closed out from under it
+  settling += 1;
+  canvas.dataset.settling = String(settling);
   certifySeam(result);
 
   showCut("FEED RETURNED", "THE RECORD CAME BACK WITH YOU");
@@ -1773,6 +1820,11 @@ async function certifySeam(d) {
   }
   const certEl = document.getElementById("seamcert");
   if (certEl) certEl.innerHTML = `CERT · ${verdict}`;
+
+  // this card has landed on the run that dealt it; closing is safe again
+  // once nothing else is still in the air
+  settling = Math.max(0, settling - 1);
+  canvas.dataset.settling = String(settling);
 
   const { accepted, counted } = bankCard({
     seed: d.seed,

@@ -227,7 +227,7 @@ try {
     /PREVIOUS RUN CLOSED/.test(await page.textContent("#runinfo")),
     (await page.textContent("#runinfo")).replace(/\s+/g, " ").trim());
   const archived = await page.evaluate(() =>
-    JSON.parse(localStorage.getItem("sentinel.run.v1.closed") ?? "null"));
+    JSON.parse(localStorage.getItem("sentinel.run.closed") ?? "null"));
   check("the closed run is archived, not dropped",
     archived !== null && archived.cards === 1, JSON.stringify(archived));
   await page.reload();
@@ -238,7 +238,10 @@ try {
     emptied(await runOf(page)), await runOf(page));
 
   // ---- a run this schema cannot read is set aside, never rendered -----
-  await page.evaluate(() => localStorage.setItem("sentinel.run.v1", '{"v":0,"purse":99999}'));
+  // The live key is unversioned on purpose: a versioned one made this path
+  // unreachable on a real RUN_V bump, because loadRun would read an empty
+  // new key and leave the real run under one nothing looks at.
+  await page.evaluate(() => localStorage.setItem("sentinel.run", '{"v":0,"purse":99999}'));
   await page.reload();
   await page.waitForFunction(() =>
     ["ready", "error"].includes(document.getElementById("cv").dataset.sprites),

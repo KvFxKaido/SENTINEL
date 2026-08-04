@@ -63,7 +63,9 @@ modifier is a doctrine change and `run-core/README.md` prices it.
 Nothing is silently migrated or dropped: a stored run this schema cannot
 read is *moved aside*, a fresh one opens, and the panel says so. A room
 that cannot persist at all still plays, and says the run will not survive
-the page. `Shift`+`N` closes a run and archives it.
+the page. `Shift`+`N` closes a run and archives it — refusing if it cannot
+archive, and refusing while a card is still settling at the edge, because
+a card in flight belongs to the run that dealt it.
 
 Since the convergence (2026-08-01) the same **body** crosses too. Both
 surfaces load the molded pack sheets from `assets/sprites/<fighter>/`, so

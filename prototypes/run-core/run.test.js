@@ -172,6 +172,27 @@ test("a rules change mid-run is recorded, not absorbed", () => {
   assert.equal(run.rules, "stampA", "the run's banked numbers were earned under the first stamp");
 });
 
+test("a struck card does not get to define the run's provenance", () => {
+  // A disputed card banks nothing. Letting it set the stamp meant a first
+  // struck card under A set rules=A, and the first card that actually
+  // counted — under B — then reported drift A→B, even though every banked
+  // number in the run was earned under B (caught in review).
+  const struck = applyCard(openRun(AT), card({ cert: "struck", rules: "stampA" })).run;
+  assert.equal(struck.rules, null, "a card that banked nothing named the run's rules");
+  assert.equal(struck.drift, null);
+
+  const then = applyCard(struck, card({ rules: "stampB" })).run;
+  assert.equal(then.rules, "stampB");
+  assert.equal(then.drift, null, "invented a drift out of a card nobody banked");
+});
+
+test("a struck card cannot fire drift on an established run either", () => {
+  const banked = applyCard(openRun(AT), card({ rules: "stampA" })).run;
+  const after = applyCard(banked, card({ cert: "struck", rules: "stampZ", at: "z" })).run;
+  assert.equal(after.drift, null);
+  assert.equal(after.rules, "stampA");
+});
+
 test("only the first drift is kept, so the run's history is not rewritten", () => {
   let run = applyCard(openRun(AT), card({ rules: "stampA" })).run;
   run = applyCard(run, card({ rules: "stampB", at: "b" })).run;
@@ -288,6 +309,9 @@ test("a hand-edited run that is structurally wrong is orphaned", () => {
     { ...openRun(AT), cards: -1 },
     { ...openRun(AT), wins: 5, cards: 2 },
     { ...openRun(AT), mercy: null },
+    // a negative here restored fine and rendered a -100% mercy rate
+    { ...openRun(AT), mercy: { walked: -1, finished: 2 } },
+    { ...openRun(AT), mercy: { walked: 1, finished: -2 } },
     { ...openRun(AT), wounds: ["VESPER"] },
     { ...openRun(AT), wounds: { VESPER: "many" } },
     { ...openRun(AT), recent: null },
@@ -334,18 +358,67 @@ test("a storage that refuses to write is survivable and says so", () => {
   assert.equal(loadRun(AT).how, "fresh");
 });
 
+test("the live key is not versioned, so a schema bump can actually orphan", () => {
+  // The bug this pins: with RUN_KEY = `sentinel.run.v${RUN_V}`, bumping the
+  // version pointed loadRun at an empty key and left the real run under a
+  // key nothing reads — orphaned by nobody, surfaced to nobody.
+  assert.equal(RUN_KEY.includes(String(RUN_V)), false, RUN_KEY);
+  const box = memoryStore({
+    [RUN_KEY]: JSON.stringify({ ...openRun(AT), v: RUN_V - 1, purse: 4321 }),
+  });
+  const { how } = loadRun(AT);
+  assert.equal(how, "orphaned", "a previous-schema run was not seen at all");
+  assert.match(box[ORPHAN_KEY], /4321/);
+});
+
 test("closing a run archives it and opens a fresh one in its place", () => {
   const box = memoryStore();
   const banked = applyCard(openRun(AT), card()).run;
   saveRun(banked);
-  const fresh = closeRun(banked, "2026-08-09T00:00:00.000Z");
-  assert.equal(fresh.cards, 0);
-  assert.equal(fresh.opened, "2026-08-09T00:00:00.000Z");
+  const out = closeRun(banked, "2026-08-09T00:00:00.000Z");
+  assert.equal(out.closed, true);
+  assert.equal(out.archived, true);
+  assert.equal(out.run.cards, 0);
+  assert.equal(out.run.opened, "2026-08-09T00:00:00.000Z");
   assert.equal(JSON.parse(box[RUN_KEY]).cards, 0, "the live slot holds the new run");
   const closed = readClosed();
   assert.equal(closed.purse, 620, "the closed run is still readable");
   assert.equal(closed.closed, "2026-08-09T00:00:00.000Z");
-  assert.equal(box[CLOSED_KEY] !== undefined, true);
+});
+
+test("a close that cannot archive does not destroy the run", () => {
+  // Storage with room for the one-byte startup probe but not a second full
+  // run used to lose the run from BOTH slots while the panel said ARCHIVED
+  // (caught in review). The destructive half only happens if the
+  // preserving half worked.
+  const banked = applyCard(openRun(AT), card()).run;
+  const live = { [RUN_KEY]: JSON.stringify(banked) };
+  bindStore({
+    read: k => (k in live ? live[k] : null),
+    write: (k, v) => { if (k === CLOSED_KEY) throw new Error("quota"); live[k] = v; },
+    remove: k => { delete live[k]; },
+  });
+  const out = closeRun(banked, "2026-08-09T00:00:00.000Z");
+  assert.equal(out.closed, false);
+  assert.equal(out.archived, false);
+  assert.equal(out.run, banked, "the run must still be the run");
+  assert.equal(JSON.parse(live[RUN_KEY]).purse, 620, "the live slot was overwritten anyway");
+});
+
+test("an archive that silently drops the write is not an archive", () => {
+  // A store that accepts everything and keeps nothing would otherwise
+  // report a successful archive of nothing. The write is read back.
+  const banked = applyCard(openRun(AT), card()).run;
+  bindStore({ read: () => null, write: () => {}, remove: () => {} });
+  const out = closeRun(banked, AT);
+  assert.equal(out.archived, false);
+  assert.equal(out.closed, false);
+  assert.equal(out.run, banked);
+});
+
+test("the inert default store cannot fake an archive", () => {
+  bindStore({ read: () => null, write: () => {}, remove: () => {} });
+  assert.equal(closeRun(openRun(AT), AT).archived, false);
 });
 
 // ---- the surface's numbers -----------------------------------------
