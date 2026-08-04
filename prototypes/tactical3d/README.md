@@ -142,6 +142,20 @@ tolerates an unreachable witness (`UNCERTIFIED` is an honest outcome and
 the room says so out loud) and fails on `STRUCK` — the edge replaying the
 record and disagreeing means the match does not reproduce.
 
+It also owns the run layer's end-to-end claim, because this is the only
+place a card can actually be *earned*: the returned card is banked, the
+run survives a reload, `Shift`+`N` closes and archives it, and a stored
+run from an unreadable schema is set aside rather than rendered. What it
+asserts on is `dataset.run` — the panel's own numbers, not storage read
+back — so what passes is what a player would see.
+
+This page posts the **aftermath** home beside the outcome (`ledger`:
+walked / finished / lost, and `down`: the names of your dead). Those
+counts are read off the same final board the post-match ledger line is
+drawn from, so the number on screen and the number the world banks cannot
+diverge — and the witness certificate carries the same three, so the room
+strikes a card whose aftermath the edge disagrees with.
+
 The deadline suite covers the case that tolerance was hiding. A witness
 that *refuses* has always landed in `certifySeam`'s catch and been
 labelled; a witness that *accepts and never answers* used to leave the

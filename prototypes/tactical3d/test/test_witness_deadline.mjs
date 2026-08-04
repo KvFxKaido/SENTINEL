@@ -146,14 +146,22 @@ try {
   const verdict = (await page.textContent("#seaminfo")).replace(/\s+/g, " ").trim();
 
   check("the witness request was actually made", asked > 0, `${asked} asked`);
-  check("a hung witness still settles the session", settled, verdict);
+  check("a hung witness still settles the run", settled, verdict);
   // the deadline is 8s in the page; a generous ceiling still proves that
   // SOMETHING gave up rather than the request eventually completing
   check("it settles on the page's own deadline", settled && waited < 20000, `${waited}ms`);
   check("and it says the edge was unreachable", /UNCERTIFIED/.test(verdict), verdict);
   // the card still counts — an unverified truth LABELED beats a lost one
-  check("the unverified card still counts on the ledger",
+  check("the unverified card still counts on the run",
     /1 CARD/.test(verdict), verdict);
+  // ...and the run says it was counted unwitnessed. Counting it quietly
+  // would make an unverified run indistinguishable from a certified one,
+  // which is the whole distinction the deadline exists to preserve.
+  const runPanel = (await page.textContent("#runinfo")).replace(/\s+/g, " ").trim();
+  check("the run carries the caveat rather than absorbing it",
+    /COUNTED UNWITNESSED/.test(runPanel), runPanel);
+  check("an unwitnessed card is not also struck",
+    !/STRUCK/.test(runPanel), runPanel);
 } finally {
   if (browser) await browser.close().catch(() => {});
   if (server) server.kill();

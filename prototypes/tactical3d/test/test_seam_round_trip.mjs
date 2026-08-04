@@ -175,10 +175,81 @@ try {
     null, { timeout: 25000 }).then(() => true, () => false);
   const verdict = (await page.textContent("#seaminfo")).replace(/\s+/g, " ").trim();
   check("the room takes the record back", /RATING|PURSE|SQUAD/.test(verdict), verdict);
-  check("the room settles the session", settled, verdict);
+  check("the room settles the run", settled, verdict);
   // The one verdict that is a bug rather than a circumstance: the edge
   // replayed what we played and got something else.
   check("the edge does not dispute the record", !/STRUCK/.test(verdict), verdict);
+  // The room asks the edge for the aftermath too now — a mismatch on the
+  // walked/finished/lost counts strikes the card the same way a rating
+  // mismatch always has. Reaching CERTIFIED means those agreed.
+  check("the card comes home with its aftermath",
+    /WALKED/.test(verdict) && /FINISHED/.test(verdict) && /OF YOURS DOWN/.test(verdict), verdict);
+  // A card the RUN refused is a bug in the room, not a dispute at the
+  // edge — the room validated this payload before it ever got here, so
+  // the two validators disagreeing is exactly what this catches.
+  check("the run does not refuse a card the room accepted",
+    !/RUN REFUSED/.test(verdict), verdict);
+
+  // ---- the run outlives the tab -------------------------------------
+  // The whole point of the run layer. dataset.run is the surface's own
+  // numbers, not storage read back — what is asserted is what a player
+  // would actually see in the panel.
+  const runOf = p => p.evaluate(() => document.getElementById("cv").dataset.run);
+  const banked = await runOf(page);
+  // "cards:W–L:purse:walked:finished:struck". The dash is an en dash the
+  // panel renders; matched with . so this file's encoding cannot decide
+  // whether the suite passes.
+  const [cards, record, purse] = (banked ?? "::").split(":");
+  check("the card is banked on the run", +cards === 1, banked);
+  check("the run knows it was a loss", /^0.1$/.test(record), banked);
+  check("the run banks a purse", +purse > 0, banked);
+
+  await page.reload();
+  await page.waitForFunction(() =>
+    ["ready", "error"].includes(document.getElementById("cv").dataset.sprites),
+    null, { timeout: 20000 });
+  const survived = await runOf(page);
+  check("the run survives a reload", survived === banked, `${survived} vs ${banked}`);
+  const panel = (await page.textContent("#runinfo")).replace(/\s+/g, " ").trim();
+  check("the reloaded panel shows the banked card", /1 CARD\b/.test(panel), panel);
+  check("the reloaded panel is not carrying a caveat it did not earn",
+    !/STORAGE UNAVAILABLE|SET ASIDE|REFUSED/.test(panel), panel);
+
+  // ---- closing a run is destructive, and archives ---------------------
+  await page.keyboard.down("Shift");
+  await page.keyboard.press("KeyN");
+  await page.keyboard.up("Shift");
+  await page.waitForTimeout(150);
+  const emptied = s => /^0:0.0:0:/.test(s ?? "");
+  const afterClose = await runOf(page);
+  check("closing the run empties it", emptied(afterClose), afterClose);
+  check("closing says what the closed run held",
+    /PREVIOUS RUN CLOSED/.test(await page.textContent("#runinfo")),
+    (await page.textContent("#runinfo")).replace(/\s+/g, " ").trim());
+  const archived = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("sentinel.run.v1.closed") ?? "null"));
+  check("the closed run is archived, not dropped",
+    archived !== null && archived.cards === 1, JSON.stringify(archived));
+  await page.reload();
+  await page.waitForFunction(() =>
+    ["ready", "error"].includes(document.getElementById("cv").dataset.sprites),
+    null, { timeout: 20000 });
+  check("the closed run stays closed across a reload",
+    emptied(await runOf(page)), await runOf(page));
+
+  // ---- a run this schema cannot read is set aside, never rendered -----
+  await page.evaluate(() => localStorage.setItem("sentinel.run.v1", '{"v":0,"purse":99999}'));
+  await page.reload();
+  await page.waitForFunction(() =>
+    ["ready", "error"].includes(document.getElementById("cv").dataset.sprites),
+    null, { timeout: 20000 });
+  const orphanPanel = (await page.textContent("#runinfo")).replace(/\s+/g, " ").trim();
+  check("an unreadable run opens a fresh one and says so",
+    /SET ASIDE/.test(orphanPanel), orphanPanel);
+  check("the unreadable run's numbers never reach the surface",
+    !/99999/.test(orphanPanel), orphanPanel);
+  check("the unreadable run still exists",
+    await page.evaluate(() => /99999/.test(localStorage.getItem("sentinel.run.orphan") ?? "")));
 } finally {
   if (browser) await browser.close().catch(() => {});
   if (server) server.kill();

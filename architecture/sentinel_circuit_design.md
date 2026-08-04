@@ -403,7 +403,27 @@ in the core under its golden-transcript tests, never in a renderer:
    purse. What remains is the campaign-consequence half — matches as
    jobs, wiki events, disposition, dormant threads — which belongs to the
    campaign brain (TS, per the platform direction), plus
-   identity/signatures when provenance must name a player*
+   identity/signatures when provenance must name a player.*
+   ***The local half of consequence landed 2026-08-04** as
+   `prototypes/run-core/`: a run, in `localStorage`, that outlives the
+   tab. It banks purse, the mercy ledger (walked vs finished, across every
+   card) and who of yours went down, under the certification policy the
+   session ledger already had — certified counts, unwitnessed counts and
+   says so, struck never counts. The aftermath now rides the seam home
+   beside the outcome and the edge checks it, so a page that misreports
+   what a card cost is struck rather than banked. The run also carries the
+   rules stamp and says out loud when it changed mid-run, rather than
+   presenting one total across two rule sets.*
+
+   *What the run deliberately does NOT do: change what a card is. Wounds
+   are a record, not a modifier, because* `seed + record IS the match` *is
+   what lets the Worker certify anything — a wounded roster handed into
+   the yard makes a certified card a claim the edge cannot check. Making
+   wounds mechanical needs* `restart(seed, roster)`*, a roster in the
+   certify body, and the roster folded into the rules stamp and the
+   content address. That is a doctrine change and wants its own argument;
+   `run-core/README.md` prices it. Identity is still the missing
+   primitive: the shared archive stays labeled ARCHIVE, not CAREER.*
 
 Steps 1–2 are weekend-sized against the existing prototype. Step 5 is where
 the Circuit stops being a prototype and becomes SENTINEL.
