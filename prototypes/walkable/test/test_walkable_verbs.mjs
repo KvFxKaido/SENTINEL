@@ -20,6 +20,14 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { openRun, applyCard } from "../../run-core/run.js";
+// The room may never import the rules; this harness may, and that asymmetry
+// is the point. The room derives an operative's name from its sheet slug,
+// so its two identifiers cannot drift from each other — but nothing inside
+// the room can tell whether that name still matches the one the YARD reports
+// in a card's `down`. If those drift, every card silently leaves the whole
+// squad idle with no fault. Holding the two rosters against each other here
+// makes that fail in CI instead of on a player's knee (caught in review).
+import { S as RULES_S, restart as rulesRestart } from "../../tactical-core/rules.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..", "..");
@@ -197,6 +205,17 @@ try {
     freshSprites);
   check("a fresh run leaves the whole squad idle",
     freshSquad === "vesper:idle,koa:idle,sable:idle", freshSquad);
+
+  // The room stages a body for every operative the yard fields, matched by
+  // the slug/name relationship the room actually uses at runtime
+  // (fighter.toUpperCase() === the op name in a card's `down`).
+  rulesRestart(0xdeadbeef);
+  const ops = RULES_S.units.filter(u => u.side === "op").map(u => u.name).sort();
+  const staged = (freshSquad ?? "").split(",")
+    .map(entry => entry.split(":")[0].toUpperCase()).sort();
+  check("the room stages a body for every operative the yard fields",
+    JSON.stringify(ops) === JSON.stringify(staged),
+    `yard ${ops.join(",")} vs room ${staged.join(",")}`);
 
   // newest first after these three: struck KOA, counted SABLE, old
   // counted VESPER. VESPER remains in cumulative wounds and KOA is the
