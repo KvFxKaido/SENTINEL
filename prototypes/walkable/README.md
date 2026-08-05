@@ -1,14 +1,15 @@
 # Walkable World Prototype
 
-One room, one character, walking — and one door that is somewhere else's
-problem. This is a pure three.js renderer toy: no game rules and no
-`tactical-core` import. Its only network call is asking the witness to
-certify what the yard reports back through the seam (below).
+One room, one walking character, three squadmates — and one door that is
+somewhere else's problem. This is a pure three.js renderer toy: no game
+rules and no `tactical-core` import. Its only network call is asking the
+witness to certify what the yard reports back through the seam (below).
 
-Cipher stands inside a voxel-extruded Kestrel interior staged as a lit diorama
-in the void. The room reuses `tactical3d/`'s terrain density, Y-billboard,
-quarter-turn camera, lighting discipline, blob shadow, and LCD display pass so
-the audition is against the same visual machinery rather than a friendly mock.
+Cipher walks inside a voxel-extruded Kestrel interior while VESPER, KOA and
+SABLE stand as non-colliding set dressing. The room reuses `tactical3d/`'s
+terrain density, Y-billboard, quarter-turn camera, lighting discipline, blob
+shadow, and LCD display pass so the audition is against the same visual
+machinery rather than a friendly mock.
 
 ## Run it
 
@@ -21,10 +22,10 @@ python -m http.server 8082
 
 Then open <http://localhost:8082/prototypes/walkable/>.
 
-The root matters. Cipher's sheets load from
-`../../assets/sprites/cipher/`, which only resolves correctly when the page is
-served in repository context. The ES-module import also means this page does
-not run from `file://`.
+The root matters. Room sheets load from
+`../../assets/sprites/composed/<fighter>/`, which only resolves correctly
+when the page is served in repository context. The ES-module import also
+means this page does not run from `file://`.
 
 ## Controls
 
@@ -89,6 +90,13 @@ cost, and cost is not in the yard's `end` event. The counts are the same
 three the witness certificate carries, so the edge checks them; the names
 are the yard's own word and must at least agree with its own count.
 
+The three room bodies show only looping `IDLE` or `KNEEL`. The newest entry
+in `run.recent` whose certificate is not `struck` owns the visible aftermath:
+an operative kneels if and only if that entry names them in `down`. A fresh
+run, or one containing only struck cards, leaves everybody idle. `run.wounds`
+is cumulative history and stays in the panel; using it for posture would imply
+a persistent injury the next canonical full-strength card does not have.
+
 The room does not take the yard's word for it:
 
 - the returned **seed must match the one it dealt**, and the payload must
@@ -113,7 +121,7 @@ Query params: `?deal=6` pins the seed the door deals (the same
 pin-a-board move as tactical3d's `?seed=`); `?witness=http://localhost:8787`
 passes through to the yard and is used for certification here.
 
-## Cipher assets
+## Room body assets
 
 The local sheets are regenerable artifacts and are intentionally untracked.
 If they are missing, the page stops at an explicit asset message instead of
@@ -126,9 +134,10 @@ python scripts/compose_body.py --gen assets/sprites/generated/cipher `
                                --out <frames> --verbs IDLE RUN WALK AIM FIRE `
                                                      HURT DEATH HEAL KNEEL DASH
 # then scripts/pack_strip.py each frame dir -> assets/sprites/composed/cipher/
+# repeat compose + pack for VESPER / KOA / SABLE; this room reads IDLE / KNEEL
 ```
 
-Two stages, and this page reads the SECOND one: `assets/sprites/composed/`,
+Three stages, and this page reads the last one: `assets/sprites/composed/`,
 the mold's body with the generated head composed in and the sword stripped
 (the walk-off verdict, 2026-08-02 — see `architecture/art_direction_gba_tactics.md`).
 The licensed source pack must be present locally at
@@ -139,9 +148,12 @@ never assumed: the pack varies them per verb (heal runs 12 frames, hurt 4,
 and synthesized kneel 2).
 
 On the full pack the mold also **synthesizes** three verbs the pack does
-not ship — `AIM`, `FIRE`, `KNEEL`, 12 more sheets — so a fighter carries
-48. They are ordinary sheets on the same canvas; nothing in this page
-knows the difference. What makes them the pack's own rather than
+not ship — `AIM`, `FIRE`, `KNEEL`, 12 more sheets — so a molded fighter
+carries 48. Compose then drops the two ATTACK verbs (no rule consults
+them), which is why what this page actually reads is 40 sheets per
+fighter, not 48: the mold and the composed body are different stages and
+count differently. They are ordinary sheets on the same canvas; nothing
+in this page knows the difference. What makes them the pack's own rather than
 imported: aim lifts the HEAL draw (the frame where the held object sits
 at the chest, hand already closed on it) and replaces the vial with the
 emitter, so the grip is still the pack artist's; the emitter's charge and
@@ -154,13 +166,16 @@ torso is copied down, the boots never move, and the coat hem flares a
 pixel, because on a body in a long coat the height loss alone read as a
 shorter man rather than a crouching one.
 
-The roster is stated, never guessed at, and it is now ONE tier: all ten
-verbs are required, and the panel reads **COMPOSED / READY** or nothing at
-all.
+The room gate is stated, never guessed at, and it is ONE tier: Cipher needs
+all ten verbs and four facings (40 sheets); VESPER, KOA and SABLE need only
+`IDLE` and `KNEEL` in four facings (24 more). Loading the squad's other
+eight verbs here would spend the north seam's seven-second boot budget on
+poses the room never plays. All 64 required sheets load and the panel reads
+**COMPOSED / READY**, or the room faults.
 
-- every sheet loads → **COMPOSED / READY**;
+- every required sheet loads → **COMPOSED / READY**;
 - any sheet missing → an explicit fault naming the count and the first
-  casualty, pointing at both regeneration stages;
+  casualty, pointing at all three regeneration stages;
 - a sheet that exists but fails geometry faults on its own message, because
   rejection and absence are different verdicts.
 
@@ -170,7 +185,7 @@ body has no free-pack form — so a reduced roster is always a broken
 regeneration, and reporting it as a healthy state would be the silent
 fallback this gate exists to prevent.
 
-This body is **canon**. The walk-off (2026-07-31, `walkoff.html` — both
+These bodies are **canon**. The walk-off (2026-07-31, `walkoff.html` — both
 bodies fielded in this room on one input) decided the two questions this
 room carried: the pack format beat the 32×32 body-law canvas, and the
 selout dialect won with it. The verdict and its costs are recorded in
@@ -194,9 +209,9 @@ What it does and deliberately does not touch:
 
 - The browser harness drives the page against **synthetic sheets** at the
   pack's real geometry (no licensed pack needed), measuring verb
-  durations in-page against per-sheet frame counts. Real molded sheets
-  at `assets/sprites/cipher/` are backed up before the run and restored
-  after.
+  durations in-page against per-sheet frame counts. Real composed sheets
+  for Cipher, VESPER, KOA and SABLE are backed up before the run and
+  restored after.
 - The mold test runs the actual `scripts/roster_mold.py` twice against
   fake packs — **fully sandboxed in a temp dir** via the mold's
   `ROSTER_MOLD_PACKS` / `ROSTER_MOLD_OUT` test hooks, so the real
