@@ -6,8 +6,9 @@
 // be slower than a 4-frame flinch, so sleep-then-read checks lie —
 // that lesson is why the watcher exists (caught building this harness).
 //
-// Real molded sheets at assets/sprites/cipher are backed up before the
-// run and restored after — including when setup itself fails, and a
+// Real composed sheets for Cipher and the three fielded operatives are
+// backed up before the run and restored after — including when setup
+// itself fails, and a
 // backup stranded by a hard-killed run is reinstated on the next start.
 //
 // Run:  cd prototypes/walkable/test
@@ -18,21 +19,45 @@ import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { openRun, applyCard } from "../../run-core/run.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..", "..");
 const GEN = path.join(HERE, "make_synthetic_sheets.py");
-const SHEETS = path.join(ROOT, "assets", "sprites", "composed", "cipher");
-const BACKUP = SHEETS + ".harness-backup";
+const FIGHTERS = ["cipher", "vesper", "koa", "sable"];
+const sheetsDir = fighter => path.join(ROOT, "assets", "sprites", "composed", fighter);
+const backupDir = fighter => sheetsDir(fighter) + ".harness-backup";
 const PY = process.platform === "win32" ? "python" : "python3";
 const PORT = process.env.WALKABLE_TEST_PORT ?? "8093";
 const URL = `http://localhost:${PORT}/prototypes/walkable/`;
 
 function gen(mode) {
-  const r = spawnSync(PY, [GEN, mode], { stdio: "inherit" });
+  const r = spawnSync(PY, [GEN, mode, FIGHTERS.join(",")], { stdio: "inherit" });
   if (r.status !== 0) throw new Error(`sheet generation failed (${mode})`);
 }
-const clearSheets = () => fs.rmSync(SHEETS, { recursive: true, force: true });
+const clearSheets = () => {
+  for (const fighter of FIGHTERS) {
+    fs.rmSync(sheetsDir(fighter), { recursive: true, force: true });
+  }
+};
+
+function card(seed, down, cert = "certified") {
+  return {
+    seed, result: "loss", rating: 1, purse: 10,
+    ledger: { walked: 0, finished: 0, lost: down.length },
+    down, cert, rules: "test-rules", at: `2026-08-05T00:00:0${seed}Z`,
+  };
+}
+
+function runWith(cards) {
+  let run = openRun("2026-08-05T00:00:00Z");
+  for (const item of cards) {
+    const out = applyCard(run, item);
+    if (!out.accepted) throw new Error(`fixture card refused: ${out.why}`);
+    run = out.run;
+  }
+  return run;
+}
 
 // A playwright whose version tag doesn't match a pre-provisioned browser
 // dir refuses to launch; fall back to scanning the provisioned root.
@@ -66,11 +91,15 @@ function check(name, ok, detail = "") {
 // run (no finally) self-healing instead of data-destroying on the next
 // start (caught in review: setup failures used to strand the backup,
 // and the next run's cleanup would have eaten it).
-if (fs.existsSync(BACKUP)) {
-  fs.rmSync(SHEETS, { recursive: true, force: true });
-  fs.renameSync(BACKUP, SHEETS);
+for (const fighter of FIGHTERS) {
+  if (fs.existsSync(backupDir(fighter))) {
+    fs.rmSync(sheetsDir(fighter), { recursive: true, force: true });
+    fs.renameSync(backupDir(fighter), sheetsDir(fighter));
+  }
+  if (fs.existsSync(sheetsDir(fighter))) {
+    fs.renameSync(sheetsDir(fighter), backupDir(fighter));
+  }
 }
-if (fs.existsSync(SHEETS)) fs.renameSync(SHEETS, BACKUP);
 
 // From here on, every failure path — server, browser launch, the checks
 // themselves — runs through the finally that restores the real sheets.
@@ -158,6 +187,53 @@ try {
   check("roster reads composed", (await ds("roster")) === "composed");
   check("BODY cell says COMPOSED / READY",
     (await page.textContent("#body-state")) === "COMPOSED / READY");
+  await page.waitForFunction(() =>
+    (document.getElementById("cv").dataset.squadSprites ?? "").split(",").length === 3);
+  const freshSquad = await ds("squad");
+  const freshSprites = await ds("squadSprites");
+  check("the three fielded operatives render in the room",
+    (freshSprites ?? "").split(",").length === 3
+      && ["vesper", "koa", "sable"].every(name => freshSprites.includes(`${name}:`)),
+    freshSprites);
+  check("a fresh run leaves the whole squad idle",
+    freshSquad === "vesper:idle,koa:idle,sable:idle", freshSquad);
+
+  // newest first after these three: struck KOA, counted SABLE, old
+  // counted VESPER. VESPER remains in cumulative wounds and KOA is the
+  // newest visual aftermath, but only SABLE belongs on a knee.
+  const aftermath = runWith([
+    card("1", ["VESPER"]),
+    card("2", ["SABLE"]),
+    card("3", ["KOA"], "struck"),
+  ]);
+  await page.evaluate(value =>
+    localStorage.setItem("sentinel.run", JSON.stringify(value)), aftermath);
+  await boot();
+  await page.waitForFunction(() => !!document.getElementById("cv").dataset.squadSprites);
+  const aftermathSquad = await ds("squad");
+  check("squad posture follows the last counted card",
+    aftermathSquad === "vesper:idle,koa:idle,sable:kneel", aftermathSquad);
+  // The discrimination, stated as the claim rather than as a string: VESPER
+  // went down on an EARLIER counted card, so she is in the cumulative tally
+  // the panel shows and is NOT on a knee in the room. Order-independent on
+  // purpose — summary() sorts wounded by count then name, which is run-core's
+  // presentation choice and not something this suite should pin from here.
+  const aftermathPanel = (await page.textContent("#runinfo")).replace(/\s+/g, " ").trim();
+  const woundLine = (aftermathPanel.match(/DOWN · ([^\n]*?)(?:RECENT|OPENED|$)/) ?? [])[1] ?? "";
+  check("an old wound is in the panel and NOT on the body",
+    /VESPER/.test(woundLine) && /SABLE/.test(woundLine)
+      && aftermathSquad.includes("vesper:idle"),
+    `panel wounds "${woundLine.trim()}" · squad ${aftermathSquad}`);
+
+  const struckOnly = runWith([card("4", ["KOA"], "struck")]);
+  await page.evaluate(value =>
+    localStorage.setItem("sentinel.run", JSON.stringify(value)), struckOnly);
+  await boot();
+  const struckSquad = await ds("squad");
+  check("a run with only struck cards leaves the whole squad idle",
+    struckSquad === "vesper:idle,koa:idle,sable:idle", struckSquad);
+  await page.evaluate(() => localStorage.removeItem("sentinel.run"));
+  await boot();
 
   // walk: hold shift + move (steady states)
   await page.keyboard.down("Shift");
@@ -273,11 +349,20 @@ try {
   check("movement rises", await waitAction("run"));
   await page.keyboard.up("KeyS");
 
-  // ---- PARTIAL roster is a fault -----------------------------------
+  // ---- one missing squad sheet faults the same room-wide gate -------
   clearSheets();
   gen("full");
-  fs.rmSync(path.join(SHEETS, "HEAL"), { recursive: true, force: true });
-  fs.rmSync(path.join(SHEETS, "DASH"), { recursive: true, force: true });
+  fs.rmSync(path.join(sheetsDir("sable"), "KNEEL", "kneel_left.png"));
+  await boot();
+  check("a missing squad sheet faults the room", (await ds("sprites")) === "error");
+  check("the squad fault names the missing sheet",
+    (await page.textContent("#asset-detail")).includes("sable/kneel_left"));
+
+  // ---- PARTIAL Cipher roster is a fault -----------------------------
+  clearSheets();
+  gen("full");
+  fs.rmSync(path.join(sheetsDir("cipher"), "HEAL"), { recursive: true, force: true });
+  fs.rmSync(path.join(sheetsDir("cipher"), "DASH"), { recursive: true, force: true });
   await boot();
   check("partial roster faults", (await ds("sprites")) === "error");
   check("fault names the incomplete state",
@@ -314,7 +399,11 @@ try {
   if (browser) await browser.close().catch(() => {});
   if (server) server.kill();
   clearSheets();
-  if (fs.existsSync(BACKUP)) fs.renameSync(BACKUP, SHEETS);
+  for (const fighter of FIGHTERS) {
+    if (fs.existsSync(backupDir(fighter))) {
+      fs.renameSync(backupDir(fighter), sheetsDir(fighter));
+    }
+  }
 }
 
 console.log(failures ? `\n${failures} FAILURES` : "\nALL PASS");

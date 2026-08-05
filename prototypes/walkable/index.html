@@ -398,7 +398,8 @@
    SENTINEL walkable-world toy — pure renderer, plus one door.
 
    Still no tactical-core import, no rules. The room is exactly one room
-   and one walking body — but the north door is now real: crossing it
+   and one walking body, with three squadmates as set dressing — but the
+   north door is now real: crossing it
    hands the feed to tactical3d in an iframe (the seam, below) and takes
    an outcome back. Combat is a place this file sends the player, never
    logic it runs. This file borrows tactical3d's visual machinery because
@@ -887,7 +888,7 @@ const DOOR = {
   triggerZ: gz(0) + 0.35,   // past this line, the cut happens
 };
 
-// ---- Cipher sheet pipeline ---------------------------------------
+// ---- room body sheet pipeline ------------------------------------
 const FRAME_W = 96;
 const FRAME_H = 80;
 const GROUND_ROW = 57;
@@ -941,16 +942,28 @@ const SHEETS = {
   kneel: { folder: "KNEEL", stem: "kneel", fps: 2, loop: true, stance: true },
 };
 const FACINGS = ["down", "up", "left", "right"];
+const PLAYER = "cipher";
+const SQUAD_ACTIONS = ["idle", "kneel"];
+const SQUAD_ROSTER = [
+  { fighter: "vesper", name: "VESPER", position: [gx(2), 0.002, gz(2)] },
+  { fighter: "koa", name: "KOA", position: [gx(9), 0.002, gz(4)] },
+  { fighter: "sable", name: "SABLE", position: [gx(2), 0.002, gz(6)] },
+];
+// Set dressing does not enter collision. Bolting circular squad obstacles
+// onto this clamp-and-prop scheme can wedge Cipher; walking through a
+// squadmate is the explicit v1 cost.
 const textures = new Map();
 const textureLoader = new THREE.TextureLoader();
 
-function sheetUrl(action, facing) {
+const sheetKey = (fighter, action, facing) => `${fighter}:${action}:${facing}`;
+
+function sheetUrl(fighter, action, facing) {
   const spec = SHEETS[action];
-  return `../../assets/sprites/composed/cipher/${spec.folder}/${spec.stem}_${facing}.png`;
+  return `../../assets/sprites/composed/${fighter}/${spec.folder}/${spec.stem}_${facing}.png`;
 }
 
-async function loadSheet(action, facing) {
-  const url = sheetUrl(action, facing);
+async function loadSheet(fighter, action, facing) {
+  const url = sheetUrl(fighter, action, facing);
   const texture = await textureLoader.loadAsync(url);
   const width = texture.image.naturalWidth || texture.image.width;
   const height = texture.image.naturalHeight || texture.image.height;
@@ -969,13 +982,13 @@ async function loadSheet(action, facing) {
   texture.repeat.set(1 / frames, 1);
   texture.offset.set(0, 0);
   texture.userData.frames = frames;
-  textures.set(`${action}:${facing}`, texture);
+  textures.set(sheetKey(fighter, action, facing), texture);
 }
 
 // frame counts live on the loaded textures, one sheet at a time — a verb
 // is never assumed to run the same length across facings or packs
-function framesOf(action, facing) {
-  const texture = textures.get(`${action}:${facing}`);
+function framesOf(fighter, action, facing) {
+  const texture = textures.get(sheetKey(fighter, action, facing));
   return texture ? texture.userData.frames : 1;
 }
 
@@ -985,7 +998,7 @@ function showAssetFault(error) {
   assetGate.className = "show asset-error";
   assetGate.innerHTML = `
     <div class="gate-box">
-      <h2>CIPHER SHEETS NOT LOADED</h2>
+      <h2>ROOM BODY SHEETS NOT LOADED</h2>
       <p>
         Three stages, in order: <code>roster_mold.py</code> molds the
         licensed pack, <code>compose_body.py</code> composes the shipped
@@ -1009,8 +1022,9 @@ function showAssetFault(error) {
 let character = null;
 let spriteMaterial = null;
 let bladeLight = null;
+const squadBodies = [];
 
-function buildCipher() {
+function buildBody(fighter, position) {
   // PlaneGeometry is centered by default. Translate its vertices so source
   // row 57 — the pack's ground line — sits at local Y=0. Transparent rows
   // below the feet may extend under the floor without moving the authored
@@ -1022,11 +1036,11 @@ function buildCipher() {
     0
   );
 
-  spriteMaterial = new THREE.MeshBasicMaterial({
-    map: textures.get("idle:down"),
+  const material = new THREE.MeshBasicMaterial({
+    map: textures.get(sheetKey(fighter, "idle", "down")),
     alphaTest: 0.05,
   });
-  const sprite = new THREE.Mesh(spriteGeo, spriteMaterial);
+  const sprite = new THREE.Mesh(spriteGeo, material);
 
   const blob = new THREE.Mesh(
     new THREE.CircleGeometry(0.31, 20),
@@ -1040,43 +1054,92 @@ function buildCipher() {
   blob.rotation.x = -Math.PI / 2;
   blob.position.y = 0.012;
 
-  character = new THREE.Group();
-  character.position.set(0, 0.002, 0.6);
-  character.add(blob, sprite);
-  character.userData.sprite = sprite;
-  character.userData.action = "idle";
-  character.userData.facing = "down";
-  character.userData.frame = 0;
+  const body = new THREE.Group();
+  body.position.set(...position);
+  body.add(blob, sprite);
+  body.userData.fighter = fighter;
+  body.userData.material = material;
+  body.userData.sprite = sprite;
+  body.userData.action = "idle";
+  body.userData.facing = "down";
+  body.userData.frame = 0;
+  scene.add(body);
+  return body;
+}
+
+function buildCipher() {
+  character = buildBody(PLAYER, [0, 0.002, 0.6]);
+  spriteMaterial = character.userData.material;
 
   // The emitter's bloom is authored in the sheets. This light is only spill on
   // nearby matter — no surrogate blade and no effect when the sheet is idle.
   bladeLight = new THREE.PointLight(0x5ccfff, 0, 3.1, 2);
   bladeLight.position.set(0.25, 0.72, 0.05);
   character.add(bladeLight);
-  scene.add(character);
 }
 
-async function bootCipher() {
-  // One tier now, and it is all-or-nothing: every verb in SHEETS must load
-  // or the page faults naming what failed. The old two-tier gate sorted a
+function publishSquadPostures() {
+  if (!squadBodies.length) return;
+  canvas.dataset.squad = squadBodies
+    .map(body => `${body.userData.fighter}:${body.userData.action}`)
+    .join(",");
+}
+
+function syncSquadPostures() {
+  // recent is newest first. A struck card banked nothing, so it cannot
+  // leave an aftermath on bodies; cumulative wounds stay in the panel.
+  const counted = run.recent.find(card => card.cert !== "struck");
+  const down = new Set(counted?.down ?? []);
+  for (const body of squadBodies) {
+    body.userData.action = down.has(body.userData.name) ? "kneel" : "idle";
+  }
+  publishSquadPostures();
+}
+
+function buildSquad() {
+  for (const [index, member] of SQUAD_ROSTER.entries()) {
+    const body = buildBody(member.fighter, member.position);
+    body.userData.name = member.name;
+    body.userData.phase = index;
+    // Static bodies look into the room. Their authored facing still has to
+    // be projected through each camera quarter-turn, exactly as Cipher's is.
+    body.userData.worldFacing = new THREE.Vector3(
+      -member.position[0], 0, 0.6 - member.position[2]
+    ).normalize();
+    squadBodies.push(body);
+  }
+  syncSquadPostures();
+}
+
+async function bootBodies() {
+  // One tier now, and it is all-or-nothing: every Cipher verb plus the
+  // squad's two visible stances must load or the page faults naming what
+  // failed. The old two-tier gate sorted a
   // FREE-pack core from a FULL-pack extension; the composed body has no
   // free-pack form, so a missing verb is always a broken regeneration and
   // there is nothing left to degrade gracefully INTO. Reporting a reduced
   // roster here would be the silent fallback the fault exists to prevent.
-  const actions = Object.keys(SHEETS);
+  const requests = [
+    ...Object.keys(SHEETS).flatMap(action =>
+      FACINGS.map(facing => ({ fighter: PLAYER, action, facing }))
+    ),
+    ...SQUAD_ROSTER.flatMap(({ fighter }) =>
+      SQUAD_ACTIONS.flatMap(action =>
+        FACINGS.map(facing => ({ fighter, action, facing }))
+      )
+    ),
+  ];
   const missing = [];
   try {
-    await Promise.all(actions.flatMap(
-      action => FACINGS.map(
-        // Absence and rejection stay different verdicts: loadAsync rejects
-        // a missing file with an event, never an Error, so the Error class
-        // still marks our own validation refusing a real file — that one
-        // rethrows and faults immediately with its own message.
-        facing => loadSheet(action, facing).catch(err => {
-          if (err instanceof Error) throw err;
-          missing.push(`${action}_${facing}`);
-        })
-      )
+    await Promise.all(requests.map(({ fighter, action, facing }) =>
+      // Absence and rejection stay different verdicts: loadAsync rejects
+      // a missing file with an event, never an Error, so the Error class
+      // still marks our own validation refusing a real file — that one
+      // rethrows and faults immediately with its own message.
+      loadSheet(fighter, action, facing).catch(err => {
+        if (err instanceof Error) throw err;
+        missing.push(`${fighter}/${action}_${facing}`);
+      })
     ));
   } catch (error) {
     showAssetFault(error);
@@ -1085,12 +1148,13 @@ async function bootCipher() {
   if (missing.length > 0) {
     showAssetFault(new Error(
       `composed roster incomplete: ${missing.length} of `
-      + `${actions.length * FACINGS.length} sheets missing (first: ${missing[0]}) `
+      + `${requests.length} sheets missing (first: ${missing[0]}) `
       + `— re-run roster_mold.py, then compose_body.py, then pack_strip.py`
     ));
     return;
   }
   buildCipher();
+  buildSquad();
   assetGate.className = "";
   assetGate.setAttribute("aria-hidden", "true");
   bodyStateEl.textContent = "COMPOSED / READY";
@@ -1138,9 +1202,9 @@ function triggerLocked(name) {
   locked = { name, started: null };
 }
 
-function screenFacing() {
-  const rightward = facingWorld.dot(cameraRight);
-  const forward = facingWorld.dot(cameraForward);
+function screenFacing(worldDirection = facingWorld) {
+  const rightward = worldDirection.dot(cameraRight);
+  const forward = worldDirection.dot(cameraForward);
   if (Math.abs(rightward) > Math.abs(forward)) {
     return rightward >= 0 ? "right" : "left";
   }
@@ -1148,7 +1212,7 @@ function screenFacing() {
 }
 
 function setSpriteFrame(action, facing, frame) {
-  const texture = textures.get(`${action}:${facing}`);
+  const texture = textures.get(sheetKey(PLAYER, action, facing));
   if (spriteMaterial.map !== texture) spriteMaterial.map = texture;
   texture.offset.x = frame / texture.userData.frames;
   character.userData.action = action;
@@ -1273,7 +1337,7 @@ function updateCipher(dt, now) {
   if (downed) {
     // the held state after death plays through: last frame, no light
     action = "death";
-    frame = framesOf(action, facing) - 1;
+    frame = framesOf(PLAYER, action, facing) - 1;
     bladeLight.intensity = 0;
   } else if (locked) {
     action = locked.name;
@@ -1287,11 +1351,11 @@ function updateCipher(dt, now) {
     // deals the card
     if (action === "dash") stepBody(facingWorld.x * DASH_SPEED * dt, facingWorld.z * DASH_SPEED * dt);
 
-    if (frame >= framesOf(action, facing)) {
+    if (frame >= framesOf(PLAYER, action, facing)) {
       if (spec.hold) {
         downed = true;   // the floor holds the state now, not the lock —
         locked = null;   // a stale lock here re-downed a rising body (caught in test)
-        frame = framesOf(action, facing) - 1;
+        frame = framesOf(PLAYER, action, facing) - 1;
         bladeLight.intensity = 0;
       } else {
         locked = null;
@@ -1325,13 +1389,37 @@ function updateCipher(dt, now) {
   if (!locked && !downed) {
     bladeLight.intensity = 0;
     const spec = SHEETS[action];
-    frame = Math.floor(now * spec.fps) % framesOf(action, facing);
+    frame = Math.floor(now * spec.fps) % framesOf(PLAYER, action, facing);
   }
 
   setSpriteFrame(action, facing, frame);
   character.userData.sprite.rotation.y = camAz;
   canvas.dataset.position =
     `${character.position.x.toFixed(3)},${character.position.z.toFixed(3)}`;
+}
+
+function updateSquad(now) {
+  if (!squadBodies.length) return;
+  const shown = [];
+  for (const body of squadBodies) {
+    const action = body.userData.action;
+    const facing = screenFacing(body.userData.worldFacing);
+    const frames = framesOf(body.userData.fighter, action, facing);
+    // Offset per body, or all three breathe on the same frame forever and
+    // read as one puppet drawn three times. Derived from the roster index,
+    // never from a clock or a random: the room has to draw the same thing
+    // twice for the harness to be able to assert on it at all.
+    const frame = (Math.floor(now * SHEETS[action].fps) + body.userData.phase) % frames;
+    const texture = textures.get(sheetKey(body.userData.fighter, action, facing));
+    const material = body.userData.material;
+    if (material.map !== texture) material.map = texture;
+    texture.offset.x = frame / frames;
+    body.userData.facing = facing;
+    body.userData.frame = frame;
+    body.userData.sprite.rotation.y = camAz;
+    shown.push(`${body.userData.fighter}:${action}:${facing}:${frame}`);
+  }
+  canvas.dataset.squadSprites = shown.join(",");
 }
 
 document.addEventListener("keydown", event => {
@@ -1600,10 +1688,11 @@ function renderRun() {
   // the harness reads the run off the surface rather than out of storage:
   // what is asserted is what a player would actually see
   canvas.dataset.run = `${s.cards}:${s.record}:${s.purse}:${s.walked}:${s.finished}:${s.struck}`;
+  syncSquadPostures();
 }
 
 // Bank a returned card and redraw. One place writes the run, so the
-// stored copy and the rendered one cannot disagree.
+// stored copy, the panel, and the squad aftermath cannot disagree.
 function bankCard(card) {
   const { run: next, accepted, counted, why } = applyCard(run, card);
   run = next;
@@ -1895,6 +1984,7 @@ function frame() {
   }
 
   updateCipher(dt, now);
+  updateSquad(now);
 
   if (displayMode === "lcd") {
     renderer.setRenderTarget(lcdTarget);
@@ -1907,7 +1997,7 @@ function frame() {
 }
 
 canvas.dataset.booted = "1";
-bootCipher();
+bootBodies();
 frame();
 </script>
 
