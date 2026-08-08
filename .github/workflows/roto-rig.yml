@@ -1,0 +1,98 @@
+name: Roto rig
+
+# scripts/roto_mannequin.py carries 19 geometric checks — 14 for the kneel, 5
+# for the walk — and until this job existed nothing ran them. They were a claim
+# wearing verification's clothes: present, detailed, and enforcing nothing. The
+# pose they guard has already shipped two bugs that only reading the RIG could
+# see (inverted pitch signs whose comments asserted the opposite, and a
+# hardcoded ground drop that buried both shins under the floor while the
+# docstring said they rested on it), so the checks are not decorative.
+#
+# Its own workflow rather than a job in ci.yml, because `paths` is a
+# workflow-level filter: this file changes rarely (twice in seven PRs) and
+# there is no reason to pull a 400MB wheel on a PR that edits faction JSON.
+#
+# NOTE ON COVERAGE: --validate returns before place_camera(), so this job
+# exercises build/animate/kneel/settle and the rig checks. It does NOT reach
+# the render path, which means the ground-row drift guard and the per-pose
+# output directories are still unguarded. Covering those needs an actual
+# render in CI and is a heavier decision.
+
+on:
+  push:
+    branches: [master, main]
+    paths: ['scripts/**', '.github/workflows/roto-rig.yml']
+  pull_request:
+    branches: [master, main]
+    paths: ['scripts/**', '.github/workflows/roto-rig.yml']
+
+jobs:
+  validate-rig:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      # bpy pins to ONE interpreter — 5.2.0 declares requires_python ==3.13.*
+      # — so this cannot join the 3.10-3.12 matrix in ci.yml.
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Cache the bpy wheel
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/pip
+          key: bpy-5.2.0-py313-${{ runner.os }}
+
+      # The PyPI wheel, not a Blender download: it makes `import bpy` work in
+      # an ordinary interpreter, so the script runs under plain python with no
+      # --background and no display. 5.2.0 is stable; the workstation runs a
+      # 5.3.0 alpha. That drift is deliberate and points the safe way — CI
+      # pins the released API, and an alpha regression surfaces locally at the
+      # moment someone is already looking at the render.
+      - name: Install bpy
+        run: pip install bpy==5.2.0
+
+      # Fail HERE, with a legible message, if the module differs from the app
+      # in a way that matters. Ops need a context, and a context is the one
+      # thing `blender --background` supplies that an embedded interpreter may
+      # not — better to name that than to die deep inside build().
+      - name: Smoke check the embedded interpreter
+        run: |
+          python - <<'PY'
+          import bpy
+          print("bpy", bpy.app.version_string)
+          bpy.ops.object.select_all(action="SELECT")
+          bpy.ops.object.delete()
+          bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0))
+          ob = bpy.context.object
+          assert ob is not None, "primitive_cube_add left no active object"
+          bpy.context.view_layer.update()
+          assert ob.matrix_world.translation.length < 1e-6
+          print("ops + context + depsgraph OK")
+          PY
+
+      - name: Validate the walk
+        env:
+          ROTO_POSE: walk
+        run: python scripts/roto_mannequin.py -- --validate
+
+      - name: Validate the kneel
+        env:
+          ROTO_POSE: kneel
+        run: python scripts/roto_mannequin.py -- --validate
+
+      # An unrecognised pose must be refused, not quietly downgraded to the
+      # walk (design philosophy 3). Exit 2 is the contract.
+      - name: Unknown pose is refused
+        run: |
+          set +e
+          ROTO_POSE=knee python scripts/roto_mannequin.py -- --validate
+          code=$?
+          set -e
+          if [ "$code" -ne 2 ]; then
+            echo "expected exit 2 for an unknown pose, got $code" >&2
+            exit 1
+          fi
