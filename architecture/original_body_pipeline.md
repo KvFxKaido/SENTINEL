@@ -58,15 +58,28 @@ The rig's flat-shaded, colour-separated, `filter_size=0` render is
 already a semantic ID map — head, torso, each limb segment owns a
 palette entry, which is why the tracing aid and the part mask are the
 same idea. A dedicated ID pass with pure indexed colours is ~20 lines.
-Anchors likewise: `ground_{pose}_{facing}.json` already ships, and hand
-and weapon sockets are the `fore_*` world positions the validator
-already computes.
+Anchors split by cost. `ground_{pose}_{facing}.json` already ships.
+Hand and weapon sockets are NEW rig work, not an existing byproduct —
+a hanging limb's origin sits on its top face, so `fore_L`'s origin is
+the ELBOW, and a socket that exports it attaches the sword to the elbow
+(caught in review; the validator's knee reads only worked because a
+shin's origin IS the knee — no such child exists below a forearm). The
+hand is the transformed centre of the forearm's bottom face, and a
+usable socket is per-frame position AND orientation in anchored sheet
+coordinates, plus handedness and draw order. Open item 1 gates the
+armed verbs on exactly this export.
 
-**Material masks are explicitly NOT the rig's.** Skin, cloth, steel,
-mark colour — the rig is boxes and does not know where the coat ends.
-Material masks are authored once on the approved master body and ride
-the strips from there. One deliverable in the consult, two sources in
-fact; PRs should not ask the rig for materials.
+**Material masks are explicitly NOT the rig's — and they are per-strip
+deliverables, not a one-time authoring.** Skin, cloth, steel, mark
+colour — the rig is boxes and does not know where the coat ends. And a
+mask authored on the static idle cannot stay pixel-aligned with a
+generated WALK frame, so each accepted strip ships its material masks
+as part of acceptance: seeded from the idle authoring, propagated
+during cleanup, corrected by hand where propagation lies. The part-ID
+render assists that propagation; it cannot substitute for it. One
+deliverable in the consult, two sources and N strips in fact; PRs
+should not ask the rig for materials, and D9's acceptance gate
+includes the masks.
 
 This deletes detective work rather than adding pipeline: the blade
 classifier exists because compose must *infer* the sword from palette
@@ -149,13 +162,17 @@ It is still a queue, and this doc does not pretend otherwise.
 
 The rig cannot manufacture polish. It provides anatomy, motion, facing,
 contact and anchors; taste-level pixel clustering and costume live in
-the master body and the generation/cleanup step. That burden is reduced
-to one body, once.
+the master body and the generation/cleanup step. The BODY is authored
+once; the material masks are not — every accepted strip carries its
+own, per D2. Reduced, not eliminated.
 
 ## Open items
 
 1. **Weapon socket before ATTACK/AIM/FIRE.** Those verbs need D2's
-   socket emission landed first; sequence the rig work accordingly.
+   socket EXPORT designed and landed first — per-frame position and
+   orientation in anchored sheet coordinates, handedness, draw order.
+   This is new rig work with its own PR, not a flag flip; sequence
+   accordingly.
 2. **Idle guide: static or breathing?** The pack's idle animates. A
    static mannequin guide may suffice for pose, with breath authored at
    the polish step — decide when the slice starts, not now.
