@@ -33,5 +33,34 @@
     "south-west": "a1dc56f1-10c8-484f-94ee-15ba0e9f256b",
     "south-east": "382199bd-6b09-4f0d-88da-fff7a53e1fe3"
   },
-  "_idle_north_dead_end": "The template breathing-idle painted the full visor band on the BACK of the head in 3 of 4 north frames (frame 2 was correct; the north WALK was correct, so the template does not force a face). A same-template re-roll is blocked by dedup; delete-and-regenerate would re-roll the three good facings. Fix: v3 with custom_start_frame pinned to the north rotation and a state-shaped prompt ('hair only in every frame') - the 'ask for a state, not a motion' finding, third confirmation. Measured: 0 visor-cyan head pixels in all 4 v3 frames vs 8 in each bad template frame."
+  "_idle_north_dead_end": "The template breathing-idle painted the full visor band on the BACK of the head in 3 of 4 north frames (frame 2 was correct; the north WALK was correct, so the template does not force a face). A same-template re-roll is blocked by dedup; delete-and-regenerate would re-roll the three good facings. Fix: v3 with custom_start_frame pinned to the north rotation and a state-shaped prompt ('hair only in every frame') - the 'ask for a state, not a motion' finding, third confirmation. Measured: 0 visor-cyan head pixels in all 4 v3 frames vs 8 in each bad template frame.",
+  "kneel": {
+    "_what": "KNEEL for the whole-generated body - the first verb built with no pack pixels, and the first verb the roto rig choreographed (PR #97's kneel guide named the pose; the prompt spoke it as per-frame properties). Decided 2026-08-08, designer judging stills against the rig guide.",
+    "_ladder": [
+      "v3 state-shaped prompt on the Idle rotation: FAILED. 1px of body-height drop measured against the rig's predicted ~5px (84% of standing). A v3 reference still anchors POSE as strongly as identity - the two are inseparable. 1 generation.",
+      "create_character_state('kneeling on one knee'): WON. Re-posing is that tool's whole job; identity held via group + palette snap. south/west/east/south-west/south-east all read as kneels; north barely folded (106% of standing). ~20 generations.",
+      "inpaint of the north lower body: FAILED twice over. The mask froze the head a kneel needs to drop, and the Gemini tier painted palette-foreign red pixels into a smeared fold at 64px. ~20 generations, discarded.",
+      "row surgery on the state's north (kneel_frames algorithm, d=5, jacket pools 1px/side for 2 rows): WON at zero generations. The back view is the one facing where 'reads as a shorter man' IS the pose."
+    ],
+    "_doctrine": "Held-pose verbs go STATE-first; cyclic verbs go template-first; a v3 prompt alone moves a pose about one pixel; the back view belongs to row surgery. Fifth confirmation that looking at pixels beats the aggregate metric: the 84%-height check flunked poses that read correctly, because it encoded the RIG's forward torso lean and the model chose an upright-torso kneel.",
+    "_dialect": "left/right ship from south-west/south-east (3/4), NOT west/east (true profile), matching facing_map above and the pack's side-view dialect. The profiles read equally well and remain on the state's rotations as provenance.",
+    "state_character_id": "e63ad264-f5cb-4c85-a511-779c567639fd",
+    "state_name": "Kneel",
+    "cdn_base": "https://backblaze.pixellab.ai/file/pixellab-characters/91e1cb96-29ca-4130-bab4-9a05267cc348/e63ad264-f5cb-4c85-a511-779c567639fd",
+    "frames_per_facing": 2,
+    "facing_map": {
+      "down": "south",
+      "up": "north",
+      "left": "south-west",
+      "right": "south-east"
+    },
+    "north_surgery": {
+      "head_top": 16, "leg_top": 34, "foot_top": 45, "drop": 5, "pool_rows": 2,
+      "_why": "the state's north kept the head at 106% of standing; kneel_frames row surgery drops the torso and lets the legs absorb it, and the jacket pools a pixel a side to sell the fold - the pack's own north kneel was made exactly this way"
+    },
+    "breath": {
+      "shift_px": 1, "upper_frac": 0.4,
+      "_why": "the pack KNEEL is a 2-frame held pose; frame 2 shifts the upper 40% of body rows down one pixel - compression, the same breath dialect at the same amplitude"
+    }
+  }
 }
