@@ -41,7 +41,7 @@ jobs:
           python-version: "3.13"
 
       - name: Cache the bpy wheel
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/pip
           key: bpy-5.2.0-py313-${{ runner.os }}
