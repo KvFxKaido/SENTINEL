@@ -59,9 +59,12 @@ not a roster. The job at this step is art direction and approval, not
 pixel labor.
 
 Original art is TRACKED at `assets/original/` — carved out of the
-`assets/sprites/` ignore because nothing under it is regenerable:
-PixelLab rolls are stochastic and the .aseprite work is unique. This is
-D9's tracking requirement made possible; before the carve-out the D1
+`assets/sprites/` ignore. Precisely (review caught the overclaim): the
+.aseprite hand-work and curated PixelLab rolls do NOT rebuild — rolls
+are stochastic; the `cipher_render` sheets technically re-download via
+`walkoff_render_sheets.py` for as long as PixelLab's CDN holds them,
+and a CDN is not provenance, so they are tracked too. This is D9's
+tracking requirement made possible; before the carve-out the D1
 candidate existed only on one machine with no history. Third-party
 packs are quarantined under `assets/packs/`, ignored wholesale.
 

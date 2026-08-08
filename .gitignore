@@ -106,14 +106,21 @@ assets/packs/
 # Safety net, unanchored on purpose: a pack unpacked anywhere OUTSIDE the
 # quarantine is still caught by name shape before the next `git add -A` —
 # which is exactly how NEW-TopDownCharacter-v1.3 reached master in 4c384a9.
+# The FREE Character glob is load-bearing for OTHER checkouts: this commit
+# moved those packs on one machine, but a checkout that still holds them in
+# prototypes/ would see them go untracked the moment the old ignore lines
+# vanished — the 4c384a9 failure, reintroduced by the fix (caught in review).
 *TopDownCharacter*/
 *Pixel Art*/
+FREE Character */
 # regenerable sprite outputs — the whole roster (scripts/roster_mold.py)
 # plus the System A walk-off strips (scripts/cipher32_walk.py); the
 # committed scripts are the decision records, the pixels rebuild.
-# assets/original/ is deliberately ABSENT here: PixelLab rolls are
-# stochastic and the .aseprite hand-work is unique — nothing there
-# rebuilds, so it is tracked source art (original_body_pipeline.md, D9).
+# assets/original/ is deliberately ABSENT here — tracked source art
+# (original_body_pipeline.md, D9). Precisely: the .aseprite hand-work and
+# curated PixelLab rolls do NOT rebuild (rolls are stochastic); the
+# cipher_render sheets technically re-download via walkoff_render_sheets.py
+# for as long as PixelLab's CDN holds them, and a CDN is not provenance.
 assets/sprites/
 
 # walkable harness deps (prototypes/walkable/test)
