@@ -25,15 +25,26 @@ Usage:
     blender --background --python scripts/roto_mannequin.py
     blender --background --python scripts/roto_mannequin.py -- --validate
 
+--validate is this file's ONLY guardrail and nothing in CI runs it: it needs
+bpy, and the repo has no Blender job. Run it by hand after touching build(),
+animate(), kneel() or settle(), or the checks below protect nothing.
+
 Env:
     ROTO_OUT      output dir            ROTO_FRAMES   frames per cycle (8)
     ROTO_FACING   S SE E NE N NW W SW   ROTO_SCALE    camera ortho scale
     ROTO_POSE     walk | kneel          (rejected if unrecognised, never
                                          quietly downgraded to the walk)
 
-Output is pose-scoped — roto_{pose}_{facing}_{NN}.png alongside
-ground_{pose}_{facing}.json — because anchor_strip.py globs a whole directory
-and would otherwise anchor a mixed strip as one animation.
+Output goes to ROTO_OUT/{pose}/, one DIRECTORY per pose, holding
+roto_{pose}_{facing}_{NN}.png and ground_{pose}_{facing}.json.
+
+The directory is the part that matters. anchor_strip.py takes a src dir and
+globs every PNG in it, sorted, applying one shared translation from a single
+ground JSON — so a walk and a kneel sharing a directory get anchored as one
+strip no matter what the files are called ("kneel" even sorts first). Distinct
+names alone only prevent frame 01 from being overwritten; they do not stop the
+mixing, which is why the pose owns the directory. The names stay pose-scoped
+anyway, so a file that escapes its directory still says what it is.
 """
 import json
 import math
@@ -533,13 +544,17 @@ def main():
         if drift > 1e-3:
             print(f"nudge moved ground_row by {drift:.6f} rows", file=sys.stderr)
             return 3
-    # Names carry the POSE. They did not, and anchor_strip.py globs every PNG
-    # in its source dir: a 1-frame kneel rendered over an 8-frame walk left
-    # frame 01 kneeling and 02-08 walking, which anchors and reads as one
-    # strip. The sidecar's `frames` is the count actually written, not N —
-    # it said 8 for a pose that renders 1.
+    # The POSE owns a directory. Previously every pose wrote roto_{FACING}_01
+    # into one dir, so a 1-frame kneel over an 8-frame walk left frame 01
+    # kneeling and 02-08 walking. Pose-scoped NAMES alone stop that overwrite
+    # but not the real failure: anchor_strip.py globs its whole src dir, so it
+    # would still gather all nine files and anchor them as one strip. Only the
+    # directory split actually separates them. The sidecar's `frames` is the
+    # count written, not N — it said 8 for a pose that renders 1.
     frames = 1 if POSE == "kneel" else N
-    with open(os.path.join(OUT, f"ground_{POSE}_{FACING}.json"), "w") as fh:
+    pose_dir = os.path.join(OUT, POSE)
+    os.makedirs(pose_dir, exist_ok=True)
+    with open(os.path.join(pose_dir, f"ground_{POSE}_{FACING}.json"), "w") as fh:
         json.dump({"pose": POSE, "facing": FACING, "ground_row": ground_row,
                    "frames": frames, "res": [RES_W, RES_H],
                    "canon_ground_row": CANON_GROUND_ROW}, fh)
@@ -547,9 +562,10 @@ def main():
     for i in range(frames):
         if POSE != "kneel":
             bpy.context.scene.frame_set(i + 1)
-        r.filepath = os.path.join(OUT, f"roto_{POSE}_{FACING}_{i + 1:02d}.png")
+        r.filepath = os.path.join(pose_dir, f"roto_{POSE}_{FACING}_{i + 1:02d}.png")
         bpy.ops.render.render(write_still=True)
-    print(f"ROTO_DONE {POSE} {FACING} {frames} ground_row={ground_row:.2f}")
+    print(f"ROTO_DONE {POSE} {FACING} {frames} ground_row={ground_row:.2f} "
+          f"dir={pose_dir}")
     return 0
 
 
