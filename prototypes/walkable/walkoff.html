@@ -899,7 +899,12 @@ const texturesGen = new Map();
 
 async function loadSheetGen(anim, facing) {
   const spec = GEN_SHEETS[anim];
-  const url = `../../assets/sprites/generated/cipher/sheets/${anim}_${facing}.png${SHEET_BUST}`;
+  // hybrid sheets are COMPOSED — pack frames under a generated head — so
+  // they live in ignored territory with every other pack derivative, not
+  // in the tracked assets/original/ vault (the licensing boundary IS the
+  // directory boundary; this URL crossed it once, caught by the walkoff's
+  // own slot comments).
+  const url = `../../assets/sprites/hybrid/cipher/sheets/${anim}_${facing}.png${SHEET_BUST}`;
   const texture = await textureLoader.loadAsync(url);
   const width = texture.image.naturalWidth || texture.image.width;
   const height = texture.image.naturalHeight || texture.image.height;
@@ -921,7 +926,7 @@ const texturesRen = new Map();
 
 async function loadSheetRen(anim, facing) {
   const spec = REN_SHEETS[anim];
-  const url = `../../assets/sprites/generated/cipher_render/sheets/${anim}_${facing}.png${SHEET_BUST}`;
+  const url = `../../assets/original/cipher_render/sheets/${anim}_${facing}.png${SHEET_BUST}`;
   const texture = await textureLoader.loadAsync(url);
   const width = texture.image.naturalWidth || texture.image.width;
   const height = texture.image.naturalHeight || texture.image.height;
@@ -976,7 +981,7 @@ function showAssetFault(error) {
       <p>
         BODY A regenerates with <code>python scripts/roster_mold.py</code>
         (needs the licensed pack at
-        <code>prototypes/FREE_Adventurer 2D Pixel Art/</code>);
+        <code>assets/packs/FREE_Adventurer 2D Pixel Art/</code>);
         BODY C with <code>python scripts/compose_body.py</code>;
         BODY B with <code>python scripts/walkoff_render_sheets.py</code>.
       </p>

@@ -129,7 +129,7 @@ substituting a placeholder:
 
 ```powershell
 python scripts/roster_mold.py     # licensed pack -> assets/sprites/<fighter>/
-python scripts/compose_body.py --gen assets/sprites/generated/cipher `
+python scripts/compose_body.py --gen assets/original/cipher `
                                --src assets/sprites/cipher `
                                --out <frames> --verbs IDLE RUN WALK AIM FIRE `
                                                      HURT DEATH HEAL KNEEL DASH
@@ -141,7 +141,7 @@ Three stages, and this page reads the last one: `assets/sprites/composed/`,
 the mold's body with the generated head composed in and the sword stripped
 (the walk-off verdict, 2026-08-02 — see `architecture/art_direction_gba_tactics.md`).
 The licensed source pack must be present locally at
-`prototypes/FULL_Adventurer 2D Pixel Art/`; the FREE pack cannot serve this
+`assets/packs/FULL_Adventurer 2D Pixel Art/`; the FREE pack cannot serve this
 page at all, because composing needs the synthesized AIM / FIRE / KNEEL that
 only the full pack's mold produces. Frame counts are read from sheet width,
 never assumed: the pack varies them per verb (heal runs 12 frames, hurt 4,

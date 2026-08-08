@@ -97,23 +97,30 @@ gha-creds-*.json
 .wrangler/
 # Godot 4 import cache
 .godot/
-# licensed source packs — usable in the project, not redistributable as assets
-prototypes/FREE_Adventurer 2D Pixel Art/
-prototypes/FULL_Adventurer 2D Pixel Art/
-# Licensed pack directories are NEVER committed — the licenses permit use in
-# a project but not redistribution as an asset, and this repo is public.
-# Glob rather than name each one: a pack that arrives before its ignore line
-# does gets committed by the next `git add -A`, which is exactly how
-# NEW-TopDownCharacter-v1.3 reached master in 4c384a9.
-prototypes/NEW-TopDownCharacter-v1.3/
-prototypes/*TopDownCharacter*/
-prototypes/*Pixel Art*/
-# reference-only free characters (Character Creator 2D) — pose grammar, not architecture
-prototypes/FREE Character 16-bit Thug Outlined/
-prototypes/FREE Character HD Survivor W Bike/
+# assets/packs/ — every third-party pack, licensed or reference, QUARANTINED
+# under one root so one rule covers them all. Licensed packs are NEVER
+# committed: the licenses permit use in a project but not redistribution as
+# an asset, and this repo is public. Reference packs (Character Creator 2D)
+# ride the same rule — pose grammar, not architecture, and not ours.
+assets/packs/
+# Safety net, unanchored on purpose: a pack unpacked anywhere OUTSIDE the
+# quarantine is still caught by name shape before the next `git add -A` —
+# which is exactly how NEW-TopDownCharacter-v1.3 reached master in 4c384a9.
+# The FREE Character glob is load-bearing for OTHER checkouts: this commit
+# moved those packs on one machine, but a checkout that still holds them in
+# prototypes/ would see them go untracked the moment the old ignore lines
+# vanished — the 4c384a9 failure, reintroduced by the fix (caught in review).
+*TopDownCharacter*/
+*Pixel Art*/
+FREE Character */
 # regenerable sprite outputs — the whole roster (scripts/roster_mold.py)
 # plus the System A walk-off strips (scripts/cipher32_walk.py); the
-# committed scripts are the decision records, the pixels rebuild
+# committed scripts are the decision records, the pixels rebuild.
+# assets/original/ is deliberately ABSENT here — tracked source art
+# (original_body_pipeline.md, D9). Precisely: the .aseprite hand-work and
+# curated PixelLab rolls do NOT rebuild (rolls are stochastic); the
+# cipher_render sheets technically re-download via walkoff_render_sheets.py
+# for as long as PixelLab's CDN holds them, and a CDN is not provenance.
 assets/sprites/
 
 # walkable harness deps (prototypes/walkable/test)

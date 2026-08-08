@@ -1,5 +1,5 @@
 {
-  "_what": "Cipher canonical generated appearance. The reproducible INPUT; the sprites it produces are build output under assets/sprites/generated/cipher/.",
+  "_what": "Cipher canonical generated appearance. The reproducible INPUT; the sprites it produces are build output under assets/original/cipher/.",
   "_decided": "2026-08-02 - short fade + deepened skin (D1), chosen from a hair spread and a two-step skin bracket. Locked as Cipher everywhere.",
   "_scale": "size 36 lands a 22x32 body, essentially the pack nominal 22x34. size 40 overshoots to 39 tall and size must be a multiple of 4, so 36 is the size. Re-frame to the 96x80 body canvas with scripts/pack_canvas.py - translation only, never scaling (body law: one canvas, integer zoom).",
   "provider": "pixellab.ai",
@@ -33,9 +33,9 @@
       "head_iou_mean": 0.97,
       "bob_px": 1,
       "canon_bob_px": 2,
-      "_describes": "the AS-GENERATED frames now shipped at assets/sprites/generated/cipher/walk/, after pack_canvas.py re-framing (translation only) and BEFORE any hand editing. Any Aseprite pass invalidates these numbers; re-measure after."
+      "_describes": "the AS-GENERATED frames now shipped at assets/original/cipher/walk/, after pack_canvas.py re-framing (translation only) and BEFORE any hand editing. Any Aseprite pass invalidates these numbers; re-measure after."
     },
-    "residual": "bob is 1px against canon’s 2px. Frames 4, 5 and 6 sit one row lower (head_y=26) than frames 1,2,3,7,8 (head_y=25); canon alternates 23/24/25. Fix is select-all and one arrow-key UP on those three frames in assets/sprites/generated/cipher/work/cipher_walk_heldarms.aseprite. Deliberately not faked in the pipeline.",
+    "residual": "bob is 1px against canon’s 2px. Frames 4, 5 and 6 sit one row lower (head_y=26) than frames 1,2,3,7,8 (head_y=25); canon alternates 23/24/25. Fix is select-all and one arrow-key UP on those three frames in assets/original/cipher/work/cipher_walk_heldarms.aseprite. Deliberately not faked in the pipeline.",
     "dead_ends": [
       "template_animation_id (skeleton rig): re-poses and repaints the sprite; destroys the face and visor on this character.",
       "v3 prompt asking for contralateral swing: tried twice, r=+0.67 then +0.72. Same-side both times.",

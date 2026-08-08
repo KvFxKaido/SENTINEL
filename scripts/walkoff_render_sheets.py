@@ -6,8 +6,8 @@ the whole-generated body fielded in walkoff.html's BODY B slot — then
 downloads the template-walk and breathing-idle frames for the four molded
 facings and packs them into horizontal strips:
 
-    assets/sprites/generated/cipher_render/sheets/idle_{facing}.png
-    assets/sprites/generated/cipher_render/sheets/walk_{facing}.png
+    assets/original/cipher_render/sheets/idle_{facing}.png
+    assets/original/cipher_render/sheets/walk_{facing}.png
 
 The rotation stills are fetched for MEASUREMENT only: the ground-row
 anchor is the standing last-opaque row, and the breathing idle bobs, so
@@ -44,7 +44,7 @@ from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 RECORD = os.path.join(HERE, "pixellab_walkoff_render.json")
-OUT = os.path.join(HERE, "..", "assets", "sprites", "generated",
+OUT = os.path.join(HERE, "..", "assets", "original",
                    "cipher_render", "sheets")
 
 
