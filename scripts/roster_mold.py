@@ -52,7 +52,7 @@ gitignored, regenerable artifacts. This script is the decision record.
 
 Usage:
   python scripts/roster_mold.py
-    reads  prototypes/FULL_Adventurer 2D Pixel Art/Sprites/**.png
+    reads  assets/packs/FULL_Adventurer 2D Pixel Art/Sprites/**.png
            (or the FREE pack's four verbs if the full one is absent)
     writes assets/sprites/<fighter>/<ACTION>/<sheet>.png (+ preview.png)
            — 36 molded sheets per fighter, plus 12 synthesized on the
@@ -68,7 +68,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # into temp dirs so it can fake packs and sweep outputs without ever
 # touching the real licensed pack or real molded sheets. Unset, behavior
 # is exactly the paths named in the docstring.
-_PACKS = os.environ.get('ROSTER_MOLD_PACKS', os.path.join(ROOT, 'prototypes'))
+_PACKS = os.environ.get('ROSTER_MOLD_PACKS', os.path.join(ROOT, 'assets', 'packs'))
 _FULL = os.path.join(_PACKS, 'FULL_Adventurer 2D Pixel Art', 'Sprites')
 _FREE = os.path.join(_PACKS, 'FREE_Adventurer 2D Pixel Art', 'Sprites')
 FULL_PACK = os.path.isdir(_FULL)

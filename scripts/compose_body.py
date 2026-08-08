@@ -30,7 +30,7 @@ with the 90-degree ones puts a full-profile head on an angled body, which
 reads as the head facing somewhere the shoulders are not.
 
 Usage:
-    python compose_body.py --gen assets/sprites/generated/cipher \\
+    python compose_body.py --gen assets/original/cipher \\
                            --src assets/sprites/cipher \\
                            --out <dir> [--verbs IDLE WALK]
 """

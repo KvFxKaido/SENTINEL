@@ -47,11 +47,23 @@ Numbered so PRs can cite them.
 
 **D1 — One shared master body, not five characters.** A neutral body
 whose silhouette, coat, proportions and palette dialect get approved in
-four idle facings. The candidate seed is the retained whole-generated
-Cipher render from PR #91 — that experiment was kept for exactly this
-moment. If automated candidates stay uneven, commission cleanup of this
-ONE reusable body, not a roster. The job at this step is art direction
-and approval, not pixel labor.
+four idle facings. The candidate seed is `assets/original/cipher` — the
+CANON-SCALE whole-generated body (96×80, feet on row 57 in all four
+idle facings, 33px tall against canon's 34), which already carries walk
+sheets and two .aseprite hand-work passes (`stridefix`, `heldarms`).
+This is a stronger seed than PR #91's retained render (`cipher_render`,
+64×64), which is the wrong canvas and — per D4 — cannot be resampled
+into compliance; it stays as the recorded experiment. If automated
+candidates stay uneven, commission cleanup of this ONE reusable body,
+not a roster. The job at this step is art direction and approval, not
+pixel labor.
+
+Original art is TRACKED at `assets/original/` — carved out of the
+`assets/sprites/` ignore because nothing under it is regenerable:
+PixelLab rolls are stochastic and the .aseprite work is unique. This is
+D9's tracking requirement made possible; before the carve-out the D1
+candidate existed only on one machine with no history. Third-party
+packs are quarantined under `assets/packs/`, ignored wholesale.
 
 **D2 — The rig emits choreography: pose strips, part masks, anchors.**
 The rig's flat-shaded, colour-separated, `filter_size=0` render is
