@@ -899,7 +899,12 @@ const texturesGen = new Map();
 
 async function loadSheetGen(anim, facing) {
   const spec = GEN_SHEETS[anim];
-  const url = `../../assets/original/cipher/sheets/${anim}_${facing}.png${SHEET_BUST}`;
+  // hybrid sheets are COMPOSED — pack frames under a generated head — so
+  // they live in ignored territory with every other pack derivative, not
+  // in the tracked assets/original/ vault (the licensing boundary IS the
+  // directory boundary; this URL crossed it once, caught by the walkoff's
+  // own slot comments).
+  const url = `../../assets/sprites/hybrid/cipher/sheets/${anim}_${facing}.png${SHEET_BUST}`;
   const texture = await textureLoader.loadAsync(url);
   const width = texture.image.naturalWidth || texture.image.width;
   const height = texture.image.naturalHeight || texture.image.height;

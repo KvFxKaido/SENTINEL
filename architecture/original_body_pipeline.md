@@ -47,26 +47,41 @@ Numbered so PRs can cite them.
 
 **D1 — One shared master body, not five characters.** A neutral body
 whose silhouette, coat, proportions and palette dialect get approved in
-four idle facings. The candidate seed is `assets/original/cipher` — the
-CANON-SCALE whole-generated body (96×80, feet on row 57 in all four
-idle facings, 33px tall against canon's 34), which already carries walk
-sheets and two .aseprite hand-work passes (`stridefix`, `heldarms`).
-This is a stronger seed than PR #91's retained render (`cipher_render`,
-64×64), which is the wrong canvas and — per D4 — cannot be resampled
-into compliance; it stays as the recorded experiment. If automated
-candidates stay uneven, commission cleanup of this ONE reusable body,
-not a roster. The job at this step is art direction and approval, not
-pixel labor.
+four idle facings. The seed is the LOCKED Cipher appearance — the
+D1_darker roll recorded in `pixellab_cipher.json`, whose eight
+rotations live at `assets/original/cipher/*.png` — and `cipher_render`
+(64×64) is its proof in motion: that appearance wearing the template
+walk and breathing idle. No canon-scale whole-generated body exists
+yet; an earlier draft of this section claimed one did, having
+misidentified the walkoff's HYBRID sheets (composed — pack frames under
+a generated head, which is why they pass the body law: their body rows
+ARE pack rows). D1's first concrete task is therefore the archive's
+standing open question: regenerate idle + walk at 96×80 and learn
+whether template mode holds at body-law scale (every proof so far ran
+at 64–68px). Generate at scale or reject — D4 forbids resampling
+`cipher_render` into compliance. If automated candidates stay uneven,
+commission cleanup of this ONE reusable body, not a roster.
+
+**Audition verdict (2026-08-08, designer, three-body walkoff in
+motion):** the whole-generated render reads as fitting the room BETTER
+than the pack body and the hybrid. PR #91's hybrid verdict was
+economic, with motion quality the open worry; the motion worry is now
+resolved in generation's favor, which upgrades this migration from
+license-driven necessity to license-driven necessity the designer
+prefers on sight.
 
 Original art is TRACKED at `assets/original/` — carved out of the
-`assets/sprites/` ignore. Precisely (review caught the overclaim): the
-.aseprite hand-work and curated PixelLab rolls do NOT rebuild — rolls
-are stochastic; the `cipher_render` sheets technically re-download via
-`walkoff_render_sheets.py` for as long as PixelLab's CDN holds them,
-and a CDN is not provenance, so they are tracked too. This is D9's
-tracking requirement made possible; before the carve-out the D1
-candidate existed only on one machine with no history. Third-party
-packs are quarantined under `assets/packs/`, ignored wholesale.
+`assets/sprites/` ignore. The boundary is licensing, drawn at the
+directory: rotations, as-generated walk frames, .aseprite hand-work
+and the `cipher_render` sheets are OURS and tracked (curated rolls and
+hand edits do not rebuild; the render sheets technically re-download
+while PixelLab's CDN holds them, and a CDN is not provenance).
+COMPOSED sheets are not ours — pack frames under a generated head are
+a pack derivative — and live with every other derivative in ignored
+territory (`assets/sprites/hybrid/`). The first cut of this carve-out
+vaulted the composed sheets as if they were generation output; the
+walkoff's own slot comments caught it. Third-party packs are
+quarantined under `assets/packs/`, ignored wholesale.
 
 **D2 — The rig emits choreography: pose strips, part masks, anchors.**
 The rig's flat-shaded, colour-separated, `filter_size=0` render is
