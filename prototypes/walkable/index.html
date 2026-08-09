@@ -992,12 +992,22 @@ for (const [name, src] of Object.entries(BODY_SOURCES)) {
       throw new Error(`${name} covers ${from} with undeclared ${to}`);
     }
   }
+  // and every name the manifest speaks must be a verb SHEETS knows —
+  // a typo here should fail at declaration, not as a downstream load
+  for (const verb of [...src.verbs, ...Object.keys(src.covers)]) {
+    if (!(verb in SHEETS)) {
+      throw new Error(`${name} names ${verb}, which SHEETS does not know`);
+    }
+  }
 }
 // ?body= picks the player's source the way ?deal= pins a seed. An unknown
 // name is a fault, not a default: a typo that silently staged the composed
 // body would report a slice audition that never ran.
 const BODY_PARAM = new URLSearchParams(location.search).get("body") ?? "composed";
-const SOURCE = BODY_SOURCES[BODY_PARAM];
+// own properties only: ?body=constructor must reach the unknown-source
+// fault, not fish a function out of Object.prototype (caught in review)
+const SOURCE = Object.hasOwn(BODY_SOURCES, BODY_PARAM)
+  ? BODY_SOURCES[BODY_PARAM] : undefined;
 const SQUAD_ACTIONS = ["idle", "kneel"];
 // ONE identifier per squadmate, not two. The slug picks the sheet folder;
 // the operative name the yard reports in a card's `down` is that slug
@@ -1964,9 +1974,12 @@ function endSeam(result) {
   stepBackInside();
 
   // the record comes back with you, and the body says so: a lost card
-  // plays the hurt flinch as you re-enter the room
+  // plays the hurt flinch as you re-enter the room. Through the same
+  // gate as the keyboard — a system-triggered verb the source does not
+  // declare must be refused by name, not run as a phantom lock over the
+  // idle sheet (caught in review).
   if (result.result === "loss") {
-    locked = { name: "hurt", started: null };
+    triggerLocked("hurt");
   }
 
   // the entry renders now; the RUN settles only after the edge rules on

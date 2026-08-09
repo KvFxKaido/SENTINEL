@@ -99,6 +99,22 @@ function check(name, ok, detail = "") {
 }
 
 // ---- setup: preserve real sheets ----------------------------------
+// One harness at a time. Two overlapping runs would each claim the same
+// backup dirs: the second would reinstate the first's live backup as
+// "stranded", and after the first restores, the second's cleanup deletes
+// the originals with no backup left — the gitignored sheets would be
+// gone for good (caught in review). The lock is an atomic mkdir; a
+// hard-killed run strands it, and the next run refuses with its name
+// rather than guessing the coast is clear.
+const LOCK = path.join(HERE, ".harness-lock");
+try {
+  fs.mkdirSync(LOCK);
+} catch {
+  console.error(`another harness run appears live (${LOCK} exists) — `
+    + "refusing to touch the backups; remove the dir if that run is dead");
+  process.exit(1);
+}
+
 // A backup left by a run that died before restoring IS the real
 // artifact: reinstate it, never delete it. This also makes a hard-killed
 // run (no finally) self-healing instead of data-destroying on the next
@@ -114,6 +130,12 @@ for (const fighter of FIGHTERS) {
   }
 }
 if (fs.existsSync(RENDER96_BAK)) {
+  // Louder than the composed reinstate on purpose: sheets96 is TRACKED,
+  // so a run that died mid-flight left synthetic fixtures sitting in the
+  // repo as commit-able source art until this line ran.
+  console.error("STRANDED sheets96 backup found — a previous run died "
+    + "before restoring; reinstating the real strips now. Until this "
+    + "moment the tracked sheets96 dir held synthetic fixtures.");
   fs.rmSync(RENDER96, { recursive: true, force: true });
   fs.renameSync(RENDER96_BAK, RENDER96);
 }
@@ -498,6 +520,13 @@ try {
     (await ds("sprites")) === "error");
   check("the unknown-source fault names what the room stages",
     (await page.textContent("#asset-detail")).includes("unknown body source"));
+
+  // and an INHERITED name is unknown too: ?body=constructor would fish a
+  // function out of Object.prototype and crash past the fault branch
+  await boot("?body=constructor");
+  check("an inherited prototype name is refused like any unknown source",
+    (await ds("sprites")) === "error"
+      && (await page.textContent("#asset-detail")).includes("unknown body source"));
 } finally {
   if (browser) await browser.close().catch(() => {});
   if (server) server.kill();
@@ -511,6 +540,7 @@ try {
   if (fs.existsSync(RENDER96_BAK)) {
     fs.renameSync(RENDER96_BAK, RENDER96);
   }
+  fs.rmSync(LOCK, { recursive: true, force: true });
 }
 
 console.log(failures ? `\n${failures} FAILURES` : "\nALL PASS");
