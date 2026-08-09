@@ -9,7 +9,10 @@ hybrid-canon decision of PR #91 **as direction**: the original body is
 the destination. The hybrid remains the room's shipping roster until
 the original roster covers its verbs — direction canon changed, the
 staging default did not, and flipping the default early would stage a
-roster that does not exist yet.
+roster that does not exist yet. **That condition was MET 2026-08-09:
+the render roster covers all ten verbs (`?body=render96` stages the
+full bill). The default flip is now unlocked but NOT made — it takes
+the designer's 1× walk and a PR that says so.**
 
 ---
 
@@ -212,8 +215,22 @@ in seven of seven rolls while the room's spill curve decays from f1, so
 the record declares per-facing stage maps the molder executes. Its
 acceptance CONSUMES the socket export: every bloom pixel is held to the
 rig's declared muzzle line (the record's fire block carries the ladder,
-the dedup finding, and the executed constants). Seven of ten; the
-frontier is HURT, then DEATH, HEAL, ATTACK 1/2, and the squad.
+the dedup finding, and the executed constants). **HURT, DEATH, and HEAL
+landed 2026-08-09 in one push — THE ROSTER COMPLETES: ten of ten, the
+render body covers the composed bill entire.** Sixteen generations for
+the three: hurt and heal won every facing on the first roll (the back
+view's first-ever first-roll poses), and death's ladder bought a new
+doctrine line — the library's falling-back-death template ends MID-FALL,
+and a held mid-fall frame reads as levitation, so **templates constrain
+motion, not end state**; the v3 re-roll with the floor named won
+four-for-four (the record's three blocks carry the ladders and the
+executed acceptance constants: dark-verb cyan budgets, the flat-and-
+grounded hold contract, heal's pulse bounds and device containment).
+ATTACK 1/2 remain deliberately unbuilt: the room's own bill dropped
+them (no rule consults melee — the gunplay verbs the rules use are aim
+and fire), so they are not part of covering the composed roster; if a
+walkoff comparison ever wants them, that is its own decision. The
+frontier now is the squad — generated heads and mark palettes.
 
 **VERDICT (2026-08-09, designer, walked at 1×): the slice passes.**
 Both stagings ruled clean on the same walk — the three-body walk-off
@@ -284,4 +301,8 @@ own, per D2. Reduced, not eliminated.
   2026-08-09 lineage entry records this doc's supersession of PR #91.
 - PR #91's hybrid canon — superseded as direction by the 2026-08-09
   verdict; the hybrid stays the shipping roster until the original
-  roster covers its verbs. The exit path is now the exit, being walked.
+  roster covers its verbs. That condition was met later the same day
+  (ten of ten): the VERB migration is finished. What remains before the
+  room flips is what the Status header requires — the designer's 1×
+  walk of the full roster (the recorded verdict below covers only the
+  three-verb slice), then a default-flip PR that says so.
