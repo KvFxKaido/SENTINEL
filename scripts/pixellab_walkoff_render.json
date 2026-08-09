@@ -96,7 +96,10 @@
       "v3 four frames on the root rotations, all four roster dirs at once, guard clauses in from the start (feet near the ground line, visor fixed, no light trails): ALL FOUR facings WON at 1 gen each - including the back view, which had refused a first-roll pose four times across earlier verbs. Head-and-shoulders snap, jacket flare, recovery to the stand; no facing's rows ever left the standing line. 4 generations, zero repairs."
     ],
     "_doctrine": "Reaction verbs are DARK verbs: they must not invent cyan. The acceptance is a COUNT budget, not fire's spatial mask - the body moves too much for a positional baseline, but kit cyan travels WITH the body while invented cyan ADDS pixels, so each frame's bright-blue count is held to the rotation still's count plus slack.",
-    "_planted": "the flinch stays on the standing line: every frame's last opaque row within 1 of the facing's standing row - measured before recording (the rows never moved at all).",
+    "planted": {
+      "row_tol": 1,
+      "_why": "the flinch stays on the standing line: every frame's last opaque row within row_tol of the facing's standing row - measured before recording (the rows never moved at all)."
+    },
     "frames_per_facing": 4,
     "facing_map": {
       "down": "south",
@@ -166,6 +169,10 @@
       "north": "46be99af-ee32-43b2-a6c5-1ca4b54a7d5b",
       "south-west": "9c4acc67-06bb-44c9-91a0-89471e9b9d37",
       "south-east": "cbf084ba-d916-4410-afb9-22cc1d60d8c7"
+    },
+    "planted": {
+      "row_tol": 1, "height_tol": 1,
+      "_why": "a channel is a stand: every frame's last opaque row within row_tol of the standing row AND every frame's bbox height within height_tol of the still's - measured before recording (rows never moved; heights breathed by exactly one pixel)."
     },
     "device": {
       "down": [31.5, 33.3],
