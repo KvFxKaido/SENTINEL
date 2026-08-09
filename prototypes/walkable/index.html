@@ -1032,11 +1032,18 @@ const textureLoader = new THREE.TextureLoader();
 
 const sheetKey = (fighter, action, facing) => `${fighter}:${action}:${facing}`;
 
+// Sheets regenerate between visits (remolds and re-frames land while the
+// server runs), but http.server sends no Cache-Control and the browser
+// heuristically caches images — a reload can stage the LAST mold's pixels
+// while reporting READY. Same lesson, same fix as the walk-off: every
+// sheet URL carries a per-page-load buster so each visit refetches.
+const SHEET_BUST = `?v=${Date.now()}`;
+
 function sheetUrl(fighter, action, facing) {
   // only the player is source-routed; the squad always stages composed
-  if (fighter === PLAYER) return SOURCE.url(action, facing);
+  if (fighter === PLAYER) return SOURCE.url(action, facing) + SHEET_BUST;
   const spec = SHEETS[action];
-  return `../../assets/sprites/composed/${fighter}/${spec.folder}/${spec.stem}_${facing}.png`;
+  return `../../assets/sprites/composed/${fighter}/${spec.folder}/${spec.stem}_${facing}.png${SHEET_BUST}`;
 }
 
 async function loadSheet(fighter, action, facing) {
@@ -1350,9 +1357,13 @@ function setSpriteFrame(action, facing, frame) {
                   : action.toUpperCase();
   // An absent verb keeps the bare action name next to its absence — the
   // epithets describe authored sheets, and there is no sheet to describe.
+  // A refusal shows BESIDE a stance absence, not behind it: aim-and-fire
+  // with neither declared must publish both names, or the fire refusal
+  // exists only for the harness (caught in review).
   const refusedNote = refused ? `NO ${refused.toUpperCase()} SHEET` : null;
+  const absences = [note, refusedNote].filter(Boolean).join(" · ");
   actionStateEl.textContent =
-    note ? `${action.toUpperCase()} · ${note}`
+    note ? `${action.toUpperCase()} · ${absences}`
       : refusedNote ? `${label} · ${refusedNote}`
         : label;
   facingStateEl.textContent = facing.toUpperCase();

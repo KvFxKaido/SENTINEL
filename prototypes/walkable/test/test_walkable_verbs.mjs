@@ -120,27 +120,38 @@ try {
 // run (no finally) self-healing instead of data-destroying on the next
 // start (caught in review: setup failures used to strand the backup,
 // and the next run's cleanup would have eaten it).
-for (const fighter of FIGHTERS) {
-  if (fs.existsSync(backupDir(fighter))) {
-    fs.rmSync(sheetsDir(fighter), { recursive: true, force: true });
-    fs.renameSync(backupDir(fighter), sheetsDir(fighter));
+//
+// These renames run before the big try below, so a setup crash would
+// strand the lock and block the very self-heal that fixes the rest —
+// every later run would refuse at the door. A setup failure frees the
+// lock on its way out; the stranded BACKUPS stay for the next start's
+// reinstate, which is now reachable again (caught in review).
+try {
+  for (const fighter of FIGHTERS) {
+    if (fs.existsSync(backupDir(fighter))) {
+      fs.rmSync(sheetsDir(fighter), { recursive: true, force: true });
+      fs.renameSync(backupDir(fighter), sheetsDir(fighter));
+    }
+    if (fs.existsSync(sheetsDir(fighter))) {
+      fs.renameSync(sheetsDir(fighter), backupDir(fighter));
+    }
   }
-  if (fs.existsSync(sheetsDir(fighter))) {
-    fs.renameSync(sheetsDir(fighter), backupDir(fighter));
+  if (fs.existsSync(RENDER96_BAK)) {
+    // Louder than the composed reinstate on purpose: sheets96 is TRACKED,
+    // so a run that died mid-flight left synthetic fixtures sitting in the
+    // repo as commit-able source art until this line ran.
+    console.error("STRANDED sheets96 backup found — a previous run died "
+      + "before restoring; reinstating the real strips now. Until this "
+      + "moment the tracked sheets96 dir held synthetic fixtures.");
+    fs.rmSync(RENDER96, { recursive: true, force: true });
+    fs.renameSync(RENDER96_BAK, RENDER96);
   }
-}
-if (fs.existsSync(RENDER96_BAK)) {
-  // Louder than the composed reinstate on purpose: sheets96 is TRACKED,
-  // so a run that died mid-flight left synthetic fixtures sitting in the
-  // repo as commit-able source art until this line ran.
-  console.error("STRANDED sheets96 backup found — a previous run died "
-    + "before restoring; reinstating the real strips now. Until this "
-    + "moment the tracked sheets96 dir held synthetic fixtures.");
-  fs.rmSync(RENDER96, { recursive: true, force: true });
-  fs.renameSync(RENDER96_BAK, RENDER96);
-}
-if (fs.existsSync(RENDER96)) {
-  fs.renameSync(RENDER96, RENDER96_BAK);
+  if (fs.existsSync(RENDER96)) {
+    fs.renameSync(RENDER96, RENDER96_BAK);
+  }
+} catch (err) {
+  fs.rmSync(LOCK, { recursive: true, force: true });
+  throw err;
 }
 
 // From here on, every failure path — server, browser launch, the checks
@@ -488,6 +499,15 @@ try {
   check("holding R still reports the aim request", await waitAction("aim"));
   check("the aim request stages idle", (await ds("verb")) === "idle");
   check("and says so", (await ds("note")) === "NO AIM SHEET");
+  // aim-and-fire with neither declared: the refusal shows BESIDE the
+  // stance absence, not behind it — both names on the one surface
+  await page.keyboard.press("KeyF");
+  await page.waitForFunction(() =>
+    document.getElementById("cv").dataset.refused === "fire");
+  const bothAbsent = await page.textContent("#action-state");
+  check("a refused lock is published beside the stance absence",
+    bothAbsent.includes("NO AIM SHEET") && bothAbsent.includes("NO FIRE SHEET"),
+    bothAbsent);
   await page.keyboard.up("KeyR");
   await waitAction("idle");
 
