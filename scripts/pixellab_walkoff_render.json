@@ -90,6 +90,95 @@
       "_why": "PROVENANCE, not an executable spec - unlike kneel's north_surgery, which walkoff_render_sheets.py consumes, nothing reads these numbers at build time: the shipped north frames come pre-surgered from dash_animation_dirs.north on the state's CDN. Recorded so the anchor's construction is reproducible. The state's north kept the head at standing height with a leg through the floor - the inverse of the pack's away-dash geometry (head drops, feet stay). The surgered still is frame 0 of the shipped north strip AND the v3 anchor that kept the other six frames in the lean's pose family."
     }
   },
+  "hurt": {
+    "_what": "HURT for the whole-generated body - the eighth verb (2026-08-09), the composed roster's 4-frame flinch at the room's 12fps. Rides the root character's rotations as v3 anchors with keep_first_frame OFF: a reaction starts with the hit, not with a hold frame - frame 0 is already flinching.",
+    "_ladder": [
+      "v3 four frames on the root rotations, all four roster dirs at once, guard clauses in from the start (feet near the ground line, visor fixed, no light trails): ALL FOUR facings WON at 1 gen each - including the back view, which had refused a first-roll pose four times across earlier verbs. Head-and-shoulders snap, jacket flare, recovery to the stand; no facing's rows ever left the standing line. 4 generations, zero repairs."
+    ],
+    "_doctrine": "Reaction verbs are DARK verbs: they must not invent cyan. The acceptance is a COUNT budget, not fire's spatial mask - the body moves too much for a positional baseline, but kit cyan travels WITH the body while invented cyan ADDS pixels, so each frame's bright-blue count is held to the rotation still's count plus slack.",
+    "_planted": "the flinch stays on the standing line: every frame's last opaque row within 1 of the facing's standing row - measured before recording (the rows never moved at all).",
+    "frames_per_facing": 4,
+    "facing_map": {
+      "down": "south",
+      "up": "north",
+      "left": "south-west",
+      "right": "south-east"
+    },
+    "hurt_animation_dirs": {
+      "south": "42c2ac64-be3e-4c0d-8c64-18a80d330b01",
+      "north": "bcf16033-d9bc-431f-b809-5808c8209915",
+      "south-west": "2b48adc2-ec4f-4019-926e-d04881ddf5f6",
+      "south-east": "20fde441-8d12-4360-981a-b525189b7124"
+    },
+    "recovery": {
+      "min_final_height_delta": -1,
+      "_why": "the last frame must stand back up: its bbox height >= the still's minus 1 (measured: every facing recovered to the still's exact height or 1px under)."
+    },
+    "dark": {
+      "blue_min": 200, "blue_slack": 5,
+      "_why": "per-frame bright-blue count <= the rotation still's + 5. Measured headroom: the biggest excursion was +4 (south-east's whip frame stretching the visor); the fire ladder's face-star would be +119."
+    }
+  },
+  "death": {
+    "_what": "DEATH for the whole-generated body - the ninth verb (2026-08-09), the one-shot the room HOLDS: the last frame IS the downed state until a fresh move key. Nine frames at the room's 10fps - stand, hit, stagger, collapse, floor - beginning on the rotation still (keep_first_frame) and ending flat on the ground.",
+    "_ladder": [
+      "falling-back-death template, 4 dirs at ai_freedom=0: DEAD END - every facing ended MID-FALL (final heights 78% of standing, torso leaned back with legs folded), and a held mid-fall frame reads as levitation, not death. The library covered the MOTION but not the END STATE the room's hold contract needs. 4 generations, 0 kept; group 2641f4fe stays in the provider as the arc's record.",
+      "v3 eight-plus-reference with the end state NAMED ('hits the ground and lies completely flat and still for the last two frames'): ALL FOUR facings WON at 1 gen each - full arc, final bodies at 44-63% of standing height on the ground line, face-up with the visor exactly where a backward fall seen from behind should put it. 4 generations."
+    ],
+    "_doctrine": "Templates constrain MOTION, not END STATE - a one-shot the room holds needs its final pose in the contract, and only a prompt can name that. Corollary of the fire ladder's lesson: name the end state, not just the action.",
+    "frames_per_facing": 9,
+    "facing_map": {
+      "down": "south",
+      "up": "north",
+      "left": "south-west",
+      "right": "south-east"
+    },
+    "death_animation_dirs": {
+      "south": "1ce5368c-8ffd-4975-909a-e5abb847c630",
+      "north": "277e45c8-020a-4c3b-a207-c87bd68436b1",
+      "south-west": "d720a929-9907-441d-9a4f-6298ce8ed45e",
+      "south-east": "c9e1d925-384b-4bb4-86f4-5fccc2fd250c"
+    },
+    "flat": {
+      "flat_frames": 2, "flat_frac": 0.68, "final_row_band": [-1, 2],
+      "_why": "the held frame must be a body ON the floor: the last two frames' bbox heights <= 0.68 x the standing still's (measured 44-63%; the template dead end's 78% fails), and the final frame's last opaque row sits within -1..+2 of the standing row (a lying body spreads a row past the line). Deliberately NO last-two-frames identity check: the strips settle one row into the floor between the final frames - that is the impact reading, and the room holds only the LAST frame."
+    },
+    "dark": {
+      "blue_min": 200, "blue_slack": 5,
+      "_why": "same budget as hurt: kit cyan travels with the falling body, invented cyan adds pixels. The north fall's visor dims below the blue floor as the body lies down - the count only ever fell."
+    }
+  },
+  "heal": {
+    "_what": "HEAL for the whole-generated body - the tenth verb (2026-08-09), the one that COMPLETES the roster: the render body now covers the composed bill entire. Twelve frames at the room's 10fps, the composed channel's own cadence - a standing device-channel whose glow PULSES at the chest.",
+    "_ladder": [
+      "v3 twelve frames on the root rotations, all four roster dirs at once, guard clauses in from the start ('the glow stays at the device the whole time'): ALL FOUR WON at 1 gen each. The glow pulses in beats (peaks of 10-55 bright-blue px by facing, valleys at zero), the body never leaves the standing line, and the back view keeps the glow honest - a glint in the gap beside the torso, not a lamp through the jacket. 4 generations, zero repairs."
+    ],
+    "_doctrine": "Lit verbs on a STILL body take fire's spatial machinery unchanged (blue floor, dilated baseline, containment radius). The pulse claim needs BOTH bounds: a peak floor proves the glow exists, a valley ceiling proves it pulses rather than burning as a constant lamp.",
+    "frames_per_facing": 12,
+    "facing_map": {
+      "down": "south",
+      "up": "north",
+      "left": "south-west",
+      "right": "south-east"
+    },
+    "heal_animation_dirs": {
+      "south": "bfe2edd8-67be-4510-b0ed-63b3c927851a",
+      "north": "46be99af-ee32-43b2-a6c5-1ca4b54a7d5b",
+      "south-west": "9c4acc67-06bb-44c9-91a0-89471e9b9d37",
+      "south-east": "cbf084ba-d916-4410-afb9-22cc1d60d8c7"
+    },
+    "device": {
+      "down": [31.5, 33.3],
+      "up": [31.0, 33.3],
+      "left": [28.2, 31.8],
+      "right": [32.5, 33.3],
+      "_why": "the glow's home per facing, 64-canvas pixels, measured from the accepted frames' own centroids (no rig pose exists for the channel, so the declaration is the accepted art itself - a future remold is held to the art the designer approved)."
+    },
+    "glow": {
+      "blue_min": 200, "base_dilate_px": 2, "glow_min": 8, "valley_max": 2, "r": 9,
+      "_why": "peaks measured 10-55 by facing (the away view's honest glint sets the floor), valleys 0 everywhere, and every glow pixel within 7.2 of the device point before headroom. Executed on all four keepers before these numbers were recorded."
+    }
+  },
   "aim": {
     "_what": "AIM for the whole-generated body - the second held-pose verb (state-first per doctrine, decided 2026-08-09) and the first ARMED one. The sidearm ships IN the body's pixels, part of the character's kit like the jacket; the rig's socket export (sockets_aim_{facing}.json, the aim pose PR) is the muzzle DECLARATION consumers read - FIRE's bloom placement and acceptance checks - per doc D2: a socket makes the weapon a declaration, not an inference.",
     "_ladder": [
