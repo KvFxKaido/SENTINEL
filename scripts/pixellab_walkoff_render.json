@@ -34,6 +34,30 @@
     "south-east": "382199bd-6b09-4f0d-88da-fff7a53e1fe3"
   },
   "_idle_north_dead_end": "The template breathing-idle painted the full visor band on the BACK of the head in 3 of 4 north frames (frame 2 was correct; the north WALK was correct, so the template does not force a face). A same-template re-roll is blocked by dedup; delete-and-regenerate would re-roll the three good facings. Fix: v3 with custom_start_frame pinned to the north rotation and a state-shaped prompt ('hair only in every frame') - the 'ask for a state, not a motion' finding, third confirmation. Measured: 0 visor-cyan head pixels in all 4 v3 frames vs 8 in each bad template frame.",
+  "run": {
+    "_what": "RUN for the whole-generated body - the first verb landed after the slice verdict (2026-08-09), template-first per doctrine. Rides the root character/cdn_base; three facings kept from the template, north from the ladder below.",
+    "_ladder": [
+      "running-8-frames template, 4 dirs at ai_freedom=0: south/south-west/south-east WON at 1 gen/dir. north FAILED - 6 of 8 frames rendered the whole BODY frontal (visor and vest toward camera on a figure running away); frames 1 and 5 were honest backs. The walk's north was correct in its day, so the template does not force a face - it rolled one. 4 generations, 3 facings kept.",
+      "v3 pinned to the north ROTATION still with a state-shaped prompt (the idle-north repair, replayed): FAILED twice over - a STANDING reference anchors standing (about 1px of motion across 8 frames, the same anchoring the kneel ladder measured) and identity drifted (helmet lost to bare hair). 1 generation, deleted from the provider; this entry is the record.",
+      "v3 pinned to template north frame 1 - a good MID-STRIDE back frame from the same verb's own group: WON at 1 generation. 8 frames, real cycle motion (100-280px changing per frame), helmet and jacket held, 0 visor-cyan pixels in every frame."
+    ],
+    "_doctrine": "For a single bad direction of a CYCLIC verb, pin v3 to a good mid-cycle frame of the same verb from the sibling group - never to the rotation still. The reference anchors pose family, facing and identity TOGETHER: a standing still anchors standing. Sixth confirmation that looking at pixels beats the aggregate metric - the first repair scored 0 on the visor metric and was a standing sway wearing a run's name.",
+    "animation_group_id": "11d551e3-6781-458f-9ad5-c7516294b393",
+    "animation_type": "running-8-frames (template) for south/south-west/south-east; north is v3 pinned to template north frame 1 (group 2d18c95b-c3bb-488e-8eae-17285437c701)",
+    "frames_per_facing": 8,
+    "facing_map": {
+      "down": "south",
+      "up": "north",
+      "left": "south-west",
+      "right": "south-east"
+    },
+    "run_animation_dirs": {
+      "south": "daa22f7e-f0b3-4871-bc5a-eb8f8d57bea7",
+      "north": "fffe742c-1f65-4113-bc00-f153edf10388",
+      "south-west": "13154cdc-7916-48ba-a265-079973344b1d",
+      "south-east": "9d68c426-a9bb-4137-8ba5-6b92fa145aae"
+    }
+  },
   "kneel": {
     "_what": "KNEEL for the whole-generated body - the first verb built with no pack pixels, and the first verb the roto rig choreographed (PR #97's kneel guide named the pose; the prompt spoke it as per-frame properties). Decided 2026-08-08, designer judging stills against the rig guide.",
     "_ladder": [
