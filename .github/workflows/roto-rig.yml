@@ -1,7 +1,7 @@
 name: Roto rig
 
-# scripts/roto_mannequin.py carries 35 geometric checks — 16 for the kneel,
-# 10 for the aim, 9 for the walk (the socket-contract checks joined in PR
+# scripts/roto_mannequin.py carries 36 geometric checks — 16 for the kneel,
+# 11 for the aim, 9 for the walk (the socket-contract checks joined in PR
 # #106) — and until this job existed nothing ran them. They were a claim
 # wearing verification's clothes: present, detailed, and enforcing nothing. The
 # pose they guard has already shipped two bugs that only reading the RIG could

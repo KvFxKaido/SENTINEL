@@ -658,7 +658,19 @@ def validate_aim(parts):
     elbow_L, hand_L = hand_points(parts, "L")   # the AIM arm: anatomical right
     elbow_R, hand_R = hand_points(parts, "R")   # the off arm
     axis = (hand_L - elbow_L).normalized()
-    knee_bend = max(abs(parts[f"shin_{s}"].rotation_euler.x) for s in "LR")
+    # Standing rest is enforced as GEOMETRY, not as angle readback: a hip
+    # bending about any axis moves the knee off its standing coordinates,
+    # and a bent shin lifts its foot — where the metal LANDED, not what the
+    # eulers say (a shin-X-only read let hips and Y/Z rotations pass,
+    # caught in review). Standing knee: hip (±0.08, 0, 0.42) minus one SEG.
+    knee = {s: parts[f"shin_{s}"].matrix_world.translation for s in "LR"}
+    knee_err = max((knee[s] - Vector((x, 0.0, 0.21))).length
+                   for s, x in (("L", -0.08), ("R", 0.08)))
+    foot_lift = max(world_bounds(parts[f"shin_{s}"])[0] for s in "LR")
+    # The off hand at rest hangs one full arm below its shoulder:
+    # (0.20, 0, 0.42). Position, not "below the elbow" — a swung arm keeps
+    # its hand below the elbow for most of a swing (caught in review).
+    off_err = (hand_R - Vector((0.20, 0.0, 0.42 + parts["root"].location.z))).length
     checks = [
         # settle() forces this, so it is a guard on settle(), not pose evidence.
         ("the figure rests exactly on the ground", abs(lowest) < 1e-4,
@@ -667,8 +679,10 @@ def validate_aim(parts):
         # edit that starts crouching the aim must announce itself here.
         ("the figure stands at full height", abs(hip_z - 0.42) < 0.01,
          f"hip z={hip_z:+.3f} (standing 0.420, kneel < 0.300)"),
-        ("both knees stay straight", knee_bend < math.radians(2),
-         f"max shin pitch {math.degrees(knee_bend):+.1f} deg"),
+        ("both knees sit at standing rest", knee_err < 0.02,
+         f"max knee offset {knee_err:.3f} units"),
+        ("both feet rest on the ground", foot_lift < 0.01,
+         f"highest sole z={foot_lift:+.4f}"),
         ("the aim arm is LEVEL", abs(hand_L.z - elbow_L.z) < 0.02,
          f"hand z={hand_L.z:+.3f} elbow z={elbow_L.z:+.3f}"),
         ("the muzzle line runs along the facing", axis.y < -0.999,
@@ -680,8 +694,8 @@ def validate_aim(parts):
         ("the aim hand clears the torso silhouette head-on",
          abs(hand_L.x) > 0.15,
          f"hand x={hand_L.x:+.3f} (torso half-width 0.150)"),
-        ("the off hand hangs below its elbow", hand_R.z < elbow_R.z - 0.05,
-         f"hand z={hand_R.z:+.3f} elbow z={elbow_R.z:+.3f}"),
+        ("the off hand hangs at standing rest", off_err < 0.02,
+         f"off by {off_err:.3f} units from (0.20, 0, 0.42)"),
         # The socket contract holds under the aim's rotations: the muzzle
         # declaration is only worth exporting if the hand is still the
         # forearm's bottom-face centre once the arm is horizontal.
