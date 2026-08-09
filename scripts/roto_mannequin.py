@@ -399,28 +399,40 @@ def kneel(parts):
 
 
 def aim(parts):
-    """A one-handed standing aim: the right arm extends level along the
-    facing, the off arm hangs, the legs keep their standing rest.
+    """A one-handed standing aim: the anatomical RIGHT arm extends level
+    along the facing, the off arm hangs, the legs keep their standing rest.
 
-    The dialect is the composed roster's synthesized AIM (the pack ships no
-    gunplay; compose built those frames, and PR #94's everyone-carries
-    fiction named the sidearm): ONE arm, dead level at shoulder height, the
-    weapon riding the hand along the forearm's own line — which is why the
-    socket export is the muzzle declaration and FIRE's bloom placement,
-    not just an attachment point. Head-on the arm foreshortens to a glint
-    beside the torso, and that is the read, not a failure: the shoulder
-    sits at |x| = 0.20 against a torso half-width of 0.15, so the hand
-    clears the silhouette by construction and the pose borrows neither of
-    the kneel's legibility knobs (no plane yaw, no camera nudge).
+    The dialect source is the licensed thug pack's gunplay, by way of
+    roster_mold's own synthesis notes: "the arm is the pose, the flash is
+    the verb." The composed roster's AIM is NOT the reference — compose
+    cannot repose a limb, so it lifted HEAL's held-at-chest grip and swapped
+    the vial for the emitter, and its side grids are drawn barrel-right and
+    MIRRORED for left. That was archaeology, not taste; the rig exists to
+    perform the pose the reference actually shows.
+
+    Chirality is set here and it is a decision, not a label: this figure
+    faces -Y, so its anatomical right hand is the -X side — the part the rig
+    names arm_L (the sockets sidecar already warns the names are the RIG's
+    sides, not anatomy's). A generated state holds one hand across every
+    rotation, which is a dialect upgrade the composed mirror cheat could
+    never afford — and it means the far-arm facing exists and must simply
+    read, as the thug pack's own 8-facing gunplay proves it can.
+
+    Head-on the arm foreshortens to a glint beside the torso, and that is
+    the read, not a failure: the shoulder sits at |x| = 0.20 against a
+    torso half-width of 0.15, so the hand clears the silhouette by
+    construction and the pose borrows neither of the kneel's legibility
+    knobs (no plane yaw, no camera nudge). The forearm direction IS the
+    muzzle line — what FIRE will aim its bloom along.
     """
     d = math.radians
-    parts["arm_R"].rotation_euler = (FORWARD * d(90), 0, 0)  # level, along -Y
-    parts["fore_R"].rotation_euler = (0, 0, 0)   # straight: this IS the muzzle line
+    parts["arm_L"].rotation_euler = (FORWARD * d(90), 0, 0)  # level, along -Y
+    parts["fore_L"].rotation_euler = (0, 0, 0)   # straight: this IS the muzzle line
     # The off side and the legs are named so the pose owns every joint it
     # claims — "the rest is standing rest" is a sentence validate_aim checks,
     # not an accident of build()'s defaults surviving.
-    parts["arm_L"].rotation_euler = (0, 0, 0)
-    parts["fore_L"].rotation_euler = (0, 0, 0)
+    parts["arm_R"].rotation_euler = (0, 0, 0)
+    parts["fore_R"].rotation_euler = (0, 0, 0)
     for name in ("leg_L", "leg_R", "shin_L", "shin_R"):
         parts[name].rotation_euler = (0, 0, 0)
     settle(parts)
@@ -643,9 +655,9 @@ def validate_aim(parts):
     shoulder_z = 0.84 + parts["root"].location.z
     lowest = min(world_bounds(ob)[0] for name, ob in parts.items()
                  if name != "root")
-    elbow_R, hand_R = hand_points(parts, "R")
-    elbow_L, hand_L = hand_points(parts, "L")
-    axis = (hand_R - elbow_R).normalized()
+    elbow_L, hand_L = hand_points(parts, "L")   # the AIM arm: anatomical right
+    elbow_R, hand_R = hand_points(parts, "R")   # the off arm
+    axis = (hand_L - elbow_L).normalized()
     knee_bend = max(abs(parts[f"shin_{s}"].rotation_euler.x) for s in "LR")
     checks = [
         # settle() forces this, so it is a guard on settle(), not pose evidence.
@@ -657,19 +669,19 @@ def validate_aim(parts):
          f"hip z={hip_z:+.3f} (standing 0.420, kneel < 0.300)"),
         ("both knees stay straight", knee_bend < math.radians(2),
          f"max shin pitch {math.degrees(knee_bend):+.1f} deg"),
-        ("the aim arm is LEVEL", abs(hand_R.z - elbow_R.z) < 0.02,
-         f"hand z={hand_R.z:+.3f} elbow z={elbow_R.z:+.3f}"),
+        ("the aim arm is LEVEL", abs(hand_L.z - elbow_L.z) < 0.02,
+         f"hand z={hand_L.z:+.3f} elbow z={elbow_L.z:+.3f}"),
         ("the muzzle line runs along the facing", axis.y < -0.999,
          f"axis=({axis.x:+.3f}, {axis.y:+.3f}, {axis.z:+.3f})"),
-        ("the aim hand reaches FORWARD of the body", hand_R.y < -0.25,
-         f"hand y={hand_R.y:+.3f} (torso front face -0.090)"),
-        ("the aim hand holds shoulder height", abs(hand_R.z - shoulder_z) < 0.02,
-         f"hand z={hand_R.z:+.3f} shoulder z={shoulder_z:+.3f}"),
+        ("the aim hand reaches FORWARD of the body", hand_L.y < -0.25,
+         f"hand y={hand_L.y:+.3f} (torso front face -0.090)"),
+        ("the aim hand holds shoulder height", abs(hand_L.z - shoulder_z) < 0.02,
+         f"hand z={hand_L.z:+.3f} shoulder z={shoulder_z:+.3f}"),
         ("the aim hand clears the torso silhouette head-on",
-         abs(hand_R.x) > 0.15,
-         f"hand x={hand_R.x:+.3f} (torso half-width 0.150)"),
-        ("the off hand hangs below its elbow", hand_L.z < elbow_L.z - 0.05,
-         f"hand z={hand_L.z:+.3f} elbow z={elbow_L.z:+.3f}"),
+         abs(hand_L.x) > 0.15,
+         f"hand x={hand_L.x:+.3f} (torso half-width 0.150)"),
+        ("the off hand hangs below its elbow", hand_R.z < elbow_R.z - 0.05,
+         f"hand z={hand_R.z:+.3f} elbow z={elbow_R.z:+.3f}"),
         # The socket contract holds under the aim's rotations: the muzzle
         # declaration is only worth exporting if the hand is still the
         # forearm's bottom-face centre once the arm is horizontal.
