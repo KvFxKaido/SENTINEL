@@ -971,8 +971,10 @@ const BODY_SOURCES = {
     verbs: ["idle", "walk", "run", "kneel"],
     covers: {},
     // the render's cadences as the walk-off recorded them: the 4-frame
-    // breath at 4fps is a 1s idle, the template walk holds its 9.
-    fps: { idle: 4, walk: 9, kneel: 2 },
+    // breath at 4fps is a 1s idle, the template walk holds its 9, run's
+    // 11 matches the pack dialect BY VALUE and is pinned here so a
+    // composed-roster retune cannot silently retune the render.
+    fps: { idle: 4, walk: 9, run: 11, kneel: 2 },
     regen: "re-run walkoff_render_sheets.py, then render_canvas96.py",
     url: (action, facing) => `../../assets/original/cipher_render/`
       + `sheets96/${SHEETS[action].stem}_${facing}.png`,
