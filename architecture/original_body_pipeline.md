@@ -302,5 +302,7 @@ own, per D2. Reduced, not eliminated.
 - PR #91's hybrid canon — superseded as direction by the 2026-08-09
   verdict; the hybrid stays the shipping roster until the original
   roster covers its verbs. That condition was met later the same day
-  (ten of ten); the walk out is finished, and only the designer's
-  default-flip PR remains between the room and its original body.
+  (ten of ten): the VERB migration is finished. What remains before the
+  room flips is what the Status header requires — the designer's 1×
+  walk of the full roster (the recorded verdict below covers only the
+  three-verb slice), then a default-flip PR that says so.
