@@ -238,7 +238,7 @@ try {
 
   // ---- the composed roster -----------------------------------------
   gen("full");
-  await boot();
+  await boot("?body=composed");
   check("composed roster boots", (await ds("sprites")) === "ready");
   check("roster reads composed", (await ds("roster")) === "composed");
   check("BODY cell says COMPOSED / READY",
@@ -275,7 +275,7 @@ try {
   ]);
   await page.evaluate(value =>
     localStorage.setItem("sentinel.run", JSON.stringify(value)), aftermath);
-  await boot();
+  await boot("?body=composed");
   await page.waitForFunction(() => !!document.getElementById("cv").dataset.squadSprites);
   const aftermathSquad = await ds("squad");
   check("squad posture follows the last counted card",
@@ -295,12 +295,12 @@ try {
   const struckOnly = runWith([card("4", ["KOA"], "struck")]);
   await page.evaluate(value =>
     localStorage.setItem("sentinel.run", JSON.stringify(value)), struckOnly);
-  await boot();
+  await boot("?body=composed");
   const struckSquad = await ds("squad");
   check("a run with only struck cards leaves the whole squad idle",
     struckSquad === "vesper:idle,koa:idle,sable:idle", struckSquad);
   await page.evaluate(() => localStorage.removeItem("sentinel.run"));
-  await boot();
+  await boot("?body=composed");
 
   // walk: hold shift + move (steady states)
   await page.keyboard.down("Shift");
@@ -422,7 +422,7 @@ try {
   clearSheets();
   gen("full");
   fs.rmSync(path.join(sheetsDir("sable"), "KNEEL", "kneel_left.png"));
-  await boot();
+  await boot("?body=composed");
   check("a missing squad sheet faults the room", (await ds("sprites")) === "error");
   check("the squad fault names the missing sheet",
     (await page.textContent("#asset-detail")).includes("sable/kneel_left"));
@@ -432,7 +432,7 @@ try {
   gen("full");
   fs.rmSync(path.join(sheetsDir("cipher"), "HEAL"), { recursive: true, force: true });
   fs.rmSync(path.join(sheetsDir("cipher"), "DASH"), { recursive: true, force: true });
-  await boot();
+  await boot("?body=composed");
   check("partial roster faults", (await ds("sprites")) === "error");
   check("fault names the incomplete state",
     (await page.textContent("#asset-detail")).includes("composed roster incomplete"));
@@ -440,7 +440,7 @@ try {
   // ---- rejection is not absence: bad geometry faults on its own ----
   clearSheets();
   gen("badgeom");
-  await boot();
+  await boot("?body=composed");
   check("wrong-height sheets fault rather than degrade",
     (await ds("sprites")) === "error");
   check("geometry fault names the sheet",
@@ -449,7 +449,7 @@ try {
   // ---- a held key's auto-repeat cannot revive a downed body ---------
   clearSheets();
   gen("full");
-  await boot();
+  await boot("?body=composed");
   await page.keyboard.down("KeyW");
   check("running before the fall", await waitAction("run"));
   await page.keyboard.press("KeyX");
@@ -491,6 +491,15 @@ try {
       geometryOk,
       png === null ? `missing ${verb}_down.png` : geometryOk ? "" : "wrong dimensions");
   }
+  // THE DEFAULT: a plain URL now stages the render body — the doc's
+  // default-flip (2026-08-09, after the designer's full-roster 1x walk),
+  // executed rather than narrated. The composed roster stays one query
+  // away and remains the squad's roster below.
+  await boot();
+  check("the plain URL stages the render body",
+    (await ds("roster")) === "render96"
+      && (await page.textContent("#body-state")) === "RENDER 96 / FULL ROSTER / READY",
+    `roster ${await ds("roster")}`);
   await boot("?body=render96");
   check("slice roster boots", (await ds("sprites")) === "ready");
   check("roster reads render96", (await ds("roster")) === "render96");
