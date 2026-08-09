@@ -164,6 +164,13 @@ jobs:
         working-directory: prototypes/walkable/test
         run: node test_walkable_verbs.mjs
 
+      # The walk-off's own coverage (kneel wiring, per-verb frame counts,
+      # honest-absence telemetry) — a harness that only runs locally
+      # guards nothing once the page changes under it.
+      - name: Walk-off audition harness
+        working-directory: prototypes/walkable/test
+        run: node audition_generated.mjs
+
       - name: Roster mold sweep
         working-directory: prototypes/walkable/test
         run: python test_roster_sweep.py

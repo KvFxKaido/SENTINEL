@@ -115,6 +115,23 @@ let server = null;
 let browser = null;
 let page = null;
 
+// One harness at a time — shared with test_walkable_verbs.mjs on
+// purpose, since both drive the same generator and backup discipline.
+// Two overlapping runs would each claim the same backups: the second
+// reinstates the first's LIVE backup as stranded, and after the first
+// restores, the second's cleanup deletes the originals with nothing
+// left to restore from (caught in review, P1). Atomic mkdir; a
+// hard-killed run strands the lock and the next run refuses by name
+// instead of guessing the coast is clear.
+const LOCK = path.join(HERE, ".harness-lock");
+try {
+  fs.mkdirSync(LOCK);
+} catch {
+  console.error(`another harness run appears live (${LOCK} exists) — `
+    + "refusing to touch the backups; remove the dir if that run is dead");
+  process.exit(1);
+}
+
 try {
   preserveSheets();
   generateSheets();
@@ -288,6 +305,7 @@ try {
   if (browser) await browser.close().catch(() => {});
   if (server) server.kill();
   restoreSheets();
+  fs.rmSync(LOCK, { recursive: true, force: true });
 }
 
 console.log(failures ? `\n${failures} FAILURES` : "\nALL PASS");

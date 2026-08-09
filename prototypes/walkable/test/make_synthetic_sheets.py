@@ -56,6 +56,27 @@ COLORS = {
 FACINGS = ["down", "up", "left", "right"]
 W, H = 96, 80
 
+# Every destination this script populates gets this marker, and a
+# destination that exists WITHOUT it is refused: it holds real art the
+# harnesses move aside before generating. Running this script directly
+# against a live checkout used to overwrite the tracked render sheets
+# and the gitignored pack mold with flat rectangles, no backup taken
+# (caught in review, P1). The marker travels with the fixtures, so
+# cleanup that removes the dir removes the claim with it.
+MARKER = "SYNTHETIC-FIXTURES"
+
+
+def claim(root):
+    if os.path.isdir(root) and os.listdir(root) \
+            and not os.path.exists(os.path.join(root, MARKER)):
+        sys.exit(f"REFUSING to write fixtures into {root}: it holds real "
+                 f"art (no {MARKER} marker). The harnesses back real "
+                 "sheets aside before generating — run them, not this "
+                 "script, against a live checkout.")
+    os.makedirs(root, exist_ok=True)
+    with open(os.path.join(root, MARKER), "w") as fh:
+        fh.write("flat harness fixtures - safe to delete\n")
+
 
 def write_sheet(path, frames, frame_w, height, color, ground_row):
     img = Image.new("RGBA", (frame_w * frames, height), (0, 0, 0, 0))
@@ -75,6 +96,8 @@ def write_sheet(path, frames, frame_w, height, color, ground_row):
 
 
 def write_walkoff():
+    for root in (WALKOFF_PACK, WALKOFF_HYBRID, WALKOFF_RENDER):
+        claim(root)
     pack = {
         "idle": ("IDLE", "idle", 8),
         "run": ("RUN", "run", 8),
@@ -123,6 +146,7 @@ if mode == "walkoff":
 
 for fighter in fighters:
     out = os.path.join(SPRITES, fighter)
+    claim(out)
     for verb in wanted:
         folder, stem, frames = VERBS[verb]
         height = 64 if (mode == "badgeom" and verb not in ALWAYS) else H
