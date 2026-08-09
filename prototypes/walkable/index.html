@@ -949,7 +949,7 @@ const PLAYER = "cipher";
 // actually has. The composed roster declares all ten — for that body a
 // missing verb is a broken regeneration, and the gate below goes on
 // refusing to degrade it. The whole-generated render enters as a
-// three-verb slice (?body=render96): the migration doc's IDLE/WALK/KNEEL
+// four-verb slice (?body=render96): IDLE/WALK/RUN/KNEEL from the original
 // gate, staged in the real room. Declaring the set keeps the gate honest
 // in both directions — a DECLARED verb that fails to load still faults
 // the room, and an UNDECLARED verb is refused where it enters, with its
@@ -967,15 +967,14 @@ const BODY_SOURCES = {
       + `${SHEETS[action].folder}/${SHEETS[action].stem}_${facing}.png`,
   },
   render96: {
-    label: "RENDER 96 / 3-VERB SLICE",
-    verbs: ["idle", "walk", "kneel"],
-    // walk covers run by declaration — the render's own dialect since the
-    // walk-off staged it: no run cycle exists, and walk carrying run is
-    // the slice's gait, not a fallback wearing a healthy label.
-    covers: { run: "walk" },
+    label: "RENDER 96 / 4-VERB SLICE",
+    verbs: ["idle", "walk", "run", "kneel"],
+    covers: {},
     // the render's cadences as the walk-off recorded them: the 4-frame
-    // breath at 4fps is a 1s idle, the template walk holds its 9.
-    fps: { idle: 4, walk: 9, kneel: 2 },
+    // breath at 4fps is a 1s idle, the template walk holds its 9, run's
+    // 11 matches the pack dialect BY VALUE and is pinned here so a
+    // composed-roster retune cannot silently retune the render.
+    fps: { idle: 4, walk: 9, run: 11, kneel: 2 },
     regen: "re-run walkoff_render_sheets.py, then render_canvas96.py",
     url: (action, facing) => `../../assets/original/cipher_render/`
       + `sheets96/${SHEETS[action].stem}_${facing}.png`,
@@ -1303,7 +1302,7 @@ let downed = false;
 let refused = null;
 
 // The input's action and the staged verb may differ in exactly two
-// visible ways: a declared cover (the slice's walk carries run), and a
+// visible ways: a source-declared cover, and a
 // labeled absence (an undeclared STANCE reads as idle and the surface
 // says so). dataset.action keeps reporting the input's truth;
 // dataset.verb reports what is actually on the quad.

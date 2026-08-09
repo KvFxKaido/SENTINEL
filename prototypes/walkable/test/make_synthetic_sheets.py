@@ -13,7 +13,7 @@ body grammars at their own real geometry.
 Modes: full (ten verbs) / badgeom (sheets present but wrong height —
 must fault on the page, loudly, rather than degrade) / walkoff (the
 three-body audition's two authored grammars plus the hybrid stand/walk)
-/ slice96 (the render body's three-verb 96x80 sheets for ?body=render96
+/ slice96 (the render body's four-verb 96x80 sheets for ?body=render96
 — flat frames at the exact geometry render_canvas96.py emits, written
 into the TRACKED sheets96 dir, which the harness backs up like
 everything else).
@@ -126,14 +126,14 @@ def write_walkoff():
                 os.path.join(WALKOFF_HYBRID, f"{verb}_{facing}.png"),
                 frames, 96, 80, COLORS[verb], 57)
 
-    for verb, frames in {"idle": 4, "walk": 8, "kneel": 2}.items():
+    for verb, frames in {"idle": 4, "walk": 8, "run": 8, "kneel": 2}.items():
         for facing in FACINGS:
             write_sheet(
                 os.path.join(WALKOFF_RENDER, f"{verb}_{facing}.png"),
                 frames, 64, 64, COLORS[verb], 47)
 
     print("synthetic walkoff sheets: pack 5 verbs, hybrid idle/walk "
-          "(no kneel), render idle/walk/kneel x 4 facings")
+          "(no kneel), render idle/walk/run/kneel x 4 facings")
 # The room composes ONE roster now — the free-pack "core four" state went
 # away with the blade (2026-08-02), so there is no reduced set to fake.
 # What still needs faking is the two ways a roster can be broken, which is
@@ -148,8 +148,8 @@ if mode == "walkoff":
     write_walkoff()
     sys.exit(0)
 
-# The slice declares idle/walk/kneel with the render's own frame counts
-# (4/8/2 — the re-frame preserves them). Flat sheet names, no verb
+# The slice declares idle/walk/run/kneel with the render's own frame counts
+# (4/8/8/2 — the re-frame preserves them). Flat sheet names, no verb
 # folders: sheets96 is strip-per-verb, the shape render_canvas96.py
 # emits — and TRACKED, which is exactly why it rides claim(): a direct
 # run against the real re-frame output must refuse, not flatten it.
@@ -157,12 +157,12 @@ if mode == "slice96":
     RENDER96 = os.path.join(ROOT, "assets", "original",
                             "cipher_render", "sheets96")
     claim(RENDER96)
-    for verb, frames in {"idle": 4, "walk": 8, "kneel": 2}.items():
+    for verb, frames in {"idle": 4, "walk": 8, "run": 8, "kneel": 2}.items():
         for facing in FACINGS:
             write_sheet(
                 os.path.join(RENDER96, f"{verb}_{facing}.png"),
                 frames, W, H, COLORS[verb], 57)
-    print("synthetic sheets: slice96 roster, 3 verbs x 4 facings")
+    print("synthetic sheets: slice96 roster, 4 verbs x 4 facings")
     sys.exit(0)
 
 for fighter in fighters:

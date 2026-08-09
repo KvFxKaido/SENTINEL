@@ -324,7 +324,8 @@
       take the pose. BODY B (screen right) is the whole-generated render —
       the same locked head as the hybrid, template walk and breathing
       idle (mocap skeleton, rigidly followed) on its own 64×64 canvas;
-      walk covers run, no attack frames, so
+      its own 8-frame run carries movement. Attack frames still exist
+      on BODY A alone, so
       <kbd>J</kbd>/<kbd>K</kbd> ignite only BODY A.
       System A stood in B's spot before — that audition was decided
       2026-07-31 and recorded; git remembers. All three stand at the body
@@ -876,8 +877,8 @@ const SHEET_BUST = `?v=${Date.now()}`;
 // Same head as the hybrid, so the only variable left between B and C is
 // pack animation vs whole generation. It rides its own 64×64 canvas the
 // way System A rode its 32×32: the render as it came, not re-framed.
-// Idle is the breathing-idle template (4 frames). Walk covers run (no
-// run cycle exists), kneel takes the room's same one-second breath, and
+// Idle is the breathing-idle template (4 frames), run is its own 8-frame
+// cycle, kneel takes the room's same one-second breath, and
 // there are no attack frames, so attacks read on BODY A alone.
 const REN_CANVAS = 64;
 // Standing last-opaque row, measured by walkoff_render_sheets.py across
@@ -889,7 +890,10 @@ const REN_SHEETS = {
   // 4-frame breathing-idle at 4fps: a 1s breath, matching the cadence of
   // the pack's 8-frame idle at 7fps rather than racing it.
   idle: { frames: 4, fps: 4, facings: FACINGS },
-  walk: { frames: 8, fps: 9, facings: FACINGS },
+  // no walk here, though the sheet exists and the ROOM plays it: this
+  // page's only locomotion order is run, and the page declares only what
+  // it can stage — the pack's own WALK folder gets the same treatment
+  run: { frames: 8, fps: 11, facings: FACINGS },
   kneel: { frames: 2, fps: 2, facings: FACINGS },
 };
 
@@ -1163,30 +1167,30 @@ function setSpriteFrame(action, facing, frame, now) {
   if (spriteMaterial.map !== texture) spriteMaterial.map = texture;
   texture.offset.x = frame / spec.frames;
 
-  // BODY B walks the same orders in its own grammar: walk covers run,
-  // anything it has no frames for reads as the stand, and it selects
+  // BODY B walks the same orders in its own grammar: anything it has no
+  // frames for reads as the stand, and it selects
   // only a sheet explicitly declared for this facing — a renderer that
   // silently substitutes a cycle it does not have would stage a roster
   // that does not exist.
-  const wantsWalkRen = action === "run";
+  const wantsRunRen = action === "run";
   const wantsKneelRen = action === "kneel";
-  const hasWalkRen = wantsWalkRen && REN_SHEETS.walk.facings.includes(facing);
+  const hasRunRen = wantsRunRen && REN_SHEETS.run.facings.includes(facing);
   const hasKneelRen = wantsKneelRen
     && REN_SHEETS.kneel.facings.includes(facing);
-  const animRen = hasWalkRen ? "walk" : hasKneelRen ? "kneel" : "idle";
+  const animRen = hasRunRen ? "run" : hasKneelRen ? "kneel" : "idle";
   const specRen = REN_SHEETS[animRen];
   const frameRen = Math.floor(now * specRen.fps) % specRen.frames;
   const textureRen = texturesRen.get(`${animRen}:${facing}`);
   if (spriteMaterialRen.map !== textureRen) spriteMaterialRen.map = textureRen;
   textureRen.offset.x = frameRen / specRen.frames;
-  renStateEl.textContent = hasWalkRen
-    ? `WALK ${frameRen + 1}/${specRen.frames}`
+  renStateEl.textContent = hasRunRen
+    ? `RUN ${frameRen + 1}/${specRen.frames}`
     : hasKneelRen ? `KNEEL ${frameRen + 1}/${specRen.frames}`
-      : wantsWalkRen ? `NO WALK SHEET (${facing})`
+      : wantsRunRen ? `NO RUN SHEET (${facing})`
         : wantsKneelRen ? `NO KNEEL SHEET (${facing})` : "IDLE";
   canvas.dataset.frameRen = String(frameRen);
   canvas.dataset.frameCountRen = String(specRen.frames);
-  canvas.dataset.renWalk = hasWalkRen ? "1" : "0";
+  canvas.dataset.renVerb = animRen;
   canvas.dataset.renKneel = hasKneelRen ? "1" : "0";
 
   // BODY C selects only a sheet explicitly declared for this facing.
