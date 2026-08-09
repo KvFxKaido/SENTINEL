@@ -1026,6 +1026,9 @@ const SQUAD_ACTIONS = ["idle", "kneel"];
 // cadence. This pin follows the render96 fps-map policy — a composed retune
 // must not silently retune the squad.
 const SQUAD_FPS = { idle: 4, kneel: 2 };
+// the squad's own regeneration, named by faults that involve its sheets —
+// the player's regen cannot rebuild a squad sheet
+const SQUAD_REGEN = "re-run squad_render_sheets.py, then squad_canvas96.py";
 // ONE identifier per squadmate, not two. The slug picks the sheet folder;
 // the operative name the yard reports in a card's `down` is that slug
 // upper-cased. Carrying both by hand meant the uppercase half could drift
@@ -1272,10 +1275,21 @@ async function bootBodies() {
     return;
   }
   if (missing.length > 0) {
+    // The fix a fault prescribes must be the fix that restores the sheet
+    // that is missing: the player's regen cannot rebuild a squad sheet,
+    // and under ?body=composed it would prescribe the licensed pipeline
+    // for an asset that never touches it (caught in review). Classify,
+    // and name only the regens whose sheets are actually gone.
+    const playerGone = missing.some(m => m.startsWith(`${PLAYER}/`));
+    const squadGone = missing.some(m => !m.startsWith(`${PLAYER}/`));
+    const fixes = [
+      ...(playerGone ? [`player: ${SOURCE.regen}`] : []),
+      ...(squadGone ? [`squad: ${SQUAD_REGEN}`] : []),
+    ];
     showAssetFault(new Error(
       `${BODY_PARAM} roster incomplete: ${missing.length} of `
       + `${requests.length} sheets missing (first: ${missing[0]}) `
-      + `— ${SOURCE.regen}`
+      + `— ${fixes.join(" · ")}`
     ));
     return;
   }

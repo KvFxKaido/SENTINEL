@@ -457,6 +457,15 @@ try {
   check("the squad fault names its render regeneration path",
     squadFault.includes("squad_render_sheets.py")
       && squadFault.includes("squad_canvas96.py"));
+  // The gate's static copy names every path; the DETAIL must name the fix
+  // for the sheet actually missing. A squad sheet prescribing only the
+  // player's regen — under ?body=composed, the licensed pipeline — would
+  // send the user to a rebuild that cannot restore it (caught in review).
+  const squadDetail = await page.textContent("#asset-detail");
+  check("the fault DETAIL prescribes the squad regen for a squad sheet",
+    squadDetail.includes("squad_render_sheets.py")
+      && squadDetail.includes("squad_canvas96.py"),
+    squadDetail);
   gen("slice96");
 
   // ---- PARTIAL Cipher roster is a fault -----------------------------
