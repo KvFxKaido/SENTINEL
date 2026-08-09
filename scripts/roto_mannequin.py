@@ -328,12 +328,17 @@ def socket_frame(scene, cam, parts):
         dx = (h.x - e.x) * RES_W
         dy = (e.y - h.y) * RES_H
         length = math.hypot(dx, dy) or 1.0
-        depth = torso_depth - h.z
+        # in_front derives from the SAME rounded value the sidecar ships,
+        # so the two fields can never disagree — the hanging-arm tie the
+        # docstring warns about would otherwise let sub-precision noise
+        # decide the bit (caught in review). A tie within the exported
+        # precision reads as BEHIND, deterministically.
+        depth = round(torso_depth - h.z, 4)
         out[f"hand_{side}"] = {
             "px": h.x * RES_W,
             "row": (1.0 - h.y) * RES_H,
             "dir": [round(dx / length, 4), round(dy / length, 4)],
-            "depth": round(depth, 4),
+            "depth": depth,
             "in_front": depth > 0,
         }
     return out
