@@ -3,14 +3,19 @@
 
 Reads scripts/pixellab_walkoff_render.json — the frozen input record for
 the whole-generated body fielded in walkoff.html's BODY B slot — then
-downloads the template-walk, breathing-idle, run, and state frames for the four
-molded facings and packs them into horizontal strips:
+downloads the template-walk, breathing-idle, run, dash, and state frames for
+the four molded facings and packs them into horizontal strips:
 
     assets/original/cipher_render/sheets/idle_{facing}.png
     assets/original/cipher_render/sheets/walk_{facing}.png
     assets/original/cipher_render/sheets/run_{facing}.png
+    assets/original/cipher_render/sheets/dash_{facing}.png
     assets/original/cipher_render/sheets/kneel_{facing}.png
     assets/original/cipher_render/sheets/aim_{facing}.png
+
+DASH molds from the record's `dash` block: animation frames generated on the
+Dash STATE's own character/CDN, not the root character. It is a lunge, so its
+ground rows are reported like RUN's gait and never enter the standing-row gate.
 
 KNEEL molds from the record's `kneel` block: the Kneel STATE's rotations
 (a sibling of the locked appearance in the same character group), the
@@ -137,6 +142,14 @@ def main() -> int:
     if set(run["facing_map"]) != set(record["facing_map"]):
         raise ValueError("run facing bill differs from the standing rotations: "
                          f"{sorted(run['facing_map'])}")
+    dash = record["dash"]
+    dash_n = dash["frames_per_facing"]
+    if dash_n != 7:
+        raise ValueError("dash is the room's 500ms one-shot and must mold "
+                         f"exactly 7 frames per facing, got {dash_n}")
+    if set(dash["facing_map"]) != set(record["facing_map"]):
+        raise ValueError("dash facing bill differs from the standing rotations: "
+                         f"{sorted(dash['facing_map'])}")
 
     # Build and check EVERYTHING before writing ANYTHING — see the
     # validated-then-published clause in the docstring.
@@ -187,6 +200,24 @@ def main() -> int:
             strip.paste(frame, (canvas_w * i, 0))
         built.append((f"run_{facing}.png", strip))
         report.append(f"{facing:5s} run rows {rows}")
+
+    # ---- DASH: animation frames on the Dash state's own CDN ----------
+    dash_base = dash["cdn_base"]
+    for facing, pl_facing in dash["facing_map"].items():
+        anim_dir = dash["dash_animation_dirs"][pl_facing]
+        strip = Image.new("RGBA", (canvas_w * dash_n, canvas_h),
+                          (0, 0, 0, 0))
+        rows = []
+        for i in range(dash_n):
+            frame = fetch(
+                f"{dash_base}/animations/{anim_dir}/{pl_facing}/{i}.png")
+            if frame.size != (canvas_w, canvas_h):
+                raise ValueError(f"dash {pl_facing}/{i} is {frame.size}, "
+                                 f"expected {canvas_w}x{canvas_h}")
+            rows.append(last_opaque_row(frame))
+            strip.paste(frame, (canvas_w * i, 0))
+        built.append((f"dash_{facing}.png", strip))
+        report.append(f"{facing:5s} dash rows {rows}")
 
     # ---- KNEEL: the state's rotations, molded (see the kneel block) ----
     kneel = record["kneel"]

@@ -461,7 +461,7 @@ try {
   await page.keyboard.up("KeyW");
 
   // ---- the slice: ?body=render96 ------------------------------------
-  // The render body enters with five DECLARED verbs. The gate stays
+  // The render body enters with six DECLARED verbs. The gate stays
   // all-or-nothing over the declared set, undeclared verbs are refused
   // or labeled — never silently substituted — and the squad stays
   // composed beside it, which is the comparison the staging is for.
@@ -472,7 +472,7 @@ try {
   check("slice roster boots", (await ds("sprites")) === "ready");
   check("roster reads render96", (await ds("roster")) === "render96");
   check("BODY cell names the slice",
-    (await page.textContent("#body-state")) === "RENDER 96 / 5-VERB SLICE / READY");
+    (await page.textContent("#body-state")) === "RENDER 96 / 6-VERB SLICE / READY");
   await page.waitForFunction(() =>
     (document.getElementById("cv").dataset.squadSprites ?? "").split(",").length === 3);
   check("the composed squad still stands beside the slice body",
@@ -510,12 +510,32 @@ try {
   await page.keyboard.up("KeyR");
   await waitAction("idle");
 
-  // an undeclared LOCK is refused at entry: no lock starts, the name is
-  // published, and the next action change clears it
-  await page.keyboard.press("KeyL");
-  await page.waitForFunction(() =>
-    document.getElementById("cv").dataset.refused === "dash");
-  check("dash is refused, not faked", (await ds("action")) === "idle");
+  // DASH is the slice's declared moving lock. Its 7-frame width and pinned
+  // 14fps cadence spend the authored 500ms before the lock returns to idle.
+  const dashPng = fs.readFileSync(path.join(RENDER96, "dash_down.png"));
+  check("slice dash fixture is 7 frames on the 96x80 canvas",
+    dashPng.readUInt32BE(16) === 7 * 96 && dashPng.readUInt32BE(20) === 80);
+  const beforeDash = await ds("position");
+  const dashDone = measureVerb("KeyL", "dash");
+  const dashState = await page.waitForFunction(() => {
+    const state = document.getElementById("cv").dataset;
+    return state.action === "dash"
+      ? { verb: state.verb, note: state.note, refused: state.refused }
+      : false;
+  }).then(handle => handle.jsonValue(), () => null);
+  check("L starts the slice dash", dashState !== null);
+  check("dash resolves to its own sheet", dashState?.verb === "dash");
+  check("the declared dash carries no absence note", dashState?.note === "");
+  check("the declared dash is not refused", dashState?.refused === "");
+  const sliceDashMs = await dashDone;
+  check("slice dash plays its 7 frames at 14fps",
+    sliceDashMs > 400 && sliceDashMs < 1100, `${Math.round(sliceDashMs)}ms`);
+  check("slice dash displaces the body", (await ds("position")) !== beforeDash,
+    `${beforeDash} -> ${await ds("position")}`);
+  check("slice dash returns to idle when the lock expires", await waitAction("idle"));
+
+  // an undeclared LOCK is still refused at entry: no lock starts, the
+  // name is published, and the next action change clears it
   await page.keyboard.press("KeyX");
   await page.waitForFunction(() =>
     document.getElementById("cv").dataset.refused === "death");
