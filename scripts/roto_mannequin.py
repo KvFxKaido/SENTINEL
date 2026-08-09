@@ -36,7 +36,10 @@ Env:
                                          quietly downgraded to the walk)
 
 Output goes to ROTO_OUT/{pose}/, one DIRECTORY per pose, holding
-roto_{pose}_{facing}_{NN}.png and ground_{pose}_{facing}.json.
+roto_{pose}_{facing}_{NN}.png, ground_{pose}_{facing}.json and
+sockets_{pose}_{facing}.json — the weapon-socket export the armed verbs
+gate on (doc D2, open item 1): per-frame hand positions in anchored
+sheet pixels, forearm direction, and the camera-relative draw-order bit.
 
 The directory is the part that matters. anchor_strip.py takes a src dir and
 globs every PNG in it, sorted, applying one shared translation from a single
@@ -269,6 +272,73 @@ def world_bounds(ob):
     return (min(zs), (max(xs) - min(xs), max(ys) - min(ys), max(zs) - min(zs)))
 
 
+# The hand is the transformed centre of the forearm's BOTTOM face. In object
+# space that point is (0, 0, -1): box() spans -0.5..+0.5, hang=True shifts the
+# mesh down to -1..0, and the object scale carries it one segment below the
+# elbow the origin sits on. Same fact that makes a fore_* origin an ELBOW
+# (doc D2, caught in review) — read from the other end. validate() holds this
+# constant against the actual geometry, so a change to hang or the box
+# convention fails there instead of silently exporting mid-forearm sockets.
+HAND_LOCAL = Vector((0.0, 0.0, -1.0))
+
+
+def hand_points(parts, side):
+    """(elbow, hand) of fore_{side} in world space."""
+    m = parts[f"fore_{side}"].matrix_world
+    return m.translation.copy(), m @ HAND_LOCAL
+
+
+def hand_geometry_error(parts, side):
+    """Distance between HAND_LOCAL's claim and the measured bottom face.
+
+    The bound_box is object space, so the bottom face is the four corners at
+    minimal z; their centre pushed through matrix_world is where the geometry
+    says the hand is. Zero by construction today; non-zero the moment anyone
+    changes hang= or the cube convention without updating HAND_LOCAL.
+    """
+    ob = parts[f"fore_{side}"]
+    z_min = min(v[2] for v in ob.bound_box)
+    bottom = [Vector(v) for v in ob.bound_box if abs(v[2] - z_min) < 1e-9]
+    centre = sum(bottom, Vector()) / len(bottom)
+    return ((ob.matrix_world @ centre) - (ob.matrix_world @ HAND_LOCAL)).length
+
+
+def socket_frame(scene, cam, parts):
+    """Both hand sockets for the CURRENT frame, in raw render pixels.
+
+    px/row are the space of the rendered PNG (x right, y down); main()
+    shifts rows into anchored sheet coordinates when it writes the sidecar
+    — the identical translation anchor_strip applies to the frames, so
+    sockets and pixels stay glued. `dir` is the unit vector along the
+    forearm, elbow toward hand, in that same pixel space: orientation
+    without an angle convention to misread. `depth` is how far the hand
+    sits in FRONT of the torso centre in camera units (negative = behind);
+    `in_front` is its sign, the draw-order bit for a weapon sprite. The
+    magnitude ships too because a hanging arm ties with the torso to
+    within noise, and a consumer deciding layers deserves to see how thin
+    the margin is rather than trust a coin-flip boolean.
+    """
+    torso_depth = world_to_camera_view(
+        scene, cam, parts["torso"].matrix_world.translation).z
+    out = {}
+    for side in "LR":
+        elbow, hand = hand_points(parts, side)
+        e = world_to_camera_view(scene, cam, elbow)
+        h = world_to_camera_view(scene, cam, hand)
+        dx = (h.x - e.x) * RES_W
+        dy = (e.y - h.y) * RES_H
+        length = math.hypot(dx, dy) or 1.0
+        depth = torso_depth - h.z
+        out[f"hand_{side}"] = {
+            "px": h.x * RES_W,
+            "row": (1.0 - h.y) * RES_H,
+            "dir": [round(dx / length, 4), round(dy / length, 4)],
+            "depth": round(depth, 4),
+            "in_front": depth > 0,
+        }
+    return out
+
+
 def settle(parts):
     """Drop the root until the lowest geometry rests exactly on z=0.
 
@@ -406,6 +476,24 @@ def validate(parts, n=N):
     ok = peaks == 2
     bad += not ok
     print(f'{"PASS" if ok else "FAIL"}  bob peaks twice per stride: {peaks}')
+    # The socket contract, held against geometry rather than restated. At
+    # frame 1 the walk's phase puts both arms at zero swing (sin 0 and
+    # sin pi), so the hands must hang BELOW their elbows — a cheap read
+    # that catches an inverted HAND_LOCAL the face-centre check cannot
+    # (a sign flip lands on the TOP face centre, which is also a face).
+    scene.frame_set(1)
+    bpy.context.view_layer.update()
+    for side in "LR":
+        err = hand_geometry_error(parts, side)
+        ok = err < 1e-6
+        bad += not ok
+        print(f'{"PASS" if ok else "FAIL"}  hand_{side} is the forearm\'s '
+              f'bottom-face centre: off by {err:.6f}')
+        elbow, hand = hand_points(parts, side)
+        ok = hand.z < elbow.z - 0.05
+        bad += not ok
+        print(f'{"PASS" if ok else "FAIL"}  hand_{side} hangs below its '
+              f'elbow at zero swing: hand z={hand.z:+.3f} elbow z={elbow.z:+.3f}')
     print("\nALL PASS" if not bad else f"\n{bad} FAILURES")
     return bad
 
@@ -485,6 +573,19 @@ def validate_kneel(parts):
         ("the head's debt to the torso lean stays sub-pixel", abs(lean_px) < 1.0,
          f"{lean_px:+.2f} px"),
     ]
+    # The socket contract holds in the fold too: the geometry read must
+    # still agree with HAND_LOCAL under the kneel's rotations, and the lead
+    # hand must actually be where the docstring sends it — forward, toward
+    # the raised knee — not just rotated by an angle that sounds right.
+    elbow_L, hand_L = hand_points(parts, "L")
+    checks += [
+        ("hand sockets sit on the bottom-face centre in the fold",
+         max(hand_geometry_error(parts, s) for s in "LR") < 1e-6,
+         f"max off {max(hand_geometry_error(parts, s) for s in 'LR'):.6f}"),
+        ("the lead hand reaches FORWARD of its elbow",
+         hand_L.y < elbow_L.y - 0.02,
+         f"hand y={hand_L.y:+.3f} elbow y={elbow_L.y:+.3f}"),
+    ]
     bad = 0
     for name, ok, detail in checks:
         bad += not ok
@@ -559,11 +660,41 @@ def main():
                    "frames": frames, "res": [RES_W, RES_H],
                    "canon_ground_row": CANON_GROUND_ROW}, fh)
 
+    sockets = []
     for i in range(frames):
         if POSE != "kneel":
             bpy.context.scene.frame_set(i + 1)
+            # the render evaluates its own depsgraph, but socket_frame reads
+            # matrix_world directly — same stale-matrix trap the drift guard's
+            # second camera fell into (see place_camera)
+            bpy.context.view_layer.update()
+        sockets.append(socket_frame(bpy.context.scene, cam, parts))
         r.filepath = os.path.join(pose_dir, f"roto_{POSE}_{FACING}_{i + 1:02d}.png")
         bpy.ops.render.render(write_still=True)
+
+    # Anchor the sockets with the SAME translation anchor_strip applies to
+    # the frames: vertical only, raw ground row onto the canon row. A socket
+    # that lands off the canvas after anchoring is a camera or pose fault —
+    # the body is 34px on a 96x80 canvas, so a hand has no honest way out.
+    shift = CANON_GROUND_ROW - ground_row
+    for f in sockets:
+        for hand in f.values():
+            hand["row"] = round(hand["row"] + shift, 2)
+            hand["px"] = round(hand["px"], 2)
+            if not (0 <= hand["px"] <= RES_W and 0 <= hand["row"] <= RES_H):
+                print(f"socket off canvas after anchoring: {hand}", file=sys.stderr)
+                return 4
+    with open(os.path.join(pose_dir, f"sockets_{POSE}_{FACING}.json"), "w") as fh:
+        json.dump({"pose": POSE, "facing": FACING, "res": [RES_W, RES_H],
+                   "space": "anchored sheet pixels: x right, y down, ground "
+                            "on canon_ground_row — the frames' own anchor "
+                            "translation, applied to points",
+                   "canon_ground_row": CANON_GROUND_ROW,
+                   "raw_ground_row": ground_row,
+                   "handedness": "hand_L/hand_R are the RIG's sides; which "
+                                 "edge of the screen they land on is the "
+                                 "facing's business",
+                   "frames": sockets}, fh)
     print(f"ROTO_DONE {POSE} {FACING} {frames} ground_row={ground_row:.2f} "
           f"dir={pose_dir}")
     return 0
