@@ -4,6 +4,8 @@
   "_economics": "A recorded DEVIATION from doc D1's letter ('one shared master body, not five characters'): the squad ships on their OWN generated bodies, not head-swaps onto the master. The bodies already existed - the D1 roster pass minted four citizens for eight generations - and the designer ratified them from the lineup rather than compositing. D1's compositor path remains the plan for FUTURE characters; the squad phase spent ~100 generations on states and idles, zero on bodies.",
   "_dialect": "left/right ship from south-west/south-east (3/4), matching every roster body. Idle is the breathing-idle template at 4 frames (the room pins 4fps - a 1s breath, cipher's own cadence); kneel is the state still + the compression breath at 2 frames (the pack's held-pose dialect, same amplitude).",
   "provider": "pixellab.ai",
+  "cdn_root": "https://backblaze.pixellab.ai/file/pixellab-characters/91e1cb96-29ca-4130-bab4-9a05267cc348",
+  "_cdn": "frames live at {cdn_root}/{character_id}/... - idle at {identity_character_id}/animations/{anim_dir}/{pl_facing}/{i}.png, kneel stills at {kneel_state_id}/rotations/{pl_facing}.png, identity stills at {identity_character_id}/rotations/{pl_facing}.png",
   "facing_map": {
     "down": "south",
     "up": "north",
