@@ -943,6 +943,71 @@ const SHEETS = {
 };
 const FACINGS = ["down", "up", "left", "right"];
 const PLAYER = "cipher";
+
+// ---- body sources -------------------------------------------------
+// The player's sheets come from a SOURCE that declares the verbs it
+// actually has. The composed roster declares all ten — for that body a
+// missing verb is a broken regeneration, and the gate below goes on
+// refusing to degrade it. The whole-generated render enters as a
+// three-verb slice (?body=render96): the migration doc's IDLE/WALK/KNEEL
+// gate, staged in the real room. Declaring the set keeps the gate honest
+// in both directions — a DECLARED verb that fails to load still faults
+// the room, and an UNDECLARED verb is refused where it enters, with its
+// name on the surface, never silently played as something else. The
+// squad is not parameterized: vesper/koa/sable stay composed, which is
+// exactly the comparison the slice audition is for.
+const BODY_SOURCES = {
+  composed: {
+    label: "COMPOSED",
+    verbs: Object.keys(SHEETS),
+    covers: {},
+    fps: {},
+    regen: "re-run roster_mold.py, then compose_body.py, then pack_strip.py",
+    url: (action, facing) => `../../assets/sprites/composed/${PLAYER}/`
+      + `${SHEETS[action].folder}/${SHEETS[action].stem}_${facing}.png`,
+  },
+  render96: {
+    label: "RENDER 96 / 3-VERB SLICE",
+    verbs: ["idle", "walk", "kneel"],
+    // walk covers run by declaration — the render's own dialect since the
+    // walk-off staged it: no run cycle exists, and walk carrying run is
+    // the slice's gait, not a fallback wearing a healthy label.
+    covers: { run: "walk" },
+    // the render's cadences as the walk-off recorded them: the 4-frame
+    // breath at 4fps is a 1s idle, the template walk holds its 9.
+    fps: { idle: 4, walk: 9, kneel: 2 },
+    regen: "re-run walkoff_render_sheets.py, then render_canvas96.py",
+    url: (action, facing) => `../../assets/original/cipher_render/`
+      + `sheets96/${SHEETS[action].stem}_${facing}.png`,
+  },
+};
+// Executed, not narrated: every source must declare idle (the labeled-
+// absence fallback lands there) and every cover must land on a declared
+// verb — a manifest that lies about either would fail silently at draw
+// time instead of loudly here.
+for (const [name, src] of Object.entries(BODY_SOURCES)) {
+  if (!src.verbs.includes("idle")) throw new Error(`${name} declares no idle`);
+  for (const [from, to] of Object.entries(src.covers)) {
+    if (!src.verbs.includes(to)) {
+      throw new Error(`${name} covers ${from} with undeclared ${to}`);
+    }
+  }
+  // and every name the manifest speaks must be a verb SHEETS knows —
+  // a typo here should fail at declaration, not as a downstream load
+  for (const verb of [...src.verbs, ...Object.keys(src.covers)]) {
+    if (!(verb in SHEETS)) {
+      throw new Error(`${name} names ${verb}, which SHEETS does not know`);
+    }
+  }
+}
+// ?body= picks the player's source the way ?deal= pins a seed. An unknown
+// name is a fault, not a default: a typo that silently staged the composed
+// body would report a slice audition that never ran.
+const BODY_PARAM = new URLSearchParams(location.search).get("body") ?? "composed";
+// own properties only: ?body=constructor must reach the unknown-source
+// fault, not fish a function out of Object.prototype (caught in review)
+const SOURCE = Object.hasOwn(BODY_SOURCES, BODY_PARAM)
+  ? BODY_SOURCES[BODY_PARAM] : undefined;
 const SQUAD_ACTIONS = ["idle", "kneel"];
 // ONE identifier per squadmate, not two. The slug picks the sheet folder;
 // the operative name the yard reports in a card's `down` is that slug
@@ -967,9 +1032,18 @@ const textureLoader = new THREE.TextureLoader();
 
 const sheetKey = (fighter, action, facing) => `${fighter}:${action}:${facing}`;
 
+// Sheets regenerate between visits (remolds and re-frames land while the
+// server runs), but http.server sends no Cache-Control and the browser
+// heuristically caches images — a reload can stage the LAST mold's pixels
+// while reporting READY. Same lesson, same fix as the walk-off: every
+// sheet URL carries a per-page-load buster so each visit refetches.
+const SHEET_BUST = `?v=${Date.now()}`;
+
 function sheetUrl(fighter, action, facing) {
+  // only the player is source-routed; the squad always stages composed
+  if (fighter === PLAYER) return SOURCE.url(action, facing) + SHEET_BUST;
   const spec = SHEETS[action];
-  return `../../assets/sprites/composed/${fighter}/${spec.folder}/${spec.stem}_${facing}.png`;
+  return `../../assets/sprites/composed/${fighter}/${spec.folder}/${spec.stem}_${facing}.png${SHEET_BUST}`;
 }
 
 async function loadSheet(fighter, action, facing) {
@@ -1134,15 +1208,25 @@ function buildSquad() {
 }
 
 async function bootBodies() {
-  // One tier now, and it is all-or-nothing: every Cipher verb plus the
-  // squad's two visible stances must load or the page faults naming what
-  // failed. The old two-tier gate sorted a
-  // FREE-pack core from a FULL-pack extension; the composed body has no
-  // free-pack form, so a missing verb is always a broken regeneration and
-  // there is nothing left to degrade gracefully INTO. Reporting a reduced
-  // roster here would be the silent fallback the fault exists to prevent.
+  if (!SOURCE) {
+    showAssetFault(new Error(
+      `unknown body source "?body=${BODY_PARAM}" — this room stages: `
+      + Object.keys(BODY_SOURCES).join(", ")));
+    return;
+  }
+  // All-or-nothing over the DECLARED set: every verb the player's source
+  // declares, plus the squad's two visible stances, must load or the page
+  // faults naming what failed. For the composed body that set is all ten
+  // — it has no free-pack form (the old two-tier gate sorted a FREE-pack
+  // core from a FULL-pack extension and went away with it), so a missing
+  // verb is always a broken regeneration and there is nothing left to
+  // degrade gracefully INTO. The slice declares three, and the same rule
+  // holds over them: declaring a smaller set is a fact about the asset;
+  // loading less than the declared set is still a fault. Reporting a
+  // reduced roster in either case would be the silent fallback this gate
+  // exists to prevent.
   const requests = [
-    ...Object.keys(SHEETS).flatMap(action =>
+    ...SOURCE.verbs.flatMap(action =>
       FACINGS.map(facing => ({ fighter: PLAYER, action, facing }))
     ),
     ...SQUAD_ROSTER.flatMap(({ fighter }) =>
@@ -1169,9 +1253,9 @@ async function bootBodies() {
   }
   if (missing.length > 0) {
     showAssetFault(new Error(
-      `composed roster incomplete: ${missing.length} of `
+      `${BODY_PARAM} roster incomplete: ${missing.length} of `
       + `${requests.length} sheets missing (first: ${missing[0]}) `
-      + `— re-run roster_mold.py, then compose_body.py, then pack_strip.py`
+      + `— ${SOURCE.regen}`
     ));
     return;
   }
@@ -1179,9 +1263,9 @@ async function bootBodies() {
   buildSquad();
   assetGate.className = "";
   assetGate.setAttribute("aria-hidden", "true");
-  bodyStateEl.textContent = "COMPOSED / READY";
+  bodyStateEl.textContent = `${SOURCE.label} / READY`;
   canvas.dataset.sprites = "ready";
-  canvas.dataset.roster = "composed";
+  canvas.dataset.roster = BODY_PARAM;
   canvas.dataset.ready = "1";
 }
 
@@ -1212,12 +1296,33 @@ const DASH_SPEED = 7.0;   // burst, spent over the dash sheet's frames
 let locked = null;
 // Death holds: the verb ends but the body stays down until a move key.
 let downed = false;
+// A refused verb's name, published until the next action change. Refusal
+// is entry-level and loud: a lock the source does not declare never
+// starts — a lock that ran its nominal frames over a stand-in sheet
+// would be the room playing a verb nobody authored.
+let refused = null;
+
+// The input's action and the staged verb may differ in exactly two
+// visible ways: a declared cover (the slice's walk carries run), and a
+// labeled absence (an undeclared STANCE reads as idle and the surface
+// says so). dataset.action keeps reporting the input's truth;
+// dataset.verb reports what is actually on the quad.
+function resolveVerb(action) {
+  if (SOURCE.verbs.includes(action)) return { verb: action, note: null };
+  const cover = SOURCE.covers[action];
+  if (cover) return { verb: cover, note: null };
+  return { verb: "idle", note: `NO ${action.toUpperCase()} SHEET` };
+}
 
 const actionStateEl = document.getElementById("action-state");
 const facingStateEl = document.getElementById("facing-state");
 
 function triggerLocked(name) {
   if (!character || locked || downed) return;
+  if (!SOURCE.verbs.includes(name)) {
+    refused = name;
+    return;
+  }
   // started is stamped on the verb's FIRST rendered frame, not here: a
   // keydown reads the loop timer stale (frozen at the last update), and
   // on a janky frame that gap ate a 4-frame flinch whole (caught in test)
@@ -1234,23 +1339,39 @@ function screenFacing(worldDirection = facingWorld) {
 }
 
 function setSpriteFrame(action, facing, frame) {
-  const texture = textures.get(sheetKey(PLAYER, action, facing));
+  const { verb, note } = resolveVerb(action);
+  const texture = textures.get(sheetKey(PLAYER, verb, facing));
   if (spriteMaterial.map !== texture) spriteMaterial.map = texture;
   texture.offset.x = frame / texture.userData.frames;
+  if (action !== character.userData.action) refused = null;
   character.userData.action = action;
   character.userData.facing = facing;
   character.userData.frame = frame;
 
-  actionStateEl.textContent =
+  const label =
     action === "heal" ? "HEAL / CHANNEL"
           : action === "aim" ? "AIM / EMITTER COLD"
             : action === "fire" ? "FIRE / EMITTER LIT"
               : action === "kneel" ? "KNEEL / STANCE"
                 : action === "death" ? (downed ? "DOWN — MOVE TO RISE" : "GOING DOWN")
                   : action.toUpperCase();
+  // An absent verb keeps the bare action name next to its absence — the
+  // epithets describe authored sheets, and there is no sheet to describe.
+  // A refusal shows BESIDE a stance absence, not behind it: aim-and-fire
+  // with neither declared must publish both names, or the fire refusal
+  // exists only for the harness (caught in review).
+  const refusedNote = refused ? `NO ${refused.toUpperCase()} SHEET` : null;
+  const absences = [note, refusedNote].filter(Boolean).join(" · ");
+  actionStateEl.textContent =
+    note ? `${action.toUpperCase()} · ${absences}`
+      : refusedNote ? `${label} · ${refusedNote}`
+        : label;
   facingStateEl.textContent = facing.toUpperCase();
 
   canvas.dataset.action = action;
+  canvas.dataset.verb = verb;
+  canvas.dataset.note = note ?? "";
+  canvas.dataset.refused = refused ?? "";
   canvas.dataset.facing = facing;
   canvas.dataset.frame = String(frame);
   // the spill is published with the frame it belongs to, so the harness can
@@ -1410,8 +1531,12 @@ function updateCipher(dt, now) {
 
   if (!locked && !downed) {
     bladeLight.intensity = 0;
-    const spec = SHEETS[action];
-    frame = Math.floor(now * spec.fps) % framesOf(PLAYER, action, facing);
+    // frame math runs against the RESOLVED verb: its sheet, its cadence —
+    // the source may override fps (the render's 4-frame breath is a 1s
+    // idle at 4fps where the composed 8-frame idle runs 7)
+    const { verb } = resolveVerb(action);
+    const fps = SOURCE.fps[verb] ?? SHEETS[verb].fps;
+    frame = Math.floor(now * fps) % framesOf(PLAYER, verb, facing);
   }
 
   setSpriteFrame(action, facing, frame);
@@ -1860,9 +1985,12 @@ function endSeam(result) {
   stepBackInside();
 
   // the record comes back with you, and the body says so: a lost card
-  // plays the hurt flinch as you re-enter the room
+  // plays the hurt flinch as you re-enter the room. Through the same
+  // gate as the keyboard — a system-triggered verb the source does not
+  // declare must be refused by name, not run as a phantom lock over the
+  // idle sheet (caught in review).
   if (result.result === "loss") {
-    locked = { name: "hurt", started: null };
+    triggerLocked("hurt");
   }
 
   // the entry renders now; the RUN settles only after the edge rules on

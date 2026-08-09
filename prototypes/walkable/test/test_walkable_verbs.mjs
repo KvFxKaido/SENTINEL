@@ -35,6 +35,11 @@ const GEN = path.join(HERE, "make_synthetic_sheets.py");
 const FIGHTERS = ["cipher", "vesper", "koa", "sable"];
 const sheetsDir = fighter => path.join(ROOT, "assets", "sprites", "composed", fighter);
 const backupDir = fighter => sheetsDir(fighter) + ".harness-backup";
+// the slice's sheets are TRACKED (assets/original is ours), which makes
+// the backup discipline more binding, not less: an uncommitted local
+// re-frame must survive a harness run exactly as the composed roster does
+const RENDER96 = path.join(ROOT, "assets", "original", "cipher_render", "sheets96");
+const RENDER96_BAK = RENDER96 + ".harness-backup";
 const PY = process.platform === "win32" ? "python" : "python3";
 const PORT = process.env.WALKABLE_TEST_PORT ?? "8093";
 const URL = `http://localhost:${PORT}/prototypes/walkable/`;
@@ -94,19 +99,59 @@ function check(name, ok, detail = "") {
 }
 
 // ---- setup: preserve real sheets ----------------------------------
+// One harness at a time. Two overlapping runs would each claim the same
+// backup dirs: the second would reinstate the first's live backup as
+// "stranded", and after the first restores, the second's cleanup deletes
+// the originals with no backup left — the gitignored sheets would be
+// gone for good (caught in review). The lock is an atomic mkdir; a
+// hard-killed run strands it, and the next run refuses with its name
+// rather than guessing the coast is clear.
+const LOCK = path.join(HERE, ".harness-lock");
+try {
+  fs.mkdirSync(LOCK);
+} catch {
+  console.error(`another harness run appears live (${LOCK} exists) — `
+    + "refusing to touch the backups; remove the dir if that run is dead");
+  process.exit(1);
+}
+
 // A backup left by a run that died before restoring IS the real
 // artifact: reinstate it, never delete it. This also makes a hard-killed
 // run (no finally) self-healing instead of data-destroying on the next
 // start (caught in review: setup failures used to strand the backup,
 // and the next run's cleanup would have eaten it).
-for (const fighter of FIGHTERS) {
-  if (fs.existsSync(backupDir(fighter))) {
-    fs.rmSync(sheetsDir(fighter), { recursive: true, force: true });
-    fs.renameSync(backupDir(fighter), sheetsDir(fighter));
+//
+// These renames run before the big try below, so a setup crash would
+// strand the lock and block the very self-heal that fixes the rest —
+// every later run would refuse at the door. A setup failure frees the
+// lock on its way out; the stranded BACKUPS stay for the next start's
+// reinstate, which is now reachable again (caught in review).
+try {
+  for (const fighter of FIGHTERS) {
+    if (fs.existsSync(backupDir(fighter))) {
+      fs.rmSync(sheetsDir(fighter), { recursive: true, force: true });
+      fs.renameSync(backupDir(fighter), sheetsDir(fighter));
+    }
+    if (fs.existsSync(sheetsDir(fighter))) {
+      fs.renameSync(sheetsDir(fighter), backupDir(fighter));
+    }
   }
-  if (fs.existsSync(sheetsDir(fighter))) {
-    fs.renameSync(sheetsDir(fighter), backupDir(fighter));
+  if (fs.existsSync(RENDER96_BAK)) {
+    // Louder than the composed reinstate on purpose: sheets96 is TRACKED,
+    // so a run that died mid-flight left synthetic fixtures sitting in the
+    // repo as commit-able source art until this line ran.
+    console.error("STRANDED sheets96 backup found — a previous run died "
+      + "before restoring; reinstating the real strips now. Until this "
+      + "moment the tracked sheets96 dir held synthetic fixtures.");
+    fs.rmSync(RENDER96, { recursive: true, force: true });
+    fs.renameSync(RENDER96_BAK, RENDER96);
   }
+  if (fs.existsSync(RENDER96)) {
+    fs.renameSync(RENDER96, RENDER96_BAK);
+  }
+} catch (err) {
+  fs.rmSync(LOCK, { recursive: true, force: true });
+  throw err;
 }
 
 // From here on, every failure path — server, browser launch, the checks
@@ -115,8 +160,8 @@ let server = null;
 let browser = null;
 let page = null;
 
-async function boot() {
-  await page.goto(URL);
+async function boot(query = "") {
+  await page.goto(URL + query);
   await page.waitForFunction(() =>
     ["ready", "error"].includes(document.getElementById("cv").dataset.sprites), null, { timeout: 10000 });
 }
@@ -414,15 +459,108 @@ try {
   await page.keyboard.down("KeyW");  // the fresh press
   check("a fresh press rises", await waitAction("run"));
   await page.keyboard.up("KeyW");
+
+  // ---- the slice: ?body=render96 ------------------------------------
+  // The render body enters with three DECLARED verbs. The gate stays
+  // all-or-nothing over the declared set, undeclared verbs are refused
+  // or labeled — never silently substituted — and the squad stays
+  // composed beside it, which is the comparison the staging is for.
+  clearSheets();
+  gen("full");
+  gen("slice96");
+  await boot("?body=render96");
+  check("slice roster boots", (await ds("sprites")) === "ready");
+  check("roster reads render96", (await ds("roster")) === "render96");
+  check("BODY cell names the slice",
+    (await page.textContent("#body-state")) === "RENDER 96 / 3-VERB SLICE / READY");
+  await page.waitForFunction(() =>
+    (document.getElementById("cv").dataset.squadSprites ?? "").split(",").length === 3);
+  check("the composed squad still stands beside the slice body",
+    ((await ds("squadSprites")) ?? "").split(",").length === 3);
+
+  // run is COVERED by walk — declared dialect, not fallback: the input's
+  // truth stays run, the staged verb says walk, and no absence is noted
+  await page.keyboard.down("KeyW");
+  check("slice moves as run", await waitAction("run"));
+  check("run rides the walk sheet", (await ds("verb")) === "walk");
+  check("a declared cover carries no absence note", (await ds("note")) === "");
+  await page.keyboard.up("KeyW");
+  check("slice idles", await waitAction("idle"));
+  check("idle resolves to itself", (await ds("verb")) === "idle");
+
+  await page.keyboard.down("KeyC");
+  check("the slice kneels — the verb the slice exists for", await waitAction("kneel"));
+  check("kneel resolves to its own sheet", (await ds("verb")) === "kneel");
+  await page.keyboard.up("KeyC");
+  await waitAction("idle");
+
+  // an undeclared STANCE is labeled, not substituted
+  await page.keyboard.down("KeyR");
+  check("holding R still reports the aim request", await waitAction("aim"));
+  check("the aim request stages idle", (await ds("verb")) === "idle");
+  check("and says so", (await ds("note")) === "NO AIM SHEET");
+  // aim-and-fire with neither declared: the refusal shows BESIDE the
+  // stance absence, not behind it — both names on the one surface
+  await page.keyboard.press("KeyF");
+  await page.waitForFunction(() =>
+    document.getElementById("cv").dataset.refused === "fire");
+  const bothAbsent = await page.textContent("#action-state");
+  check("a refused lock is published beside the stance absence",
+    bothAbsent.includes("NO AIM SHEET") && bothAbsent.includes("NO FIRE SHEET"),
+    bothAbsent);
+  await page.keyboard.up("KeyR");
+  await waitAction("idle");
+
+  // an undeclared LOCK is refused at entry: no lock starts, the name is
+  // published, and the next action change clears it
+  await page.keyboard.press("KeyL");
+  await page.waitForFunction(() =>
+    document.getElementById("cv").dataset.refused === "dash");
+  check("dash is refused, not faked", (await ds("action")) === "idle");
+  await page.keyboard.press("KeyX");
+  await page.waitForFunction(() =>
+    document.getElementById("cv").dataset.refused === "death");
+  check("death cannot reach the slice body", (await ds("action")) === "idle");
+  await page.keyboard.down("KeyW");
+  check("moving on", await waitAction("run"));
+  check("the refusal clears on the next action", (await ds("refused")) === "");
+  await page.keyboard.up("KeyW");
+
+  // the gate is all-or-nothing over the DECLARED set
+  fs.rmSync(path.join(RENDER96, "kneel_left.png"));
+  await boot("?body=render96");
+  check("a missing declared slice sheet faults the room",
+    (await ds("sprites")) === "error");
+  check("the slice fault names the state and the regen path",
+    (await page.textContent("#asset-detail")).includes("render96 roster incomplete"));
+
+  // an unknown source is a fault, not a default
+  await boot("?body=rneder96");
+  check("an unknown body source faults rather than defaulting",
+    (await ds("sprites")) === "error");
+  check("the unknown-source fault names what the room stages",
+    (await page.textContent("#asset-detail")).includes("unknown body source"));
+
+  // and an INHERITED name is unknown too: ?body=constructor would fish a
+  // function out of Object.prototype and crash past the fault branch
+  await boot("?body=constructor");
+  check("an inherited prototype name is refused like any unknown source",
+    (await ds("sprites")) === "error"
+      && (await page.textContent("#asset-detail")).includes("unknown body source"));
 } finally {
   if (browser) await browser.close().catch(() => {});
   if (server) server.kill();
   clearSheets();
+  fs.rmSync(RENDER96, { recursive: true, force: true });
   for (const fighter of FIGHTERS) {
     if (fs.existsSync(backupDir(fighter))) {
       fs.renameSync(backupDir(fighter), sheetsDir(fighter));
     }
   }
+  if (fs.existsSync(RENDER96_BAK)) {
+    fs.renameSync(RENDER96_BAK, RENDER96);
+  }
+  fs.rmSync(LOCK, { recursive: true, force: true });
 }
 
 console.log(failures ? `\n${failures} FAILURES` : "\nALL PASS");
