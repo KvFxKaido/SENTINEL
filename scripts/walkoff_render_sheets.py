@@ -3,13 +3,14 @@
 
 Reads scripts/pixellab_walkoff_render.json — the frozen input record for
 the whole-generated body fielded in walkoff.html's BODY B slot — then
-downloads the template-walk, breathing-idle, and run frames for the four
+downloads the template-walk, breathing-idle, run, and state frames for the four
 molded facings and packs them into horizontal strips:
 
     assets/original/cipher_render/sheets/idle_{facing}.png
     assets/original/cipher_render/sheets/walk_{facing}.png
     assets/original/cipher_render/sheets/run_{facing}.png
     assets/original/cipher_render/sheets/kneel_{facing}.png
+    assets/original/cipher_render/sheets/aim_{facing}.png
 
 KNEEL molds from the record's `kneel` block: the Kneel STATE's rotations
 (a sibling of the locked appearance in the same character group), the
@@ -18,6 +19,11 @@ north kept its head at standing height; from behind, dropping the rows
 IS the pose), and a 2-frame compression breath authored here rather
 than generated — the pack's KNEEL is a 2-frame held pose and this stays
 in that dialect.
+
+AIM follows the same held-pose dialect without KNEEL's north surgery: the Aim
+STATE's rotations become frame 1, and frame 2 is the record's compression
+breath. Like IDLE it is a full-height stand, so both states share the same
+cross-facing standing-row gate.
 
 The rotation stills are fetched for MEASUREMENT only: the ground-row
 anchor is the standing last-opaque row, and the breathing idle bobs, so
@@ -202,10 +208,39 @@ def main() -> int:
                       f"{[last_opaque_row(f) for f in frames]}"
                       f"{'  (north: row surgery)' if facing == 'up' else ''}")
 
-    spread = sorted(set(standing_rows.values()))
+    # ---- AIM: the state's rotations + the held-pose breath -------------
+    aim = record["aim"]
+    if aim["frames_per_facing"] != 2:
+        raise ValueError("aim is a held stance and must mold exactly 2 frames "
+                         f"per facing, got {aim['frames_per_facing']}")
+    if set(aim["facing_map"]) != set(record["facing_map"]):
+        raise ValueError("aim facing bill differs from the standing rotations: "
+                         f"{sorted(aim['facing_map'])}")
+    aim_base = aim["cdn_base"]
+    aim_rows = {}
+    for facing, pl_facing in aim["facing_map"].items():
+        still = fetch(f"{aim_base}/rotations/{pl_facing}.png")
+        if still.size != (canvas_w, canvas_h):
+            raise ValueError(f"aim rotation {pl_facing} is {still.size}, "
+                             f"expected {canvas_w}x{canvas_h}")
+        frames = [still, breath_frame(still, aim["breath"])]
+        rows = [last_opaque_row(frame) for frame in frames]
+        aim_rows[facing] = rows[0]
+        strip = Image.new("RGBA",
+                          (canvas_w * len(frames), canvas_h), (0, 0, 0, 0))
+        for i, frame in enumerate(frames):
+            strip.paste(frame, (canvas_w * i, 0))
+        built.append((f"aim_{facing}.png", strip))
+        report.append(f"{facing:5s} aim rows {rows}")
+
+    all_standing_rows = {f"idle/{facing}": row
+                         for facing, row in standing_rows.items()}
+    all_standing_rows.update({f"aim/{facing}": row
+                              for facing, row in aim_rows.items()})
+    spread = sorted(set(all_standing_rows.values()))
     if spread[-1] - spread[0] > 1:
         raise ValueError(f"standing ground rows disagree by more than one: "
-                         f"{standing_rows} — framing fault at the source")
+                         f"{all_standing_rows} — framing fault at the source")
 
     os.makedirs(OUT, exist_ok=True)
     for name, strip in built:
@@ -214,7 +249,8 @@ def main() -> int:
         print(line)
 
     anchor = spread[-1]
-    floaters = [f for f, row in standing_rows.items() if row != anchor]
+    floaters = [name for name, row in all_standing_rows.items()
+                if row != anchor]
     print(f"ground row {anchor} (standing last-opaque row, pack_canvas "
           f"semantics) — walkoff.html hard-codes this as REN_GROUND_ROW")
     if floaters:

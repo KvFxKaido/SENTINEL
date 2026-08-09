@@ -174,6 +174,19 @@ try {
   fs.mkdirSync(OUT, { recursive: true });
   await page.screenshot({ path: path.join(OUT, "01-idle-down.png") });
 
+  await page.keyboard.down("KeyR");
+  await page.waitForFunction(() =>
+    document.getElementById("cv").dataset.renVerb === "aim");
+  const aimed = await text("#ren-state");
+  check("BODY B holds its own 2-frame AIM instead of idle",
+    (await ds("renVerb")) === "aim"
+      && (await ds("frameCountRen")) === "2"
+      && /^AIM [1-2]\/2$/.test(aimed),
+    `${aimed}; verb ${await ds("renVerb")}; frames ${await ds("frameCountRen")}`);
+  await page.keyboard.up("KeyR");
+  await page.waitForFunction(() =>
+    document.getElementById("cv").dataset.renVerb === "idle");
+
   // Watch two changes and the return to the starting frame. That proves
   // both the 2-frame width and the one-second breathing cycle; merely
   // sampling one instant can make an eight-frame phantom strip look fine.

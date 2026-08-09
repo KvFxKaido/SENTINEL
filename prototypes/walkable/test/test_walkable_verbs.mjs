@@ -461,7 +461,7 @@ try {
   await page.keyboard.up("KeyW");
 
   // ---- the slice: ?body=render96 ------------------------------------
-  // The render body enters with four DECLARED verbs. The gate stays
+  // The render body enters with five DECLARED verbs. The gate stays
   // all-or-nothing over the declared set, undeclared verbs are refused
   // or labeled — never silently substituted — and the squad stays
   // composed beside it, which is the comparison the staging is for.
@@ -472,7 +472,7 @@ try {
   check("slice roster boots", (await ds("sprites")) === "ready");
   check("roster reads render96", (await ds("roster")) === "render96");
   check("BODY cell names the slice",
-    (await page.textContent("#body-state")) === "RENDER 96 / 4-VERB SLICE / READY");
+    (await page.textContent("#body-state")) === "RENDER 96 / 5-VERB SLICE / READY");
   await page.waitForFunction(() =>
     (document.getElementById("cv").dataset.squadSprites ?? "").split(",").length === 3);
   check("the composed squad still stands beside the slice body",
@@ -494,20 +494,19 @@ try {
   await page.keyboard.up("KeyC");
   await waitAction("idle");
 
-  // an undeclared STANCE is labeled, not substituted
+  // AIM owns a declared held stance at the render's pinned breath cadence.
   await page.keyboard.down("KeyR");
-  check("holding R still reports the aim request", await waitAction("aim"));
-  check("the aim request stages idle", (await ds("verb")) === "idle");
-  check("and says so", (await ds("note")) === "NO AIM SHEET");
-  // aim-and-fire with neither declared: the refusal shows BESIDE the
-  // stance absence, not behind it — both names on the one surface
+  check("holding R resolves the slice into aim", await waitAction("aim"));
+  check("aim resolves to its own sheet", (await ds("verb")) === "aim");
+  check("the declared aim carries no absence note", (await ds("note")) === "");
+  // FIRE remains undeclared: its refusal publishes beside the real stance,
+  // with no dead AIM absence left in the composition.
   await page.keyboard.press("KeyF");
   await page.waitForFunction(() =>
     document.getElementById("cv").dataset.refused === "fire");
-  const bothAbsent = await page.textContent("#action-state");
-  check("a refused lock is published beside the stance absence",
-    bothAbsent.includes("NO AIM SHEET") && bothAbsent.includes("NO FIRE SHEET"),
-    bothAbsent);
+  const fireAbsent = await page.textContent("#action-state");
+  check("fire refusal composes beside the real aim stance",
+    fireAbsent === "AIM · NO FIRE SHEET", fireAbsent);
   await page.keyboard.up("KeyR");
   await waitAction("idle");
 
