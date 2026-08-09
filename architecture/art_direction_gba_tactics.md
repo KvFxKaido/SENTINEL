@@ -307,6 +307,44 @@ Costs accepted on the record:
   molders regenerate the bodies, and this paragraph is why none of it
   gets deleted.
 
+### The slice passes: the original body becomes the direction (verdict, 2026-08-09)
+
+The 2026-08-02 verdict set its own expiry: hybrid canon would hold
+"until a Cipher IDLE/WALK/KNEEL slice passes in the walk-off at 1×"
+(`original_body_pipeline.md`). That slice was staged across PRs
+#100–#104 — KNEEL generated state-first with no pack pixels, the
+sheets re-framed onto the 96×80 canvas by translation alone, the
+walk-off kneeling on C-hold across all three bodies, and the actual
+room admitting the render body on three declared verbs
+(`?body=render96`) with the verb gate scoped, not weakened. The
+designer walked both stagings at 1× on 2026-08-09 and ruled them
+clean.
+
+**What changes: direction.** `original_body_pipeline.md` moves to
+Current; the original body is the destination and PR #91's hybrid
+canon is superseded as direction. The economics that made #91 stable
+are not being waved away — they are answered by that doc's D1: ONE
+master body whose costs amortize across the roster the same way the
+pack body's did, composed by a new compositor (D5) instead of
+generated per-character-per-outfit.
+
+**What does not change yet: the shipping roster.** The hybrid remains
+what the room stages by default until the original roster covers its
+verbs. The binding expansion order lives in ONE place —
+`original_body_pipeline.md`'s slice section — and is not restated here
+where a paraphrase could drift from it; RUN is first, the armed verbs
+additionally gate on the weapon-socket export, and the squad crosses
+last via generated heads and mark palettes. Flipping the default
+before the verbs exist would stage a roster that does not exist —
+the same honesty clause the room's verb gate enforces.
+
+Also on the record: the motion worry that PR #91 logged against
+generation (baseline wobble, costume chatter, identity flicker) had
+already resolved in generation's favor at the 2026-08-08 audition, and
+the 1× walk confirmed it. The pack retires verb by verb, not by
+decree; it remains the animation reference until each verb's
+replacement lands.
+
 ## UI language
 
 - **Every datum is a cell**: label plate + value box, adjacent, both boxed.
