@@ -218,9 +218,11 @@ fallback case.
 
 ## Work-queue honesty
 
-The rig holds 2 poses of 12 verbs. The kneel took one day *including*
+The rig holds 3 poses of 12 verbs. The kneel took one day *including*
 the validation harness — and because the harness now exists (`settle()`,
-`world_bounds()`, the sign convention, CI), the marginal verb is cheap.
+`world_bounds()`, the sign convention, CI), the marginal verb is cheap:
+the aim (2026-08-09) took a morning, eleven checks and three red tests
+included.
 It is still a queue, and this doc does not pretend otherwise.
 
 The rig cannot manufacture polish. It provides anatomy, motion, facing,

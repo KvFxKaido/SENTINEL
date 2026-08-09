@@ -32,7 +32,7 @@ animate(), kneel() or settle(), or the checks below protect nothing.
 Env:
     ROTO_OUT      output dir            ROTO_FRAMES   frames per cycle (8)
     ROTO_FACING   S SE E NE N NW W SW   ROTO_SCALE    camera ortho scale
-    ROTO_POSE     walk | kneel          (rejected if unrecognised, never
+    ROTO_POSE     walk | kneel | aim    (rejected if unrecognised, never
                                          quietly downgraded to the walk)
 
 Output goes to ROTO_OUT/{pose}/, one DIRECTORY per pose, holding
@@ -61,7 +61,7 @@ from mathutils import Vector
 OUT = os.environ.get("ROTO_OUT", ".")
 N = int(os.environ.get("ROTO_FRAMES", "8"))
 FACING = os.environ.get("ROTO_FACING", "S")
-POSE = os.environ.get("ROTO_POSE", "walk")   # walk | kneel
+POSE = os.environ.get("ROTO_POSE", "walk")   # walk | kneel | aim
 # ortho_scale maps to the LARGER render dimension (96), so body height scales
 # inversely with it. 3.50 was calibrated by rendering and MEASURING, not by
 # arithmetic: it puts the body at 34px, matching canon exactly. (It was 2.89
@@ -74,7 +74,7 @@ RES_W, RES_H = 96, 80          # the pack's canvas
 # rendered pixels. It is what lets a claim written in units ("under a pixel")
 # be checked in the unit it actually claims.
 PX_PER_UNIT = RES_W / SCALE
-POSES = ("walk", "kneel")
+POSES = ("walk", "kneel", "aim")
 # The row the FEET occupy, not the empty row beneath them: canon's standing
 # verbs put their last opaque row at 57, and the rig's z=0 plane is where the
 # soles sit, so the projection of z=0 must land on 57 to match.
@@ -398,6 +398,46 @@ def kneel(parts):
     settle(parts)
 
 
+def aim(parts):
+    """A one-handed standing aim: the anatomical RIGHT arm extends level
+    along the facing, the off arm hangs, the legs keep their standing rest.
+
+    The dialect source is the licensed thug pack's gunplay, by way of
+    roster_mold's own synthesis notes: "the arm is the pose, the flash is
+    the verb." The composed roster's AIM is NOT the reference — compose
+    cannot repose a limb, so it lifted HEAL's held-at-chest grip and swapped
+    the vial for the emitter, and its side grids are drawn barrel-right and
+    MIRRORED for left. That was archaeology, not taste; the rig exists to
+    perform the pose the reference actually shows.
+
+    Chirality is set here and it is a decision, not a label: this figure
+    faces -Y, so its anatomical right hand is the -X side — the part the rig
+    names arm_L (the sockets sidecar already warns the names are the RIG's
+    sides, not anatomy's). A generated state holds one hand across every
+    rotation, which is a dialect upgrade the composed mirror cheat could
+    never afford — and it means the far-arm facing exists and must simply
+    read, as the thug pack's own 8-facing gunplay proves it can.
+
+    Head-on the arm foreshortens to a glint beside the torso, and that is
+    the read, not a failure: the shoulder sits at |x| = 0.20 against a
+    torso half-width of 0.15, so the hand clears the silhouette by
+    construction and the pose borrows neither of the kneel's legibility
+    knobs (no plane yaw, no camera nudge). The forearm direction IS the
+    muzzle line — what FIRE will aim its bloom along.
+    """
+    d = math.radians
+    parts["arm_L"].rotation_euler = (FORWARD * d(90), 0, 0)  # level, along -Y
+    parts["fore_L"].rotation_euler = (0, 0, 0)   # straight: this IS the muzzle line
+    # The off side and the legs are named so the pose owns every joint it
+    # claims — "the rest is standing rest" is a sentence validate_aim checks,
+    # not an accident of build()'s defaults surviving.
+    parts["arm_R"].rotation_euler = (0, 0, 0)
+    parts["fore_R"].rotation_euler = (0, 0, 0)
+    for name in ("leg_L", "leg_R", "shin_L", "shin_R"):
+        parts[name].rotation_euler = (0, 0, 0)
+    settle(parts)
+
+
 def place_camera(facing, nudge=0):
     """`nudge` steps the camera off the cardinal azimuth (see
     KNEEL_FACING_NUDGE). It cannot disturb the ground contract: the camera
@@ -599,6 +639,78 @@ def validate_kneel(parts):
     return bad
 
 
+def validate_aim(parts):
+    """Read the POSE from the rig. Same evidence rule as the walk and kneel:
+    every sentence the aim() docstring claims, converted to a measurement.
+
+    The one check with a job beyond regression-guarding is the silhouette
+    clearance: it is the whole reason the pose needs no yaw and no nudge,
+    and it is exactly the claim a well-meaning "slim the shoulders" edit
+    would silently break — the head-on facings would go from a glint beside
+    the torso to a hand buried inside it, and no joint-angle dump would say
+    so.
+    """
+    bpy.context.view_layer.update()
+    hip_z = 0.42 + parts["root"].location.z
+    shoulder_z = 0.84 + parts["root"].location.z
+    lowest = min(world_bounds(ob)[0] for name, ob in parts.items()
+                 if name != "root")
+    elbow_L, hand_L = hand_points(parts, "L")   # the AIM arm: anatomical right
+    elbow_R, hand_R = hand_points(parts, "R")   # the off arm
+    axis = (hand_L - elbow_L).normalized()
+    # Standing rest is enforced as GEOMETRY, not as angle readback: a hip
+    # bending about any axis moves the knee off its standing coordinates,
+    # and a bent shin lifts its foot — where the metal LANDED, not what the
+    # eulers say (a shin-X-only read let hips and Y/Z rotations pass,
+    # caught in review). Standing knee: hip (±0.08, 0, 0.42) minus one SEG.
+    knee = {s: parts[f"shin_{s}"].matrix_world.translation for s in "LR"}
+    knee_err = max((knee[s] - Vector((x, 0.0, 0.21))).length
+                   for s, x in (("L", -0.08), ("R", 0.08)))
+    foot_lift = max(world_bounds(parts[f"shin_{s}"])[0] for s in "LR")
+    # The off hand at rest hangs one full arm below its shoulder:
+    # (0.20, 0, 0.42). Position, not "below the elbow" — a swung arm keeps
+    # its hand below the elbow for most of a swing (caught in review).
+    off_err = (hand_R - Vector((0.20, 0.0, 0.42 + parts["root"].location.z))).length
+    checks = [
+        # settle() forces this, so it is a guard on settle(), not pose evidence.
+        ("the figure rests exactly on the ground", abs(lowest) < 1e-4,
+         f"lowest z={lowest:+.4f}"),
+        # Aim is a STANDING verb. The kneel drops this below 0.30; a pose
+        # edit that starts crouching the aim must announce itself here.
+        ("the figure stands at full height", abs(hip_z - 0.42) < 0.01,
+         f"hip z={hip_z:+.3f} (standing 0.420, kneel < 0.300)"),
+        ("both knees sit at standing rest", knee_err < 0.02,
+         f"max knee offset {knee_err:.3f} units"),
+        ("both feet rest on the ground", foot_lift < 0.01,
+         f"highest sole z={foot_lift:+.4f}"),
+        ("the aim arm is LEVEL", abs(hand_L.z - elbow_L.z) < 0.02,
+         f"hand z={hand_L.z:+.3f} elbow z={elbow_L.z:+.3f}"),
+        ("the muzzle line runs along the facing", axis.y < -0.999,
+         f"axis=({axis.x:+.3f}, {axis.y:+.3f}, {axis.z:+.3f})"),
+        ("the aim hand reaches FORWARD of the body", hand_L.y < -0.25,
+         f"hand y={hand_L.y:+.3f} (torso front face -0.090)"),
+        ("the aim hand holds shoulder height", abs(hand_L.z - shoulder_z) < 0.02,
+         f"hand z={hand_L.z:+.3f} shoulder z={shoulder_z:+.3f}"),
+        ("the aim hand clears the torso silhouette head-on",
+         abs(hand_L.x) > 0.15,
+         f"hand x={hand_L.x:+.3f} (torso half-width 0.150)"),
+        ("the off hand hangs at standing rest", off_err < 0.02,
+         f"off by {off_err:.3f} units from (0.20, 0, 0.42)"),
+        # The socket contract holds under the aim's rotations: the muzzle
+        # declaration is only worth exporting if the hand is still the
+        # forearm's bottom-face centre once the arm is horizontal.
+        ("hand sockets sit on the bottom-face centre in the aim",
+         max(hand_geometry_error(parts, s) for s in "LR") < 1e-6,
+         f"max off {max(hand_geometry_error(parts, s) for s in 'LR'):.6f}"),
+    ]
+    bad = 0
+    for name, ok, detail in checks:
+        bad += not ok
+        print(f'{"PASS" if ok else "FAIL"}  {name}: {detail}')
+    print("\nALL PASS" if not bad else f"\n{bad} FAILURES")
+    return bad
+
+
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     # No silent fallback. A typo in ROTO_POSE previously rendered the WALK
@@ -611,10 +723,16 @@ def main():
     parts = build()
     if POSE == "kneel":
         kneel(parts)
+    elif POSE == "aim":
+        aim(parts)
     else:
         animate(parts)
     if "--validate" in argv:
-        return validate_kneel(parts) if POSE == "kneel" else validate(parts)
+        if POSE == "kneel":
+            return validate_kneel(parts)
+        if POSE == "aim":
+            return validate_aim(parts)
+        return validate(parts)
 
     nudge = KNEEL_FACING_NUDGE.get(FACING, 0) if POSE == "kneel" else 0
     cam = place_camera(FACING, nudge)
@@ -657,7 +775,7 @@ def main():
     # would still gather all nine files and anchor them as one strip. Only the
     # directory split actually separates them. The sidecar's `frames` is the
     # count written, not N — it said 8 for a pose that renders 1.
-    frames = 1 if POSE == "kneel" else N
+    frames = N if POSE == "walk" else 1   # held poses render one frame
     pose_dir = os.path.join(OUT, POSE)
     os.makedirs(pose_dir, exist_ok=True)
     with open(os.path.join(pose_dir, f"ground_{POSE}_{FACING}.json"), "w") as fh:
@@ -667,7 +785,7 @@ def main():
 
     sockets = []
     for i in range(frames):
-        if POSE != "kneel":
+        if POSE == "walk":
             bpy.context.scene.frame_set(i + 1)
             # the render evaluates its own depsgraph, but socket_frame reads
             # matrix_world directly — same stale-matrix trap the drift guard's
