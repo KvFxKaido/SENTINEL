@@ -23,7 +23,8 @@ four rotations by walkoff_render_sheets.py and hard-coded by walkoff.html as
 REN_GROUND_ROW. Locomotion frames dip below it; that is the gait, and a
 constant offset preserves it exactly.
 
-Reads  assets/original/cipher_render/sheets/{idle,walk,run,dash,kneel,aim,fire}_{facing}.png
+Reads  assets/original/cipher_render/sheets/
+       {idle,walk,run,dash,hurt,death,heal,kneel,aim,fire}_{facing}.png
 Writes assets/original/cipher_render/sheets96/... same names, frames at 96x80.
 
 Validated, then published (molder discipline): every strip is rebuilt in
@@ -50,12 +51,13 @@ REN_CANVAS = 64
 GROUND_ROW_64 = 47
 
 # The molder's bill: which sheets a complete source set contains. The set
-# is checked exactly — a missing name would rewrite twenty-seven strips and
-# leave the twenty-eighth stale in sheets96, the partial-set lie the molder
+# is checked exactly — a missing name would rewrite thirty-nine strips and
+# leave the fortieth stale in sheets96, the partial-set lie the molder
 # already refuses; an unexpected name is a verb this re-frame has never
 # judged and must not silently launder onto the law's canvas.
 EXPECTED = {f"{verb}_{facing}.png"
-            for verb in ("idle", "walk", "run", "dash", "kneel", "aim", "fire")
+            for verb in ("idle", "walk", "run", "dash", "hurt", "death",
+                         "heal", "kneel", "aim", "fire")
             for facing in ("down", "up", "left", "right")}
 
 DY = FEET_Y - GROUND_ROW_64
@@ -78,7 +80,7 @@ def reframe(strip: Image.Image, name: str) -> tuple[Image.Image, list[int]]:
         raise ValueError(f"{name} is {w}x{h}; expected Nx{REN_CANVAS} strip "
                          f"of {REN_CANVAS}x{REN_CANVAS} frames")
     n = w // REN_CANVAS
-    standing = name.startswith(("idle_", "aim_", "fire_"))
+    standing = name.startswith(("idle_", "aim_", "fire_", "hurt_", "heal_"))
     # the whole source canvas must land inside the target — clipping a frame
     # would be a silent crop, which is a scaling cousin, not a translation
     if DX < 0 or DY < 0 or DX + REN_CANVAS > CANVAS_W or DY + REN_CANVAS > CANVAS_H:
@@ -103,10 +105,11 @@ def reframe(strip: Image.Image, name: str) -> tuple[Image.Image, list[int]]:
         # derived from GROUND_ROW_64, and the molder's own gate constrains
         # only cross-facing spread, so a remolded source whose standing
         # row moved would pass it and land here with its feet off the
-        # law's line. The idle, aim, and fire strips are standing references
-        # (a breath and shot never move the feet; the molder's report shows ±1
-        # across both states and facings), so they are held to the
-        # recorded anchor
+        # law's line. The idle, aim, fire, hurt, and heal strips are standing
+        # references (their breaths, shot, flinch, and channel never move the
+        # feet; the molder proves that before publishing), so they are held to
+        # the recorded anchor. Death is not standing — it falls by design; the
+        # molder instead proves its held last frame lies flat on the ground
         # (caught in review, PR #101).
         if standing and abs(src_row - GROUND_ROW_64) > 1:
             raise AssertionError(
