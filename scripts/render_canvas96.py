@@ -49,6 +49,15 @@ REN_CANVAS = 64
 # generated there, shipped as generated here.
 GROUND_ROW_64 = 47
 
+# The molder's bill: which sheets a complete source set contains. The set
+# is checked exactly — a missing name would rewrite eleven strips and
+# leave the twelfth stale in sheets96, the partial-set lie the molder
+# already refuses; an unexpected name is a verb this re-frame has never
+# judged and must not silently launder onto the law's canvas.
+EXPECTED = {f"{verb}_{facing}.png"
+            for verb in ("idle", "walk", "kneel")
+            for facing in ("down", "up", "left", "right")}
+
 DY = FEET_Y - GROUND_ROW_64
 DX = CENTER_X - (REN_CANVAS - 1) / 2
 if DX != int(DX):
@@ -69,6 +78,7 @@ def reframe(strip: Image.Image, name: str) -> tuple[Image.Image, list[int]]:
         raise ValueError(f"{name} is {w}x{h}; expected Nx{REN_CANVAS} strip "
                          f"of {REN_CANVAS}x{REN_CANVAS} frames")
     n = w // REN_CANVAS
+    standing = name.startswith("idle")
     # the whole source canvas must land inside the target — clipping a frame
     # would be a silent crop, which is a scaling cousin, not a translation
     if DX < 0 or DY < 0 or DX + REN_CANVAS > CANVAS_W or DY + REN_CANVAS > CANVAS_H:
@@ -88,6 +98,21 @@ def reframe(strip: Image.Image, name: str) -> tuple[Image.Image, list[int]]:
             raise AssertionError(f"{name} frame {i}: placed pixels differ "
                                  f"from source — this resampled")
         src_row = last_opaque_row(frame)
+        # The shift check alone is a tautology — translation always moves
+        # the row by DY. The claim that needs teeth is the ANCHOR: DY was
+        # derived from GROUND_ROW_64, and the molder's own gate constrains
+        # only cross-facing spread, so a remolded source whose standing
+        # row moved would pass it and land here with its feet off the
+        # law's line. The idle strips are the standing reference (a
+        # breath never moves the feet; the molder's report shows ±1
+        # across facings), so they are held to the recorded anchor
+        # (caught in review, PR #101).
+        if standing and abs(src_row - GROUND_ROW_64) > 1:
+            raise AssertionError(
+                f"{name} frame {i}: standing row {src_row} is not the "
+                f"recorded anchor {GROUND_ROW_64}±1 — the source was "
+                f"remolded with a different framing; remeasure "
+                f"GROUND_ROW_64 against the molder's report")
         dst = out.crop((CANVAS_W * i, 0, CANVAS_W * (i + 1), CANVAS_H))
         if last_opaque_row(dst) != src_row + DY:
             raise AssertionError(f"{name} frame {i}: ground row did not "
@@ -97,13 +122,19 @@ def reframe(strip: Image.Image, name: str) -> tuple[Image.Image, list[int]]:
 
 
 def main() -> int:
-    names = sorted(n for n in os.listdir(SRC) if n.endswith(".png"))
-    if not names:
-        raise FileNotFoundError(f"no sheets in {SRC} — run "
-                                "walkoff_render_sheets.py first")
+    present = {n for n in os.listdir(SRC) if n.endswith(".png")} \
+        if os.path.isdir(SRC) else set()
+    missing = sorted(EXPECTED - present)
+    extra = sorted(present - EXPECTED)
+    if missing or extra:
+        raise ValueError(
+            f"source set is not the molder's bill — "
+            f"missing: {missing or 'none'}, unexpected: {extra or 'none'} "
+            f"— run walkoff_render_sheets.py, or extend EXPECTED if the "
+            f"bill itself grew")
 
     built = []
-    for name in names:
+    for name in sorted(EXPECTED):
         strip, rows = reframe(Image.open(os.path.join(SRC, name)).convert("RGBA"),
                               name)
         built.append((name, strip))
@@ -112,6 +143,12 @@ def main() -> int:
     os.makedirs(OUT, exist_ok=True)
     for name, strip in built:
         strip.save(os.path.join(OUT, name))
+    # sweep, so a renamed verb cannot leave its old strip staged as
+    # current (roster_mold's remold discipline)
+    for stale in sorted(set(os.listdir(OUT)) - EXPECTED):
+        if stale.endswith(".png"):
+            os.remove(os.path.join(OUT, stale))
+            print(f"swept stale {stale}")
     print(f"offset dx={DX} dy={DY} (derived: CENTER_X {CENTER_X}, FEET_Y "
           f"{FEET_Y}, render standing row {GROUND_ROW_64}) — standing feet "
           f"now on row {GROUND_ROW_64 + DY}, the pack's own line")
