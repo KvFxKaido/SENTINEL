@@ -11,7 +11,10 @@ the SAME molded bodies, so faking them two different ways would let the
 fixtures drift exactly where the convergence says they must not.
 
 Modes: full (ten verbs) / badgeom (sheets present but wrong height —
-must fault on the page, loudly, rather than degrade).
+must fault on the page, loudly, rather than degrade) / slice96 (the
+render body's three-verb 96x80 sheets for ?body=render96 — flat frames
+at the exact geometry render_canvas96.py emits, written into the
+TRACKED sheets96 dir, which the harness backs up like everything else).
 
 Usage:  make_synthetic_sheets.py [mode] [fighter,fighter,...]
         fighters default to cipher (the walkable body); the yard passes
@@ -58,6 +61,26 @@ ALWAYS = ["idle", "run"]
 mode = sys.argv[1] if len(sys.argv) > 1 else "full"
 fighters = (sys.argv[2].split(",") if len(sys.argv) > 2 else ["cipher"])
 wanted = list(VERBS)
+
+# The slice declares idle/walk/kneel with the render's own frame counts
+# (4/8/2 — the re-frame preserves them). Flat sheet names, no verb
+# folders: sheets96 is strip-per-verb, the shape render_canvas96.py emits.
+if mode == "slice96":
+    RENDER96 = os.path.join(ROOT, "assets", "original",
+                            "cipher_render", "sheets96")
+    SLICE = {"idle": 4, "walk": 8, "kneel": 2}
+    os.makedirs(RENDER96, exist_ok=True)
+    for verb, frames in SLICE.items():
+        for facing in FACINGS:
+            img = Image.new("RGBA", (W * frames, H), (0, 0, 0, 0))
+            d = ImageDraw.Draw(img)
+            for i in range(frames):
+                x0 = i * W
+                d.rectangle([x0 + 36, 20 + (i % 3), x0 + 60, 57],
+                            fill=(*COLORS[verb], 255))
+            img.save(os.path.join(RENDER96, f"{verb}_{facing}.png"))
+    print(f"synthetic sheets: slice96 roster, {len(SLICE)} verbs x 4 facings")
+    sys.exit(0)
 
 for fighter in fighters:
     out = os.path.join(SPRITES, fighter)
