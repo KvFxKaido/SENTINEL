@@ -216,7 +216,10 @@ async function recordFrames(key, ms) {
   // collapse consecutive duplicates: what matters is the sequence of
   // distinct rendered states, not how many rAFs each one survived
   return raw.filter((v, i) => i === 0 || v !== raw[i - 1])
-    .map(v => { const [a, f, l] = v.split(":"); return { a, f: +f, l: +l }; });
+    .map(v => {
+      const [a, f, l] = v.split(":");
+      return { a, f: +f, l: +l, light: l };
+    });
 }
 
 try {
@@ -348,8 +351,10 @@ try {
   check("releasing the stance idles", await waitAction("idle"));
 
   // fire: 5 frames @14fps ≈ 360ms, a one-shot that ends where it began
+  // upper bound raised from 1000 after this very run measured 983ms on
+  // CI — seventeen milliseconds is not headroom, it is a scheduled flake
   const fireMs = await measureVerb("KeyF", "fire");
-  check("fire runs its 5 frames", fireMs > 240 && fireMs < 1000, `${Math.round(fireMs)}ms`);
+  check("fire runs its 5 frames", fireMs > 240 && fireMs < 1400, `${Math.round(fireMs)}ms`);
   check("fire ends in idle", await waitAction("idle"));
   // and firing out of a held aim returns to the aim, not to idle — the
   // stance is a held state, so the lock releasing must fall back into it
@@ -461,18 +466,26 @@ try {
   await page.keyboard.up("KeyW");
 
   // ---- the slice: ?body=render96 ------------------------------------
-  // The render body enters with six DECLARED verbs. The gate stays
+  // The render body enters with seven DECLARED verbs. The gate stays
   // all-or-nothing over the declared set, undeclared verbs are refused
   // or labeled — never silently substituted — and the squad stays
   // composed beside it, which is the comparison the staging is for.
   clearSheets();
   gen("full");
   gen("slice96");
+  const firePath = path.join(RENDER96, "fire_down.png");
+  const firePng = fs.existsSync(firePath) ? fs.readFileSync(firePath) : null;
+  const fireDimsOk = firePng !== null
+    && firePng.readUInt32BE(16) === 5 * 96
+    && firePng.readUInt32BE(20) === 80;
+  check("slice fire fixture is 5 frames on the 96x80 canvas",
+    fireDimsOk,
+    firePng === null ? "missing fire_down.png" : fireDimsOk ? "" : "wrong dimensions");
   await boot("?body=render96");
   check("slice roster boots", (await ds("sprites")) === "ready");
   check("roster reads render96", (await ds("roster")) === "render96");
   check("BODY cell names the slice",
-    (await page.textContent("#body-state")) === "RENDER 96 / 6-VERB SLICE / READY");
+    (await page.textContent("#body-state")) === "RENDER 96 / 7-VERB SLICE / READY");
   await page.waitForFunction(() =>
     (document.getElementById("cv").dataset.squadSprites ?? "").split(",").length === 3);
   check("the composed squad still stands beside the slice body",
@@ -499,14 +512,80 @@ try {
   check("holding R resolves the slice into aim", await waitAction("aim"));
   check("aim resolves to its own sheet", (await ds("verb")) === "aim");
   check("the declared aim carries no absence note", (await ds("note")) === "");
-  // FIRE remains undeclared: its refusal publishes beside the real stance,
-  // with no dead AIM absence left in the composition.
-  await page.keyboard.press("KeyF");
+
+  // FIRE owns its five-frame lock at the render's pinned shot cadence.
+  // same shape as dash's snapshot below, and like it, on the DEFAULT
+  // waitForFunction budget: an explicit 1500ms here timed out on a loaded
+  // CI runner while the shot itself ran 967ms (caught in CI)
+  const fireDone = measureVerb("KeyF", "fire");
+  const fireState = await page.waitForFunction(() => {
+    const state = document.getElementById("cv").dataset;
+    return state.action === "fire"
+      ? { verb: state.verb, note: state.note, refused: state.refused }
+      : false;
+  }).then(handle => handle.jsonValue(), () => null);
+  check("F starts the slice fire", fireState !== null);
+  check("fire resolves to its own sheet", fireState?.verb === "fire");
+  check("the declared fire carries no absence note", fireState?.note === "");
+  check("the declared fire is not refused", fireState?.refused === "");
+  const sliceFireMs = await fireDone;
+  check("slice fire plays its 5 frames at 10fps",
+    sliceFireMs > 350 && sliceFireMs < 1400, `${Math.round(sliceFireMs)}ms`);
+  check("slice fire returns to the held aim", await waitAction("aim"));
+
+  // Headless rAF skips frames. Accumulate across bounded shots until all
+  // five have appeared, and trace the release seam rather than polling its
+  // destination — one idle frame between fire and aim is still a broken seam.
+  const renderLit = {};
+  let fireDetour = null;
+  let sawRenderFire = false;
+  let sawAimResume = false;
+  for (let shotN = 0;
+    shotN < 6 && Object.keys(renderLit).length < 5;
+    shotN++) {
+    await page.waitForTimeout(120);
+    // the window must outlast the SLOWEST shot plus its resume frame: CI
+    // rAF stretched the 500ms sheet to 967ms, and a 900ms trace ended
+    // before the aim ever appeared (caught in CI)
+    const trace = await recordFrames("KeyF", 2200);
+    const first = trace.findIndex(s => s.a === "fire");
+    if (first < 0) continue;
+    sawRenderFire = true;
+    for (const state of trace) {
+      if (state.a === "fire") renderLit[state.f] = state.light;
+    }
+    const after = trace.slice(first);
+    const resumed = after.findIndex(s => s.a === "aim");
+    if (resumed >= 0) {
+      sawAimResume = true;
+      const seam = after.slice(0, resumed + 1);
+      if (fireDetour === null && seam.some(s => s.a === "idle")) {
+        fireDetour = seam.map(s => `${s.a}${s.f}`).join(" ");
+      }
+    }
+  }
+  check("no idle frame between slice fire and the held aim",
+    sawRenderFire && sawAimResume && fireDetour === null,
+    fireDetour ?? `fire ${sawRenderFire}, resumed aim ${sawAimResume}`);
+  const FIRE_EXPECT = [0, 3.4, 2.2, 1.1, 0].map(n => n.toFixed(2));
+  const fireSeen = Object.keys(renderLit).map(Number).sort();
+  check("slice fire exposes at least one lit-frame sample",
+    fireSeen.length > 0, `saw ${fireSeen.join(",")}`);
+  const fireWrong = fireSeen
+    .filter(frame => renderLit[frame] !== FIRE_EXPECT[frame])
+    .map(frame => `f${frame}: ${renderLit[frame]}≠${FIRE_EXPECT[frame]}`);
+  check("slice spill rides every observed fire frame",
+    fireWrong.length === 0,
+    fireWrong.length ? fireWrong.join(" ") : `f${fireSeen.join(",f")} all match`);
+
+  // Refusal composition stays live beside the real aim stance on a verb
+  // this source still does not declare.
+  await page.keyboard.press("KeyG");
   await page.waitForFunction(() =>
-    document.getElementById("cv").dataset.refused === "fire");
-  const fireAbsent = await page.textContent("#action-state");
-  check("fire refusal composes beside the real aim stance",
-    fireAbsent === "AIM · NO FIRE SHEET", fireAbsent);
+    document.getElementById("cv").dataset.refused === "hurt");
+  const hurtAbsent = await page.textContent("#action-state");
+  check("hurt refusal composes beside the real aim stance",
+    hurtAbsent === "AIM · NO HURT SHEET", hurtAbsent);
   await page.keyboard.up("KeyR");
   await waitAction("idle");
 

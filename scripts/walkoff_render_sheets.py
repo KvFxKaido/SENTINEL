@@ -3,7 +3,7 @@
 
 Reads scripts/pixellab_walkoff_render.json — the frozen input record for
 the whole-generated body fielded in walkoff.html's BODY B slot — then
-downloads the template-walk, breathing-idle, run, dash, and state frames for
+downloads the template-walk, breathing-idle, run, dash, fire, and state frames for
 the four molded facings and packs them into horizontal strips:
 
     assets/original/cipher_render/sheets/idle_{facing}.png
@@ -12,6 +12,7 @@ the four molded facings and packs them into horizontal strips:
     assets/original/cipher_render/sheets/dash_{facing}.png
     assets/original/cipher_render/sheets/kneel_{facing}.png
     assets/original/cipher_render/sheets/aim_{facing}.png
+    assets/original/cipher_render/sheets/fire_{facing}.png
 
 DASH molds from the record's `dash` block: animation frames generated on the
 Dash STATE's own character/CDN, not the root character. It is a lunge, so its
@@ -29,6 +30,10 @@ AIM follows the same held-pose dialect without KNEEL's north surgery: the Aim
 STATE's rotations become frame 1, and frame 2 is the record's compression
 breath. Like IDLE it is a full-height stand, so both states share the same
 cross-facing standing-row gate.
+
+FIRE rides those Aim rotations. Its record cuts five generated source frames
+into the shipped order, then the molder executes the seam, decaying bloom,
+declared muzzle, and planted-feet contracts before publishing the strips.
 
 The rotation stills are fetched for MEASUREMENT only: the ground-row
 anchor is the standing last-opaque row, and the breathing idle bobs, so
@@ -61,6 +66,7 @@ import os
 import sys
 import urllib.request
 
+import numpy as np
 from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -81,6 +87,26 @@ def last_opaque_row(img: Image.Image) -> int:
     if box is None:
         raise ValueError("frame is fully transparent")
     return box[3] - 1
+
+
+def bloom_mask(img: Image.Image, blue_min: int) -> np.ndarray:
+    rgba = np.asarray(img)
+    return (rgba[:, :, 3] > 0) & (rgba[:, :, 2] >= blue_min)
+
+
+def square_dilate(mask: np.ndarray, radius: int) -> np.ndarray:
+    """Zero-padded square dilation without adding a scipy dependency."""
+    if radius < 0:
+        raise ValueError(f"dilation radius must be non-negative, got {radius}")
+    if radius == 0:
+        return mask.copy()
+    h, w = mask.shape
+    padded = np.pad(mask, radius, mode="constant", constant_values=False)
+    out = np.zeros_like(mask)
+    for dy in range(2 * radius + 1):
+        for dx in range(2 * radius + 1):
+            out |= padded[dy:dy + h, dx:dx + w]
+    return out
 
 
 def north_kneel_surgery(img: Image.Image, spec: dict) -> Image.Image:
@@ -249,11 +275,13 @@ def main() -> int:
                          f"{sorted(aim['facing_map'])}")
     aim_base = aim["cdn_base"]
     aim_rows = {}
+    aim_stills = {}
     for facing, pl_facing in aim["facing_map"].items():
         still = fetch(f"{aim_base}/rotations/{pl_facing}.png")
         if still.size != (canvas_w, canvas_h):
             raise ValueError(f"aim rotation {pl_facing} is {still.size}, "
                              f"expected {canvas_w}x{canvas_h}")
+        aim_stills[facing] = still
         frames = [still, breath_frame(still, aim["breath"])]
         rows = [last_opaque_row(frame) for frame in frames]
         aim_rows[facing] = rows[0]
@@ -263,6 +291,113 @@ def main() -> int:
             strip.paste(frame, (canvas_w * i, 0))
         built.append((f"aim_{facing}.png", strip))
         report.append(f"{facing:5s} aim rows {rows}")
+
+    # ---- FIRE: Aim's launch frame + the record's temporal cut ----------
+    fire = record["fire"]
+    fire_n = fire["frames_per_facing"]
+    if fire_n != 5:
+        raise ValueError("fire is the room's 500ms one-shot and must mold "
+                         f"exactly 5 frames per facing, got {fire_n}")
+    if set(fire["facing_map"]) != set(record["facing_map"]):
+        raise ValueError("fire facing bill differs from the standing rotations: "
+                         f"{sorted(fire['facing_map'])}")
+    for facing in fire["facing_map"]:
+        stages = fire["stage_frames"].get(facing)
+        if not isinstance(stages, list) or len(stages) != fire_n \
+                or any(type(i) is not int or i < 0 or i >= fire_n
+                       for i in stages) or stages[0] != 0:
+            raise ValueError(
+                f"fire stage_frames[{facing!r}] must be 5 source indices "
+                f"in 0..4 and begin with 0, got {stages!r}")
+
+    fire_base = fire["cdn_base"]
+    bloom = fire["bloom"]
+    for facing, pl_facing in fire["facing_map"].items():
+        anim_dir = fire["fire_animation_dirs"][pl_facing]
+        source = []
+        for i in range(fire_n):
+            frame = fetch(
+                f"{fire_base}/animations/{anim_dir}/{pl_facing}/{i}.png")
+            if frame.size != (canvas_w, canvas_h):
+                raise ValueError(f"fire {pl_facing}/{i} is {frame.size}, "
+                                 f"expected {canvas_w}x{canvas_h}")
+            source.append(frame)
+
+        frames = [source[i] for i in fire["stage_frames"][facing]]
+        if not np.array_equal(np.asarray(frames[0]),
+                              np.asarray(aim_stills[facing])):
+            raise ValueError(f"fire {facing} frame 0 differs from its Aim "
+                             "rotation — the held-stance seam is broken")
+        # both ends: the lock releases into a held aim on the very next
+        # update, so a last frame that only NEARLY matches the stance pops
+        # visibly at 10fps (caught in review — up shipped its source settle,
+        # 71px off the still, and the resume snapped)
+        if not np.array_equal(np.asarray(frames[-1]),
+                              np.asarray(aim_stills[facing])):
+            raise ValueError(f"fire {facing} frame 4 differs from its Aim "
+                             "rotation — the shot must end in the stance "
+                             "that resumes")
+
+        rows = [last_opaque_row(frame) for frame in frames]
+        aim_row = aim_rows[facing]
+        if any(abs(row - aim_row) > 1 for row in rows):
+            raise ValueError(f"fire {facing} feet moved off Aim row "
+                             f"{aim_row}±1: {rows}")
+
+        baseline = square_dilate(
+            bloom_mask(frames[0], bloom["blue_min"]),
+            bloom["base_dilate_px"])
+        new_masks = [bloom_mask(frame, bloom["blue_min"]) & ~baseline
+                     for frame in frames]
+        new_bright = [int(mask.sum()) for mask in new_masks]
+        if not new_bright[1] > new_bright[2] > new_bright[3]:
+            raise ValueError(f"fire {facing} bloom must strictly decay on "
+                             f"frames 1-3, got {new_bright}")
+        if new_bright[1] < bloom["min_burst"]:
+            raise ValueError(f"fire {facing} burst is too dim: "
+                             f"{new_bright[1]} < {bloom['min_burst']}")
+        if new_bright[4] > bloom["max_settle"]:
+            raise ValueError(f"fire {facing} settle is too bright: "
+                             f"{new_bright[4]} > {bloom['max_settle']}")
+
+        muzzle = fire["muzzle"][facing]
+        hand_x, hand_y = muzzle["hand"]
+        for i in range(1, 4):
+            ys, xs = np.nonzero(new_masks[i])
+            if muzzle["mode"] == "side":
+                # the FULL forearm vector, not just its sign: bloom must sit
+                # forward of the hand along the declared muzzle line (margin
+                # behind, reach ahead) and within perp of the line itself —
+                # a streak outward on the permitted side dies on reach, a
+                # flash off the line dies on perp (caught in review; the
+                # first cut compared x alone and consumed neither bound)
+                dir_x, dir_y = muzzle["dir"]
+                if dir_x == 0 and dir_y == 0:
+                    raise ValueError(f"fire {facing} side muzzle has a zero "
+                                     "direction vector")
+                along = (xs - hand_x) * dir_x + (ys - hand_y) * dir_y
+                perp = np.abs((xs - hand_x) * dir_y - (ys - hand_y) * dir_x)
+                bad = ((along < -muzzle["margin"])
+                       | (along > muzzle["reach"])
+                       | (perp > muzzle["perp"]))
+            elif muzzle["mode"] == "radius":
+                bad = ((xs - hand_x) ** 2 + (ys - hand_y) ** 2
+                       > muzzle["r"] ** 2)
+            else:
+                raise ValueError(f"fire {facing} has unknown muzzle mode "
+                                 f"{muzzle['mode']!r}")
+            if np.any(bad):
+                offender = (int(xs[bad][0]), int(ys[bad][0]))
+                raise ValueError(f"fire {facing} frame {i} bloom escapes "
+                                 f"the declared muzzle at {offender}")
+
+        strip = Image.new("RGBA", (canvas_w * fire_n, canvas_h),
+                          (0, 0, 0, 0))
+        for i, frame in enumerate(frames):
+            strip.paste(frame, (canvas_w * i, 0))
+        built.append((f"fire_{facing}.png", strip))
+        report.append(f"{facing:5s} fire rows {rows}  "
+                      f"new_bright {new_bright}")
 
     all_standing_rows = {f"idle/{facing}": row
                          for facing, row in standing_rows.items()}

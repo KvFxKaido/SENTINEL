@@ -113,6 +113,52 @@
       "_why": "held stance, the kneel's breath dialect at the same amplitude: frame 2 shifts the upper 40% of body rows down one pixel - compression. The shifted band's floor (~row 28 at 64px) sits ABOVE the roster facings' weapon line (south-west/south-east arm rows 30+, south's chest glint at 30), so the barrel never shears across the boundary; the north glint rides the shifted head as one piece. A molder change that moves this boundary must re-check that fact."
     }
   },
+  "fire": {
+    "_what": "FIRE for the whole-generated body - the seventh verb (2026-08-09), the second one-shot, and the first verb that buys NO state: it rides the Aim state's own rotations (keep_first_frame ships the aim still as frame 0), so the shot begins and ends in the stance that hosts it and the room's resume-into-held-aim seam is pixel-exact by construction. Five frames at the room's 10fps = the composed dialect's 500ms shot; the room's FIRE_SPILL [0, 3.4, 2.2, 1.1, 0] indexes these same frames, so the shipped strips must decay.",
+    "_ladder": [
+      "v3 four-plus-reference on the Aim state's rotations, all four roster dirs at once, visor guard clause in the prompt from the start: north WON at 1 gen - the glint builds beside the raised hand, exactly where the away-facing dialect puts it. south told the wrong story (a chest orb growing into a torso-swallowing starburst - taking a hit, not firing one); south-west dropped the arm on f1 and FLIPPED the figure on f3-f4, flash on the wrong side; south-east's f2 was the ladder's best fire frame but f3 stretched the flash into a beam back across the head (the dash speed-streak failure at a new address). 4 generations, 1 kept.",
+      "south v2, position named ('at the pistol aperture, never larger than the head'): the flash migrated UP instead - a four-pointed star square on the face, visor swallowed for two frames. 1 generation, dead; group 0b3bb7b9 is the provenance.",
+      "south-west v2 + south-east v2, invariants named per frame (arm level, never flips / flash at the muzzle tip only, no beams): south-east WON at 1 gen - hold, burst with a real recoil swing, muzzle-side fade, settle. south-west held facing and arm this time but the flash never died (bloom 9/15/29/29 across f1-f4). Found on the way in: v3 dedup fingerprints the prompt's OPENING ~30 chars (the truncated type string) - a re-roll that keeps its first words comes back 'already queued'; reword the opening, not just the guards. 2 generations, 1 kept as generated, 1 kept by surgery.",
+      "south v3, position named NEGATIVELY ('below the face, never touches the visor') plus timing ('bursts on the first moving frame'): WON at 1 gen on position and story - chest burst, face clear, wisp settle. The peak still landed on f2: the anticipation-then-burst prior held in all seven rolls. 1 generation. 8 total for the verb."
+    ],
+    "_doctrine": "The scalpel cuts TIME the way it cuts rows. The model's animation prior puts the burst on f2 (anticipation first - seven of seven rolls), while the room's spill curve decays from f1, so the record declares stage_frames per facing and the molder ships the source frames in that order. Anticipation and recovery are visually symmetric at one frame each: south-west's decay is its own frames walked backward. No rung was burned re-rolling against a prior that surgery composes away.",
+    "_dialect": "left/right ship from south-west/south-east (3/4), matching facing_map. Bloom strictly decays across shipped f1-f3 and the strip is dark on f0/f4 - the exact frames FIRE_SPILL lights. down/up die faster than the laterals (shipped f3 dark): the 1.1 spill step briefly outlives the drawn bloom there, the same magnitude as the composed sheet's own 4-pixel spent ring. The flash reads white-hot core on the laterals and cyan on down/up - the palette's own highlight ramp, judged at 1x.",
+    "state_character_id": "2253e12c-b5f9-44cb-8411-ca6dc463cc71",
+    "state_name": "Aim",
+    "cdn_base": "https://backblaze.pixellab.ai/file/pixellab-characters/91e1cb96-29ca-4130-bab4-9a05267cc348/2253e12c-b5f9-44cb-8411-ca6dc463cc71",
+    "frames_per_facing": 5,
+    "facing_map": {
+      "down": "south",
+      "up": "north",
+      "left": "south-west",
+      "right": "south-east"
+    },
+    "fire_animation_dirs": {
+      "south": "3ca1e195-243c-458a-9dfb-9ab43455a9ee",
+      "north": "9b19148c-eea8-4539-94b0-b19a33c86104",
+      "south-west": "2bb4343b-dbf6-462d-ad8f-27884285a7b6",
+      "south-east": "ada28593-b814-4692-bdf3-e3eeeb0603f8"
+    },
+    "stage_frames": {
+      "down": [0, 2, 3, 4, 0],
+      "up": [0, 2, 1, 3, 0],
+      "left": [0, 3, 2, 1, 0],
+      "right": [0, 2, 3, 4, 0],
+      "_why": "shipped strip = source frames in this order, EXECUTED by the molder (unlike dash's provenance-only surgery note). Every facing ends on source frame 0 because the lock releases into a held aim on the very next update: a settle that only NEARLY matches the stance pops at 10fps (up first shipped its source settle, 71px off the still - review bot measured the pop; both ends of the seam are pixel-checked now). left is its own frames walked backward - that roll never let the flash die, and reversed, its wind-up nudge reads as the recoil coming home."
+    },
+    "muzzle": {
+      "_space": "64-canvas pixels: the rig's sockets_aim_{rig_facing}.json hand_L point (the anatomical RIGHT hand, anchored 96x80 sheet space, authoring run 2026-08-09 on bpy 5.2.0) minus the render_canvas96 offset (dx 15, dy 10). Rig facings mirror PixelLab's on the east-west axis (see the aim block's _guide): left reads rig SE, right reads rig SW. dir is the forearm unit vector, elbow toward hand - the muzzle line, doc D2's declaration made consumable.",
+      "down": { "hand": [27.5, 31.5], "dir": [0.0, 1.0], "mode": "radius", "r": 12 },
+      "up": { "hand": [38.5, 21.6], "dir": [0.0, -1.0], "mode": "radius", "r": 12 },
+      "left": { "hand": [21.0, 28.4], "dir": [-0.919, 0.394], "mode": "side", "margin": 4, "reach": 21, "perp": 11 },
+      "right": { "hand": [37.3, 31.7], "dir": [0.919, 0.394], "mode": "side", "margin": 4, "reach": 21, "perp": 11 },
+      "_why": "mode side consumes the FULL forearm vector: bloom must sit along the muzzle line from margin behind the hand to reach ahead of it, within perp of the line (keepers measured along +3.8..+18.4 and perp <= 9.3; the flip dies at along -27.6, the beam at perp 16.8 - the first cut compared x alone and a review bot caught that it consumed neither bound). mode radius holds the head-on/away flash to the aperture (the face-star and the orb-burst die here). r covers the barrel past the wrist (~4px - the socket is the HAND, per doc D2 the fore_* origin fact) plus the burst's own tips (~7px)."
+    },
+    "bloom": {
+      "blue_min": 200, "base_dilate_px": 2, "min_burst": 15, "max_settle": 8,
+      "_why": "bloom = pixels with blue >= 200 outside the 2px-dilated baseline of shipped frame 0. The blue floor keeps skin and jacket highlights out of the metric; the dilation absorbs authored kit (visor, glow strip) riding the recoil - measured at 2px on south-east's settle, not assumed. These numbers were EXECUTED before they were recorded: all four keepers pass and all four dead rolls are rejected (the growers on decay, the star/orb/flip/beam on containment)."
+    }
+  },
   "kneel": {
     "_what": "KNEEL for the whole-generated body - the first verb built with no pack pixels, and the first verb the roto rig choreographed (PR #97's kneel guide named the pose; the prompt spoke it as per-frame properties). Decided 2026-08-08, designer judging stills against the rig guide.",
     "_ladder": [
