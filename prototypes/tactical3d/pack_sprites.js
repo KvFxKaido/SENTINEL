@@ -23,6 +23,30 @@ export const SHEETS = Object.freeze({
   kneel: { folder: "KNEEL", stem: "kneel", fps: 2,  loop: true, stance: true },
 });
 
+const BODY_NAMES = Object.freeze(["composed", "render96"]);
+let configuredBody = "render96";
+
+export function configureBody(param) {
+  if (!BODY_NAMES.includes(param)) {
+    throw new Error(
+      `unknown body source "${param}"; the yard stages "composed" or "render96"`
+    );
+  }
+  configuredBody = param;
+}
+
+// Pinned to the room's render96 map: a composed retune must not silently
+// retune the render body.
+const RENDER_FPS = Object.freeze({
+  idle: 4,
+  run: 11,
+  aim: 2,
+  fire: 10,
+  hurt: 12,
+  death: 10,
+  kneel: 2,
+});
+
 export function fighterSlug(name) {
   const slug = name.toLowerCase().replace(/-\d+$/, "");
   if (!FIGHTERS.includes(slug)) throw new Error(`no molded fighter registered for ${name}`);
@@ -42,7 +66,21 @@ export function sheetKey(fighter, action, facing) {
 export function sheetUrl(fighter, action, facing) {
   const spec = SHEETS[action];
   if (!spec) throw new Error(`no molded verb registered for ${action}`);
+  // Cipher alone has the full render combat roster. The squad and SYN stay
+  // composed because their render path has no combat verbs yet.
+  if (configuredBody === "render96" && fighter === "cipher") {
+    return `../../assets/original/cipher_render/sheets96/${spec.stem}_${facing}.png`;
+  }
   return `../../assets/sprites/composed/${fighter}/${spec.folder}/${spec.stem}_${facing}.png`;
+}
+
+// Two bodies with different cadences now share verbs on one board, so fps
+// belongs to (fighter, action); the room's per-verb pin was not enough here.
+export function sheetFps(fighter, action) {
+  const spec = SHEETS[action];
+  if (!spec) throw new Error(`no molded verb registered for ${action}`);
+  if (configuredBody === "render96" && fighter === "cipher") return RENDER_FPS[action];
+  return spec.fps;
 }
 
 export function sheetGeometry(image, url) {

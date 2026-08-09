@@ -31,7 +31,7 @@ const FIGHTERS = ["cipher", "vesper", "koa", "sable", "syn"];
 const PY = process.platform === "win32" ? "python" : "python3";
 const PORT = process.env.SEAM_TEST_PORT ?? "8095";
 // ?deal=6 pins the card the door deals, so a failure is reproducible
-const URL = `http://localhost:${PORT}/prototypes/walkable/?deal=6`;
+const ROOM_URL = `http://localhost:${PORT}/prototypes/walkable/?deal=6`;
 
 const sheetsDir = f => path.join(ROOT, "assets", "sprites", "composed", f);
 const backupDir = f => sheetsDir(f) + ".harness-backup";
@@ -90,7 +90,7 @@ try {
   const page = await browser.newPage();
   page.on("pageerror", e => { console.log("PAGEERROR " + e); failures++; });
 
-  await page.goto(URL);
+  await page.goto(ROOM_URL);
   await page.waitForFunction(() =>
     ["ready", "error"].includes(document.getElementById("cv").dataset.sprites),
     null, { timeout: 20000 });
@@ -109,6 +109,10 @@ try {
   check("walking the north door opens the seam", opened);
   if (!opened) throw new Error("the door never dealt");
 
+  const seamSrc = await page.getAttribute("#seamframe", "src");
+  check("a plain room deals render96 through the seam",
+    new URL(seamSrc, page.url()).searchParams.get("body") === "render96", seamSrc);
+
   const frame = await (await page.$("#seamframe")).contentFrame();
   await frame.waitForFunction(() =>
     ["ready", "error"].includes(document.getElementById("cv").dataset.sprites),
@@ -120,6 +124,8 @@ try {
     (await frame.evaluate(() => document.getElementById("cv").dataset.sprites)) === "ready");
   check("the yard fields the full molded roster",
     (await frame.evaluate(() => document.getElementById("cv").dataset.roster)) === "full");
+  check("the yard stages the room's render96 body",
+    (await frame.evaluate(() => document.getElementById("cv").dataset.body)) === "render96");
 
   await frame.press("body", "Enter");   // begin the card
   await frame.waitForFunction(() =>

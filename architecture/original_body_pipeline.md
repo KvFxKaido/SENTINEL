@@ -283,7 +283,12 @@ composed Cipher, because the yard has no body-source concept and the
 render body has never been auditioned in the yard's own staging. The
 yard follows only after its own 1× walk, in its own PR; the seam swap
 is the honest cost of not bundling an unauditioned staging into a
-decided one.**
+decided one. RETIRED later the same day: the yard grew its body-source
+concept (Cipher only — the squad and SYN stay composed there until
+their combat verbs exist on the render path), the seam now CARRIES the
+body, and both sides of the door stage the same Cipher by
+construction. What remains is the yard's own 1× verdict on the render
+body under its staging — recorded here when walked.**
 
 **Room staging (decided 2026-08-08):** the room admits the slice
 through a declared-verb body source — `?body=render96` routes the

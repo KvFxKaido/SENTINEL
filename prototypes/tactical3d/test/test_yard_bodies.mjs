@@ -25,6 +25,7 @@ import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import * as packSprites from "../pack_sprites.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..", "..");
@@ -33,12 +34,20 @@ const ROOT = path.resolve(HERE, "..", "..", "..");
 // drift exactly where the convergence says they must not
 const GEN = path.join(ROOT, "prototypes", "walkable", "test", "make_synthetic_sheets.py");
 const FIGHTERS = ["cipher", "vesper", "koa", "sable", "syn"];
+const SQUAD_FIGHTERS = ["vesper", "koa", "sable"];
 const PY = process.platform === "win32" ? "python" : "python3";
 const PORT = process.env.YARD_TEST_PORT ?? "8094";
 const URL = `http://localhost:${PORT}/prototypes/tactical3d/?seed=deadbeef`;
 
 const sheetsDir = f => path.join(ROOT, "assets", "sprites", "composed", f);
 const backupDir = f => sheetsDir(f) + ".harness-backup";
+// slice96 writes tracked source art, so it gets the walkable harness's same
+// backup law: Cipher plus every squad destination the generator touches.
+const RENDER96 = path.join(ROOT, "assets", "original", "cipher_render", "sheets96");
+const squadRender96 = fighter => path.join(
+  ROOT, "assets", "original", "squad_render", "sheets96", fighter);
+const TRACKED_RENDER_DIRS = [RENDER96, ...SQUAD_FIGHTERS.map(squadRender96)];
+const trackedBackup = dir => dir + ".harness-backup";
 
 function gen(mode) {
   const r = spawnSync(PY, [GEN, mode, FIGHTERS.join(",")], { stdio: "inherit" });
@@ -72,15 +81,76 @@ function check(name, ok, detail = "") {
   if (!ok) failures++;
 }
 
+// ---- pack routing: execute the module without a browser ------------
+let rejected = false;
+try {
+  packSprites.configureBody?.("rneder96");
+} catch (error) {
+  rejected = /rneder96/.test(error.message);
+}
+check("configureBody rejects an unknown source",
+  typeof packSprites.configureBody === "function" && rejected);
+
+packSprites.configureBody?.("render96");
+const cipherRenderUrl = packSprites.sheetUrl("cipher", "idle", "down");
+const koaRenderUrl = packSprites.sheetUrl("koa", "idle", "down");
+check("render96 routes Cipher to the flat render sheet",
+  cipherRenderUrl === "../../assets/original/cipher_render/sheets96/idle_down.png",
+  cipherRenderUrl);
+check("render96 leaves non-Cipher fighters on composed sheets",
+  koaRenderUrl === "../../assets/sprites/composed/koa/IDLE/idle_down.png",
+  koaRenderUrl);
+
+packSprites.configureBody?.("composed");
+const cipherComposedUrl = packSprites.sheetUrl("cipher", "idle", "down");
+check("composed leaves Cipher on the composed sheet",
+  cipherComposedUrl === "../../assets/sprites/composed/cipher/IDLE/idle_down.png",
+  cipherComposedUrl);
+
+packSprites.configureBody?.("render96");
+const cipherIdleFps = packSprites.sheetFps?.("cipher", "idle");
+const koaIdleFps = packSprites.sheetFps?.("koa", "idle");
+check("fps belongs to fighter and action across bodies",
+  cipherIdleFps === 4 && koaIdleFps === 7,
+  `cipher ${cipherIdleFps}; koa ${koaIdleFps}`);
+
 // ---- setup: preserve real sheets ----------------------------------
+// Use the walkable harness's lock too: both suites move the same tracked
+// render dirs, so overlapping them would make each mistake the other's
+// live backup for a stranded one.
+const LOCK = path.join(ROOT, "prototypes", "walkable", "test", ".harness-lock");
+try {
+  fs.mkdirSync(LOCK);
+} catch {
+  console.error(`another harness run appears live (${LOCK} exists) — `
+    + "refusing to touch the backups; remove the dir if that run is dead");
+  process.exit(1);
+}
+
 // A backup left by a run that died before restoring IS the real artifact:
 // reinstate it, never delete it (the walkable harness bought this lesson).
-for (const f of FIGHTERS) {
-  if (fs.existsSync(backupDir(f))) {
-    fs.rmSync(sheetsDir(f), { recursive: true, force: true });
-    fs.renameSync(backupDir(f), sheetsDir(f));
+try {
+  for (const f of FIGHTERS) {
+    if (fs.existsSync(backupDir(f))) {
+      fs.rmSync(sheetsDir(f), { recursive: true, force: true });
+      fs.renameSync(backupDir(f), sheetsDir(f));
+    }
+    if (fs.existsSync(sheetsDir(f))) fs.renameSync(sheetsDir(f), backupDir(f));
   }
-  if (fs.existsSync(sheetsDir(f))) fs.renameSync(sheetsDir(f), backupDir(f));
+  for (const renderDir of TRACKED_RENDER_DIRS) {
+    const renderBak = trackedBackup(renderDir);
+    if (fs.existsSync(renderBak)) {
+      console.error(`STRANDED sheets96 backup found at ${renderBak} — a previous run died `
+        + "before restoring; reinstating the real strips now. Until this "
+        + "moment the tracked sheets96 dir held synthetic fixtures.");
+      fs.rmSync(renderDir, { recursive: true, force: true });
+      fs.renameSync(renderBak, renderDir);
+    }
+    if (fs.existsSync(renderDir)) fs.renameSync(renderDir, renderBak);
+  }
+} catch (error) {
+  fs.rmSync(LOCK, { recursive: true, force: true });
+  throw error;
 }
 
 let server = null;
@@ -98,12 +168,18 @@ const units = async () => {
   });
 };
 
-async function boot() {
-  await page.goto(URL);
+async function boot(query = "") {
+  await page.goto(URL + query);
   await page.waitForFunction(() =>
     ["ready", "error"].includes(document.getElementById("cv").dataset.sprites),
     null, { timeout: 15000 });
 }
+const idleFrames = async () => Object.fromEntries(
+  ((await ds("idleFrames")) ?? "").split(",").filter(Boolean).map(entry => {
+    const [fighter, frames] = entry.split(":");
+    return [fighter, +frames];
+  })
+);
 const beginCard = async () => {
   await page.keyboard.press("Enter");          // the card holds the match
   await page.waitForTimeout(300);
@@ -130,9 +206,16 @@ try {
 
   // ---- the roster boots ---------------------------------------------
   gen("full");
+  gen("slice96");
   await boot();
   check("yard roster boots", (await ds("sprites")) === "ready", await ds("sprites"));
   check("roster reads full", (await ds("roster")) === "full");
+  check("the yard defaults to render96", (await ds("body")) === "render96", await ds("body"));
+  const defaultFrames = await idleFrames();
+  check("default Cipher idle loads the four-frame render sheet",
+    defaultFrames.cipher === 4, JSON.stringify(defaultFrames));
+  check("default Koa idle stays on the eight-frame composed sheet",
+    defaultFrames.koa === 8, JSON.stringify(defaultFrames));
   await beginCard();
 
   const start = await units();
@@ -253,13 +336,40 @@ try {
   check("wrong sheet geometry faults", (await ds("sprites")) === "error", await ds("sprites"));
   check("the geometry fault says so",
     /expected a row/.test(await page.textContent("#asset-detail").catch(() => "")));
+
+  // ---- the body query is staged, visible, and strict ----------------
+  clearSheets();
+  gen("full");
+  await boot("&body=composed");
+  const composedFrames = await idleFrames();
+  check("the composed query stages the composed body",
+    (await ds("body")) === "composed", await ds("body"));
+  check("composed Cipher idle loads eight frames",
+    composedFrames.cipher === 8, JSON.stringify(composedFrames));
+
+  await boot("&body=rneder96");
+  check("an unknown body source faults the yard",
+    (await ds("sprites")) === "error", await ds("sprites"));
+  const bodyFault = await page.textContent("#asset-detail").catch(() => "");
+  check("the body fault names the unknown source and the yard's choices",
+    /rneder96/.test(bodyFault) && /unknown body source/i.test(bodyFault)
+      && /composed/.test(bodyFault) && /render96/.test(bodyFault),
+    bodyFault);
 } finally {
   if (browser) await browser.close().catch(() => {});
   if (server) server.kill();
   clearSheets();
+  for (const renderDir of TRACKED_RENDER_DIRS) {
+    fs.rmSync(renderDir, { recursive: true, force: true });
+  }
   for (const f of FIGHTERS) {
     if (fs.existsSync(backupDir(f))) fs.renameSync(backupDir(f), sheetsDir(f));
   }
+  for (const renderDir of TRACKED_RENDER_DIRS) {
+    const renderBak = trackedBackup(renderDir);
+    if (fs.existsSync(renderBak)) fs.renameSync(renderBak, renderDir);
+  }
+  fs.rmSync(LOCK, { recursive: true, force: true });
 }
 
 console.log(failures ? `\n${failures} FAILURES` : "\nALL PASS");

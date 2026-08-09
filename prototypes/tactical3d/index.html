@@ -269,7 +269,7 @@ import { directorTick } from "../tactical-core/director.js";
 import {
   FRAME_W, FRAME_H, GROUND_ROW, BODY_PX, QUAD_W, QUAD_H,
   FIGHTERS, FACINGS, SHEETS,
-  fighterSlug, idleDownThumb, sheetGeometry, sheetKey, sheetUrl,
+  configureBody, fighterSlug, idleDownThumb, sheetFps, sheetGeometry, sheetKey, sheetUrl,
 } from "./pack_sprites.js";
 
 // ---- renderer-owned state --------------------------------------
@@ -278,6 +278,7 @@ var hoverTile = null;
 var tracers = [];        // {x0,y0,x1,y1,until,mesh?}
 var curSeed = 0;
 var directorArm = false; // a between-rounds window is opening — let the house read the board
+const BODY_PARAM = new URLSearchParams(location.search).get("body") ?? "render96";
 
 function newSeed() { return (Math.floor(performance.now() * 1000) ^ (Math.random() * 0xffffffff)) >>> 0; }
 // ?seed=1a2b3c pins the opening encounter so a specific board can be replayed,
@@ -455,7 +456,7 @@ function showCard() {
         </div>
       </div>
       <div class="cfoot">
-        <span class="sub">${MATCH.colors}</span>
+        <span class="sub">${MATCH.colors} · BODY ${BODY_PARAM.toUpperCase()}</span>
         <button id="cardbegin">BEGIN THE CARD [⏎]</button>
       </div>
     </div>`;
@@ -1011,8 +1012,8 @@ function buildTerrain() {
 
 // ---- units --------------------------------------------------------
 // The 2.5D turn (art_direction_gba_tactics.md, "The view"): units are
-// the same 96×80 pack bodies the walkable world fields, consumed directly
-// as nearest-filtered sheets. The environment stays 3D — rotate-to-read-
+// the same 96×80 authored body canvas the walkable world fields, consumed
+// directly as nearest-filtered sheets. The environment stays 3D — rotate-to-read-
 // cover, occlusion and terrain shadows all survive — while one authored
 // body now crosses the north door instead of changing species there.
 const unitGroup = new THREE.Group();
@@ -1074,8 +1075,12 @@ function showAssetFault(errors) {
     <div class="gate-box">
       <h2>YARD SHEETS NOT LOADED</h2>
       <p>
-        The yard reads COMPOSED sheets, which take all three stages in
-        order: <code>roster_mold.py</code> molds the licensed pack,
+        The yard stages Cipher from RENDER 96 by default; regenerate it with
+        <code>walkoff_render_sheets.py</code>, then <code>render_canvas96.py</code>.
+        Vesper / Koa / Sable and SYN stay COMPOSED because their render path
+        has no yard combat verbs yet. <code>?body=composed</code> puts Cipher
+        on that path too, which takes all three stages in order:
+        <code>roster_mold.py</code> molds the licensed pack,
         <code>compose_body.py</code> composes per-frame directories, and
         <code>pack_strip.py</code> packs those into the sheets loaded here.
         Stopping after the second leaves frame directories and no sheets.<br>
@@ -1104,6 +1109,9 @@ async function bootYardRoster() {
   assetGate.setAttribute("aria-hidden", "true");
   canvas.dataset.sprites = "ready";
   canvas.dataset.roster = "full";
+  canvas.dataset.idleFrames = FIGHTERS.map(fighter =>
+    `${fighter}:${PACK_SHEETS.get(sheetKey(fighter, "idle", "down")).frames}`
+  ).join(",");
   return true;
 }
 
@@ -1444,7 +1452,7 @@ function updateUnitAnimation(state, now) {
     frame = sheet.frames - 1;
   } else if (state.locked) {
     if (state.locked.started === null) state.locked.started = now;
-    frame = Math.floor((now - state.locked.started) / 1000 * SHEETS[action].fps);
+    frame = Math.floor((now - state.locked.started) / 1000 * sheetFps(state.fighter, action));
     if (frame >= sheet.frames) {
       if (SHEETS[action].hold) {
         state.downed = true;
@@ -1456,7 +1464,7 @@ function updateUnitAnimation(state, now) {
       }
     }
   } else {
-    frame = Math.floor(now / 1000 * SHEETS[action].fps) % sheet.frames;
+    frame = Math.floor(now / 1000 * sheetFps(state.fighter, action)) % sheet.frames;
   }
   setUnitFrame(state, action, facing, frame);
 }
@@ -1862,7 +1870,14 @@ function restart(fresh) {
 }
 
 curSeed = initialSeed();
-const yardRosterReady = await bootYardRoster();
+let yardRosterReady = false;
+try {
+  configureBody(BODY_PARAM);
+  canvas.dataset.body = BODY_PARAM;
+  yardRosterReady = await bootYardRoster();
+} catch (error) {
+  showAssetFault([error]);
+}
 canvas.dataset.booted = "1";   // the boot-check script below reads this
 if (yardRosterReady) {
   restart(false);
