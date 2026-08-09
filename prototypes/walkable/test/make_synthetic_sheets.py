@@ -12,7 +12,11 @@ body grammars at their own real geometry.
 
 Modes: full (ten verbs) / badgeom (sheets present but wrong height —
 must fault on the page, loudly, rather than degrade) / walkoff (the
-three-body audition's two authored grammars plus the hybrid stand/walk).
+three-body audition's two authored grammars plus the hybrid stand/walk)
+/ slice96 (the render body's three-verb 96x80 sheets for ?body=render96
+— flat frames at the exact geometry render_canvas96.py emits, written
+into the TRACKED sheets96 dir, which the harness backs up like
+everything else).
 
 Usage:  make_synthetic_sheets.py [mode] [fighter,fighter,...]
         fighters default to cipher (the walkable body); the yard passes
@@ -142,6 +146,23 @@ wanted = list(VERBS)
 
 if mode == "walkoff":
     write_walkoff()
+    sys.exit(0)
+
+# The slice declares idle/walk/kneel with the render's own frame counts
+# (4/8/2 — the re-frame preserves them). Flat sheet names, no verb
+# folders: sheets96 is strip-per-verb, the shape render_canvas96.py
+# emits — and TRACKED, which is exactly why it rides claim(): a direct
+# run against the real re-frame output must refuse, not flatten it.
+if mode == "slice96":
+    RENDER96 = os.path.join(ROOT, "assets", "original",
+                            "cipher_render", "sheets96")
+    claim(RENDER96)
+    for verb, frames in {"idle": 4, "walk": 8, "kneel": 2}.items():
+        for facing in FACINGS:
+            write_sheet(
+                os.path.join(RENDER96, f"{verb}_{facing}.png"),
+                frames, W, H, COLORS[verb], 57)
+    print("synthetic sheets: slice96 roster, 3 verbs x 4 facings")
     sys.exit(0)
 
 for fighter in fighters:

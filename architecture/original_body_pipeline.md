@@ -183,6 +183,20 @@ loop); RUN stays pack-only until its turn in the expansion order:
 RUN, DASH, AIM, FIRE, HURT, DEATH, HEAL, ATTACK 1/2 — then the
 generated heads and mark palettes carry the squad.
 
+**Room staging (decided 2026-08-08):** the room admits the slice
+through a declared-verb body source — `?body=render96` routes the
+player's sheets to `assets/original/cipher_render/sheets96/`
+(render_canvas96.py's translation-only re-frame) with a manifest that
+declares exactly IDLE/WALK/KNEEL. The boot gate stays all-or-nothing
+over the DECLARED set (a declared sheet that fails to load still
+faults the room), RUN is covered by WALK as declared dialect, and
+every undeclared verb is refused or labeled by name at the surface —
+the walk-off's honest-absence grammar, now in the room. The squad
+stays composed beside the slice body, which is the comparison the
+staging exists to make. The composed roster's own gate is untouched:
+for that body a missing verb is still a broken regeneration, never a
+fallback case.
+
 ## Work-queue honesty
 
 The rig holds 2 poses of 12 verbs. The kneel took one day *including*
