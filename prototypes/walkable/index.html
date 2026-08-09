@@ -946,16 +946,16 @@ const PLAYER = "cipher";
 
 // ---- body sources -------------------------------------------------
 // The player's sheets come from a SOURCE that declares the verbs it
-// actually has. The composed roster declares all ten — for that body a
-// missing verb is a broken regeneration, and the gate below goes on
-// refusing to degrade it. The whole-generated render enters as a
-// seven-verb slice (?body=render96): IDLE/WALK/RUN/DASH/KNEEL/AIM/FIRE from the original
-// gate, staged in the real room. Declaring the set keeps the gate honest
-// in both directions — a DECLARED verb that fails to load still faults
-// the room, and an UNDECLARED verb is refused where it enters, with its
-// name on the surface, never silently played as something else. The
-// squad is not parameterized: vesper/koa/sable stay composed, which is
-// exactly the comparison the slice audition is for.
+// actually has. The composed roster and whole-generated render both
+// declare all ten — for either body a missing verb is a broken regeneration,
+// and the gate below goes on refusing to degrade it. The render
+// (?body=render96) declares the composed bill entire; it no longer enters
+// as a slice. Declaring the set keeps the gate honest in both directions —
+// a DECLARED verb that fails to load still faults the room, and an
+// UNDECLARED verb on any FUTURE partial source is refused where it enters,
+// with its name on the surface, never silently played as something else.
+// The squad is not parameterized: vesper/koa/sable stay composed, which is
+// exactly the comparison the render audition is for.
 const BODY_SOURCES = {
   composed: {
     label: "COMPOSED",
@@ -967,17 +967,22 @@ const BODY_SOURCES = {
       + `${SHEETS[action].folder}/${SHEETS[action].stem}_${facing}.png`,
   },
   render96: {
-    label: "RENDER 96 / 7-VERB SLICE",
-    verbs: ["idle", "walk", "run", "dash", "kneel", "aim", "fire"],
+    label: "RENDER 96 / FULL ROSTER",
+    verbs: ["idle", "walk", "run", "dash", "hurt", "death", "heal", "kneel", "aim", "fire"],
     covers: {},
     // the render's cadences as the walk-off recorded them: the 4-frame
     // breath at 4fps is a 1s idle, the template walk holds its 9, run's
     // 11 matches the pack dialect BY VALUE, the 7-frame dash spends exactly
-    // 500ms at 14fps, and the five-frame shot spends the composed dialect's
-    // 500ms at 10fps with bloom on three of five frames. Every declared
-    // cadence is pinned here so a composed-roster retune cannot silently
-    // retune the render.
-    fps: { idle: 4, walk: 9, run: 11, dash: 14, kneel: 2, aim: 2, fire: 10 },
+    // 500ms at 14fps, the 4-frame flinch spends ~333ms at 12fps, the 9-frame
+    // fall spends 900ms at 10fps before the floor holds, the 12-frame channel
+    // spends 1.2s at 10fps, and the five-frame shot spends the composed
+    // dialect's 500ms at 10fps with bloom on three of five frames. Every
+    // declared cadence is pinned here so a composed-roster retune cannot
+    // silently retune the render.
+    fps: {
+      idle: 4, walk: 9, run: 11, dash: 14, hurt: 12,
+      death: 10, heal: 10, kneel: 2, aim: 2, fire: 10,
+    },
     regen: "re-run walkoff_render_sheets.py, then render_canvas96.py",
     url: (action, facing) => `../../assets/original/cipher_render/`
       + `sheets96/${SHEETS[action].stem}_${facing}.png`,

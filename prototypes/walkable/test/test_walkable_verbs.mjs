@@ -465,11 +465,11 @@ try {
   check("a fresh press rises", await waitAction("run"));
   await page.keyboard.up("KeyW");
 
-  // ---- the slice: ?body=render96 ------------------------------------
-  // The render body enters with seven DECLARED verbs. The gate stays
-  // all-or-nothing over the declared set, undeclared verbs are refused
-  // or labeled — never silently substituted — and the squad stays
-  // composed beside it, which is the comparison the staging is for.
+  // ---- the whole-generated body: ?body=render96 ---------------------
+  // The render body declares the composed bill entire. The gate stays
+  // all-or-nothing over that declared set, and the squad stays composed
+  // beside it, which is the comparison the staging is for. Refusal for a
+  // future partial source is executed against a probe below.
   clearSheets();
   gen("full");
   gen("slice96");
@@ -481,11 +481,21 @@ try {
   check("slice fire fixture is 5 frames on the 96x80 canvas",
     fireDimsOk,
     firePng === null ? "missing fire_down.png" : fireDimsOk ? "" : "wrong dimensions");
+  for (const [verb, frames] of Object.entries({ hurt: 4, death: 9, heal: 12 })) {
+    const fixturePath = path.join(RENDER96, `${verb}_down.png`);
+    const png = fs.existsSync(fixturePath) ? fs.readFileSync(fixturePath) : null;
+    const geometryOk = png !== null
+      && png.readUInt32BE(16) === frames * 96
+      && png.readUInt32BE(20) === 80;
+    check(`render96 ${verb} fixture is ${frames} frames on the 96x80 canvas`,
+      geometryOk,
+      png === null ? `missing ${verb}_down.png` : geometryOk ? "" : "wrong dimensions");
+  }
   await boot("?body=render96");
   check("slice roster boots", (await ds("sprites")) === "ready");
   check("roster reads render96", (await ds("roster")) === "render96");
-  check("BODY cell names the slice",
-    (await page.textContent("#body-state")) === "RENDER 96 / 7-VERB SLICE / READY");
+  check("BODY cell names the full render roster",
+    (await page.textContent("#body-state")) === "RENDER 96 / FULL ROSTER / READY");
   await page.waitForFunction(() =>
     (document.getElementById("cv").dataset.squadSprites ?? "").split(",").length === 3);
   check("the composed squad still stands beside the slice body",
@@ -577,16 +587,122 @@ try {
   check("slice spill rides every observed fire frame",
     fireWrong.length === 0,
     fireWrong.length ? fireWrong.join(" ") : `f${fireSeen.join(",f")} all match`);
-
-  // Refusal composition stays live beside the real aim stance on a verb
-  // this source still does not declare.
-  await page.keyboard.press("KeyG");
-  await page.waitForFunction(() =>
-    document.getElementById("cv").dataset.refused === "hurt");
-  const hurtAbsent = await page.textContent("#action-state");
-  check("hurt refusal composes beside the real aim stance",
-    hurtAbsent === "AIM · NO HURT SHEET", hurtAbsent);
   await page.keyboard.up("KeyR");
+  check("releasing R after the slice shots idles", await waitAction("idle"));
+
+  // HURT owns its four-frame lock at the render's pinned flinch cadence.
+  // Snapshot while the lock is live: a destination poll can only prove
+  // that it ended, not which sheet actually owned those frames.
+  const hurtDone = measureVerb("KeyG", "hurt");
+  const hurtState = await page.waitForFunction(() => {
+    const state = document.getElementById("cv").dataset;
+    return state.action === "hurt"
+      ? { verb: state.verb, note: state.note, refused: state.refused }
+      : false;
+  }).then(handle => handle.jsonValue(), () => null);
+  check("G starts the render96 hurt", hurtState !== null);
+  check("hurt resolves to its own sheet", hurtState?.verb === "hurt");
+  check("the declared hurt carries no absence note", hurtState?.note === "");
+  check("the declared hurt is not refused", hurtState?.refused === "");
+  const renderHurtMs = await hurtDone;
+  check("render96 hurt plays its 4 frames at 12fps",
+    renderHurtMs > 230 && renderHurtMs < 1000, `${Math.round(renderHurtMs)}ms`);
+  check("render96 hurt returns to idle", await waitAction("idle"));
+
+  // DEATH owns nine frames at 10fps, then transfers from its lock into
+  // DOWNED. Its duration therefore ends at that transition, not at a
+  // return to idle — there is no automatic return from the floor.
+  await page.evaluate(() => {
+    const cv = document.getElementById("cv");
+    const label = document.getElementById("action-state");
+    window.__downedDone = new Promise(res => {
+      let t0 = null;
+      const begin = performance.now();
+      function tick(t) {
+        if (t0 === null && cv.dataset.action === "death") t0 = t;
+        if (t0 !== null && label.textContent.startsWith("DOWN —")) return res(t - t0);
+        if (t - begin > 8000) return res(t0 === null ? -1 : -2);
+        requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    });
+  });
+  await page.keyboard.press("KeyX");
+  const deathState = await page.waitForFunction(() => {
+    const state = document.getElementById("cv").dataset;
+    return state.action === "death"
+      ? { verb: state.verb, note: state.note, refused: state.refused }
+      : false;
+  }).then(handle => handle.jsonValue(), () => null);
+  check("X starts the render96 death", deathState !== null);
+  check("death resolves to its own sheet", deathState?.verb === "death");
+  check("the declared death carries no absence note", deathState?.note === "");
+  check("the declared death is not refused", deathState?.refused === "");
+  const renderDeathMs = await page.evaluate(() => window.__downedDone);
+  check("render96 death reaches DOWNED after its 9 frames at 10fps",
+    renderDeathMs > 700 && renderDeathMs < 2500, `${Math.round(renderDeathMs)}ms`);
+  const heldFirst = deathState === null ? null : await page.waitForFunction(() => {
+    const cv = document.getElementById("cv");
+    return cv.dataset.verb === "death"
+      && cv.dataset.frame === "8"
+      && document.getElementById("action-state").textContent.startsWith("DOWN —")
+      ? { verb: cv.dataset.verb, frame: cv.dataset.frame }
+      : false;
+  }).then(handle => handle.jsonValue(), () => null);
+  await page.waitForTimeout(200);
+  const heldSecond = heldFirst === null ? null : {
+    verb: await ds("verb"),
+    frame: await ds("frame"),
+  };
+  check("render96 death holds its last frame across the floor",
+    heldFirst?.verb === "death" && heldFirst?.frame === "8"
+      && heldSecond?.verb === "death" && heldSecond?.frame === "8",
+    `${JSON.stringify(heldFirst)} -> ${JSON.stringify(heldSecond)}`);
+  await page.keyboard.down("KeyS");
+  const roseFromDeath = await waitAction("run");
+  check("a fresh move press rises the render96 body",
+    heldFirst !== null && roseFromDeath && (await ds("verb")) === "run");
+  await page.keyboard.up("KeyS");
+  await waitAction("idle");
+
+  // HEAL owns twelve frames at 10fps. Headless rAF skips frames, so
+  // accumulate every heal sample across bounded attempts; observing no
+  // channel light at all must never count as proof that its floor held.
+  const healDone = measureVerb("KeyH", "heal");
+  const healState = await page.waitForFunction(() => {
+    const state = document.getElementById("cv").dataset;
+    return state.action === "heal"
+      ? { verb: state.verb, note: state.note, refused: state.refused }
+      : false;
+  }).then(handle => handle.jsonValue(), () => null);
+  check("H starts the render96 heal", healState !== null);
+  check("heal resolves to its own sheet", healState?.verb === "heal");
+  check("the declared heal carries no absence note", healState?.note === "");
+  check("the declared heal is not refused", healState?.refused === "");
+  const renderHealMs = await healDone;
+  check("render96 heal plays its 12 frames at 10fps",
+    renderHealMs > 900 && renderHealMs < 3000, `${Math.round(renderHealMs)}ms`);
+  const healSamples = [];
+  const healSeen = new Set();
+  for (let attempt = 0; attempt < 4 && healSeen.size < 12; attempt++) {
+    await page.waitForTimeout(120);
+    const trace = await recordFrames("KeyH", 3400);
+    for (const state of trace) {
+      if (state.a !== "heal") continue;
+      healSamples.push(state);
+      healSeen.add(state.f);
+    }
+  }
+  check("render96 heal exposes at least one channel-light sample",
+    healSamples.length > 0, `saw frames ${[...healSeen].sort((a, b) => a - b).join(",")}`);
+  // the floor is INCLUSIVE: the mechanism is 1.3 + sin*0.3, whose trough is
+  // exactly 1.0 and publishes as "1.00" — a strict > here failed on a
+  // legitimate trough frame (caught by the agent's own red run)
+  const dimHeal = healSamples.filter(state => state.l < 1.0)
+    .map(state => `f${state.f}:${state.light}`);
+  check("render96 channel light stays at or above its flicker floor",
+    healSamples.length > 0 && dimHeal.length === 0,
+    dimHeal.length ? dimHeal.join(" ") : `${healSamples.length} samples at/above 1.0`);
   await waitAction("idle");
 
   // DASH is the slice's declared moving lock. Its 7-frame width and pinned
@@ -645,16 +761,49 @@ try {
   }
   await boot("?body=render96");
 
-  // an undeclared LOCK is still refused at entry: no lock starts, the
-  // name is published, and the next action change clears it
-  await page.keyboard.press("KeyX");
-  await page.waitForFunction(() =>
-    document.getElementById("cv").dataset.refused === "death");
-  check("death cannot reach the slice body", (await ds("action")) === "idle");
-  await page.keyboard.down("KeyW");
-  check("moving on", await waitAction("run"));
-  check("the refusal clears on the next action", (await ds("refused")) === "");
-  await page.keyboard.up("KeyW");
+  // The full render roster leaves no live refusal target. Keep that
+  // grammar executable against a future partial source by making one:
+  // a same-directory room copy preserves every relative asset URL.
+  const refusalProbePath = path.join(ROOT, "prototypes", "walkable",
+    "index.refusal-probe.html");
+  const fullRenderVerbs =
+    'verbs: ["idle", "walk", "run", "dash", "hurt", "death", "heal", "kneel", "aim", "fire"],';
+  const partialRenderVerbs =
+    'verbs: ["idle", "walk", "run", "dash", "hurt", "death", "kneel", "aim", "fire"],';
+  const refusalSrc = roomSrc.replace(fullRenderVerbs, partialRenderVerbs);
+  if (refusalSrc === roomSrc) {
+    throw new Error("refusal probe found no render96 verbs line to edit — "
+      + "the future-partial boundary this test executes has moved; update both");
+  }
+  fs.writeFileSync(refusalProbePath, refusalSrc);
+  try {
+    await boot("index.refusal-probe.html?body=render96");
+    await page.keyboard.down("KeyR");
+    check("the refusal probe still owns its declared aim", await waitAction("aim"));
+    await page.keyboard.press("KeyH");
+    const composedRefusal = await page.waitForFunction(() =>
+      document.getElementById("cv").dataset.refused === "heal")
+      .then(() => true, () => false);
+    const composedLabel = await page.textContent("#action-state");
+    check("heal refusal composes beside the probe's real aim",
+      composedRefusal && composedLabel === "AIM · NO HEAL SHEET", composedLabel);
+    await page.keyboard.up("KeyR");
+    await waitAction("idle");
+    await page.keyboard.press("KeyH");
+    const bareRefusal = await page.waitForFunction(() =>
+      document.getElementById("cv").dataset.refused === "heal")
+      .then(() => true, () => false);
+    check("bare heal is refused by name on the probe",
+      bareRefusal && (await ds("refused")) === "heal", await ds("refused"));
+    await page.keyboard.down("KeyW");
+    check("moving on from the probe refusal", await waitAction("run"));
+    check("the probe refusal clears on the next action", (await ds("refused")) === "");
+    await page.keyboard.up("KeyW");
+  } finally {
+    await page.keyboard.up("KeyR").catch(() => {});
+    fs.unlinkSync(refusalProbePath);
+  }
+  await boot("?body=render96");
 
   // the gate is all-or-nothing over the DECLARED set
   fs.rmSync(path.join(RENDER96, "kneel_left.png"));
