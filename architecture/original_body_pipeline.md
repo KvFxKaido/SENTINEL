@@ -184,9 +184,12 @@ KNEEL alone would be a trap: a lovely action belonging to a character
 who changes species on standing. IDLE first, always.
 
 WALK is a real verb (folder exists, walkable registers it at 8fps
-loop); RUN stays pack-only until its turn in the expansion order:
-RUN, DASH, AIM, FIRE, HURT, DEATH, HEAL, ATTACK 1/2 — then the
-generated heads and mark palettes carry the squad.
+loop). The expansion order: RUN, DASH, AIM, FIRE, HURT, DEATH, HEAL,
+ATTACK 1/2 — then the generated heads and mark palettes carry the
+squad. **RUN landed 2026-08-09** (template-first, three facings at 1
+gen each; north from the ladder in the record's run block — pin v3 to
+a mid-cycle frame, never the rotation still). The armed verbs' gate,
+the weapon-socket export, landed the same day (PR #106); AIM is next.
 
 **VERDICT (2026-08-09, designer, walked at 1×): the slice passes.**
 Both stagings ruled clean on the same walk — the three-body walk-off

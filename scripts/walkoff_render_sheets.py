@@ -3,11 +3,12 @@
 
 Reads scripts/pixellab_walkoff_render.json — the frozen input record for
 the whole-generated body fielded in walkoff.html's BODY B slot — then
-downloads the template-walk and breathing-idle frames for the four molded
-facings and packs them into horizontal strips:
+downloads the template-walk, breathing-idle, and run frames for the four
+molded facings and packs them into horizontal strips:
 
     assets/original/cipher_render/sheets/idle_{facing}.png
     assets/original/cipher_render/sheets/walk_{facing}.png
+    assets/original/cipher_render/sheets/run_{facing}.png
     assets/original/cipher_render/sheets/kneel_{facing}.png
 
 KNEEL molds from the record's `kneel` block: the Kneel STATE's rotations
@@ -125,6 +126,11 @@ def main() -> int:
     base = record["cdn_base"]
     frames_n = record["frames_per_facing"]
     canvas_w, canvas_h = (int(n) for n in record["raw_canvas"].split("x"))
+    run = record["run"]
+    run_n = run["frames_per_facing"]
+    if set(run["facing_map"]) != set(record["facing_map"]):
+        raise ValueError("run facing bill differs from the standing rotations: "
+                         f"{sorted(run['facing_map'])}")
 
     # Build and check EVERYTHING before writing ANYTHING — see the
     # validated-then-published clause in the docstring.
@@ -158,6 +164,23 @@ def main() -> int:
         report.append(f"{facing:5s} stand row {standing_rows[facing]}  "
                       f"idle rows {rows_by_anim['idle']}  "
                       f"walk rows {rows_by_anim['walk']}")
+
+    # ---- RUN: its own block, on the root character/CDN ---------------
+    for facing in record["facing_map"]:
+        pl_facing = run["facing_map"][facing]
+        anim_dir = run["run_animation_dirs"][pl_facing]
+        strip = Image.new("RGBA", (canvas_w * run_n, canvas_h),
+                          (0, 0, 0, 0))
+        rows = []
+        for i in range(run_n):
+            frame = fetch(f"{base}/animations/{anim_dir}/{pl_facing}/{i}.png")
+            if frame.size != (canvas_w, canvas_h):
+                raise ValueError(f"run {pl_facing}/{i} is {frame.size}, "
+                                 f"expected {canvas_w}x{canvas_h}")
+            rows.append(last_opaque_row(frame))
+            strip.paste(frame, (canvas_w * i, 0))
+        built.append((f"run_{facing}.png", strip))
+        report.append(f"{facing:5s} run rows {rows}")
 
     # ---- KNEEL: the state's rotations, molded (see the kneel block) ----
     kneel = record["kneel"]

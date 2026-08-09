@@ -461,7 +461,7 @@ try {
   await page.keyboard.up("KeyW");
 
   // ---- the slice: ?body=render96 ------------------------------------
-  // The render body enters with three DECLARED verbs. The gate stays
+  // The render body enters with four DECLARED verbs. The gate stays
   // all-or-nothing over the declared set, undeclared verbs are refused
   // or labeled — never silently substituted — and the squad stays
   // composed beside it, which is the comparison the staging is for.
@@ -472,18 +472,18 @@ try {
   check("slice roster boots", (await ds("sprites")) === "ready");
   check("roster reads render96", (await ds("roster")) === "render96");
   check("BODY cell names the slice",
-    (await page.textContent("#body-state")) === "RENDER 96 / 3-VERB SLICE / READY");
+    (await page.textContent("#body-state")) === "RENDER 96 / 4-VERB SLICE / READY");
   await page.waitForFunction(() =>
     (document.getElementById("cv").dataset.squadSprites ?? "").split(",").length === 3);
   check("the composed squad still stands beside the slice body",
     ((await ds("squadSprites")) ?? "").split(",").length === 3);
 
-  // run is COVERED by walk — declared dialect, not fallback: the input's
-  // truth stays run, the staged verb says walk, and no absence is noted
+  // run owns a declared sheet: the input and staged verb stay aligned,
+  // and no absence is noted on the moving state
   await page.keyboard.down("KeyW");
   check("slice moves as run", await waitAction("run"));
-  check("run rides the walk sheet", (await ds("verb")) === "walk");
-  check("a declared cover carries no absence note", (await ds("note")) === "");
+  check("run resolves to its own sheet", (await ds("verb")) === "run");
+  check("a declared moving verb carries no absence note", (await ds("note")) === "");
   await page.keyboard.up("KeyW");
   check("slice idles", await waitAction("idle"));
   check("idle resolves to itself", (await ds("verb")) === "idle");

@@ -23,7 +23,7 @@ four rotations by walkoff_render_sheets.py and hard-coded by walkoff.html as
 REN_GROUND_ROW. Locomotion frames dip below it; that is the gait, and a
 constant offset preserves it exactly.
 
-Reads  assets/original/cipher_render/sheets/{idle,walk,kneel}_{facing}.png
+Reads  assets/original/cipher_render/sheets/{idle,walk,run,kneel}_{facing}.png
 Writes assets/original/cipher_render/sheets96/... same names, frames at 96x80.
 
 Validated, then published (molder discipline): every strip is rebuilt in
@@ -50,12 +50,12 @@ REN_CANVAS = 64
 GROUND_ROW_64 = 47
 
 # The molder's bill: which sheets a complete source set contains. The set
-# is checked exactly — a missing name would rewrite eleven strips and
-# leave the twelfth stale in sheets96, the partial-set lie the molder
+# is checked exactly — a missing name would rewrite fifteen strips and
+# leave the sixteenth stale in sheets96, the partial-set lie the molder
 # already refuses; an unexpected name is a verb this re-frame has never
 # judged and must not silently launder onto the law's canvas.
 EXPECTED = {f"{verb}_{facing}.png"
-            for verb in ("idle", "walk", "kneel")
+            for verb in ("idle", "walk", "run", "kneel")
             for facing in ("down", "up", "left", "right")}
 
 DY = FEET_Y - GROUND_ROW_64

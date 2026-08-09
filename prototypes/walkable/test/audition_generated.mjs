@@ -248,8 +248,14 @@ try {
   // then the still-held stance returns when movement stops.
   await page.keyboard.down("KeyW");
   check("movement cancels a held kneel", await waitAction("run"));
-  check("generated bodies translate run through declared walk sheets",
-    (await ds("genWalk")) === "1" && (await ds("renWalk")) === "1");
+  check("BODY C translates run through its declared walk sheet",
+    (await ds("genWalk")) === "1");
+  const renMoving = await text("#ren-state");
+  check("BODY B shows its own 8-frame RUN while moving",
+    (await ds("renVerb")) === "run"
+      && (await ds("frameCountRen")) === "8"
+      && /^RUN [1-8]\/8$/.test(renMoving),
+    `${renMoving}; verb ${await ds("renVerb")}; frames ${await ds("frameCountRen")}`);
   await page.keyboard.up("KeyW");
   check("stopping resumes the held kneel", await waitAction("kneel"));
 
