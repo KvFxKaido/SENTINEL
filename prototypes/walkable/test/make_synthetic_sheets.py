@@ -13,10 +13,10 @@ body grammars at their own real geometry.
 Modes: full (ten verbs) / badgeom (sheets present but wrong height —
 must fault on the page, loudly, rather than degrade) / walkoff (the
 three-body audition's two authored grammars plus the hybrid stand/walk)
-/ slice96 (the render body's full ten-verb roster of 96x80 sheets for
-?body=render96 — flat frames at the exact geometry render_canvas96.py
-emits, written into the TRACKED sheets96 dir, which the harness backs up
-like everything else).
+/ slice96 (the render body's full ten-verb roster plus the squad's two
+visible stances, all at 96x80 — flat frames at the exact geometry the
+canvas96 scripts emit, written into TRACKED sheets96 dirs, which the
+harness backs up like everything else).
 
 Usage:  make_synthetic_sheets.py [mode] [fighter,fighter,...]
         fighters default to cipher (the walkable body); the yard passes
@@ -56,6 +56,11 @@ COLORS = {
     "walk": (60, 100, 170), "dash": (220, 200, 80),
     "hurt": (200, 60, 60), "death": (60, 60, 70), "heal": (92, 207, 255),
     "aim": (150, 150, 165), "fire": (255, 180, 90), "kneel": (110, 90, 140),
+}
+SQUAD_COLORS = {
+    "vesper": (174, 88, 214),
+    "koa": (226, 132, 52),
+    "sable": (48, 178, 154),
 }
 FACINGS = ["down", "up", "left", "right"]
 W, H = 96, 80
@@ -135,10 +140,13 @@ def write_walkoff():
 
     print("synthetic walkoff sheets: pack 5 verbs, hybrid idle/walk "
           "(no kneel), render idle/walk/run/kneel/aim x 4 facings")
-# The room composes ONE roster now — the free-pack "core four" state went
-# away with the blade (2026-08-02), so there is no reduced set to fake.
-# What still needs faking is the two ways a roster can be broken, which is
-# what the room's two fault paths are for.
+# Full deliberately keeps writing composed sheets for every requested
+# fighter: the composed source and the yard still consume them. The ROOM's
+# squad no longer reads those composed squad dirs; it uses the tracked
+# render96 fixtures emitted below.
+# The free-pack "core four" state went away with the blade (2026-08-02), so
+# there is no reduced set to fake. What still needs faking is the two ways a
+# roster can be broken, which is what the room's two fault paths are for.
 ALWAYS = ["idle", "run"]
 
 mode = sys.argv[1] if len(sys.argv) > 1 else "full"
@@ -149,15 +157,22 @@ if mode == "walkoff":
     write_walkoff()
     sys.exit(0)
 
-# The slice96 fixture carries the render's full roster with its own frame
-# counts (4/8/8/7/4/9/12/2/2/5 — the re-frame preserves them). Flat sheet
-# names, no verb folders: sheets96 is strip-per-verb, the shape render_canvas96.py
-# emits — and TRACKED, which is exactly why it rides claim(): a direct
-# run against the real re-frame output must refuse, not flatten it.
+# The slice96 fixture carries Cipher's full render roster with its own frame
+# counts (4/8/8/7/4/9/12/2/2/5 — the re-frame preserves them), plus each
+# squadmate's four-frame idle and two-frame kneel. Flat sheet names, no verb
+# folders: sheets96 is strip-per-verb, the shape the canvas96 scripts emit.
+# Every destination is TRACKED, which is exactly why each rides claim(): a
+# direct run against real re-frame output must refuse, not flatten it.
 if mode == "slice96":
     RENDER96 = os.path.join(ROOT, "assets", "original",
                             "cipher_render", "sheets96")
-    claim(RENDER96)
+    SQUAD_RENDER96 = {
+        fighter: os.path.join(ROOT, "assets", "original", "squad_render",
+                              "sheets96", fighter)
+        for fighter in SQUAD_COLORS
+    }
+    for root in (RENDER96, *SQUAD_RENDER96.values()):
+        claim(root)
     for verb, frames in {
             "idle": 4, "walk": 8, "run": 8, "dash": 7,
             "hurt": 4, "death": 9, "heal": 12,
@@ -166,7 +181,14 @@ if mode == "slice96":
             write_sheet(
                 os.path.join(RENDER96, f"{verb}_{facing}.png"),
                 frames, W, H, COLORS[verb], 57)
-    print("synthetic sheets: slice96 full roster, 10 verbs x 4 facings")
+    for fighter, out in SQUAD_RENDER96.items():
+        for verb, frames in {"idle": 4, "kneel": 2}.items():
+            for facing in FACINGS:
+                write_sheet(
+                    os.path.join(out, f"{verb}_{facing}.png"),
+                    frames, W, H, SQUAD_COLORS[fighter], 57)
+    print("synthetic sheets: slice96 player roster (10 verbs) + render "
+          "squad (idle/kneel), all x 4 facings")
     sys.exit(0)
 
 for fighter in fighters:

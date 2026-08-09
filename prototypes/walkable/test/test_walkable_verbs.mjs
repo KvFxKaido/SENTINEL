@@ -6,9 +6,9 @@
 // be slower than a 4-frame flinch, so sleep-then-read checks lie —
 // that lesson is why the watcher exists (caught building this harness).
 //
-// Real composed sheets for Cipher and the three fielded operatives are
-// backed up before the run and restored after — including when setup
-// itself fails, and a
+// Real composed sheets for Cipher and the three fielded operatives, plus
+// every tracked render96 destination, are backed up before the run and
+// restored after — including when setup itself fails, and a
 // backup stranded by a hard-killed run is reinstated on the next start.
 //
 // Run:  cd prototypes/walkable/test
@@ -33,13 +33,17 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..", "..");
 const GEN = path.join(HERE, "make_synthetic_sheets.py");
 const FIGHTERS = ["cipher", "vesper", "koa", "sable"];
+const SQUAD_FIGHTERS = ["vesper", "koa", "sable"];
 const sheetsDir = fighter => path.join(ROOT, "assets", "sprites", "composed", fighter);
 const backupDir = fighter => sheetsDir(fighter) + ".harness-backup";
-// the slice's sheets are TRACKED (assets/original is ours), which makes
+// The render sheets are TRACKED (assets/original is ours), which makes
 // the backup discipline more binding, not less: an uncommitted local
 // re-frame must survive a harness run exactly as the composed roster does
 const RENDER96 = path.join(ROOT, "assets", "original", "cipher_render", "sheets96");
-const RENDER96_BAK = RENDER96 + ".harness-backup";
+const squadRender96 = fighter => path.join(
+  ROOT, "assets", "original", "squad_render", "sheets96", fighter);
+const TRACKED_RENDER_DIRS = [RENDER96, ...SQUAD_FIGHTERS.map(squadRender96)];
+const trackedBackup = dir => dir + ".harness-backup";
 const PY = process.platform === "win32" ? "python" : "python3";
 const PORT = process.env.WALKABLE_TEST_PORT ?? "8093";
 const URL = `http://localhost:${PORT}/prototypes/walkable/`;
@@ -136,18 +140,21 @@ try {
       fs.renameSync(sheetsDir(fighter), backupDir(fighter));
     }
   }
-  if (fs.existsSync(RENDER96_BAK)) {
-    // Louder than the composed reinstate on purpose: sheets96 is TRACKED,
-    // so a run that died mid-flight left synthetic fixtures sitting in the
-    // repo as commit-able source art until this line ran.
-    console.error("STRANDED sheets96 backup found — a previous run died "
-      + "before restoring; reinstating the real strips now. Until this "
-      + "moment the tracked sheets96 dir held synthetic fixtures.");
-    fs.rmSync(RENDER96, { recursive: true, force: true });
-    fs.renameSync(RENDER96_BAK, RENDER96);
-  }
-  if (fs.existsSync(RENDER96)) {
-    fs.renameSync(RENDER96, RENDER96_BAK);
+  for (const renderDir of TRACKED_RENDER_DIRS) {
+    const renderBak = trackedBackup(renderDir);
+    if (fs.existsSync(renderBak)) {
+      // Louder than the composed reinstate on purpose: sheets96 is TRACKED,
+      // so a run that died mid-flight left synthetic fixtures sitting in the
+      // repo as commit-able source art until this line ran.
+      console.error(`STRANDED sheets96 backup found at ${renderBak} — a previous run died `
+        + "before restoring; reinstating the real strips now. Until this "
+        + "moment the tracked sheets96 dir held synthetic fixtures.");
+      fs.rmSync(renderDir, { recursive: true, force: true });
+      fs.renameSync(renderBak, renderDir);
+    }
+    if (fs.existsSync(renderDir)) {
+      fs.renameSync(renderDir, renderBak);
+    }
   }
 } catch (err) {
   fs.rmSync(LOCK, { recursive: true, force: true });
@@ -222,6 +229,28 @@ async function recordFrames(key, ms) {
     });
 }
 
+// The squad has no player-action dataset, so record one named body's
+// published strip frame directly. An in-page rAF trace can prove the loop
+// advances without guessing between Node-side polls.
+async function recordSquadFrames(fighter, ms) {
+  return page.evaluate(({ name, duration }) => new Promise(res => {
+    const cv = document.getElementById("cv");
+    const seen = [];
+    const begin = performance.now();
+    function tick(t) {
+      const entry = (cv.dataset.squadSprites ?? "").split(",")
+        .find(value => value.startsWith(`${name}:`));
+      if (entry) {
+        const [, action, facing, frame] = entry.split(":");
+        seen.push({ t, action, facing, frame: +frame });
+      }
+      if (t - begin > duration) return res(seen);
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }), { name: fighter, duration: ms });
+}
+
 try {
   // ---- server + browser, inside the restoring scope ----------------
   server = spawn(PY, ["-m", "http.server", PORT], { cwd: ROOT, stdio: "ignore" });
@@ -238,6 +267,7 @@ try {
 
   // ---- the composed roster -----------------------------------------
   gen("full");
+  gen("slice96");
   await boot("?body=composed");
   check("composed roster boots", (await ds("sprites")) === "ready");
   check("roster reads composed", (await ds("roster")) === "composed");
@@ -418,14 +448,16 @@ try {
   check("movement rises", await waitAction("run"));
   await page.keyboard.up("KeyS");
 
-  // ---- one missing squad sheet faults the same room-wide gate -------
-  clearSheets();
-  gen("full");
-  fs.rmSync(path.join(sheetsDir("sable"), "KNEEL", "kneel_left.png"));
-  await boot("?body=composed");
+  // ---- one missing render-squad sheet faults the room-wide gate -----
+  const missingSquadSheet = path.join(squadRender96("sable"), "kneel_left.png");
+  fs.rmSync(missingSquadSheet, { force: true });
+  await boot();
   check("a missing squad sheet faults the room", (await ds("sprites")) === "error");
-  check("the squad fault names the missing sheet",
-    (await page.textContent("#asset-detail")).includes("sable/kneel_left"));
+  const squadFault = await page.textContent("#asset-gate");
+  check("the squad fault names its render regeneration path",
+    squadFault.includes("squad_render_sheets.py")
+      && squadFault.includes("squad_canvas96.py"));
+  gen("slice96");
 
   // ---- PARTIAL Cipher roster is a fault -----------------------------
   clearSheets();
@@ -467,12 +499,16 @@ try {
 
   // ---- the whole-generated body: ?body=render96 ---------------------
   // The render body declares the composed bill entire. The gate stays
-  // all-or-nothing over that declared set, and the squad stays composed
-  // beside it, which is the comparison the staging is for. Refusal for a
-  // future partial source is executed against a probe below.
+  // all-or-nothing over that declared set, while the squad rides its own
+  // tracked render sheets. Refusal for a future partial source is executed
+  // against a probe below.
   clearSheets();
   gen("full");
   gen("slice96");
+  const roomPath = path.join(ROOT, "prototypes", "walkable", "index.html");
+  const roomSrc = fs.readFileSync(roomPath, "utf8");
+  check("the squad cadence pin is declared beside its action bill",
+    roomSrc.includes('const SQUAD_FPS = { idle: 4, kneel: 2 };'));
   const firePath = path.join(RENDER96, "fire_down.png");
   const firePng = fs.existsSync(firePath) ? fs.readFileSync(firePath) : null;
   const fireDimsOk = firePng !== null
@@ -491,10 +527,22 @@ try {
       geometryOk,
       png === null ? `missing ${verb}_down.png` : geometryOk ? "" : "wrong dimensions");
   }
+  for (const fighter of SQUAD_FIGHTERS) {
+    for (const [verb, frames] of Object.entries({ idle: 4, kneel: 2 })) {
+      const fixturePath = path.join(squadRender96(fighter), `${verb}_down.png`);
+      const png = fs.existsSync(fixturePath) ? fs.readFileSync(fixturePath) : null;
+      const geometryOk = png !== null
+        && png.readUInt32BE(16) === frames * 96
+        && png.readUInt32BE(20) === 80;
+      check(`${fighter} ${verb} fixture is ${frames} frames on the 96x80 canvas`,
+        geometryOk,
+        png === null ? `missing ${verb}_down.png` : geometryOk ? "" : "wrong dimensions");
+    }
+  }
   // THE DEFAULT: a plain URL now stages the render body — the doc's
   // default-flip (2026-08-09, after the designer's full-roster 1x walk),
-  // executed rather than narrated. The composed roster stays one query
-  // away and remains the squad's roster below.
+  // executed rather than narrated. The composed PLAYER stays one query
+  // away; the squad keeps its own render roster under both URLs.
   await boot();
   check("the plain URL stages the render body",
     (await ds("roster")) === "render96"
@@ -507,8 +555,22 @@ try {
     (await page.textContent("#body-state")) === "RENDER 96 / FULL ROSTER / READY");
   await page.waitForFunction(() =>
     (document.getElementById("cv").dataset.squadSprites ?? "").split(",").length === 3);
-  check("the composed squad still stands beside the slice body",
+  check("the render squad stands beside the render body",
     ((await ds("squadSprites")) ?? "").split(",").length === 3);
+
+  // Execute the pin through the public dataset too: the render squad's idle
+  // must actually advance, not merely declare an fps map it never consults.
+  // Do NOT assert an exact period here. This Windows headless run sampled
+  // the old 7fps composed idle at a 283ms median because rAF skipped authored
+  // transitions; that number would bless the wrong cadence. The source check
+  // above pins the exact 4fps value, and this trace proves the loop consumes
+  // a cadence and advances rather than freezing on frame zero.
+  const squadTrace = await recordSquadFrames("vesper", 1200);
+  const squadFrames = new Set(squadTrace
+    .filter(state => state.action === "idle")
+    .map(state => state.frame));
+  check("render squad idle advances through its pinned cadence",
+    squadFrames.size > 1, `saw frames ${[...squadFrames].join(",")}`);
 
   // run owns a declared sheet: the input and staged verb stay aligned,
   // and no absence is noted on the moving state
@@ -747,8 +809,6 @@ try {
   // its authored 500ms, because the locked branch resolves through
   // SOURCE.fps first — before that fix this halves to ~250ms and fails
   // the floor.
-  const roomPath = path.join(ROOT, "prototypes", "walkable", "index.html");
-  const roomSrc = fs.readFileSync(roomPath, "utf8");
   const retunedSrc = roomSrc.replace(
     'dash: { folder: "DASH", stem: "dash", fps: 14, loop: false },',
     'dash: { folder: "DASH", stem: "dash", fps: 28, loop: false },');
@@ -839,14 +899,19 @@ try {
   if (browser) await browser.close().catch(() => {});
   if (server) server.kill();
   clearSheets();
-  fs.rmSync(RENDER96, { recursive: true, force: true });
+  for (const renderDir of TRACKED_RENDER_DIRS) {
+    fs.rmSync(renderDir, { recursive: true, force: true });
+  }
   for (const fighter of FIGHTERS) {
     if (fs.existsSync(backupDir(fighter))) {
       fs.renameSync(backupDir(fighter), sheetsDir(fighter));
     }
   }
-  if (fs.existsSync(RENDER96_BAK)) {
-    fs.renameSync(RENDER96_BAK, RENDER96);
+  for (const renderDir of TRACKED_RENDER_DIRS) {
+    const renderBak = trackedBackup(renderDir);
+    if (fs.existsSync(renderBak)) {
+      fs.renameSync(renderBak, renderDir);
+    }
   }
   fs.rmSync(LOCK, { recursive: true, force: true });
 }
