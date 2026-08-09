@@ -1008,9 +1008,12 @@ for (const [name, src] of Object.entries(BODY_SOURCES)) {
   }
 }
 // ?body= picks the player's source the way ?deal= pins a seed. An unknown
-// name is a fault, not a default: a typo that silently staged the composed
-// body would report a slice audition that never ran.
-const BODY_PARAM = new URLSearchParams(location.search).get("body") ?? "composed";
+// name is a fault, not a default: a typo that silently staged the wrong
+// body would report an audition that never ran. The DEFAULT is the render
+// body — flipped 2026-08-09 after the designer's full-roster 1× walk ruled
+// it clean (the pipeline doc records the verdict); the composed roster
+// stays one query away (?body=composed) and remains the squad's roster.
+const BODY_PARAM = new URLSearchParams(location.search).get("body") ?? "render96";
 // own properties only: ?body=constructor must reach the unknown-source
 // fault, not fish a function out of Object.prototype (caught in review)
 const SOURCE = Object.hasOwn(BODY_SOURCES, BODY_PARAM)

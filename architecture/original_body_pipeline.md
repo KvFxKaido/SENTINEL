@@ -9,10 +9,11 @@ hybrid-canon decision of PR #91 **as direction**: the original body is
 the destination. The hybrid remains the room's shipping roster until
 the original roster covers its verbs — direction canon changed, the
 staging default did not, and flipping the default early would stage a
-roster that does not exist yet. **That condition was MET 2026-08-09:
-the render roster covers all ten verbs (`?body=render96` stages the
-full bill). The default flip is now unlocked but NOT made — it takes
-the designer's 1× walk and a PR that says so.**
+roster that does not exist yet. **That condition was MET 2026-08-09
+(ten of ten), the designer walked the full roster at 1× the same day
+and ruled it clean, and the default FLIPPED: a plain URL now stages
+the original body. The hybrid remains staged at `?body=composed` and
+remains the squad's roster until the squad phase retires it.**
 
 ---
 
@@ -243,6 +244,15 @@ verb queue (the expansion order below, RUN first; the armed verbs
 additionally gate on the socket export) and the squad.
 `art_direction_gba_tactics.md` carries the lineage entry.
 
+**VERDICT (2026-08-09, designer, walked at 1×): the FULL ROSTER passes
+— and the default flips.** All ten verbs on the render body, walked in
+the room on the day they completed and ruled clean. The plain URL now
+stages the original body; the harness executes that claim (a plain
+boot must report the render roster — red before the flip, green
+after), and the composed roster remains staged one query away as the
+squad's roster and the comparison body. This is the flip PR the Status
+header required.
+
 **Room staging (decided 2026-08-08):** the room admits the slice
 through a declared-verb body source — `?body=render96` routes the
 player's sheets to `assets/original/cipher_render/sheets96/`
@@ -302,7 +312,8 @@ own, per D2. Reduced, not eliminated.
 - PR #91's hybrid canon — superseded as direction by the 2026-08-09
   verdict; the hybrid stays the shipping roster until the original
   roster covers its verbs. That condition was met later the same day
-  (ten of ten): the VERB migration is finished. What remains before the
-  room flips is what the Status header requires — the designer's 1×
-  walk of the full roster (the recorded verdict below covers only the
-  three-verb slice), then a default-flip PR that says so.
+  (ten of ten): the VERB migration is finished. Both of the Status
+  header's requirements were met the same day — the full-roster 1×
+  walk ruled clean, and the default-flip PR landed. The pack's pixels
+  now ship only through the hybrid at `?body=composed` and the squad,
+  which is the squad phase's remaining work.
