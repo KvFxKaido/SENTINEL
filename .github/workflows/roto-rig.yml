@@ -1,7 +1,8 @@
 name: Roto rig
 
-# scripts/roto_mannequin.py carries 19 geometric checks — 14 for the kneel, 5
-# for the walk — and until this job existed nothing ran them. They were a claim
+# scripts/roto_mannequin.py carries 35 geometric checks — 16 for the kneel,
+# 10 for the aim, 9 for the walk (the socket-contract checks joined in PR
+# #106) — and until this job existed nothing ran them. They were a claim
 # wearing verification's clothes: present, detailed, and enforcing nothing. The
 # pose they guard has already shipped two bugs that only reading the RIG could
 # see (inverted pitch signs whose comments asserted the opposite, and a
@@ -82,6 +83,11 @@ jobs:
       - name: Validate the kneel
         env:
           ROTO_POSE: kneel
+        run: python scripts/roto_mannequin.py -- --validate
+
+      - name: Validate the aim
+        env:
+          ROTO_POSE: aim
         run: python scripts/roto_mannequin.py -- --validate
 
       # An unrecognised pose must be refused, not quietly downgraded to the
