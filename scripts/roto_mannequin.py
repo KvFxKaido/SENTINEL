@@ -673,10 +673,15 @@ def main():
         bpy.ops.render.render(write_still=True)
 
     # Anchor the sockets with the SAME translation anchor_strip applies to
-    # the frames: vertical only, raw ground row onto the canon row. A socket
-    # that lands off the canvas after anchoring is a camera or pose fault —
-    # the body is 34px on a 96x80 canvas, so a hand has no honest way out.
-    shift = CANON_GROUND_ROW - ground_row
+    # the frames — including its INTEGER quantisation: PNGs move by whole
+    # rows (floor(target - raw + 0.5), anchor_strip.py line 44, half-up
+    # matching pack_canvas), so shifting sockets by the exact fractional
+    # delta would unglue them from the anchored pixels by up to half a row
+    # (caught in review). Vertical only, raw ground row onto the canon row.
+    # A socket that lands off the canvas after anchoring is a camera or
+    # pose fault — the body is 34px on a 96x80 canvas, so a hand has no
+    # honest way out.
+    shift = math.floor(CANON_GROUND_ROW - ground_row + 0.5)
     for f in sockets:
         for hand in f.values():
             hand["row"] = round(hand["row"] + shift, 2)
