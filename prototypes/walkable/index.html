@@ -949,7 +949,7 @@ const PLAYER = "cipher";
 // actually has. The composed roster declares all ten — for that body a
 // missing verb is a broken regeneration, and the gate below goes on
 // refusing to degrade it. The whole-generated render enters as a
-// five-verb slice (?body=render96): IDLE/WALK/RUN/KNEEL/AIM from the original
+// six-verb slice (?body=render96): IDLE/WALK/RUN/DASH/KNEEL/AIM from the original
 // gate, staged in the real room. Declaring the set keeps the gate honest
 // in both directions — a DECLARED verb that fails to load still faults
 // the room, and an UNDECLARED verb is refused where it enters, with its
@@ -967,14 +967,15 @@ const BODY_SOURCES = {
       + `${SHEETS[action].folder}/${SHEETS[action].stem}_${facing}.png`,
   },
   render96: {
-    label: "RENDER 96 / 5-VERB SLICE",
-    verbs: ["idle", "walk", "run", "kneel", "aim"],
+    label: "RENDER 96 / 6-VERB SLICE",
+    verbs: ["idle", "walk", "run", "dash", "kneel", "aim"],
     covers: {},
     // the render's cadences as the walk-off recorded them: the 4-frame
     // breath at 4fps is a 1s idle, the template walk holds its 9, run's
-    // 11 matches the pack dialect BY VALUE and is pinned here so a
+    // 11 matches the pack dialect BY VALUE, and the 7-frame dash spends
+    // exactly 500ms at 14fps. Every declared cadence is pinned here so a
     // composed-roster retune cannot silently retune the render.
-    fps: { idle: 4, walk: 9, run: 11, kneel: 2, aim: 2 },
+    fps: { idle: 4, walk: 9, run: 11, dash: 14, kneel: 2, aim: 2 },
     regen: "re-run walkoff_render_sheets.py, then render_canvas96.py",
     url: (action, facing) => `../../assets/original/cipher_render/`
       + `sheets96/${SHEETS[action].stem}_${facing}.png`,
@@ -1484,9 +1485,16 @@ function updateCipher(dt, now) {
   } else if (locked) {
     action = locked.name;
     const spec = SHEETS[action];
+    // a locked verb's cadence belongs to the SOURCE exactly like a
+    // stance's: the composed default reaches the render only when the
+    // source declines to speak. The first cut read spec.fps alone, so
+    // the fps map's pin covered every verb EXCEPT the locked ones —
+    // true today only because both tables said 14 (caught in review,
+    // twice, independently).
+    const lockedFps = SOURCE.fps[action] ?? spec.fps;
     if (locked.started === null) locked.started = now;
     const elapsed = now - locked.started;
-    frame = Math.floor(elapsed * spec.fps);
+    frame = Math.floor(elapsed * lockedFps);
 
     // dash is a locked verb that MOVES: the burst rides the same clamp,
     // collision, and door trigger as walking — dashing the north door
