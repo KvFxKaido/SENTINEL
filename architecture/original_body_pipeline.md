@@ -256,7 +256,13 @@ stages the original body; the harness executes that claim (a plain
 boot must report the render roster — red before the flip, green
 after), and the composed roster remains staged one query away as the
 squad's roster and the comparison body. This is the flip PR the Status
-header required.
+header required. **Known and deliberate (decided 2026-08-09, designer):
+Cipher changes bodies at the north-door seam — the yard still stages
+composed Cipher, because the yard has no body-source concept and the
+render body has never been auditioned in the yard's own staging. The
+yard follows only after its own 1× walk, in its own PR; the seam swap
+is the honest cost of not bundling an unauditioned staging into a
+decided one.**
 
 **Room staging (decided 2026-08-08):** the room admits the slice
 through a declared-verb body source — `?body=render96` routes the
