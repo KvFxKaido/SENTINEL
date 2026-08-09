@@ -351,8 +351,10 @@ try {
   check("releasing the stance idles", await waitAction("idle"));
 
   // fire: 5 frames @14fps ≈ 360ms, a one-shot that ends where it began
+  // upper bound raised from 1000 after this very run measured 983ms on
+  // CI — seventeen milliseconds is not headroom, it is a scheduled flake
   const fireMs = await measureVerb("KeyF", "fire");
-  check("fire runs its 5 frames", fireMs > 240 && fireMs < 1000, `${Math.round(fireMs)}ms`);
+  check("fire runs its 5 frames", fireMs > 240 && fireMs < 1400, `${Math.round(fireMs)}ms`);
   check("fire ends in idle", await waitAction("idle"));
   // and firing out of a held aim returns to the aim, not to idle — the
   // stance is a held state, so the lock releasing must fall back into it
@@ -512,20 +514,23 @@ try {
   check("the declared aim carries no absence note", (await ds("note")) === "");
 
   // FIRE owns its five-frame lock at the render's pinned shot cadence.
+  // same shape as dash's snapshot below, and like it, on the DEFAULT
+  // waitForFunction budget: an explicit 1500ms here timed out on a loaded
+  // CI runner while the shot itself ran 967ms (caught in CI)
   const fireDone = measureVerb("KeyF", "fire");
   const fireState = await page.waitForFunction(() => {
     const state = document.getElementById("cv").dataset;
     return state.action === "fire"
       ? { verb: state.verb, note: state.note, refused: state.refused }
       : false;
-  }, null, { timeout: 1500 }).then(handle => handle.jsonValue(), () => null);
+  }).then(handle => handle.jsonValue(), () => null);
   check("F starts the slice fire", fireState !== null);
   check("fire resolves to its own sheet", fireState?.verb === "fire");
   check("the declared fire carries no absence note", fireState?.note === "");
   check("the declared fire is not refused", fireState?.refused === "");
   const sliceFireMs = await fireDone;
   check("slice fire plays its 5 frames at 10fps",
-    sliceFireMs > 350 && sliceFireMs < 1100, `${Math.round(sliceFireMs)}ms`);
+    sliceFireMs > 350 && sliceFireMs < 1400, `${Math.round(sliceFireMs)}ms`);
   check("slice fire returns to the held aim", await waitAction("aim"));
 
   // Headless rAF skips frames. Accumulate across bounded shots until all
@@ -539,7 +544,10 @@ try {
     shotN < 6 && Object.keys(renderLit).length < 5;
     shotN++) {
     await page.waitForTimeout(120);
-    const trace = await recordFrames("KeyF", 900);
+    // the window must outlast the SLOWEST shot plus its resume frame: CI
+    // rAF stretched the 500ms sheet to 967ms, and a 900ms trace ended
+    // before the aim ever appeared (caught in CI)
+    const trace = await recordFrames("KeyF", 2200);
     const first = trace.findIndex(s => s.a === "fire");
     if (first < 0) continue;
     sawRenderFire = true;

@@ -328,6 +328,15 @@ def main() -> int:
                               np.asarray(aim_stills[facing])):
             raise ValueError(f"fire {facing} frame 0 differs from its Aim "
                              "rotation — the held-stance seam is broken")
+        # both ends: the lock releases into a held aim on the very next
+        # update, so a last frame that only NEARLY matches the stance pops
+        # visibly at 10fps (caught in review — up shipped its source settle,
+        # 71px off the still, and the resume snapped)
+        if not np.array_equal(np.asarray(frames[-1]),
+                              np.asarray(aim_stills[facing])):
+            raise ValueError(f"fire {facing} frame 4 differs from its Aim "
+                             "rotation — the shot must end in the stance "
+                             "that resumes")
 
         rows = [last_opaque_row(frame) for frame in frames]
         aim_row = aim_rows[facing]
@@ -356,14 +365,21 @@ def main() -> int:
         for i in range(1, 4):
             ys, xs = np.nonzero(new_masks[i])
             if muzzle["mode"] == "side":
-                direction_x = muzzle["dir"][0]
-                if direction_x > 0:
-                    bad = xs < hand_x - muzzle["margin"]
-                elif direction_x < 0:
-                    bad = xs > hand_x + muzzle["margin"]
-                else:
-                    raise ValueError(f"fire {facing} side muzzle has zero "
-                                     "horizontal direction")
+                # the FULL forearm vector, not just its sign: bloom must sit
+                # forward of the hand along the declared muzzle line (margin
+                # behind, reach ahead) and within perp of the line itself —
+                # a streak outward on the permitted side dies on reach, a
+                # flash off the line dies on perp (caught in review; the
+                # first cut compared x alone and consumed neither bound)
+                dir_x, dir_y = muzzle["dir"]
+                if dir_x == 0 and dir_y == 0:
+                    raise ValueError(f"fire {facing} side muzzle has a zero "
+                                     "direction vector")
+                along = (xs - hand_x) * dir_x + (ys - hand_y) * dir_y
+                perp = np.abs((xs - hand_x) * dir_y - (ys - hand_y) * dir_x)
+                bad = ((along < -muzzle["margin"])
+                       | (along > muzzle["reach"])
+                       | (perp > muzzle["perp"]))
             elif muzzle["mode"] == "radius":
                 bad = ((xs - hand_x) ** 2 + (ys - hand_y) ** 2
                        > muzzle["r"] ** 2)

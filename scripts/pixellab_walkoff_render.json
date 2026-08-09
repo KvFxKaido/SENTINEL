@@ -141,18 +141,18 @@
     },
     "stage_frames": {
       "down": [0, 2, 3, 4, 0],
-      "up": [0, 2, 1, 3, 4],
+      "up": [0, 2, 1, 3, 0],
       "left": [0, 3, 2, 1, 0],
       "right": [0, 2, 3, 4, 0],
-      "_why": "shipped strip = source frames in this order, EXECUTED by the molder (unlike dash's provenance-only surgery note). [0,2,3,4,0] ends on the exact hold the way the composed strip does; up keeps its real settle frames (its f3-f4 are live ember and rest); left is its own frames walked backward - that roll never let the flash die, and reversed, its wind-up nudge reads as the recoil coming home."
+      "_why": "shipped strip = source frames in this order, EXECUTED by the molder (unlike dash's provenance-only surgery note). Every facing ends on source frame 0 because the lock releases into a held aim on the very next update: a settle that only NEARLY matches the stance pops at 10fps (up first shipped its source settle, 71px off the still - review bot measured the pop; both ends of the seam are pixel-checked now). left is its own frames walked backward - that roll never let the flash die, and reversed, its wind-up nudge reads as the recoil coming home."
     },
     "muzzle": {
       "_space": "64-canvas pixels: the rig's sockets_aim_{rig_facing}.json hand_L point (the anatomical RIGHT hand, anchored 96x80 sheet space, authoring run 2026-08-09 on bpy 5.2.0) minus the render_canvas96 offset (dx 15, dy 10). Rig facings mirror PixelLab's on the east-west axis (see the aim block's _guide): left reads rig SE, right reads rig SW. dir is the forearm unit vector, elbow toward hand - the muzzle line, doc D2's declaration made consumable.",
       "down": { "hand": [27.5, 31.5], "dir": [0.0, 1.0], "mode": "radius", "r": 12 },
       "up": { "hand": [38.5, 21.6], "dir": [0.0, -1.0], "mode": "radius", "r": 12 },
-      "left": { "hand": [21.0, 28.4], "dir": [-0.919, 0.394], "mode": "side", "margin": 4 },
-      "right": { "hand": [37.3, 31.7], "dir": [0.919, 0.394], "mode": "side", "margin": 4 },
-      "_why": "mode side holds every bloom pixel to the declared side of the hand (the flip and the beam both die here); mode radius holds the head-on/away flash to the aperture (the face-star and the orb-burst die here). r covers the barrel past the wrist (~4px - the socket is the HAND, per doc D2 the fore_* origin fact) plus the burst's own tips (~7px)."
+      "left": { "hand": [21.0, 28.4], "dir": [-0.919, 0.394], "mode": "side", "margin": 4, "reach": 21, "perp": 11 },
+      "right": { "hand": [37.3, 31.7], "dir": [0.919, 0.394], "mode": "side", "margin": 4, "reach": 21, "perp": 11 },
+      "_why": "mode side consumes the FULL forearm vector: bloom must sit along the muzzle line from margin behind the hand to reach ahead of it, within perp of the line (keepers measured along +3.8..+18.4 and perp <= 9.3; the flip dies at along -27.6, the beam at perp 16.8 - the first cut compared x alone and a review bot caught that it consumed neither bound). mode radius holds the head-on/away flash to the aperture (the face-star and the orb-burst die here). r covers the barrel past the wrist (~4px - the socket is the HAND, per doc D2 the fore_* origin fact) plus the burst's own tips (~7px)."
     },
     "bloom": {
       "blue_min": 200, "base_dilate_px": 2, "min_burst": 15, "max_settle": 8,
