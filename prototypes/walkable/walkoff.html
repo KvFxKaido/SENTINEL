@@ -309,6 +309,7 @@
         <tr><th><kbd>WASD</kbd> / <kbd>↑↓←→</kbd></th><td>walk, camera-relative</td></tr>
         <tr><th><kbd>J</kbd> / <kbd>Space</kbd></th><td>attack 1</td></tr>
         <tr><th><kbd>K</kbd></th><td>attack 2</td></tr>
+        <tr><th><kbd>C</kbd> hold</th><td>kneel</td></tr>
         <tr><th><kbd>Q</kbd> / <kbd>E</kbd></th><td>orbit 90°</td></tr>
         <tr><th><kbd>P</kbd></th><td>LCD / crunch / clean</td></tr>
       </table>
@@ -319,7 +320,8 @@
       selout dialect, 8-frame gaits, back-slung blade. BODY C (centre) is
       the hybrid — the pack's own frames with the generated head composed
       in, so its animation is the pack's exactly and only identity is
-      generated. BODY B (screen right) is the whole-generated render —
+      generated. Its kneel was never composed, so C stands while A and B
+      take the pose. BODY B (screen right) is the whole-generated render —
       the same locked head as the hybrid, template walk and breathing
       idle (mocap skeleton, rigidly followed) on its own 64×64 canvas;
       walk covers run, no attack frames, so
@@ -827,7 +829,6 @@ function hitsProp(x, z) {
 // ---- Cipher sheet pipeline ---------------------------------------
 const FRAME_W = 96;
 const FRAME_H = 80;
-const FRAME_COUNT = 8;
 const GROUND_ROW = 57;
 // The decided density ratio is matter 1.10/16, bodies 1.10/32. This pack
 // body is provisional, but its pixels still pay the body's half-size rate.
@@ -836,20 +837,23 @@ const QUAD_W = FRAME_W * BODY_PX;
 const QUAD_H = FRAME_H * BODY_PX;
 
 const SHEETS = {
-  idle: { folder: "IDLE", stem: "idle", fps: 7, loop: true },
-  run: { folder: "RUN", stem: "run", fps: 11, loop: true },
+  idle: { folder: "IDLE", stem: "idle", frames: 8, fps: 7, loop: true },
+  run: { folder: "RUN", stem: "run", frames: 8, fps: 11, loop: true },
   attack1: {
     folder: "ATTACK%201",
     stem: "attack1",
+    frames: 8,
     fps: 14,
     loop: false,
   },
   attack2: {
     folder: "ATTACK%202",
     stem: "attack2",
+    frames: 8,
     fps: 13,
     loop: false,
   },
+  kneel: { folder: "KNEEL", stem: "kneel", frames: 2, fps: 2, loop: true, stance: true },
 };
 const FACINGS = ["down", "up", "left", "right"];
 const textures = new Map();
@@ -870,8 +874,8 @@ const SHEET_BUST = `?v=${Date.now()}`;
 // pack animation vs whole generation. It rides its own 64×64 canvas the
 // way System A rode its 32×32: the render as it came, not re-framed.
 // Idle is the breathing-idle template (4 frames). Walk covers run (no
-// run cycle exists), and there are no attack frames, so attacks read on
-// BODY A alone.
+// run cycle exists), kneel takes the room's same one-second breath, and
+// there are no attack frames, so attacks read on BODY A alone.
 const REN_CANVAS = 64;
 // Standing last-opaque row, measured by walkoff_render_sheets.py across
 // all four rotations (pack_canvas semantics). North stands 1px above it —
@@ -883,6 +887,7 @@ const REN_SHEETS = {
   // the pack's 8-frame idle at 7fps rather than racing it.
   idle: { frames: 4, fps: 4, facings: FACINGS },
   walk: { frames: 8, fps: 9, facings: FACINGS },
+  kneel: { frames: 2, fps: 2, facings: FACINGS },
 };
 
 // ---- BODY C: the hybrid -------------------------------------------
@@ -951,14 +956,15 @@ function sheetUrl(action, facing) {
 }
 
 async function loadSheet(action, facing) {
+  const spec = SHEETS[action];
   const url = sheetUrl(action, facing);
   const texture = await textureLoader.loadAsync(url);
   const width = texture.image.naturalWidth || texture.image.width;
   const height = texture.image.naturalHeight || texture.image.height;
-  if (width !== FRAME_W * FRAME_COUNT || height !== FRAME_H) {
+  if (width !== FRAME_W * spec.frames || height !== FRAME_H) {
     texture.dispose();
     throw new Error(
-      `${url} is ${width}×${height}; expected 768×80`
+      `${url} is ${width}×${height}; expected ${FRAME_W * spec.frames}×${FRAME_H}`
     );
   }
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -966,7 +972,7 @@ async function loadSheet(action, facing) {
   texture.minFilter = THREE.NearestFilter;
   texture.generateMipmaps = false;
   texture.wrapS = THREE.RepeatWrapping;
-  texture.repeat.set(1 / FRAME_COUNT, 1);
+  texture.repeat.set(1 / spec.frames, 1);
   texture.offset.set(0, 0);
   textures.set(`${action}:${facing}`, texture);
 }
@@ -1131,9 +1137,12 @@ const facingStateEl = document.getElementById("facing-state");
 const genStateEl = document.getElementById("gen-state");
 const renStateEl = document.getElementById("ren-state");
 
-function triggerAttack(name, now) {
+function triggerAttack(name) {
   if (!character || attack) return;
-  attack = { name, started: now };
+  // The clock is stamped on the first rendered attack frame. A keydown
+  // reads the timer at its previous update; under a throttled renderer
+  // that stale gap can skip half the sheet before it reaches the glass.
+  attack = { name, started: null };
 }
 
 function screenFacing() {
@@ -1146,9 +1155,10 @@ function screenFacing() {
 }
 
 function setSpriteFrame(action, facing, frame, now) {
+  const spec = SHEETS[action];
   const texture = textures.get(`${action}:${facing}`);
   if (spriteMaterial.map !== texture) spriteMaterial.map = texture;
-  texture.offset.x = frame / FRAME_COUNT;
+  texture.offset.x = frame / spec.frames;
 
   // BODY B walks the same orders in its own grammar: walk covers run,
   // anything it has no frames for reads as the stand, and it selects
@@ -1156,8 +1166,11 @@ function setSpriteFrame(action, facing, frame, now) {
   // silently substitutes a cycle it does not have would stage a roster
   // that does not exist.
   const wantsWalkRen = action === "run";
+  const wantsKneelRen = action === "kneel";
   const hasWalkRen = wantsWalkRen && REN_SHEETS.walk.facings.includes(facing);
-  const animRen = hasWalkRen ? "walk" : "idle";
+  const hasKneelRen = wantsKneelRen
+    && REN_SHEETS.kneel.facings.includes(facing);
+  const animRen = hasWalkRen ? "walk" : hasKneelRen ? "kneel" : "idle";
   const specRen = REN_SHEETS[animRen];
   const frameRen = Math.floor(now * specRen.fps) % specRen.frames;
   const textureRen = texturesRen.get(`${animRen}:${facing}`);
@@ -1165,17 +1178,23 @@ function setSpriteFrame(action, facing, frame, now) {
   textureRen.offset.x = frameRen / specRen.frames;
   renStateEl.textContent = hasWalkRen
     ? `WALK ${frameRen + 1}/${specRen.frames}`
-    : wantsWalkRen ? `NO WALK SHEET (${facing})` : "IDLE";
+    : hasKneelRen ? `KNEEL ${frameRen + 1}/${specRen.frames}`
+      : wantsWalkRen ? `NO WALK SHEET (${facing})`
+        : wantsKneelRen ? `NO KNEEL SHEET (${facing})` : "IDLE";
   canvas.dataset.frameRen = String(frameRen);
+  canvas.dataset.frameCountRen = String(specRen.frames);
   canvas.dataset.renWalk = hasWalkRen ? "1" : "0";
+  canvas.dataset.renKneel = hasKneelRen ? "1" : "0";
 
-  // BODY C selects only a walk sheet explicitly declared for this facing.
-  // Same guard, same reason: the hybrid inherits every pack facing today,
-  // so the idle branch does not fire for him — it stays because the next
-  // composed character may not.
+  // BODY C selects only a sheet explicitly declared for this facing.
+  // Same guard, same reason: walk inherits every pack facing today, while
+  // kneel was never composed. An idle under either gap must say so.
   const wantsWalk = action === "run";
+  const wantsKneel = action === "kneel";
   const hasWalk = wantsWalk && GEN_SHEETS.walk.facings.includes(facing);
-  const animGen = hasWalk ? "walk" : "idle";
+  const hasKneel = wantsKneel
+    && GEN_SHEETS.kneel?.facings.includes(facing);
+  const animGen = hasWalk ? "walk" : hasKneel ? "kneel" : "idle";
   const specGen = GEN_SHEETS[animGen];
   const frameGen = Math.floor(now * specGen.fps) % specGen.frames;
   const textureGen = texturesGen.get(`${animGen}:${facing}`);
@@ -1183,9 +1202,13 @@ function setSpriteFrame(action, facing, frame, now) {
   textureGen.offset.x = frameGen / specGen.frames;
   genStateEl.textContent = hasWalk
     ? `WALK ${frameGen + 1}/${specGen.frames}`
-    : wantsWalk ? `NO WALK SHEET (${facing})` : "IDLE";
+    : hasKneel ? `KNEEL ${frameGen + 1}/${specGen.frames}`
+      : wantsWalk ? `NO WALK SHEET (${facing})`
+        : wantsKneel ? "NO KNEEL SHEET" : "IDLE";
   canvas.dataset.frameGen = String(frameGen);
+  canvas.dataset.frameCountGen = String(specGen.frames);
   canvas.dataset.genWalk = hasWalk ? "1" : "0";
+  canvas.dataset.genKneel = hasKneel ? "1" : "0";
 
   character.userData.action = action;
   character.userData.facing = facing;
@@ -1194,12 +1217,14 @@ function setSpriteFrame(action, facing, frame, now) {
   actionStateEl.textContent =
     action === "attack1" ? "ATTACK 1 / IGNITION (A)"
       : action === "attack2" ? "ATTACK 2 / IGNITION (A)"
-        : action.toUpperCase();
+        : action === "kneel" ? "KNEEL / STANCE"
+          : action.toUpperCase();
   facingStateEl.textContent = facing.toUpperCase();
 
   canvas.dataset.action = action;
   canvas.dataset.facing = facing;
   canvas.dataset.frame = String(frame);
+  canvas.dataset.frameCount = String(spec.frames);
 }
 
 function updateMovement(dt) {
@@ -1255,17 +1280,19 @@ function updateCipher(dt, now) {
   let moving = false;
   if (!attack) moving = updateMovement(dt);
 
-  let action = moving ? "run" : "idle";
+  const stance = moving ? null : held.has("KeyC") ? "kneel" : null;
+  let action = moving ? "run" : (stance ?? "idle");
   let frame = 0;
 
   if (attack) {
     action = attack.name;
     const spec = SHEETS[action];
+    if (attack.started === null) attack.started = now;
     const elapsed = now - attack.started;
     frame = Math.floor(elapsed * spec.fps);
-    if (frame >= FRAME_COUNT) {
+    if (frame >= spec.frames) {
       attack = null;
-      action = "idle";
+      action = stance ?? "idle";
       frame = 0;
     } else {
       bladeLight.intensity = 2.6 + Math.sin(elapsed * 42) * 0.35;
@@ -1275,7 +1302,7 @@ function updateCipher(dt, now) {
   if (!attack) {
     bladeLight.intensity = 0;
     const spec = SHEETS[action];
-    frame = Math.floor(now * spec.fps) % FRAME_COUNT;
+    frame = Math.floor(now * spec.fps) % spec.frames;
   }
 
   const facing = screenFacing();
@@ -1307,6 +1334,10 @@ function updateCipher(dt, now) {
 }
 
 document.addEventListener("keydown", event => {
+  if (event.code === "KeyC") {
+    held.add(event.code);
+    return;
+  }
   if (MOVE_CODES.has(event.code)) {
     event.preventDefault();
     held.add(event.code);
@@ -1316,12 +1347,12 @@ document.addEventListener("keydown", event => {
 
   if (event.code === "KeyJ" || event.code === "Space") {
     event.preventDefault();
-    triggerAttack("attack1", timer.getElapsed());   // one clock: the loop's timer, never performance.now (caught in review)
+    triggerAttack("attack1");
     return;
   }
   if (event.code === "KeyK") {
     event.preventDefault();
-    triggerAttack("attack2", timer.getElapsed());
+    triggerAttack("attack2");
     return;
   }
   if (event.code === "KeyQ") {
@@ -1341,7 +1372,7 @@ document.addEventListener("keydown", event => {
 });
 
 document.addEventListener("keyup", event => {
-  if (MOVE_CODES.has(event.code)) held.delete(event.code);
+  if (MOVE_CODES.has(event.code) || event.code === "KeyC") held.delete(event.code);
 });
 window.addEventListener("blur", () => { held.clear(); attack = null; });   // no key survives a blur — neither does a lock (caught in review)
 
