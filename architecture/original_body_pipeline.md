@@ -13,7 +13,9 @@ roster that does not exist yet. **That condition was MET 2026-08-09
 (ten of ten), the designer walked the full roster at 1× the same day
 and ruled it clean, and the default FLIPPED: a plain URL now stages
 the original body. The hybrid remains staged at `?body=composed` and
-remains the squad's roster until the squad phase retires it.**
+remained the squad's roster until the squad phase retired it — later
+the same day: the squad now rides its own tracked render sheets, and a
+plain URL boots the room with no pack-derived pixels anywhere.**
 
 ---
 
@@ -231,7 +233,25 @@ ATTACK 1/2 remain deliberately unbuilt: the room's own bill dropped
 them (no rule consults melee — the gunplay verbs the rules use are aim
 and fire), so they are not part of covering the composed roster; if a
 walkoff comparison ever wants them, that is its own decision. The
-frontier now is the squad — generated heads and mark palettes.
+frontier now is the squad — generated heads and mark palettes. **THE
+SQUAD LANDED 2026-08-09, same day: VESPER / KOA / SABLE on the render
+path, idle + kneel — the two verbs the room stages for them — from
+their own D1-minted generated bodies, chosen by the designer from a
+four-body lineup against the render cipher. A recorded DEVIATION from
+D1's letter (one master body): the squad keeps its own bodies because
+they already existed — the D1 pass minted four citizens for eight
+generations — and the lineup ratified them; D1's compositor path
+remains the plan for FUTURE characters. The phase cost 92 generations
+(four states, twelve idle templates, zero bodies) and paid the D1
+record's own vesper debt: the shell-brim helm re-rolled into the
+crested dome its kit always named. Koa's wrong-facing kneel ships as
+the molder-MIRRORED south-west — the composed era's cheat, declared in
+the record and executed in code rather than hidden in a sheet. The
+squad re-frame anchors each strip by its own measured ground row (the
+states wobble ±2 where cipher's never did — the rule and its reasons
+live in the squad record's anchor block). With this, the plain-URL
+room is pack-free: only `?body=composed` still routes through the
+licensed pipeline, player only.**
 
 **VERDICT (2026-08-09, designer, walked at 1×): the slice passes.**
 Both stagings ruled clean on the same walk — the three-body walk-off
@@ -246,7 +266,8 @@ half of that gate was met (ten of ten) and the designer's full-roster
 1× walk — with the composed squad standing beside the render player,
 exactly the mixed staging this line worried about — ruled the flip
 ready. The squad half is deliberately dropped from the GATE and kept
-as WORK: vesper/koa/sable stay composed until the squad phase.**
+as WORK: vesper/koa/sable stay composed until the squad phase — which
+landed later the same day (the squad entry below).**
 `art_direction_gba_tactics.md` carries the lineage entry.
 
 **VERDICT (2026-08-09, designer, walked at 1×): the FULL ROSTER passes

@@ -954,8 +954,9 @@ const PLAYER = "cipher";
 // a DECLARED verb that fails to load still faults the room, and an
 // UNDECLARED verb on any FUTURE partial source is refused where it enters,
 // with its name on the surface, never silently played as something else.
-// The squad is not parameterized: vesper/koa/sable stay composed, which is
-// exactly the comparison the render audition is for.
+// The squad is not parameterized: vesper/koa/sable ride their own tracked
+// render sheets under every player-body choice. Only ?body=composed routes
+// through the licensed pack pipeline, and then only for Cipher.
 const BODY_SOURCES = {
   composed: {
     label: "COMPOSED",
@@ -1012,13 +1013,22 @@ for (const [name, src] of Object.entries(BODY_SOURCES)) {
 // body would report an audition that never ran. The DEFAULT is the render
 // body — flipped 2026-08-09 after the designer's full-roster 1× walk ruled
 // it clean (the pipeline doc records the verdict); the composed roster
-// stays one query away (?body=composed) and remains the squad's roster.
+// stays one query away for the player (?body=composed). The squad keeps its
+// own tracked render roster either way.
 const BODY_PARAM = new URLSearchParams(location.search).get("body") ?? "render96";
 // own properties only: ?body=constructor must reach the unknown-source
 // fault, not fish a function out of Object.prototype (caught in review)
 const SOURCE = Object.hasOwn(BODY_SOURCES, BODY_PARAM)
   ? BODY_SOURCES[BODY_PARAM] : undefined;
 const SQUAD_ACTIONS = ["idle", "kneel"];
+// The render idle is a four-frame breath: at the composed table's 7fps it
+// pants, while 4fps gives the one-second breath and Cipher's own idle
+// cadence. This pin follows the render96 fps-map policy — a composed retune
+// must not silently retune the squad.
+const SQUAD_FPS = { idle: 4, kneel: 2 };
+// the squad's own regeneration, named by faults that involve its sheets —
+// the player's regen cannot rebuild a squad sheet
+const SQUAD_REGEN = "re-run squad_render_sheets.py, then squad_canvas96.py";
 // ONE identifier per squadmate, not two. The slug picks the sheet folder;
 // the operative name the yard reports in a card's `down` is that slug
 // upper-cased. Carrying both by hand meant the uppercase half could drift
@@ -1050,10 +1060,12 @@ const sheetKey = (fighter, action, facing) => `${fighter}:${action}:${facing}`;
 const SHEET_BUST = `?v=${Date.now()}`;
 
 function sheetUrl(fighter, action, facing) {
-  // only the player is source-routed; the squad always stages composed
+  // Only the player is source-routed. The squad owns one tracked render
+  // roster under every player-body choice; it never enters the pack path.
   if (fighter === PLAYER) return SOURCE.url(action, facing) + SHEET_BUST;
   const spec = SHEETS[action];
-  return `../../assets/sprites/composed/${fighter}/${spec.folder}/${spec.stem}_${facing}.png${SHEET_BUST}`;
+  return `../../assets/original/squad_render/sheets96/${fighter}/`
+    + `${spec.stem}_${facing}.png${SHEET_BUST}`;
 }
 
 async function loadSheet(fighter, action, facing) {
@@ -1094,15 +1106,18 @@ function showAssetFault(error) {
     <div class="gate-box">
       <h2>ROOM BODY SHEETS NOT LOADED</h2>
       <p>
-        Three stages, in order: <code>roster_mold.py</code> molds the
-        licensed pack, <code>compose_body.py</code> composes the shipped
-        body into per-frame directories, and <code>pack_strip.py</code>
-        packs those into the sheets this page loads — stopping after the
-        second leaves frame directories and no sheets.<br>
-        The licensed source pack must be present locally at
-        <code>assets/packs/FULL_Adventurer 2D Pixel Art/</code> — the FREE
-        pack cannot serve this page, which needs the synthesized
-        AIM / FIRE / KNEEL the full pack's mold produces.
+        The default render path has two regenerations: run
+        <code>walkoff_render_sheets.py</code>, then
+        <code>render_canvas96.py</code> for Cipher; run
+        <code>squad_render_sheets.py</code>, then
+        <code>squad_canvas96.py</code> for Vesper / Koa / Sable. Those
+        pipelines start from tracked or CDN sources and need no licensed
+        pack.<br>
+        Only <code>?body=composed</code> uses the pack pipeline, for Cipher
+        alone: <code>roster_mold.py</code>, then
+        <code>compose_body.py</code>, then <code>pack_strip.py</code>. That
+        path requires the licensed source pack locally at
+        <code>assets/packs/FULL_Adventurer 2D Pixel Art/</code>.
       </p>
       <p id="asset-detail" style="margin-top:10px"></p>
     </div>`;
@@ -1225,16 +1240,14 @@ async function bootBodies() {
     return;
   }
   // All-or-nothing over the DECLARED set: every verb the player's source
-  // declares, plus the squad's two visible stances, must load or the page
-  // faults naming what failed. For the composed body that set is all ten
-  // — it has no free-pack form (the old two-tier gate sorted a FREE-pack
+  // declares, plus the render squad's two visible stances, must load or the
+  // page faults naming what failed. Both player sources declare all ten;
+  // composed has no free-pack form (the old two-tier gate sorted a FREE-pack
   // core from a FULL-pack extension and went away with it), so a missing
   // verb is always a broken regeneration and there is nothing left to
-  // degrade gracefully INTO. The slice declares three, and the same rule
-  // holds over them: declaring a smaller set is a fact about the asset;
-  // loading less than the declared set is still a fault. Reporting a
-  // reduced roster in either case would be the silent fallback this gate
-  // exists to prevent.
+  // degrade gracefully INTO. Reporting a reduced roster from either player
+  // source or the squad would be the silent fallback this gate exists to
+  // prevent.
   const requests = [
     ...SOURCE.verbs.flatMap(action =>
       FACINGS.map(facing => ({ fighter: PLAYER, action, facing }))
@@ -1262,10 +1275,21 @@ async function bootBodies() {
     return;
   }
   if (missing.length > 0) {
+    // The fix a fault prescribes must be the fix that restores the sheet
+    // that is missing: the player's regen cannot rebuild a squad sheet,
+    // and under ?body=composed it would prescribe the licensed pipeline
+    // for an asset that never touches it (caught in review). Classify,
+    // and name only the regens whose sheets are actually gone.
+    const playerGone = missing.some(m => m.startsWith(`${PLAYER}/`));
+    const squadGone = missing.some(m => !m.startsWith(`${PLAYER}/`));
+    const fixes = [
+      ...(playerGone ? [`player: ${SOURCE.regen}`] : []),
+      ...(squadGone ? [`squad: ${SQUAD_REGEN}`] : []),
+    ];
     showAssetFault(new Error(
       `${BODY_PARAM} roster incomplete: ${missing.length} of `
       + `${requests.length} sheets missing (first: ${missing[0]}) `
-      + `— ${SOURCE.regen}`
+      + `— ${fixes.join(" · ")}`
     ));
     return;
   }
@@ -1496,7 +1520,7 @@ function updateCipher(dt, now) {
     action = locked.name;
     const spec = SHEETS[action];
     // a locked verb's cadence belongs to the SOURCE exactly like a
-    // stance's: the composed default reaches the render only when the
+    // stance's: the composed table's value reaches the render only when the
     // source declines to speak. The first cut read spec.fps alone, so
     // the fps map's pin covered every verb EXCEPT the locked ones —
     // true today only because both tables said 14 (caught in review,
@@ -1573,7 +1597,8 @@ function updateSquad(now) {
     // read as one puppet drawn three times. Derived from the roster index,
     // never from a clock or a random: the room has to draw the same thing
     // twice for the harness to be able to assert on it at all.
-    const frame = (Math.floor(now * SHEETS[action].fps) + body.userData.phase) % frames;
+    const fps = SQUAD_FPS[action] ?? SHEETS[action].fps;
+    const frame = (Math.floor(now * fps) + body.userData.phase) % frames;
     const texture = textures.get(sheetKey(body.userData.fighter, action, facing));
     const material = body.userData.material;
     if (material.map !== texture) material.map = texture;
