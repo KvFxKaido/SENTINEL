@@ -58,6 +58,29 @@
       "south-east": "9d68c426-a9bb-4137-8ba5-6b92fa145aae"
     }
   },
+  "aim": {
+    "_what": "AIM for the whole-generated body - the second held-pose verb (state-first per doctrine, decided 2026-08-09) and the first ARMED one. The sidearm ships IN the body's pixels, part of the character's kit like the jacket; the rig's socket export (sockets_aim_{facing}.json, the aim pose PR) is the muzzle DECLARATION consumers read - FIRE's bloom placement and acceptance checks - per doc D2: a socket makes the weapon a declaration, not an inference.",
+    "_ladder": [
+      "create_character_state with a state-shaped, per-joint prompt ('standing and aiming a compact pistol: right arm extended straight forward at shoulder level, arm horizontal, holding a small dark energy pistol with a cyan glow strip, left arm relaxed hanging at the side, legs in a normal standing stance'), palette snap on: WON at ONE state, zero repairs, 20 generations. All four roster facings passed on sight and on measurement: identity held (helmet, visor, jacket), body rows match idle ROW FOR ROW per facing (heights 32/31/32/32, same ground rows), chirality is right-handed and 3D-consistent across every rotation - the dialect upgrade the composed mirror cheat could never afford."
+    ],
+    "_doctrine": "Held-pose verbs go STATE-first - second confirmation, and the cleanest: one state, no ladder rungs burned. The prompt speaks the rig guide's sentences as anatomy (arm level, shoulder height, off arm hanging), not as a motion.",
+    "_dialect": "left/right ship from south-west/south-east (3/4), matching facing_map. The pose is the licensed thug pack's gunplay law, cited by roster_mold's own synthesis notes: 'the arm is the pose, the flash is the verb.' It is NOT the composed roster's chest grip - compose lifted HEAL's draw because it cannot repose a limb; the rig can, so the render body aims like the reference. Hard facings per the same law: head-on the weapon is an aperture glint at the chest (measured: cyan at (28,30), viewer-left = the RIGHT hand); facing away, only the raised hand and tip break the silhouette beside the head, no weapon shown.",
+    "_guide": "rig pose + sockets: scripts/roto_mannequin.py ROTO_POSE=aim. Compass note for anyone comparing guides to provider stills: the rig's SW render shows the figure facing what PixelLab calls south-east, and vice versa - the rig azimuth orbits the opposite way on the east-west axis. The sockets sidecar is side-agnostic by contract; the aim arm is the rig's arm_L, which is the figure's anatomical RIGHT.",
+    "state_character_id": "2253e12c-b5f9-44cb-8411-ca6dc463cc71",
+    "state_name": "Aim",
+    "cdn_base": "https://backblaze.pixellab.ai/file/pixellab-characters/91e1cb96-29ca-4130-bab4-9a05267cc348/2253e12c-b5f9-44cb-8411-ca6dc463cc71",
+    "frames_per_facing": 2,
+    "facing_map": {
+      "down": "south",
+      "up": "north",
+      "left": "south-west",
+      "right": "south-east"
+    },
+    "breath": {
+      "shift_px": 1, "upper_frac": 0.4,
+      "_why": "held stance, the kneel's breath dialect at the same amplitude: frame 2 shifts the upper 40% of body rows down one pixel - compression. The shifted band's floor (~row 28 at 64px) sits ABOVE the roster facings' weapon line (south-west/south-east arm rows 30+, south's chest glint at 30), so the barrel never shears across the boundary; the north glint rides the shifted head as one piece. A molder change that moves this boundary must re-check that fact."
+    }
+  },
   "kneel": {
     "_what": "KNEEL for the whole-generated body - the first verb built with no pack pixels, and the first verb the roto rig choreographed (PR #97's kneel guide named the pose; the prompt spoke it as per-frame properties). Decided 2026-08-08, designer judging stills against the rig guide.",
     "_ladder": [
