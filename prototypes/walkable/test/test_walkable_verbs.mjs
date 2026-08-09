@@ -534,6 +534,38 @@ try {
     `${beforeDash} -> ${await ds("position")}`);
   check("slice dash returns to idle when the lock expires", await waitAction("idle"));
 
+  // The pin, executed at its boundary: the future this guards against is
+  // a SOURCE-CODE retune of the composed table (SHEETS is module-scoped,
+  // deliberately out of evaluate's reach — the dataset hooks are the only
+  // granted surface). So stage exactly that future: a probe copy of the
+  // room whose SHEETS.dash.fps says 28, served from the same directory so
+  // every relative path still resolves. The slice's dash must still spend
+  // its authored 500ms, because the locked branch resolves through
+  // SOURCE.fps first — before that fix this halves to ~250ms and fails
+  // the floor.
+  const roomPath = path.join(ROOT, "prototypes", "walkable", "index.html");
+  const roomSrc = fs.readFileSync(roomPath, "utf8");
+  const retunedSrc = roomSrc.replace(
+    'dash: { folder: "DASH", stem: "dash", fps: 14, loop: false },',
+    'dash: { folder: "DASH", stem: "dash", fps: 28, loop: false },');
+  if (retunedSrc === roomSrc) {
+    throw new Error("retune probe found no composed dash line to edit — "
+      + "the boundary this test executes has moved; update both");
+  }
+  const probePath = path.join(ROOT, "prototypes", "walkable",
+    "index.retune-probe.html");
+  fs.writeFileSync(probePath, retunedSrc);
+  try {
+    await boot("index.retune-probe.html?body=render96");
+    const retunedMs = await measureVerb("KeyL", "dash");
+    check("a composed dash retune cannot reach the slice's cadence",
+      retunedMs > 400,
+      `${Math.round(retunedMs)}ms with the composed table retuned to 28`);
+  } finally {
+    fs.unlinkSync(probePath);
+  }
+  await boot("?body=render96");
+
   // an undeclared LOCK is still refused at entry: no lock starts, the
   // name is published, and the next action change clears it
   await page.keyboard.press("KeyX");

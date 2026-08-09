@@ -1485,9 +1485,16 @@ function updateCipher(dt, now) {
   } else if (locked) {
     action = locked.name;
     const spec = SHEETS[action];
+    // a locked verb's cadence belongs to the SOURCE exactly like a
+    // stance's: the composed default reaches the render only when the
+    // source declines to speak. The first cut read spec.fps alone, so
+    // the fps map's pin covered every verb EXCEPT the locked ones —
+    // true today only because both tables said 14 (caught in review,
+    // twice, independently).
+    const lockedFps = SOURCE.fps[action] ?? spec.fps;
     if (locked.started === null) locked.started = now;
     const elapsed = now - locked.started;
-    frame = Math.floor(elapsed * spec.fps);
+    frame = Math.floor(elapsed * lockedFps);
 
     // dash is a locked verb that MOVES: the burst rides the same clamp,
     // collision, and door trigger as walking — dashing the north door

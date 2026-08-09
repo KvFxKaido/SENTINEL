@@ -85,9 +85,9 @@
       "south-west": "5954b746-0bc2-42d9-b8a5-9ee6ea30f623",
       "south-east": "6b9e78b6-b762-472a-9c15-310cc27aa274"
     },
-    "north_surgery": {
+    "_north_surgery": {
       "up_shift": 3, "head_rows": [13, 26], "head_drop": 4,
-      "_why": "the state's north kept the head at standing height with a leg through the floor - the inverse of the pack's away-dash geometry (head drops, feet stay). The surgered still is frame 0 of the shipped north strip AND the v3 anchor that kept the other six frames in the lean's pose family."
+      "_why": "PROVENANCE, not an executable spec - unlike kneel's north_surgery, which walkoff_render_sheets.py consumes, nothing reads these numbers at build time: the shipped north frames come pre-surgered from dash_animation_dirs.north on the state's CDN. Recorded so the anchor's construction is reproducible. The state's north kept the head at standing height with a leg through the floor - the inverse of the pack's away-dash geometry (head drops, feet stay). The surgered still is frame 0 of the shipped north strip AND the v3 anchor that kept the other six frames in the lean's pose family."
     }
   },
   "aim": {
