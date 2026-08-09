@@ -3,13 +3,17 @@
 
 Reads scripts/pixellab_walkoff_render.json — the frozen input record for
 the whole-generated body fielded in walkoff.html's BODY B slot — then
-downloads the template-walk, breathing-idle, run, dash, fire, and state frames for
-the four molded facings and packs them into horizontal strips:
+downloads the template-walk, breathing-idle, run, dash, hurt, death, heal,
+fire, and state frames for the four molded facings and packs them into
+horizontal strips:
 
     assets/original/cipher_render/sheets/idle_{facing}.png
     assets/original/cipher_render/sheets/walk_{facing}.png
     assets/original/cipher_render/sheets/run_{facing}.png
     assets/original/cipher_render/sheets/dash_{facing}.png
+    assets/original/cipher_render/sheets/hurt_{facing}.png
+    assets/original/cipher_render/sheets/death_{facing}.png
+    assets/original/cipher_render/sheets/heal_{facing}.png
     assets/original/cipher_render/sheets/kneel_{facing}.png
     assets/original/cipher_render/sheets/aim_{facing}.png
     assets/original/cipher_render/sheets/fire_{facing}.png
@@ -34,6 +38,12 @@ cross-facing standing-row gate.
 FIRE rides those Aim rotations. Its record cuts five generated source frames
 into the shipped order, then the molder executes the seam, decaying bloom,
 declared muzzle, and planted-feet contracts before publishing the strips.
+
+HURT, DEATH, and HEAL ride the root character's CDN. HURT stays planted,
+recovers to full height, and spends no cyan beyond the record's count budget.
+DEATH launches from the exact rotation still and ends flat on the ground; it
+deliberately leaves the standing line during the fall. HEAL is a planted stand
+whose new-blue pulse stays at the record's declared device point.
 
 The rotation stills are fetched for MEASUREMENT only: the ground-row
 anchor is the standing last-opaque row, and the breathing idle bobs, so
@@ -87,6 +97,13 @@ def last_opaque_row(img: Image.Image) -> int:
     if box is None:
         raise ValueError("frame is fully transparent")
     return box[3] - 1
+
+
+def bbox_height(img: Image.Image) -> int:
+    box = img.getbbox()
+    if box is None:
+        raise ValueError("frame is fully transparent")
+    return box[3] - box[1]
 
 
 def bloom_mask(img: Image.Image, blue_min: int) -> np.ndarray:
@@ -181,6 +198,7 @@ def main() -> int:
     # validated-then-published clause in the docstring.
     idle_n = record["idle_frames_per_facing"]
     standing_rows = {}
+    rotation_stills = {}
     built = []
     report = []
     for facing, pl_facing in record["facing_map"].items():
@@ -188,6 +206,7 @@ def main() -> int:
         if rotation.size != (canvas_w, canvas_h):
             raise ValueError(f"rotation {pl_facing} is {rotation.size}, "
                              f"expected {canvas_w}x{canvas_h}")
+        rotation_stills[facing] = rotation
         standing_rows[facing] = last_opaque_row(rotation)
 
         sheets = (("idle", record["idle_animation_dirs"], idle_n),
@@ -244,6 +263,187 @@ def main() -> int:
             strip.paste(frame, (canvas_w * i, 0))
         built.append((f"dash_{facing}.png", strip))
         report.append(f"{facing:5s} dash rows {rows}")
+
+    # ---- HURT: planted dark flinch, recovered on the last frame --------
+    hurt = record["hurt"]
+    hurt_n = hurt["frames_per_facing"]
+    if set(hurt["facing_map"]) != set(record["facing_map"]):
+        raise ValueError("hurt facing bill differs from the standing rotations: "
+                         f"{sorted(hurt['facing_map'])}")
+    hurt_planted = hurt["planted"]
+    hurt_dark = hurt["dark"]
+    for facing, pl_facing in hurt["facing_map"].items():
+        anim_dir = hurt["hurt_animation_dirs"][pl_facing]
+        frames = []
+        for i in range(hurt_n):
+            frame = fetch(f"{base}/animations/{anim_dir}/{pl_facing}/{i}.png")
+            if frame.size != (canvas_w, canvas_h):
+                raise ValueError(f"hurt {pl_facing}/{i} is {frame.size}, "
+                                 f"expected {canvas_w}x{canvas_h}")
+            frames.append(frame)
+
+        rows = [last_opaque_row(frame) for frame in frames]
+        stand_row = standing_rows[facing]
+        if any(abs(row - stand_row) > hurt_planted["row_tol"]
+               for row in rows):
+            raise ValueError(f"hurt {facing} feet moved off standing row "
+                             f"{stand_row}±{hurt_planted['row_tol']}: {rows}")
+
+        heights = [bbox_height(frame) for frame in frames]
+        stand_height = bbox_height(rotation_stills[facing])
+        min_final_height = (
+            stand_height + hurt["recovery"]["min_final_height_delta"])
+        if heights[-1] < min_final_height:
+            raise ValueError(f"hurt {facing} final height {heights[-1]} is "
+                             f"below recovered height {min_final_height} "
+                             f"(standing {stand_height})")
+
+        base_bright = int(bloom_mask(
+            rotation_stills[facing], hurt_dark["blue_min"]).sum())
+        bright = [int(bloom_mask(frame, hurt_dark["blue_min"]).sum())
+                  for frame in frames]
+        bright_limit = base_bright + hurt_dark["blue_slack"]
+        if any(count > bright_limit for count in bright):
+            raise ValueError(f"hurt {facing} invented cyan above rotation "
+                             f"budget {base_bright}+{hurt_dark['blue_slack']}: "
+                             f"{bright}")
+
+        strip = Image.new("RGBA", (canvas_w * hurt_n, canvas_h),
+                          (0, 0, 0, 0))
+        for i, frame in enumerate(frames):
+            strip.paste(frame, (canvas_w * i, 0))
+        built.append((f"hurt_{facing}.png", strip))
+        report.append(f"{facing:5s} hurt rows {rows}  heights {heights}  "
+                      f"bright_blue {bright}")
+
+    # ---- DEATH: exact stand launch, then a flat held end state ---------
+    death = record["death"]
+    death_n = death["frames_per_facing"]
+    if set(death["facing_map"]) != set(record["facing_map"]):
+        raise ValueError("death facing bill differs from the standing rotations: "
+                         f"{sorted(death['facing_map'])}")
+    death_flat = death["flat"]
+    flat_frames = death_flat["flat_frames"]
+    if type(flat_frames) is not int or not 1 <= flat_frames <= death_n:
+        raise ValueError(f"death flat_frames must be in 1..{death_n}, "
+                         f"got {flat_frames!r}")
+    final_row_band = death_flat["final_row_band"]
+    if not isinstance(final_row_band, list) or len(final_row_band) != 2 \
+            or final_row_band[0] > final_row_band[1]:
+        raise ValueError("death final_row_band must be an ordered [lo, hi], "
+                         f"got {final_row_band!r}")
+    death_dark = death["dark"]
+    for facing, pl_facing in death["facing_map"].items():
+        anim_dir = death["death_animation_dirs"][pl_facing]
+        frames = []
+        for i in range(death_n):
+            frame = fetch(f"{base}/animations/{anim_dir}/{pl_facing}/{i}.png")
+            if frame.size != (canvas_w, canvas_h):
+                raise ValueError(f"death {pl_facing}/{i} is {frame.size}, "
+                                 f"expected {canvas_w}x{canvas_h}")
+            frames.append(frame)
+
+        still = rotation_stills[facing]
+        if not np.array_equal(np.asarray(frames[0]), np.asarray(still)):
+            raise ValueError(f"death {facing} frame 0 differs from its rotation "
+                             "— the fall must launch from the stand")
+
+        rows = [last_opaque_row(frame) for frame in frames]
+        heights = [bbox_height(frame) for frame in frames]
+        stand_height = bbox_height(still)
+        max_flat_height = death_flat["flat_frac"] * stand_height
+        for i in range(death_n - flat_frames, death_n):
+            if heights[i] > max_flat_height:
+                raise ValueError(f"death {facing} frame {i} height {heights[i]} "
+                                 f"is not flat: above {death_flat['flat_frac']} "
+                                 f"× standing {stand_height}")
+
+        final_row_delta = rows[-1] - standing_rows[facing]
+        lo, hi = final_row_band
+        if not lo <= final_row_delta <= hi:
+            raise ValueError(f"death {facing} final row delta "
+                             f"{final_row_delta} is outside [{lo}, {hi}]")
+
+        base_bright = int(bloom_mask(still, death_dark["blue_min"]).sum())
+        bright = [int(bloom_mask(frame, death_dark["blue_min"]).sum())
+                  for frame in frames]
+        bright_limit = base_bright + death_dark["blue_slack"]
+        if any(count > bright_limit for count in bright):
+            raise ValueError(f"death {facing} invented cyan above rotation "
+                             f"budget {base_bright}+{death_dark['blue_slack']}: "
+                             f"{bright}")
+
+        strip = Image.new("RGBA", (canvas_w * death_n, canvas_h),
+                          (0, 0, 0, 0))
+        for i, frame in enumerate(frames):
+            strip.paste(frame, (canvas_w * i, 0))
+        built.append((f"death_{facing}.png", strip))
+        report.append(f"{facing:5s} death rows {rows}  heights {heights}  "
+                      f"bright_blue {bright}")
+
+    # ---- HEAL: planted channel, pulsing at the declared device --------
+    heal = record["heal"]
+    heal_n = heal["frames_per_facing"]
+    if set(heal["facing_map"]) != set(record["facing_map"]):
+        raise ValueError("heal facing bill differs from the standing rotations: "
+                         f"{sorted(heal['facing_map'])}")
+    heal_planted = heal["planted"]
+    glow = heal["glow"]
+    for facing, pl_facing in heal["facing_map"].items():
+        anim_dir = heal["heal_animation_dirs"][pl_facing]
+        frames = []
+        for i in range(heal_n):
+            frame = fetch(f"{base}/animations/{anim_dir}/{pl_facing}/{i}.png")
+            if frame.size != (canvas_w, canvas_h):
+                raise ValueError(f"heal {pl_facing}/{i} is {frame.size}, "
+                                 f"expected {canvas_w}x{canvas_h}")
+            frames.append(frame)
+
+        still = rotation_stills[facing]
+        rows = [last_opaque_row(frame) for frame in frames]
+        stand_row = standing_rows[facing]
+        if any(abs(row - stand_row) > heal_planted["row_tol"]
+               for row in rows):
+            raise ValueError(f"heal {facing} feet moved off standing row "
+                             f"{stand_row}±{heal_planted['row_tol']}: {rows}")
+
+        heights = [bbox_height(frame) for frame in frames]
+        stand_height = bbox_height(still)
+        if any(abs(height - stand_height) > heal_planted["height_tol"]
+               for height in heights):
+            raise ValueError(f"heal {facing} body height moved off standing "
+                             f"{stand_height}±{heal_planted['height_tol']}: "
+                             f"{heights}")
+
+        baseline = square_dilate(
+            bloom_mask(still, glow["blue_min"]), glow["base_dilate_px"])
+        new_masks = [bloom_mask(frame, glow["blue_min"]) & ~baseline
+                     for frame in frames]
+        new_bright = [int(mask.sum()) for mask in new_masks]
+        if max(new_bright) < glow["glow_min"]:
+            raise ValueError(f"heal {facing} pulse peak is too dim: "
+                             f"{max(new_bright)} < {glow['glow_min']}")
+        if min(new_bright) > glow["valley_max"]:
+            raise ValueError(f"heal {facing} never reaches a pulse valley: "
+                             f"{min(new_bright)} > {glow['valley_max']}")
+
+        device_x, device_y = heal["device"][facing]
+        for i, mask in enumerate(new_masks):
+            ys, xs = np.nonzero(mask)
+            bad = ((xs - device_x) ** 2 + (ys - device_y) ** 2
+                   > glow["r"] ** 2)
+            if np.any(bad):
+                offender = (int(xs[bad][0]), int(ys[bad][0]))
+                raise ValueError(f"heal {facing} frame {i} glow escapes the "
+                                 f"declared device at {offender}")
+
+        strip = Image.new("RGBA", (canvas_w * heal_n, canvas_h),
+                          (0, 0, 0, 0))
+        for i, frame in enumerate(frames):
+            strip.paste(frame, (canvas_w * i, 0))
+        built.append((f"heal_{facing}.png", strip))
+        report.append(f"{facing:5s} heal rows {rows}  heights {heights}  "
+                      f"new_bright {new_bright}")
 
     # ---- KNEEL: the state's rotations, molded (see the kneel block) ----
     kneel = record["kneel"]
