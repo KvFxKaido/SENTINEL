@@ -42,6 +42,7 @@ Zero translation needed. This is the material that would take a year to recreate
 | Audio direction | `architecture/sentinel_sound_roadmap.md` | Sound design plan |
 | Design invariants | `CLAUDE.md` § Design Philosophy (condensed) | Postmortem-driven principles; the full original doc was retired in May 2026, the condensed version is the living one |
 | Character appearance specs | `assets/characters/` — **now tracked** | ✅ Promoted from gitignored local-only to tracked source IP during the restructure. Safe in git history |
+| Original body art + generation records | `assets/original/`, `scripts/pixellab_*.json`, `architecture/original_body_pipeline.md` | The shipping sprite path: license-clean generated art (locked appearance, verb sheets, 96×80 re-frames), the input records that regenerate it, and the migration doc (Current since the slice passed 2026-08-09). Replaces the pack-derived path, which could never ship from this CC BY-NC repo |
 | Character portraits + generator | `assets/portraits/` — **now tracked** | ✅ 14 curated PNGs + `generate_all.py`, committed directly (~20MB, archive-safe, no LFS dependency). Only lossily reproducible, so kept verbatim |
 
 ## Tier 2 — Transfers as Blueprint (port the logic, not the code)

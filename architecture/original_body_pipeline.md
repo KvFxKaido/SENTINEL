@@ -1,10 +1,15 @@
 # SENTINEL: The Original Body — Roto as Choreographer
 
-**Status: Proposal** — migration plan off the licensed Adventurer pack;
-cite as intent, not law. Drafted 2026-08-08 from a Codex consult and the
-rig work landed in PR #97. Amends the hybrid-canon decision of PR #91
-(pack = reference, whole-generated render = retained experiment); does
-not supersede it until the vertical slice passes.
+**Status: Current (2026-08-09)** — the migration off the licensed
+Adventurer pack, binding until superseded. Drafted 2026-08-08 as a
+Proposal from a Codex consult and the rig work landed in PR #97; its
+own gate — the IDLE/WALK/KNEEL slice at 1× — was walked and passed on
+2026-08-09, which is what flipped this line. Supersedes the
+hybrid-canon decision of PR #91 **as direction**: the original body is
+the destination. The hybrid remains the room's shipping roster until
+the original roster covers its verbs — direction canon changed, the
+staging default did not, and flipping the default early would stage a
+roster that does not exist yet.
 
 ---
 
@@ -183,6 +188,16 @@ loop); RUN stays pack-only until its turn in the expansion order:
 RUN, DASH, AIM, FIRE, HURT, DEATH, HEAL, ATTACK 1/2 — then the
 generated heads and mark palettes carry the squad.
 
+**VERDICT (2026-08-09, designer, walked at 1×): the slice passes.**
+Both stagings ruled clean on the same walk — the three-body walk-off
+with KNEEL on C-hold (PR #103) and the actual room staging the render
+body on its three declared verbs (`?body=render96`, PR #104, sheets
+from PR #101's translation-only re-frame). This was the doc's own gate,
+and passing it moved the Status line above from Proposal to Current.
+What it does NOT do: flip the room's default body — that waits for the
+verb queue (RUN next, then the socket-gated armed verbs), and the
+squad. `art_direction_gba_tactics.md` carries the lineage entry.
+
 **Room staging (decided 2026-08-08):** the room admits the slice
 through a declared-verb body source — `?body=render96` routes the
 player's sheets to `assets/original/cipher_render/sheets96/`
@@ -227,9 +242,12 @@ own, per D2. Reduced, not eliminated.
 
 ## What this touches
 
-- `VIDEO_GAME_REUSE_MAP.md` — the reuse story changes when the source
-  is original; update on slice pass, not before.
+- `VIDEO_GAME_REUSE_MAP.md` — updated on slice pass (2026-08-09), as
+  this line used to instruct: the original body art and its records are
+  now Tier 1 source IP.
 - `art_direction_gba_tactics.md` (Reference) — palette dialect and
-  register-pair decisions apply to the master body unchanged.
-- PR #91's hybrid canon — remains in force until D1's body passes the
-  slice; this doc is the exit path, not the exit.
+  register-pair decisions apply to the master body unchanged; the
+  2026-08-09 lineage entry records this doc's supersession of PR #91.
+- PR #91's hybrid canon — superseded as direction by the 2026-08-09
+  verdict; the hybrid stays the shipping roster until the original
+  roster covers its verbs. The exit path is now the exit, being walked.
