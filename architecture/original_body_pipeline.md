@@ -189,7 +189,12 @@ ATTACK 1/2 — then the generated heads and mark palettes carry the
 squad. **RUN landed 2026-08-09** (template-first, three facings at 1
 gen each; north from the ladder in the record's run block — pin v3 to
 a mid-cycle frame, never the rotation still). The armed verbs' gate,
-the weapon-socket export, landed the same day (PR #106); AIM is next.
+the weapon-socket export, landed the same day (PR #106). **AIM landed
+2026-08-09** — state-first at ONE state, zero repairs, the cleanest
+ladder yet (the record's aim block carries the chirality decision and
+the breath-boundary fact) — so the roster stands at five of ten and
+the frontier is DASH and FIRE, fire's two gates (the aim stance and
+the socket export) both now standing.
 
 **VERDICT (2026-08-09, designer, walked at 1×): the slice passes.**
 Both stagings ruled clean on the same walk — the three-body walk-off
