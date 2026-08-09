@@ -330,8 +330,11 @@ generated per-character-per-outfit.
 
 **What does not change yet: the shipping roster.** The hybrid remains
 what the room stages by default until the original roster covers its
-verbs (expansion order: RUN, then the socket-gated armed verbs, then
-the squad via generated heads and mark palettes). Flipping the default
+verbs. The binding expansion order lives in ONE place —
+`original_body_pipeline.md`'s slice section — and is not restated here
+where a paraphrase could drift from it; RUN is first, the armed verbs
+additionally gate on the weapon-socket export, and the squad crosses
+last via generated heads and mark palettes. Flipping the default
 before the verbs exist would stage a roster that does not exist —
 the same honesty clause the room's verb gate enforces.
 

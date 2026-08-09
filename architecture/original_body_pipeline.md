@@ -195,8 +195,9 @@ body on its three declared verbs (`?body=render96`, PR #104, sheets
 from PR #101's translation-only re-frame). This was the doc's own gate,
 and passing it moved the Status line above from Proposal to Current.
 What it does NOT do: flip the room's default body — that waits for the
-verb queue (RUN next, then the socket-gated armed verbs), and the
-squad. `art_direction_gba_tactics.md` carries the lineage entry.
+verb queue (the expansion order below, RUN first; the armed verbs
+additionally gate on the socket export) and the squad.
+`art_direction_gba_tactics.md` carries the lineage entry.
 
 **Room staging (decided 2026-08-08):** the room admits the slice
 through a declared-verb body source — `?body=render96` routes the
