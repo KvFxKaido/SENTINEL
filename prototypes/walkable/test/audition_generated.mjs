@@ -1,169 +1,294 @@
-// Stages the three-body walk-off — pack (A, left), hybrid (C, centre),
-// whole-generated render (B, right) — and captures it under the real
-// camera, LCD pass and terrain, walking south.
+// Executes the three-body walk-off's shared input grammar in headless
+// chromium: pack (A, left), hybrid (C, centre), whole-generated render
+// (B, right). The real audition assets are backed up and restored; the
+// page boots against flat synthetic sheets at each body's real geometry.
 //
-// Not a CI test. This is an AUDITION harness: it produces frames a human
-// judges, the same way the walk-off itself was decided. It asserts only
-// the things a picture cannot show (did the sheets load, did each walk
-// actually advance, does a missing-facing gap report itself) and leaves
-// the verdict to the eye.
-//
-// Chrome throttles requestAnimationFrame in a hidden tab, so the render
-// loop stalls and any rAF-based measurement hangs — headless playwright
-// keeps the page visible, which the browser extension could not.
+// State changes are observed in-page through the canvas harness fields.
+// A delayed read can skip a whole attack or sample a seeded cycle at a
+// friendly phase, so none of the verb claims below use sleeps.
 //
 // Run:  cd prototypes/walkable/test
 //       node audition_generated.mjs
 import { chromium } from "playwright";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
+import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..", "..");
-const PORT = process.env.AUDITION_PORT ?? "8094";
-const URL = `http://localhost:${PORT}/prototypes/walkable/walkoff.html`;
+const GEN = path.join(HERE, "make_synthetic_sheets.py");
+async function probePort(port) {
+  return new Promise((resolve, reject) => {
+    const probe = net.createServer();
+    probe.once("error", err => {
+      if (err.code === "EADDRINUSE") resolve(null);
+      else reject(err);
+    });
+    probe.listen(port, "127.0.0.1", () => {
+      const assigned = String(probe.address().port);
+      probe.close(() => resolve(assigned));
+    });
+  });
+}
+
+const requestedPort = process.env.AUDITION_PORT;
+let PORT = await probePort(Number(requestedPort ?? "8094"));
+if (PORT === null && requestedPort) {
+  throw new Error(`AUDITION_PORT ${requestedPort} is already in use`);
+}
+if (PORT === null) PORT = await probePort(0);
+const URL = `http://127.0.0.1:${PORT}/prototypes/walkable/walkoff.html`;
 const OUT = process.env.AUDITION_OUT ?? path.join(HERE, "audition-shots");
 const PY = process.platform === "win32" ? "python" : "python3";
+const ASSET_DIRS = [
+  path.join(ROOT, "assets", "sprites", "cipher"),
+  path.join(ROOT, "assets", "sprites", "hybrid", "cipher", "sheets"),
+  path.join(ROOT, "assets", "original", "cipher_render", "sheets"),
+];
+const backupDir = dir => dir + ".walkoff-harness-backup";
 
-const serve = () =>
-  spawn(PY, ["-m", "http.server", PORT], { cwd: ROOT, stdio: "ignore" });
+let failures = 0;
+function check(name, ok, detail = "") {
+  console.log(`${ok ? "PASS" : "FAIL"}  ${name}${detail ? "  — " + detail : ""}`);
+  if (!ok) failures++;
+}
 
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+function generateSheets() {
+  const r = spawnSync(PY, [GEN, "walkoff"], { stdio: "inherit" });
+  if (r.status !== 0) throw new Error("walkoff sheet generation failed");
+}
 
-async function main() {
-  fs.mkdirSync(OUT, { recursive: true });
-  // Launch INSIDE the cleanup scope. If chromium is absent or playwright
-  // rejects the launch (a provisioned-browser version mismatch does this),
-  // an await out here throws past the finally and strands the python server
-  // holding AUDITION_PORT — so the next run cannot bind, and the failure
-  // looks like a port problem rather than a missing browser.
-  const server = serve();
-  const fails = [];
-  let browser = null;
-  let page = null;
-
-  try {
-    browser = await chromium.launch();
-    page = await browser.newPage({ viewport: { width: 1100, height: 620 } });
-    await sleep(900);
-    await page.goto(URL);
-    await page.waitForFunction(
-      () => ["ready", "error"].includes(document.getElementById("cv").dataset.sprites),
-      null, { timeout: 15000 });
-
-    const ds = k => page.evaluate(k => document.getElementById("cv").dataset[k], k);
-    const bodyState = await page.evaluate(() => document.getElementById("body-state").textContent);
-    const genState = () => page.evaluate(() => document.getElementById("gen-state").textContent);
-    const renState = () => page.evaluate(() => document.getElementById("ren-state").textContent);
-
-    if (await ds("sprites") !== "ready") fails.push("sheets did not load");
-    if (!bodyState.includes("HYBRID") || !bodyState.includes("RENDER")) {
-      fails.push(`BODY readout lacks HYBRID/RENDER: ${bodyState}`);
-    }
-
-    await page.screenshot({ path: path.join(OUT, "01-idle-down.png") });
-
-    // Walk south. Frames are sampled in-page across held movement so the
-    // capture cannot land on one stale frame and call it a cycle.
-    // Capture WHILE it is genuinely walking south. The page derives facing
-    // from clamped actual movement, so once the body reaches the south
-    // bound the movement collapses toward zero and the facing flips to a
-    // side — a shot taken late reads FACING RIGHT and shows the idle. Gate
-    // on the sprite facing rather than on the key that was pressed.
-    // Back up to the north end first. From the spawn point the south wall
-    // is under half a second away, and once the body is fenced there the
-    // clamped movement collapses and the facing flips off "down" — so a
-    // capture that starts from spawn photographs the idle.
-    await page.keyboard.down("KeyW");
-    await sleep(2100);
-    await page.keyboard.up("KeyW");
-    await sleep(150);
-
-    await page.keyboard.down("KeyS");
-    await page.waitForFunction(
-      () => {
-        const d = document.getElementById("cv").dataset;
-        return d.action === "run" && d.facing === "down"
-          && d.genWalk === "1" && d.renWalk === "1";
-      }, null, { timeout: 4000 })
-      .catch(() => fails.push("never reached run+down+genWalk+renWalk while holding KeyS"));
-
-    // Sample on a timer, not rAF: headless throttles animation frames hard
-    // enough that an rAF sampler aliases against a 9fps cycle and reports
-    // three frames out of eight (measured — it read 1,4,7 and called the
-    // walk broken). The page's own clock is unaffected; only the observer
-    // was wrong. Sampling runs CONCURRENTLY with the captures, inside the
-    // same window of real southward travel. Both generated walks are
-    // sampled in the same window: they share the clock, not the cycle.
-    const sampler = page.evaluate(() => new Promise(res => {
-      const cv = document.getElementById("cv");
-      const gen = new Set(); const ren = new Set();
-      const t0 = performance.now();
-      const id = setInterval(() => {
-        if (cv.dataset.genWalk === "1") gen.add(cv.dataset.frameGen);
-        if (cv.dataset.renWalk === "1") ren.add(cv.dataset.frameRen);
-        if (performance.now() - t0 > 3000) {
-          clearInterval(id); res({ gen: [...gen], ren: [...ren] });
-        }
-      }, 20);
-    }));
-
-    for (let i = 0; i < 5; i++) {
-      await page.screenshot({ path: path.join(OUT, `02-walk-south-${i}.png`) });
-      await sleep(320);
-    }
-    // The floor is 3, not 4: headless renders ~5fps and the south run only
-    // lasts ~2.3s before the fence stops it, so a 9fps 8-frame cycle yields
-    // 3-5 distinct sampled frames depending on aliasing. 4 sat exactly on
-    // that edge and false-faulted on two of four otherwise-identical runs
-    // (measured 2026-08-02). Three distinct frames still proves the sheet
-    // advances — a stuck sheet shows one — and smoothness is the eye's call
-    // from the shots, not this counter's.
-    const walked = await sampler;
-    if (walked.gen.length < 3) {
-      fails.push(`hybrid walk barely advanced: frames seen ${walked.gen}`);
-    }
-    if (walked.ren.length < 3) {
-      fails.push(`render walk barely advanced: frames seen ${walked.ren}`);
-    }
-
-    // Every facing both generated bodies declare, they walk. The SOUTH
-    // ONLY state this used to assert was a property of the v3 generated-
-    // whole walk and no longer exists on either body; the render's
-    // template walk was generated for all four cardinals.
-    await page.keyboard.up("KeyS");
-    await page.keyboard.down("KeyD");
-    await sleep(600);
-    const sidewaysGen = await genState();
-    const sidewaysRen = await renState();
-    if (!/WALK/.test(sidewaysGen)) {
-      fails.push(`east-facing hybrid should walk, read: ${sidewaysGen}`);
-    }
-    if (!/WALK/.test(sidewaysRen)) {
-      fails.push(`east-facing render should walk, read: ${sidewaysRen}`);
-    }
-    if (await ds("genWalk") !== "1") fails.push("genWalk not set while walking east");
-    if (await ds("renWalk") !== "1") fails.push("renWalk not set while walking east");
-    await page.screenshot({ path: path.join(OUT, "03-east-walk.png") });
-    await page.keyboard.up("KeyD");
-
-    console.log(`hybrid frames seen: ${walked.gen.sort().join(",")}`);
-    console.log(`render frames seen: ${walked.ren.sort().join(",")}`);
-    console.log(`east-facing readouts — hybrid: ${sidewaysGen}  render: ${sidewaysRen}`);
-    console.log(`shots -> ${OUT}`);
-  } finally {
-    if (browser) await browser.close();
-    server.kill();
-  }
-
-  if (fails.length) {
-    console.error("AUDITION FAULTS:\n  " + fails.join("\n  "));
-    process.exitCode = 1;
-  } else {
-    console.log("audition staged clean — judge the shots");
+function clearSheets() {
+  for (const dir of ASSET_DIRS) {
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 }
 
-main();
+function preserveSheets() {
+  // A backup left by a hard-killed run is the real artifact. Reinstate it
+  // before staging another fixture, or the next cleanup would preserve
+  // synthetic sheets and discard the thing this harness promised to save.
+  for (const dir of ASSET_DIRS) {
+    const backup = backupDir(dir);
+    if (fs.existsSync(backup)) {
+      fs.rmSync(dir, { recursive: true, force: true });
+      fs.renameSync(backup, dir);
+    }
+    if (fs.existsSync(dir)) {
+      fs.renameSync(dir, backup);
+    }
+  }
+}
+
+function restoreSheets() {
+  clearSheets();
+  for (const dir of ASSET_DIRS) {
+    const backup = backupDir(dir);
+    if (fs.existsSync(backup)) fs.renameSync(backup, dir);
+  }
+}
+
+// A Playwright package can be newer than the browser provisioned in CI.
+// Match the room harness's fallback instead of turning that into a game
+// failure before the page has run a line of its own code.
+async function launch() {
+  try {
+    return await chromium.launch();
+  } catch (err) {
+    const roots = [process.env.PLAYWRIGHT_BROWSERS_PATH, "/opt/pw-browsers"].filter(Boolean);
+    for (const root of roots) {
+      if (!fs.existsSync(root)) continue;
+      for (const d of fs.readdirSync(root)) {
+        const exe = path.join(root, d, "chrome-linux", "chrome");
+        if (d.startsWith("chromium") && fs.existsSync(exe)) {
+          return chromium.launch({ executablePath: exe });
+        }
+      }
+    }
+    throw err;
+  }
+}
+
+let server = null;
+let browser = null;
+let page = null;
+
+try {
+  preserveSheets();
+  generateSheets();
+  check("synthetic hybrid declares no kneel sheet",
+    !fs.existsSync(path.join(ASSET_DIRS[1], "kneel_down.png")));
+
+  server = spawn(PY, ["-m", "http.server", PORT, "--bind", "127.0.0.1"],
+    { cwd: ROOT, stdio: "ignore" });
+  let up = false;
+  for (let i = 0; i < 50 && !up; i++) {
+    up = await fetch(`http://127.0.0.1:${PORT}/`).then(r => r.ok, () => false);
+    if (!up) await new Promise(r => setTimeout(r, 200));
+  }
+  if (server.exitCode !== null) throw new Error(`http.server exited before binding :${PORT}`);
+  if (!up) throw new Error(`server never came up on :${PORT}`);
+
+  browser = await launch();
+  page = await browser.newPage({ viewport: { width: 1100, height: 620 } });
+  page.on("pageerror", e => {
+    console.log("PAGEERROR " + e);
+    failures++;
+  });
+  await page.goto(URL);
+  await page.waitForFunction(() =>
+    ["ready", "error"].includes(document.getElementById("cv").dataset.sprites),
+  null, { timeout: 15000 });
+
+  const ds = k => page.evaluate(k => document.getElementById("cv").dataset[k], k);
+  const text = selector => page.textContent(selector);
+  const waitAction = (name, timeout = 4000) =>
+    page.waitForFunction(n => document.getElementById("cv").dataset.action === n,
+      name, { timeout }).then(() => true, () => false);
+
+  check("walk-off boots all three bodies", (await ds("sprites")) === "ready",
+    await text("#body-state"));
+  check("BODY readout names hybrid and render",
+    (await text("#body-state")).includes("HYBRID")
+      && (await text("#body-state")).includes("RENDER"),
+    await text("#body-state"));
+  fs.mkdirSync(OUT, { recursive: true });
+  await page.screenshot({ path: path.join(OUT, "01-idle-down.png") });
+
+  // Watch two changes and the return to the starting frame. That proves
+  // both the 2-frame width and the one-second breathing cycle; merely
+  // sampling one instant can make an eight-frame phantom strip look fine.
+  await page.evaluate(() => {
+    const cv = document.getElementById("cv");
+    window.__kneelCycles = new Promise(res => {
+      const packSeen = new Set();
+      const renSeen = new Set();
+      const packCounts = new Set();
+      const renCounts = new Set();
+      const packTimes = [];
+      const renTimes = [];
+      let lastPack = null;
+      let lastRen = null;
+      let begin = null;
+
+      function result(timedOut = false) {
+        return {
+          timedOut,
+          packSeen: [...packSeen], renSeen: [...renSeen],
+          packCounts: [...packCounts], renCounts: [...renCounts],
+          // The first sample can land midway through a frame. Measure
+          // between equivalent boundaries after that seeded fragment.
+          packCycle: packTimes.length >= 4 ? packTimes[3] - packTimes[1] : -1,
+          renCycle: renTimes.length >= 4 ? renTimes[3] - renTimes[1] : -1,
+        };
+      }
+
+      function tick(t) {
+        if (begin === null) begin = t;
+        if (cv.dataset.action === "kneel") {
+          const pack = cv.dataset.frame;
+          const ren = cv.dataset.frameRen;
+          packSeen.add(pack); renSeen.add(ren);
+          packCounts.add(cv.dataset.frameCount);
+          renCounts.add(cv.dataset.frameCountRen);
+          if (pack !== lastPack) { lastPack = pack; packTimes.push(t); }
+          if (ren !== lastRen) { lastRen = ren; renTimes.push(t); }
+          if (packTimes.length >= 4 && renTimes.length >= 4) return res(result());
+        }
+        if (t - begin > 5000) return res(result(true));
+        requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    });
+  });
+  await page.keyboard.down("KeyC");
+  check("hold C takes BODY A into kneel", await waitAction("kneel"));
+  const kneel = await page.evaluate(() => window.__kneelCycles);
+  const packFrames = kneel.packSeen.sort().join(",");
+  const renFrames = kneel.renSeen.sort().join(",");
+  check("BODY A kneel is 2 frames at 2fps",
+    !kneel.timedOut && packFrames === "0,1"
+      && kneel.packCounts.join(",") === "2"
+      && kneel.packCycle > 650 && kneel.packCycle < 1600,
+    `frames ${packFrames}; cycle ${Math.round(kneel.packCycle)}ms`);
+  check("BODY B kneel is 2 frames at 2fps",
+    !kneel.timedOut && (await ds("renKneel")) === "1"
+      && renFrames === "0,1" && kneel.renCounts.join(",") === "2"
+      && kneel.renCycle > 650 && kneel.renCycle < 1600,
+    `frames ${renFrames}; cycle ${Math.round(kneel.renCycle)}ms`);
+  check("kneel telemetry uses the room dialect",
+    (await text("#action-state")) === "KNEEL / STANCE");
+  check("BODY C stands with honest missing-kneel telemetry",
+    (await ds("genKneel")) === "0"
+      && (await ds("frameCountGen")) === "8"
+      && (await text("#gen-state")) === "NO KNEEL SHEET",
+    await text("#gen-state"));
+  await page.screenshot({ path: path.join(OUT, "02-kneel-down.png") });
+
+  // KNEEL is a standing pose in the sibling room: motion owns the body,
+  // then the still-held stance returns when movement stops.
+  await page.keyboard.down("KeyW");
+  check("movement cancels a held kneel", await waitAction("run"));
+  check("generated bodies translate run through declared walk sheets",
+    (await ds("genWalk")) === "1" && (await ds("renWalk")) === "1");
+  await page.keyboard.up("KeyW");
+  check("stopping resumes the held kneel", await waitAction("kneel"));
+
+  // Record the ownership transition, not just both endpoints. The attack
+  // must keep its eight-frame duration and fall straight back to the held
+  // stance without an idle seam between them.
+  await page.evaluate(() => {
+    const cv = document.getElementById("cv");
+    window.__attackTrace = new Promise(res => {
+      const frames = new Set();
+      const frameCounts = new Set();
+      let beganAt = null;
+      let begin = null;
+      function tick(t) {
+        if (begin === null) begin = t;
+        if (cv.dataset.action === "attack1") {
+          if (beganAt === null) beganAt = t;
+          frames.add(cv.dataset.frame);
+          frameCounts.add(cv.dataset.frameCount);
+        } else if (beganAt !== null) {
+          return res({
+            timedOut: false, duration: t - beganAt,
+            nextAction: cv.dataset.action,
+            frames: [...frames], frameCounts: [...frameCounts],
+          });
+        }
+        if (t - begin > 5000) return res({ timedOut: true, frames: [...frames] });
+        requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    });
+  });
+  await page.keyboard.press("KeyJ");
+  check("attack outranks a held kneel", await waitAction("attack1"));
+  const attacked = await page.evaluate(() => window.__attackTrace);
+  check("the 8-frame attack still plays as eight",
+    !attacked.timedOut && attacked.frameCounts?.join(",") === "8"
+      && attacked.duration > 350 && attacked.duration < 1400,
+    `${Math.round(attacked.duration ?? -1)}ms; frames seen ${(attacked.frames ?? []).join(",")}`);
+  check("attack completion resumes kneel without an idle seam",
+    attacked.nextAction === "kneel" && await waitAction("kneel"),
+    attacked.nextAction ?? "no completion");
+
+  await page.keyboard.up("KeyC");
+  check("releasing C returns BODY A to stand", await waitAction("idle"));
+  check("releasing C returns BODY B and C to stand",
+    (await ds("renKneel")) === "0" && (await ds("genKneel")) === "0"
+      && (await text("#ren-state")) === "IDLE"
+      && (await text("#gen-state")) === "IDLE");
+
+  console.log(`shots -> ${OUT}`);
+} finally {
+  if (browser) await browser.close().catch(() => {});
+  if (server) server.kill();
+  restoreSheets();
+}
+
+console.log(failures ? `\n${failures} FAILURES` : "\nALL PASS");
+process.exit(failures ? 1 : 0);
