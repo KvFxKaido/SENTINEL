@@ -1,0 +1,73 @@
+{
+  "_what": "The squad's render-path bodies - VESPER / KOA / SABLE on their own D1-minted generated bodies, idle + kneel, the two verbs the room stages for the squad. The reproducible INPUT; the sheets it produces are build output under assets/original/squad_render/.",
+  "_decided": "2026-08-09 - the squad phase, decided by the designer from a four-body lineup against the render cipher: keep the D1 identities as minted, pay the D1 record's own vesper debt (the helm re-roll it flagged), and put the squad on the render path so a plain URL boots the room with no pack pixels anywhere.",
+  "_economics": "A recorded DEVIATION from doc D1's letter ('one shared master body, not five characters'): the squad ships on their OWN generated bodies, not head-swaps onto the master. The bodies already existed - the D1 roster pass minted four citizens for eight generations - and the designer ratified them from the lineup rather than compositing. D1's compositor path remains the plan for FUTURE characters; the squad phase spent ~100 generations on states and idles, zero on bodies.",
+  "_dialect": "left/right ship from south-west/south-east (3/4), matching every roster body. Idle is the breathing-idle template at 4 frames (the room pins 4fps - a 1s breath, cipher's own cadence); kneel is the state still + the compression breath at 2 frames (the pack's held-pose dialect, same amplitude).",
+  "provider": "pixellab.ai",
+  "facing_map": {
+    "down": "south",
+    "up": "north",
+    "left": "south-west",
+    "right": "south-east"
+  },
+  "idle_frames_per_facing": 4,
+  "kneel_frames_per_facing": 2,
+  "breath": {
+    "shift_px": 1, "upper_frac": 0.4,
+    "_why": "the kneel's frame 2: the upper 40% of body rows settles one pixel - compression, not translation. The same dialect and amplitude as cipher's kneel and the pack's."
+  },
+  "anchor": {
+    "_why": "the squad's states wobble on the ground line (koa's north kneel dug 2 rows below standing, sable's lateral kneels floated 2 above) - so the RE-FRAME anchors each STRIP by its own measured ground row: dy = FEET_Y minus the strip's last-opaque row, one constant per strip, never per frame. Constant-within-strip preserves authored sway (the shimmy lesson); per-strip constants put every knee and boot on the pack's line. Cipher's re-frame keeps its single recorded constant - his states never wobbled; this rule is the squad record's own."
+  },
+  "mark_guard": {
+    "tol": 90, "slack": 16,
+    "_why": "per frame, the count of pixels within euclidean tol of the fighter's mark RGB must sit within slack of the same count on that facing's identity rotation. Measured across all accepted frames before recording: worst deviation 14 (the breathing template softens koa's mint band). The guard's honest scope at slack 16: it catches gross identity loss (a strong mark vanishing, dev >= 17) and large inventions - NOT subtle defects; the designer's lineup eyeball is the real identity gate and it already ran."
+  },
+  "fighters": {
+    "vesper": {
+      "identity_character_id": "4716af64-ad85-4d9f-8d1d-ccd3bbc3d273",
+      "_identity": "the Crested Helm state - the D1 record's own re-roll debt ('weakest kit match of the four') paid 2026-08-09: no wide brim, no face anywhere (the old south leaked skin under the brim), cobalt slit reading on every facing. The crest spine reads subtle at 72px - recorded, not hidden. Root 652331e6-bc13-4524-a491-ac7ae3fbc7e1 remains the D1 provenance.",
+      "canvas": 72,
+      "standing_rows": { "down": 52, "up": 52, "left": 53, "right": 53 },
+      "mark_rgb": [74, 104, 232],
+      "idle_animation_dirs": {
+        "south": "cc4c150d-51c7-4851-8f46-ee5f9441bad8",
+        "north": "045b5f43-f256-40a1-8d2d-c3c7200b5ae4",
+        "south-west": "b433f378-86bc-4cbe-a903-ff0fa3065a51",
+        "south-east": "ecad37cf-6683-4d32-beb6-bf17e4da82b6"
+      },
+      "kneel_state_id": "8bff0a64-6337-4c9c-8497-ffcf4ab9d9f5",
+      "_residual": "one or two stray warm pixels ride the glove in the north idle frames - invisible at 1x, recorded"
+    },
+    "koa": {
+      "identity_character_id": "4b4649de-056e-4c16-ba4c-44652cde1dce",
+      "canvas": 72,
+      "standing_rows": { "down": 53, "up": 52, "left": 53, "right": 53 },
+      "mark_rgb": [111, 217, 160],
+      "idle_animation_dirs": {
+        "south": "4eb3b951-2847-49e3-88f9-3c16f0f57453",
+        "north": "dc74e54c-613b-4b19-ae77-ee150a1ca9db",
+        "south-west": "55837e0c-7a35-4be5-900d-9141b9996cce",
+        "south-east": "d286d997-046e-4068-8d74-5e6723f5fc93"
+      },
+      "kneel_state_id": "9d6298ca-3f49-457c-aba9-cfa7e0ff2da5",
+      "kneel_right_mirror": true,
+      "_kneel_right": "the state's south-east rolled a BACK-facing kneel (a good kneel of the wrong facing - its rotations sweep is the record). The right facing ships as the molder-MIRRORED south-west: the composed era's cheat, this time declared here and executed by the molder rather than hidden in a sheet. Chirality cost (strap and knot flip) accepted at 1x for dialect consistency - left/right ship as a 3/4 pair on every roster body.",
+      "_kneel_north": "folds correctly but dug 2 rows below the standing line - normalized by the re-frame's per-strip anchor, no surgery needed"
+    },
+    "sable": {
+      "identity_character_id": "c25b1445-75cd-4c8a-89d9-6a40c6b58c7e",
+      "canvas": 68,
+      "standing_rows": { "down": 49, "up": 49, "left": 50, "right": 50 },
+      "mark_rgb": [184, 230, 255],
+      "idle_animation_dirs": {
+        "south": "0dc00088-dd64-4005-844c-f9093fb3f2f9",
+        "north": "1aec123f-b38c-4cc9-997d-e1b8853c4908",
+        "south-west": "e9dff8f6-a927-47e0-8adb-e0fb3bae0738",
+        "south-east": "d68510fb-ba98-425c-925e-58d362026b3b"
+      },
+      "kneel_state_id": "c8f3e2c5-eea5-4acf-ab3e-c54b777e80e2",
+      "_residual": "the breathing template muted the coat's orange ember dots present on the stills - invisible at 1x, recorded"
+    }
+  }
+}
