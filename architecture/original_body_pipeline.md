@@ -239,9 +239,14 @@ with KNEEL on C-hold (PR #103) and the actual room staging the render
 body on its three declared verbs (`?body=render96`, PR #104, sheets
 from PR #101's translation-only re-frame). This was the doc's own gate,
 and passing it moved the Status line above from Proposal to Current.
-What it does NOT do: flip the room's default body — that waits for the
-verb queue (the expansion order below, RUN first; the armed verbs
-additionally gate on the socket export) and the squad.
+What it did NOT do: flip the room's default body — at the time this
+verdict was recorded, the flip waited on the verb queue (the expansion
+order below) and the squad. **Superseded in part, 2026-08-09: the verb
+half of that gate was met (ten of ten) and the designer's full-roster
+1× walk — with the composed squad standing beside the render player,
+exactly the mixed staging this line worried about — ruled the flip
+ready. The squad half is deliberately dropped from the GATE and kept
+as WORK: vesper/koa/sable stay composed until the squad phase.**
 `art_direction_gba_tactics.md` carries the lineage entry.
 
 **VERDICT (2026-08-09, designer, walked at 1×): the FULL ROSTER passes
