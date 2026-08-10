@@ -120,12 +120,24 @@ crossing it certified.
 Roster state affects **whether and when** you field — never what happens
 inside a card:
 
-- **Wounds are clocks.** A fighter who went down is recovering; the next
-  card cannot be dealt (or this slate entry waits) until the roster is
-  whole. Recovery counts in cards or slate positions, never wall-clock —
-  nothing in this stack reads the clock, and the season inherits that.
+- **Wounds are clocks, counted in slate positions — and passing is
+  always legal.** A fighter who went down is recovering; the deal is
+  gated while the roster is unfit. What advances the clock is the
+  SLATE, not the card: a season may **pass on a slate entry**, and
+  passing advances the slate (and every recovery clock) at the entry's
+  own cost — the purse not won, the rating not built, the hosting
+  faction that noticed you didn't show. Resting the squad is a real
+  decision, visible on the card you declined. This is load-bearing:
+  clocks counted in *cards dealt* would deadlock — the wound would gate
+  the only mechanism that heals it (caught by both review bots on this
+  doc's first draft). Never wall-clock — nothing in this stack reads
+  the clock, and the season inherits that.
 - **Purse spends in the room.** Physical inventory per Sentinel 2D:
-  bought gear appears on tables and bodies.
+  bought gear appears on tables and bodies — **in the flair register,
+  mechanically inert by the Circuit's own law.** Gear that carries
+  verbs is Tier 2 roster state and waits for the door; a lite purchase
+  changes what the squad looks like and what their history shows,
+  never what a card resolves.
 - **Flair ships fully.** The Circuit's flair register is renderer-only
   by its own law — zero rules impact, determinism untouched by
   construction — so the squad visibly accumulates look and history in
@@ -162,8 +174,12 @@ snapshot with one owner per phase:
 - the **card** takes an immutable snapshot at the deal;
 - the **yard** consumes the snapshot (`restart(seed, roster)`);
 - the **witness** receives the *same snapshot*, replays from it, and
-  folds its hash into the stamp and the content address
-  (`certificate = stamp(seed, rosterHash, record, ...)`);
+  carries its hash in the certificate and the content address **as its
+  own field, deliberately NOT folded into the rules stamp** — the stamp
+  stays the behavioral version of the rules alone. run-core reports
+  stamp drift as a rules boundary, and a wound is not a rules
+  deployment; conflating the two would mark ordinary season progression
+  as drift on every card (caught in review of this doc's first draft);
 - nobody reinterprets it afterward.
 
 This is the seam's existing distrust philosophy — matching seeds,
