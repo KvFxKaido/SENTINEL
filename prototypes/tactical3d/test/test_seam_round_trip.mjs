@@ -126,6 +126,11 @@ try {
     (await frame.evaluate(() => document.getElementById("cv").dataset.roster)) === "full");
   check("the yard stages the room's render96 body",
     (await frame.evaluate(() => document.getElementById("cv").dataset.body)) === "render96");
+  // loading, not telemetry: the render idle is 4 frames where composed is 8
+  const renderIdles = await frame.evaluate(() =>
+    document.getElementById("cv").dataset.idleFrames ?? "");
+  check("the forwarded body controls loading: render Cipher idles at 4",
+    renderIdles.includes("cipher:4"), renderIdles);
 
   await frame.press("body", "Enter");   // begin the card
   await frame.waitForFunction(() =>
@@ -259,6 +264,42 @@ try {
     !/99999/.test(orphanPanel), orphanPanel);
   check("the unreadable run still exists",
     await page.evaluate(() => /99999/.test(localStorage.getItem("sentinel.run.orphan") ?? "")));
+
+  // ---- the seam carries the OTHER body too ---------------------------
+  // A seam that always forwarded render96 would pass everything above, and
+  // the forwarded value must control ASSET LOADING, not just telemetry —
+  // both halves executed here via the composed room and the 8-frame
+  // composed idle where the render idle is 4 (caught in review).
+  await page.evaluate(() => localStorage.clear());
+  await page.goto(ROOM_URL + "&body=composed");
+  await page.waitForFunction(() =>
+    ["ready", "error"].includes(document.getElementById("cv").dataset.sprites),
+    null, { timeout: 20000 });
+  await page.keyboard.down("KeyW");
+  await page.keyboard.down("KeyD");
+  const composedOpened = await page.waitForFunction(() =>
+    !!document.getElementById("seamframe"),
+    null, { timeout: 30000 }).then(() => true, () => false);
+  await page.keyboard.up("KeyW");
+  await page.keyboard.up("KeyD");
+  check("the composed room's door still deals", composedOpened);
+  if (composedOpened) {
+    const composedSrc = await page.getAttribute("#seamframe", "src");
+    check("a composed room deals composed through the seam",
+      new URL(composedSrc, page.url()).searchParams.get("body") === "composed",
+      composedSrc);
+    const composedFrame = await (await page.$("#seamframe")).contentFrame();
+    await composedFrame.waitForFunction(() =>
+      ["ready", "error"].includes(document.getElementById("cv").dataset.sprites),
+      null, { timeout: 20000 });
+    check("the yard stages the room's composed body",
+      (await composedFrame.evaluate(() =>
+        document.getElementById("cv").dataset.body)) === "composed");
+    const composedIdles = await composedFrame.evaluate(() =>
+      document.getElementById("cv").dataset.idleFrames ?? "");
+    check("the forwarded body controls loading: composed Cipher idles at 8",
+      composedIdles.includes("cipher:8"), composedIdles);
+  }
 } finally {
   if (browser) await browser.close().catch(() => {});
   if (server) server.kill();

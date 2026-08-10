@@ -152,6 +152,13 @@ try {
     if (fs.existsSync(renderDir)) fs.renameSync(renderDir, renderBak);
   }
 } catch (error) {
+  // Deliberately NO rollback here — the walkable harness's review-bought
+  // design, inherited with its reasons: a rollback inside a crash path can
+  // itself fail halfway and compound the damage, while freeing the lock
+  // makes the NEXT start's reinstate pass (above) reachable, and that pass
+  // restores every stranded backup before touching anything else. The cost
+  // is a partial tree between crash and next start; the self-heal is the
+  // recovery, and it runs first.
   fs.rmSync(LOCK, { recursive: true, force: true });
   throw error;
 }
