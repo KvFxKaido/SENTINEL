@@ -1955,7 +1955,9 @@ function beginSeam() {
   seamFrame = document.createElement("iframe");
   seamFrame.id = "seamframe";
   seamFrame.title = "KESTREL YARD — live card";
-  let src = `../tactical3d/index.html?seam=1&seed=${seamDealt}`;
+  // The seam carries the body so Cipher cannot change bodies at the door —
+  // the yard stages what the room stages in both directions of the crossing.
+  let src = `../tactical3d/index.html?seam=1&seed=${seamDealt}&body=${BODY_PARAM}`;
   if (WITNESS_PARAM) src += `&witness=${encodeURIComponent(WITNESS_PARAM)}`;
   seamFrame.src = src;
   document.body.appendChild(seamFrame);

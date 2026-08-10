@@ -28,7 +28,10 @@ combat-scale strip. No preview resamples the authored pixels.</p>
 <div id="big" class="row"></div>
 <div id="strip" class="row strip"></div>
 <script type="module">
-  import { FIGHTERS, idleDownThumb, loadSheetImage } from "./pack_sprites.js";
+  import { configureBody, FIGHTERS, idleDownThumb, loadSheetImage } from "./pack_sprites.js";
+
+  // The roster audit page audits the PACK MOLD.
+  configureBody("composed");
 
   const gate = document.getElementById("gate");
   const results = await Promise.allSettled(

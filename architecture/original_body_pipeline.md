@@ -283,7 +283,19 @@ composed Cipher, because the yard has no body-source concept and the
 render body has never been auditioned in the yard's own staging. The
 yard follows only after its own 1× walk, in its own PR; the seam swap
 is the honest cost of not bundling an unauditioned staging into a
-decided one.**
+decided one. CORRECTED later the same day, in review of the yard-body
+PR: Cipher is not FIELDED on the yard's card at all — the rules field
+VESPER/KOA/SABLE against three SYNs, and Cipher's sheets preload for
+the boot gate but never draw. The 'swap' this note narrated was never
+visible; the claim was inherited from a review comment and repeated
+without checking the card's roster. What the yard-body PR actually
+lands: the body-source concept, the seam carrying the choice, correct
+preloads, and per-fighter cadence — the exact foundation the squad's
+render combat verbs will stand on. The VISIBLE door inconsistency is
+the SQUAD's: render bodies idle in the room, composed bodies fight in
+the yard, and that retires only when vesper/koa/sable (and SYN) get
+combat verbs on the render path — a real generation phase, the
+designer's call.**
 
 **Room staging (decided 2026-08-08):** the room admits the slice
 through a declared-verb body source — `?body=render96` routes the
