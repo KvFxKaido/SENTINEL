@@ -295,7 +295,39 @@ render combat verbs will stand on. The VISIBLE door inconsistency is
 the SQUAD's: render bodies idle in the room, composed bodies fight in
 the yard, and that retires only when vesper/koa/sable (and SYN) get
 combat verbs on the render path — a real generation phase, the
-designer's call.**
+designer's call. RETIRED 2026-08-10: the designer called it the next
+day, the phase ran (the entry below), and the yard flip routes every
+fighter to the render sheets — the last visible body swap at the door
+is gone. The yard's own 1× verdict is recorded there when walked.**
+
+**THE SQUAD ARMS ITSELF (2026-08-10): run / aim / fire / hurt / death
+for VESPER / KOA / SABLE, and SYN entire — his first render verbs
+anywhere.** ~266 generations on the cipher roster's paid-for doctrines:
+templates for the cycles (three of four fighters' runs were
+four-for-four first rolls, including the honest backs that cost cipher
+a ladder), states for the held aims (three landed in one rung each;
+SYN's took four — his stocky D1 build and red accents fight every
+prior, and the ladder proved the BUILD language and the FACING-DIALECT
+language are separate guards), v3 with guard clauses for the reactions
+(hurt and death mostly first-roll), and stage-mapped v3 for the shots.
+FIRE bought the phase's new doctrine line: **the model's muzzle-flash
+prior is warm yellow and it invents debris** — cipher's cyan palette
+never had to fight it, so the squad's prompts now name the color ramp,
+the per-facing position, and the invention classes the rungs met
+(orb-on-head, lime star, ember-feet, a raised off-arm, a conjured
+second pistol, a full-body white flash on a death frame — each named
+dead in one re-roll). SYN's warm flash is the recorded exception:
+rust IS his ramp. The molder's own execution forced two metric
+corrections, both measured before recorded: two-tier decay (cipher's
+spatial mask where the flash leaves the silhouette, bright-changed
+where it does not) and flash-color containment (bright kit riding
+authored recoil is not an invention). 112 strips validated and
+published, 112 re-framed to 96×80 on the per-strip anchor; SYN's north
+kneel is kneel_frames row surgery on his identity rotation, the pack's
+own construction, executed by the molder from recorded bands. **With
+the yard flip PR, every fighter on both surfaces stages the render
+body from a plain URL; the composed pipeline survives only behind
+`?body=composed`, whole-roster on both pages.**
 
 **Room staging (decided 2026-08-08):** the room admits the slice
 through a declared-verb body source — `?body=render96` routes the
@@ -359,5 +391,7 @@ own, per D2. Reduced, not eliminated.
   (ten of ten): the VERB migration is finished. Both of the Status
   header's requirements were met the same day — the full-roster 1×
   walk ruled clean, and the default-flip PR landed. The pack's pixels
-  now ship only through the hybrid at `?body=composed` and the squad,
-  which is the squad phase's remaining work.
+  then shipped only through the hybrid at `?body=composed` and the
+  yard's squad — and the squad-combat phase (2026-08-10) retired the
+  latter: the composed pipeline is now opt-in comparison staging on
+  both pages, whole-roster, and nothing else.

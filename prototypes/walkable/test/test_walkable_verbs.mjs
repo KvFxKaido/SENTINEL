@@ -33,7 +33,9 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..", "..");
 const GEN = path.join(HERE, "make_synthetic_sheets.py");
 const FIGHTERS = ["cipher", "vesper", "koa", "sable"];
-const SQUAD_FIGHTERS = ["vesper", "koa", "sable"];
+// syn rides the backup law too: the generator writes his tracked render
+// dir since the squad-combat phase, though the ROOM never stages him.
+const SQUAD_FIGHTERS = ["vesper", "koa", "sable", "syn"];
 const sheetsDir = fighter => path.join(ROOT, "assets", "sprites", "composed", fighter);
 const backupDir = fighter => sheetsDir(fighter) + ".harness-backup";
 // The render sheets are TRACKED (assets/original is ours), which makes

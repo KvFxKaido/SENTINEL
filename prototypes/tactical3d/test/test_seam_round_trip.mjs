@@ -131,6 +131,10 @@ try {
     document.getElementById("cv").dataset.idleFrames ?? "");
   check("the forwarded body controls loading: render Cipher idles at 4",
     renderIdles.includes("cipher:4"), renderIdles);
+  // the squad-combat flip: the fighters the card actually FIELDS carry
+  // the render body through the door too
+  check("the forwarded body controls the squad: render Koa idles at 4",
+    renderIdles.includes("koa:4"), renderIdles);
 
   await frame.press("body", "Enter");   // begin the card
   await frame.waitForFunction(() =>
@@ -299,6 +303,8 @@ try {
       document.getElementById("cv").dataset.idleFrames ?? "");
     check("the forwarded body controls loading: composed Cipher idles at 8",
       composedIdles.includes("cipher:8"), composedIdles);
+    check("the forwarded body controls the squad: composed Koa idles at 8",
+      composedIdles.includes("koa:8"), composedIdles);
   }
 } finally {
   if (browser) await browser.close().catch(() => {});
