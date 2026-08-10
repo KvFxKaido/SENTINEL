@@ -34,7 +34,7 @@ const ROOT = path.resolve(HERE, "..", "..", "..");
 // drift exactly where the convergence says they must not
 const GEN = path.join(ROOT, "prototypes", "walkable", "test", "make_synthetic_sheets.py");
 const FIGHTERS = ["cipher", "vesper", "koa", "sable", "syn"];
-const SQUAD_FIGHTERS = ["vesper", "koa", "sable"];
+const SQUAD_FIGHTERS = ["vesper", "koa", "sable", "syn"];
 const PY = process.platform === "win32" ? "python" : "python3";
 const PORT = process.env.YARD_TEST_PORT ?? "8094";
 const URL = `http://localhost:${PORT}/prototypes/tactical3d/?seed=deadbeef`;
@@ -93,29 +93,42 @@ check("configureBody rejects an unknown source",
 
 packSprites.configureBody?.("render96");
 const cipherRenderUrl = packSprites.sheetUrl("cipher", "idle", "down");
-const koaRenderUrl = packSprites.sheetUrl("koa", "idle", "down");
+const koaRenderUrl = packSprites.sheetUrl("koa", "fire", "down");
+const synRenderUrl = packSprites.sheetUrl("syn", "death", "left");
 // URLs end in the per-load cache buster (the room's stale-sheet lesson,
 // paid for here by CI), so the assertions pin the path and the buster's
 // shape rather than an exact string.
 check("render96 routes Cipher to the flat render sheet",
   cipherRenderUrl.startsWith("../../assets/original/cipher_render/sheets96/idle_down.png?v="),
   cipherRenderUrl);
-check("render96 leaves non-Cipher fighters on composed sheets",
-  koaRenderUrl.startsWith("../../assets/sprites/composed/koa/IDLE/idle_down.png?v="),
+// The squad-combat phase armed the whole board: render96 is every
+// fighter's body now, squad and SYN from the squad re-frame.
+check("render96 routes the squad to their render sheets",
+  koaRenderUrl.startsWith("../../assets/original/squad_render/sheets96/koa/fire_down.png?v="),
   koaRenderUrl);
+check("render96 routes SYN to his render sheets",
+  synRenderUrl.startsWith("../../assets/original/squad_render/sheets96/syn/death_left.png?v="),
+  synRenderUrl);
 
 packSprites.configureBody?.("composed");
 const cipherComposedUrl = packSprites.sheetUrl("cipher", "idle", "down");
+const koaComposedUrl = packSprites.sheetUrl("koa", "idle", "down");
 check("composed leaves Cipher on the composed sheet",
   cipherComposedUrl.startsWith("../../assets/sprites/composed/cipher/IDLE/idle_down.png?v="),
   cipherComposedUrl);
+check("composed leaves the squad on composed sheets",
+  koaComposedUrl.startsWith("../../assets/sprites/composed/koa/IDLE/idle_down.png?v="),
+  koaComposedUrl);
 
 packSprites.configureBody?.("render96");
 const cipherIdleFps = packSprites.sheetFps?.("cipher", "idle");
-const koaIdleFps = packSprites.sheetFps?.("koa", "idle");
-check("fps belongs to fighter and action across bodies",
-  cipherIdleFps === 4 && koaIdleFps === 7,
-  `cipher ${cipherIdleFps}; koa ${koaIdleFps}`);
+const koaRenderFps = packSprites.sheetFps?.("koa", "idle");
+packSprites.configureBody?.("composed");
+const koaComposedFps = packSprites.sheetFps?.("koa", "idle");
+packSprites.configureBody?.("render96");
+check("cadence follows the staged body for every fighter",
+  cipherIdleFps === 4 && koaRenderFps === 4 && koaComposedFps === 7,
+  `cipher ${cipherIdleFps}; koa render ${koaRenderFps} composed ${koaComposedFps}`);
 
 // ---- setup: preserve real sheets ----------------------------------
 // Use the walkable harness's lock too: both suites move the same tracked
@@ -224,8 +237,12 @@ try {
   const defaultFrames = await idleFrames();
   check("default Cipher idle loads the four-frame render sheet",
     defaultFrames.cipher === 4, JSON.stringify(defaultFrames));
-  check("default Koa idle stays on the eight-frame composed sheet",
-    defaultFrames.koa === 8, JSON.stringify(defaultFrames));
+  // the flip's loading proof: before the squad-combat phase this asserted
+  // koa STAYED on the eight-frame composed sheet
+  check("default Koa idle loads the four-frame render sheet",
+    defaultFrames.koa === 4, JSON.stringify(defaultFrames));
+  check("default SYN idle loads the four-frame render sheet",
+    defaultFrames.syn === 4, JSON.stringify(defaultFrames));
   await beginCard();
 
   const start = await units();
@@ -328,21 +345,36 @@ try {
   // ---- a missing verb faults; it never falls back to the old grids ---
   // This is the whole point of the convergence: a quiet fallback would
   // put a 32×32 body back on the board while the room shows a pack body,
-  // which is the two-species bug the change exists to kill.
-  clearSheets();
-  gen("full");
-  fs.rmSync(path.join(sheetsDir("koa"), "AIM"), { recursive: true, force: true });
+  // which is the two-species bug the change exists to kill. Since the
+  // flip the default boot reads the RENDER sheets, so the missing verb
+  // is a squad render96 strip; the composed path keeps its own fault
+  // coverage under ?body=composed below.
+  fs.rmSync(path.join(squadRender96("koa"), "aim_down.png"), { force: true });
   await boot();
-  check("a missing verb faults the yard", (await ds("sprites")) === "error", await ds("sprites"));
+  check("a missing render verb faults the yard", (await ds("sprites")) === "error", await ds("sprites"));
   const detail = await page.textContent("#asset-detail").catch(() => "");
   check("the fault names the sheet that failed", /koa/i.test(detail) && /aim/i.test(detail), detail);
   check("no bodies are drawn behind the fault",
     !((await ds("units")) ?? "").includes(":idle:"), (await ds("units")) ?? "");
+  gen("slice96");   // restore the fixture strip for the legs below
+
+  // ---- the composed path faults its own absences --------------------
+  clearSheets();
+  gen("full");
+  fs.rmSync(path.join(sheetsDir("koa"), "AIM"), { recursive: true, force: true });
+  await boot("&body=composed");
+  check("a missing composed verb faults the composed yard",
+    (await ds("sprites")) === "error", await ds("sprites"));
+  const composedDetail = await page.textContent("#asset-detail").catch(() => "");
+  check("the composed fault names the sheet that failed",
+    /koa/i.test(composedDetail) && /aim/i.test(composedDetail), composedDetail);
 
   // ---- a wrong-geometry sheet is a fault, not an absence ------------
+  // badgeom writes composed sheets, which only the composed body reads
+  // since the flip.
   clearSheets();
   gen("badgeom");
-  await boot();
+  await boot("&body=composed");
   check("wrong sheet geometry faults", (await ds("sprites")) === "error", await ds("sprites"));
   check("the geometry fault says so",
     /expected a row/.test(await page.textContent("#asset-detail").catch(() => "")));
@@ -356,6 +388,8 @@ try {
     (await ds("body")) === "composed", await ds("body"));
   check("composed Cipher idle loads eight frames",
     composedFrames.cipher === 8, JSON.stringify(composedFrames));
+  check("composed Koa idle loads eight frames",
+    composedFrames.koa === 8, JSON.stringify(composedFrames));
 
   await boot("&body=rneder96");
   check("an unknown body source faults the yard",

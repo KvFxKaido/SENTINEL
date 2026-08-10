@@ -1,37 +1,82 @@
 {
-  "_what": "The squad's render-path bodies - VESPER / KOA / SABLE on their own D1-minted generated bodies, idle + kneel, the two verbs the room stages for the squad. The reproducible INPUT; the sheets it produces are build output under assets/original/squad_render/.",
-  "_decided": "2026-08-09 - the squad phase, decided by the designer from a four-body lineup against the render cipher: keep the D1 identities as minted, pay the D1 record's own vesper debt (the helm re-roll it flagged), and put the squad on the render path so a plain URL boots the room with no pack pixels anywhere.",
-  "_economics": "A recorded DEVIATION from doc D1's letter ('one shared master body, not five characters'): the squad ships on their OWN generated bodies, not head-swaps onto the master. The bodies already existed - the D1 roster pass minted four citizens for eight generations - and the designer ratified them from the lineup rather than compositing. D1's compositor path remains the plan for FUTURE characters; the squad phase spent ~100 generations on states and idles, zero on bodies.",
-  "_dialect": "left/right ship from south-west/south-east (3/4), matching every roster body. Idle is the breathing-idle template at 4 frames (the room pins 4fps - a 1s breath, cipher's own cadence); kneel is the state still + the compression breath at 2 frames (the pack's held-pose dialect, same amplitude).",
+  "_what": "The squad's render-path bodies - VESPER / KOA / SABLE / SYN on their own D1-minted generated bodies. Room verbs (idle + kneel) landed 2026-08-09; the COMBAT roster (run / aim / fire / hurt / death) and SYN entire landed 2026-08-10, so the yard can stage every fighter on the render body and the door's last visible body swap retires. The reproducible INPUT; the sheets it produces are build output under assets/original/squad_render/.",
+  "_decided": "2026-08-09 - the squad phase (idle + kneel, three fighters), decided by the designer from a four-body lineup against the render cipher. 2026-08-10 - the squad-combat phase: run/aim/fire/hurt/death for the three squadmates plus SYN entire (idle/kneel included - his first render verbs; he never idles in the room), generated on the doctrines the cipher roster paid for. The yard flip this feeds is the phase the yard-body PR's corrected seam note named as 'a real generation phase, the designer's call' - and the designer called it.",
+  "_economics": "The combat phase spent ~266 generations against the doctrine kit's predictions: run rode the running-8-frames template (~1/dir), hurt/death/fire rode v3 (~1/dir + re-roll rungs), and the aim states were the planned 20-40-per-fighter cost. SYN was the expensive citizen again - six states total (aim x4, kneel x2) because the state tool kept regressing his stocky build and red accents to its priors; the roster record predicted him ('he is the fighter who proved compose was Cipher-shaped').",
+  "_dialect": "left/right ship from south-west/south-east (3/4), matching every roster body. Idle is the breathing-idle template at 4 frames; kneel and AIM are held poses: the still + the compression breath at 2 frames. Fire is 5 frames stage-mapped to burst-first decay (the scalpel cuts time); hurt is a 4-frame flinch; death is a 9-frame one-shot the yard holds flat. Cadences are the room's render96 map, pinned in the yard as RENDER_FPS.",
   "provider": "pixellab.ai",
   "cdn_root": "https://backblaze.pixellab.ai/file/pixellab-characters/91e1cb96-29ca-4130-bab4-9a05267cc348",
-  "_cdn": "frames live at {cdn_root}/{character_id}/... - idle at {identity_character_id}/animations/{anim_dir}/{pl_facing}/{i}.png, kneel stills at {kneel_state_id}/rotations/{pl_facing}.png, identity stills at {identity_character_id}/rotations/{pl_facing}.png",
+  "_cdn": "frames live at {cdn_root}/{character_id}/... - animations at {source_character_id}/animations/{anim_dir}/{pl_facing}/{i}.png, state stills at {state_id}/rotations/{pl_facing}.png. Idle/run/hurt/death ride the identity character; AIM is its own state; FIRE's animations ride the AIM state (keep_first_frame makes the aim still frame 0, so the shot begins and ends in the stance that hosts it - cipher's seam-by-construction, inherited).",
   "facing_map": {
     "down": "south",
     "up": "north",
     "left": "south-west",
     "right": "south-east"
   },
-  "idle_frames_per_facing": 4,
-  "kneel_frames_per_facing": 2,
+  "frames_per_facing": {
+    "idle": 4,
+    "kneel": 2,
+    "run": 8,
+    "aim": 2,
+    "fire": 5,
+    "hurt": 4,
+    "death": 9
+  },
   "breath": {
-    "shift_px": 1, "upper_frac": 0.4,
-    "_why": "the kneel's frame 2: the upper 40% of body rows settles one pixel - compression, not translation. The same dialect and amplitude as cipher's kneel and the pack's."
+    "shift_px": 1,
+    "upper_frac": 0.4,
+    "_why": "held poses (kneel frame 2, aim frame 2): the upper 40% of body rows settles one pixel - compression, not translation. The same dialect and amplitude as cipher's kneel and the pack's."
   },
   "anchor": {
-    "_why": "the squad's states wobble on the ground line (koa's north kneel dug 2 rows below standing, sable's lateral kneels floated 2 above) - so the RE-FRAME anchors each STRIP by its own measured ground row: dy = FEET_Y minus the strip's last-opaque row, one constant per strip, never per frame. Constant-within-strip preserves authored sway (the shimmy lesson); per-strip constants put every knee and boot on the pack's line. Cipher's re-frame keeps its single recorded constant - his states never wobbled; this rule is the squad record's own."
+    "_why": "the RE-FRAME anchors each STRIP by its own measured ground row: dy = FEET_Y minus the strip's max last-opaque row, one constant per strip, never per frame. Constant-within-strip preserves authored sway; per-strip constants put every knee, boot, footfall, and fallen body on the pack's line. The combat phase leans on this harder than the room did: syn's run sank a constant 1-3 rows per strip and the anchor absorbs it; death's deepest row is the lying body, which is exactly what belongs on the line."
   },
   "mark_guard": {
-    "tol": 90, "slack": 16,
-    "_why": "per frame, the count of pixels within euclidean tol of the fighter's mark RGB must sit within slack of the same count on that facing's identity rotation. Measured across all accepted frames before recording: worst deviation 14 (the breathing template softens koa's mint band). The guard's honest scope at slack 16: it catches gross identity loss (a strong mark vanishing, dev >= 17) and large inventions - NOT subtle defects; the designer's lineup eyeball is the real identity gate and it already ran."
+    "tol": 90,
+    "slack": 16,
+    "_why": "per frame, the count of pixels within euclidean tol of the fighter's mark RGB must sit within slack of the same count on that facing's identity rotation. The guard's honest scope: gross identity loss and large inventions, NOT subtle defects; the designer's eyeball is the real identity gate. The combat phase re-ratified slack 16 over cipher's absolute +5: cipher's kit carries 4-8 mark pixels, koa's carries 20-25, so a proportionless +5 flunked koa's own headband riding a flinch (worst measured combat excursion: koa hurt SW frame 0 at +8).",
+    "_aim_scope": "the AIM verb baselines its guard on the aim still itself, not the identity rotation: the pistol's mark-colored glow strip is AUTHORED addition (koa's left aim measures +17 mint over his unarmed identity, one past slack), so aim's guard only holds the breath frame to the still. The still's own deviation from the identity was judged at state acceptance, where the lineup eyeball rules."
+  },
+  "hurt_checks": {
+    "planted": {
+      "row_tol": 1
+    },
+    "recovery": {
+      "min_final_height_delta": -1
+    },
+    "_why": "cipher's hurt contract: every frame's last opaque row within row_tol of the facing's standing row, and the final frame's bbox height >= the identity's minus 1 (the flinch must stand back up - sable's north v2 died here at -4, a pop the room would show at the idle hand-off). The dark budget is the mark_guard above, not a separate constant. Residual, recorded: syn's hurt ends +1..+2 ABOVE identity height on some facings (over-recovery); the recovery clause is a floor and the designer's 1x eye judges the excess."
+  },
+  "death_checks": {
+    "flat_frames": 2,
+    "flat_frac": 0.68,
+    "final_row_band": [
+      -1,
+      2
+    ],
+    "_why": "cipher's death contract unchanged: the yard holds the last frame, so the last two frames' bbox heights <= 0.68 x the identity's (measured squad finals 12-19 against 33-36 standing - far under), and the final row sits within -1..+2 of the standing line. Deliberately NO last-two-frames identity check (the settle-into-the-floor is the impact reading). Dark budget = mark_guard. The white-flash class the budget CANNOT see (koa's death north v1 flashed the whole body white for one frame - white is far from every mark) is an eyeball gate, recorded here so the next molder knows the metric's blind spot."
+  },
+  "fire_checks": {
+    "bright_min": 200,
+    "base_dilate_px": 5,
+    "_metric": "TWO-TIER decay, executed against all sixteen keepers before recording: cipher's spatial mask (bright outside the 2px-dilated frame-0 baseline) wherever the flash leaves the silhouette, and bright-CHANGED (bright pixels differing from frame 0) only where it does not - syn's head-on chest flash is the one facing the spatial mask cannot see at all. Bright-changed ALONE was the first cut and it failed its own execution: it conflates flash with recoil, and vesper's south map shipped two flash-free frames in recoil order (7 then 12) that the metric misread as a decay break. Decay claim on the chosen series: shipped f1 >= f2 >= f3 with f1 > 0 and f3 < f1; shipped f4 must be byte-identical to frame 0 (every stage map ends on source 0).",
+    "containment": "mode radius per facing, scoped to FLASH-COLORED pixels only: outside-baseline bright pixels that are either low-chroma (max-min <= 16 - the white-hot cores) or within mark_guard.tol of the fighter's mark (the tinted fringes). Bright KIT riding authored recoil is not an invention: syn's pale-wrapped fist drops six rows through his south shot and lands 18+ from any honest muzzle point - a radius that included it would gate nothing. The face-star, lime star, ember-feet, and akimbo classes all remain in scope: their pixels are flash-colored and far from the declared point.",
+    "_color_doctrine": "the model's muzzle-flash prior is WARM YELLOW and it invents debris (shell casings, embers, splatters, off-arm poses). Cipher never fought this - his palette ramp is cyan/white, and the prior obliged. The squad's fire prompts NAME the ramp ('white-hot with a <mark> tint - never yellow, orange...'), the per-facing-family position, and the inventions ('no shell casings... the other arm stays relaxed and empty'). Eighth, ninth, and tenth guard-clause saves. SYN's warm flash is the one deliberate exception: dull-red/rust IS his palette's own ramp, recorded below.",
+    "_dilate_why": "5px, MEASURED like cipher measured his 2: the squad's recoils carry bright kit (koa's white wraps, syn's lit lenses, sable's ember dots) 3-5px off the still's bright zones, and a 2px baseline let them masquerade as bloom up to 36px from the muzzle. The dilation sweep (3/4/5) was executed against all sixteen keepers; 5 is the smallest value that absorbs every kit stray it can, and the color scope below handles the one it cannot."
   },
   "fighters": {
     "vesper": {
       "identity_character_id": "4716af64-ad85-4d9f-8d1d-ccd3bbc3d273",
-      "_identity": "the Crested Helm state - the D1 record's own re-roll debt ('weakest kit match of the four') paid 2026-08-09: no wide brim, no face anywhere (the old south leaked skin under the brim), cobalt slit reading on every facing. The crest spine reads subtle at 72px - recorded, not hidden. Root 652331e6-bc13-4524-a491-ac7ae3fbc7e1 remains the D1 provenance.",
+      "_identity": "the Crested Helm state - the D1 record's own re-roll debt paid 2026-08-09: no wide brim, no face anywhere, cobalt slit reading on every facing. Root 652331e6-bc13-4524-a491-ac7ae3fbc7e1 remains the D1 provenance.",
       "canvas": 72,
-      "standing_rows": { "down": 52, "up": 52, "left": 53, "right": 53 },
-      "mark_rgb": [74, 104, 232],
+      "standing_rows": {
+        "down": 52,
+        "up": 52,
+        "left": 53,
+        "right": 53
+      },
+      "mark_rgb": [
+        74,
+        104,
+        232
+      ],
       "idle_animation_dirs": {
         "south": "cc4c150d-51c7-4851-8f46-ee5f9441bad8",
         "north": "045b5f43-f256-40a1-8d2d-c3c7200b5ae4",
@@ -39,13 +84,109 @@
         "south-east": "ecad37cf-6683-4d32-beb6-bf17e4da82b6"
       },
       "kneel_state_id": "8bff0a64-6337-4c9c-8497-ffcf4ab9d9f5",
-      "_residual": "one or two stray warm pixels ride the glove in the north idle frames - invisible at 1x, recorded"
+      "aim_state_id": "fffc739a-90b3-4e38-aa76-b2d0c4b2b8e3",
+      "_aim": "one state, zero repairs - cipher's per-joint prompt with the pistol's glow strip in cobalt. All four roster facings hold the identity's ground rows and heights EXACTLY (d+0); chirality right-handed on every rotation (south's foreshortened glint sits viewer-left = the RIGHT hand; the viewer-right candidates that scared the first probe were the device band on the relaxed LEFT forearm, present in the identity).",
+      "run_animation_dirs": {
+        "south": "b5f676fb-319a-4e98-acff-d1d9c79d51a7",
+        "north": "99245e35-594c-4908-8fe3-f6438e3f544b",
+        "south-west": "9701ae40-2498-4551-948e-27518beea4c7",
+        "south-east": "d871d7ed-a964-4f8f-9895-46973845cb52"
+      },
+      "_run": "running-8-frames template, ai_freedom 0, four-for-four first roll - including the honest back that cost cipher a ladder. Motion 184-361 px/frame.",
+      "hurt_animation_dirs": {
+        "south": "ab2e6c16-f3f7-40a0-acad-5f31b82cffe8",
+        "north": "b7cd86ae-f13b-473a-af62-747012e6aa1f",
+        "south-west": "7ce7a14a-65c6-4bd0-97d8-530e092cc858",
+        "south-east": "2876ef66-d753-4e1d-bd66-fa41091745dc"
+      },
+      "death_animation_dirs": {
+        "south": "422d4318-40f7-4b19-96a1-6a0bec433207",
+        "north": "12974523-ba4c-403c-b503-b909dd856ff5",
+        "south-west": "392e5d35-3bdb-48ca-bc41-4973c6ad46bb",
+        "south-east": "41c0b90f-5590-47d0-80b7-552157cff0eb"
+      },
+      "fire_animation_dirs": {
+        "south": "3b46ff73-7af2-4a03-b4b2-3b0512d00cd1",
+        "north": "d19b22c9-9daa-441e-a825-51b2a73fb19c",
+        "south-west": "24d97aa9-36ba-487d-903a-ec00bb8a8d13",
+        "south-east": "a73c9b03-5fa7-404d-bb82-1557d85754bb"
+      },
+      "fire_stage_frames": {
+        "down": [
+          0,
+          2,
+          3,
+          1,
+          0
+        ],
+        "up": [
+          0,
+          1,
+          2,
+          3,
+          0
+        ],
+        "left": [
+          0,
+          1,
+          2,
+          3,
+          0
+        ],
+        "right": [
+          0,
+          2,
+          1,
+          3,
+          0
+        ]
+      },
+      "fire_muzzle": {
+        "down": {
+          "point": [
+            26.5,
+            29.0
+          ],
+          "r": 10
+        },
+        "up": {
+          "point": [
+            46.9,
+            21.5
+          ],
+          "r": 9
+        },
+        "left": {
+          "point": [
+            11.3,
+            30.1
+          ],
+          "r": 13
+        },
+        "right": {
+          "point": [
+            52.8,
+            26.2
+          ],
+          "r": 10
+        }
+      },
+      "_fire": "south/north/SW are v2 - the v1 roll was the color doctrine's tuition: a warm yellow orb the size of the head sitting ON the helmet (south), a lime-green starburst (north), a yellow sun-star (SW). Naming the cobalt ramp fixed all three in one rung; SE kept its v1 white-core keeper. North bursts on frame 1 as generated (the anticipation prior's first break in nine rolls); the other three burst on f2 and the stage map reorders. Shipped decays: 4/-, 19/13, 15/9, 23/11."
     },
     "koa": {
       "identity_character_id": "4b4649de-056e-4c16-ba4c-44652cde1dce",
       "canvas": 72,
-      "standing_rows": { "down": 53, "up": 52, "left": 53, "right": 53 },
-      "mark_rgb": [111, 217, 160],
+      "standing_rows": {
+        "down": 53,
+        "up": 52,
+        "left": 53,
+        "right": 53
+      },
+      "mark_rgb": [
+        111,
+        217,
+        160
+      ],
       "idle_animation_dirs": {
         "south": "4eb3b951-2847-49e3-88f9-3c16f0f57453",
         "north": "dc74e54c-613b-4b19-ae77-ee150a1ca9db",
@@ -54,14 +195,111 @@
       },
       "kneel_state_id": "9d6298ca-3f49-457c-aba9-cfa7e0ff2da5",
       "kneel_right_mirror": true,
-      "_kneel_right": "the state's south-east rolled a BACK-facing kneel (a good kneel of the wrong facing - its rotations sweep is the record). The right facing ships as the molder-MIRRORED south-west: the composed era's cheat, this time declared here and executed by the molder rather than hidden in a sheet. Chirality cost (strap and knot flip) accepted at 1x for dialect consistency - left/right ship as a 3/4 pair on every roster body.",
-      "_kneel_north": "folds correctly but dug 2 rows below the standing line - normalized by the re-frame's per-strip anchor, no surgery needed"
+      "_kneel_right": "the state's south-east rolled a BACK-facing kneel. The right facing ships as the molder-MIRRORED south-west: the composed era's cheat, declared here and executed by the molder rather than hidden in a sheet.",
+      "aim_state_id": "2c08e199-63aa-4340-b130-447002000776",
+      "_aim": "one state, zero repairs - mint glow strip. Rows and heights exact on all four facings; the back-of-head 'face' the first eyeball feared is the identity's own grammar (band + knot tails + orange accents), verified head-on against the identity at 12x.",
+      "run_animation_dirs": {
+        "south": "22e7f05d-28e0-4fca-8fc9-0defb02ab0ce",
+        "north": "eb57f33f-b01e-486f-9407-4969e6daae7f",
+        "south-west": "dfbde942-4c61-4f00-8a8c-ff140ddee4cd",
+        "south-east": "3480532d-14a1-4020-b469-9a12d4e742b1"
+      },
+      "_run": "template four-for-four first roll. The 'bare arms' scare was the pale forearm wraps: run frames carry no more skin-family pixels than the identity itself (max +5).",
+      "hurt_animation_dirs": {
+        "south": "38af40c2-2ec1-45f4-807d-d1eec2f3a538",
+        "north": "06f9a630-19bd-494f-97c6-3e34ae568e10",
+        "south-west": "bf2e2e34-6cab-490a-b115-0fa132c0cf8d",
+        "south-east": "cb35bfe3-b1d0-4bcb-929d-25e2867fa681"
+      },
+      "death_animation_dirs": {
+        "south": "a3a40c28-023c-463d-bde1-0363219134a8",
+        "north": "84095d85-c30b-4f01-b35a-a20502a2f2fb",
+        "south-west": "b7888a86-3616-4e94-b96f-c92fa6f3a6a2",
+        "south-east": "0b0d57bf-a753-4bdd-b177-335c658d1127"
+      },
+      "_death_north": "v2 - the v1 north (a6da3098, in the provider as provenance) flashed the whole body WHITE for one mid-fall frame: an invented damage-flash the mark budget cannot see because white is far from mint. Seventh confirmation that looking at pixels beats the aggregate metric; 'never flashes white' joined the prompt and the re-roll fell clean. The rising bright-fraction on the v2's fallen frames is the lying body's own skin, wraps, and band - anatomy, not flash, verified at 6x on a light background.",
+      "fire_animation_dirs": {
+        "south": "0eb4278e-b7da-4c1e-8700-5f65535c1154",
+        "north": "7168d080-253f-4a8b-a3b8-62687dc91db0",
+        "south-west": "0ad12f09-380a-4a5c-a2c7-e9af2b70f2c1",
+        "south-east": "b839677f-fb7d-4908-a608-bf273747635b"
+      },
+      "fire_stage_frames": {
+        "down": [
+          0,
+          1,
+          2,
+          3,
+          0
+        ],
+        "up": [
+          0,
+          1,
+          2,
+          3,
+          0
+        ],
+        "left": [
+          0,
+          2,
+          1,
+          3,
+          0
+        ],
+        "right": [
+          0,
+          1,
+          2,
+          3,
+          0
+        ]
+      },
+      "fire_muzzle": {
+        "down": {
+          "point": [
+            25.8,
+            30.3
+          ],
+          "r": 12
+        },
+        "up": {
+          "point": [
+            45.1,
+            22.4
+          ],
+          "r": 10
+        },
+        "left": {
+          "point": [
+            12.5,
+            36.4
+          ],
+          "r": 9
+        },
+        "right": {
+          "point": [
+            61.4,
+            36.0
+          ],
+          "r": 11
+        }
+      },
+      "_fire": "south won on the FIRST roll in mint - the only facing in the squad the color doctrine never had to save. north is v2 (v1: yellow star + lingering debris-dashes). SW/SE are v3: the v2 rung taught a NEW invention class - the relaxed off-arm came alive (SW raised it in a wave, SE conjured a second pistol and went guns-akimbo); 'only ONE pistol exists, the other arm stays relaxed and empty' is the tenth guard-clause save. Residual, recorded: SE's burst frame is a soft mint disc roughly head-sized - color, position, decay, and pose all correct; the size is a taste call left to the designer's 1x walk. Shipped decays: 16/12, 28/-, 28/15, 102/8."
     },
     "sable": {
       "identity_character_id": "c25b1445-75cd-4c8a-89d9-6a40c6b58c7e",
       "canvas": 68,
-      "standing_rows": { "down": 49, "up": 49, "left": 50, "right": 50 },
-      "mark_rgb": [184, 230, 255],
+      "standing_rows": {
+        "down": 49,
+        "up": 49,
+        "left": 50,
+        "right": 50
+      },
+      "mark_rgb": [
+        184,
+        230,
+        255
+      ],
       "idle_animation_dirs": {
         "south": "0dc00088-dd64-4005-844c-f9093fb3f2f9",
         "north": "1aec123f-b38c-4cc9-997d-e1b8853c4908",
@@ -69,7 +307,222 @@
         "south-east": "d68510fb-ba98-425c-925e-58d362026b3b"
       },
       "kneel_state_id": "c8f3e2c5-eea5-4acf-ab3e-c54b777e80e2",
-      "_residual": "the breathing template muted the coat's orange ember dots present on the stills - invisible at 1x, recorded"
+      "aim_state_id": "bc5e2058-bfaf-46dd-ab63-16df4fde1699",
+      "_aim": "one state, zero repairs - pale ice glow strip, the aperture glint on south unmistakable at 10x.",
+      "run_animation_dirs": {
+        "south": "aec5adb9-c102-4836-a610-33b06b6638d9",
+        "north": "d528787d-1aba-4be6-8d53-59f8884fe35b",
+        "south-west": "2a25cc27-a39c-41a5-a5bb-00925f50f65c",
+        "south-east": "9733391c-f8b4-4f6d-bf2d-4666937fff1f"
+      },
+      "_run": "template four-for-four first roll; lenses hold in the cowl shadow on every front-facing frame, all eight norths honest hoods.",
+      "hurt_animation_dirs": {
+        "south": "abc61c60-4e15-4950-a91d-23b16a7b99f0",
+        "north": "d3dc2ea1-6837-49a7-b70a-d5444e55f0dc",
+        "south-west": "dd6b1218-d0f5-418e-b992-ff2b5b8b976e",
+        "south-east": "e7899a92-316a-4fe3-9b5e-8d470403a657"
+      },
+      "_hurt_north": "v3. The ladder is the recovery clause's biography: v1 (5564345b, provenance) spun the head 180 degrees to show both glowing goggles on a back-facing body - the owl-neck the dark budget exists to catch (+21 mark px on a 1-mark identity view). v2 (1212cf1b, provenance) cured the owl-neck but never stood back up (final height 29 against the 32 floor - a 4-row pop at the idle hand-off). v3 named BOTH invariants and passed all three gates.",
+      "death_animation_dirs": {
+        "south": "bd514a8e-e26f-4d7b-a493-d62658be0274",
+        "north": "cb5bdbb5-ca65-4ff0-b0b9-e20972e60f61",
+        "south-west": "315ef00a-bd56-45b4-aeab-ce5a3ef2bdc1",
+        "south-east": "eb01685a-20ab-4f51-a80b-ecb7560e752d"
+      },
+      "fire_animation_dirs": {
+        "south": "ae015909-dd9b-497f-bf70-12a9998bdf2f",
+        "north": "781bd9b7-b3bc-48ae-83b4-dc20db98f80b",
+        "south-west": "b4997a86-b06f-4bb5-a9a0-2c374effcabe",
+        "south-east": "3cb97129-f62b-4fc6-8398-da1efde656bf"
+      },
+      "fire_stage_frames": {
+        "down": [
+          0,
+          2,
+          3,
+          1,
+          0
+        ],
+        "up": [
+          0,
+          2,
+          3,
+          1,
+          0
+        ],
+        "left": [
+          0,
+          2,
+          3,
+          1,
+          0
+        ],
+        "right": [
+          0,
+          3,
+          2,
+          4,
+          0
+        ]
+      },
+      "fire_muzzle": {
+        "down": {
+          "point": [
+            23.0,
+            29.0
+          ],
+          "r": 10
+        },
+        "up": {
+          "point": [
+            43.6,
+            19.5
+          ],
+          "r": 10
+        },
+        "left": {
+          "point": [
+            12.7,
+            31.4
+          ],
+          "r": 13
+        },
+        "right": {
+          "point": [
+            52.4,
+            30.0
+          ],
+          "r": 10
+        }
+      },
+      "_fire": "south/north/SW won on the first color-clause roll (sable's first roll already carried the ramp language - his ladder taught it before his own generation ran). SE is v2: the v1 roll invented persistent ORANGE EMBER-SPARKS at his feet across every mappable frame plus a warm final blob; 'nothing at the feet or on the ground' named it dead. The SE map [0,3,2,4,0] additionally leaves v2's one flawed source frame unshipped (a momentary lens-dim on source f1); a 2px pale fleck rides shipped f2 under the goggle, invisible at 1x, recorded. Shipped decays: 1/-, 24/3, 25/13/3, 36/3."
+    },
+    "syn": {
+      "identity_character_id": "633c83c6-dde8-451d-bced-ea8845a01553",
+      "_identity": "the D1 root itself - SYN's first render verbs anywhere; he never idles in the room, so the yard is his debut. His D1 build is the squad's outlier (28 wide against everyone's 21-24, stocky) and both generators fought it all day; the roster record predicted him.",
+      "canvas": 72,
+      "standing_rows": {
+        "down": 53,
+        "up": 53,
+        "left": 53,
+        "right": 53
+      },
+      "mark_rgb": [
+        255,
+        92,
+        92
+      ],
+      "idle_animation_dirs": {
+        "south": "95aa2709-5422-4917-bfc9-1dc5e59efc07",
+        "north": "2f384965-1b4c-40c9-9e55-c58c64f5c3d6",
+        "south-west": "d604916a-a423-4eee-a193-f9dde596bdaf",
+        "south-east": "2a65d26a-7d6c-4506-b149-3e5793ea4239"
+      },
+      "_idle": "breathing-idle template, four-for-four. Motion 229-423 px/frame alarmed the probe until the ACCEPTED squad idles were measured as baseline (218-300): the template re-renders the whole body every frame across the entire squad, the room has staged exactly that since the squad landed, and the designer walked it clean. South's lens marks dim to deviation 12 - within the guard's slack 16, koa's accepted worst was 14.",
+      "kneel_state_id": "f19f11ae-4086-41d8-a1f0-143cf7fdd5e6",
+      "kneel_facings_from_state": [
+        "south",
+        "south-west",
+        "south-east"
+      ],
+      "kneel_north_surgery": {
+        "head_top": 19,
+        "leg_top": 38,
+        "foot_top": 47,
+        "drop": 5,
+        "pool_rows": 2,
+        "_why": "EXECUTABLE, consumed by the molder like cipher's own kneel north surgery: the north kneel is kneel_frames row surgery on the IDENTITY's north rotation (right identity, right scale, honest back, zero generations) - the pack's own north kneel construction. The state ladder could not produce it: Kneel v1 (56d7082a, provenance) stood tall and lost the lenses everywhere (mark 0 on all four facings); Kneel v2 folded three genuine kneels but its north stood +4 tall AND painted the red lenses on the back of the head. The back view is the one facing where 'reads as a shorter man' IS the pose. Band values verified against the shipped strip the day they were recorded."
+      },
+      "_kneel": "Kneel v2's south/south-west/south-east ship as stills + breath: genuine one-knee folds, stocky, rust-marked, lenses reading. Grounds sit 1 below the standing line (the per-strip anchor normalizes); heights within +1 of standing - the fold is real but the state draws him fractionally larger, accepted on the pose reading per cipher's own kneel lesson (the 84%-height check flunked poses that read correctly).",
+      "aim_state_id": "1c8d7b73-ba1f-400e-b958-11d1e425328d",
+      "_aim_ladder": "FOUR RUNGS - the squad's longest state ladder, every rung a different prior: v1 (18956796) grew the body +2..+4 with feet through the floor; v2 (1b05785d) grew it again and drifted the palette olive; v3 (5809ad73) NAMED THE BUILD ('short stocky wide-framed... do not make the body taller or leaner') and fixed the scale to d+0 - but aimed sideways with the wrong hand on the hard facings; v4 named the FACING DIALECTS ('seen from the FRONT the pistol points at the viewer, foreshortened... seen from BEHIND only the raised fist and pistol tip appear') and won all four. The build language and the dialect language are separate guards; syn needed both. All rungs remain in the provider as provenance.",
+      "run_animation_dirs": {
+        "south": "91888648-f0aa-47b7-80ec-e8e2636f6d7c",
+        "north": "ae405cb7-3208-4e37-8996-6bc2ae80cd05",
+        "south-west": "f98cf36e-c1a9-4bbf-9188-9d1f58c2946c",
+        "south-east": "990ae17d-bc2b-40eb-b2ee-f3b711d8de40"
+      },
+      "_run": "template four-for-four; the strips sank a constant 1-3 rows per facing (per-strip anchor's job, not a defect - constant within strip, gait bob preserved).",
+      "hurt_animation_dirs": {
+        "south": "682c0418-0401-4424-9ff1-65a6d0896448",
+        "north": "d308d2c6-ac32-4131-a487-c97312af6705",
+        "south-west": "2dac5bfe-ac8f-4eae-a688-f0261c2af822",
+        "south-east": "e4638080-e2fd-424c-97fd-fb805bc14aba"
+      },
+      "death_animation_dirs": {
+        "south": "de69bded-90eb-43b4-9229-5c0d65e96263",
+        "north": "3f380cbe-48d3-4b04-a1e5-e2dd0d19c59f",
+        "south-west": "d898fa44-6daf-4449-b40a-662db112c068",
+        "south-east": "c22efead-5f21-46ad-9449-ff0f478ccb33"
+      },
+      "_hurt_death": "both four-for-four on the first roll - syn's v3 ANIMATIONS never fought the priors his STATES did (the reference frame anchors identity; the state tool re-imagines it). Hurt ends +1..+2 over standing height on some facings, recorded under hurt_checks. Death grounds never left row 53 on any facing - the most disciplined collapse in the squad; the brief lens-peek mid-fall on north is the head tilting back in a backward fall, legitimate 3D.",
+      "fire_animation_dirs": {
+        "south": "84925329-6d1c-450d-bf88-cc7504f61ffd",
+        "north": "56b35eac-98d3-44eb-a188-8c60ea7a0c95",
+        "south-west": "f3c3ca22-07c6-4522-8b7d-59a032110874",
+        "south-east": "2911b67e-349d-4301-8941-e6eb5e8c4137"
+      },
+      "fire_stage_frames": {
+        "down": [
+          0,
+          2,
+          3,
+          4,
+          0
+        ],
+        "up": [
+          0,
+          2,
+          1,
+          4,
+          0
+        ],
+        "left": [
+          0,
+          2,
+          3,
+          4,
+          0
+        ],
+        "right": [
+          0,
+          4,
+          1,
+          2,
+          0
+        ]
+      },
+      "fire_muzzle": {
+        "down": {
+          "point": [
+            32.0,
+            35.0
+          ],
+          "r": 10
+        },
+        "up": {
+          "point": [
+            47.7,
+            19.9
+          ],
+          "r": 12
+        },
+        "left": {
+          "point": [
+            13.7,
+            37.1
+          ],
+          "r": 11
+        },
+        "right": {
+          "point": [
+            56.5,
+            38.5
+          ],
+          "r": 11
+        }
+      },
+      "_fire": "v2 for south/north/SW (v1: a white star grazing the face on south, the whole hood BACKLIT ORANGE for two frames on north, an orange fringe on SW, and a floating shell casing + red splatter on SE - syn's rust palette pulls the warm prior hardest). north's warm-white star is the recorded exception to the cool-ramp rule: dull-red/rust IS syn's own accent family, and its map [0,2,1,4,0] drops the one spark-scatter source frame. south's flash sits ON the chest inside the silhouette - the bright-changed metric carries its decay claim where the outside-baseline mask reads zero. SE is v3 (v2 rolled NO flash at all - the shot did not read) and its burst landed on the LAST source frame, the one slot that must ship dark: the map [0,4,2,1,0] is the scalpel's sharpest cut of the phase, shipping white cone, gold ember, tip glint, still - a strictly decreasing 30/19/17 in bright-changed pixels. The south muzzle point is the measured flash centroid (32,35) - the first-cut estimate from the 8x eyeball sat 11px off, caught when the containment gate executed. SE ships [0,4,1,2,0] and vesper's down/left reorder likewise: the D5 outside series ordered some flash-free frames differently than the first-cut maps guessed, and the shipped order follows the measured series, not the guess."
     }
   }
 }

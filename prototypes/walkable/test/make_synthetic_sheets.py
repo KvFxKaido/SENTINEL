@@ -61,6 +61,7 @@ SQUAD_COLORS = {
     "vesper": (174, 88, 214),
     "koa": (226, 132, 52),
     "sable": (48, 178, 154),
+    "syn": (210, 80, 70),
 }
 FACINGS = ["down", "up", "left", "right"]
 W, H = 96, 80
@@ -158,8 +159,8 @@ if mode == "walkoff":
     sys.exit(0)
 
 # The slice96 fixture carries Cipher's full render roster with its own frame
-# counts (4/8/8/7/4/9/12/2/2/5 — the re-frame preserves them), plus each
-# squadmate's four-frame idle and two-frame kneel. Flat sheet names, no verb
+# counts (4/8/8/7/4/9/12/2/2/5 — the re-frame preserves them), plus every
+# squad fighter's seven yard verbs. Flat sheet names, no verb
 # folders: sheets96 is strip-per-verb, the shape the canvas96 scripts emit.
 # Every destination is TRACKED, which is exactly why each rides claim(): a
 # direct run against real re-frame output must refuse, not flatten it.
@@ -181,14 +182,18 @@ if mode == "slice96":
             write_sheet(
                 os.path.join(RENDER96, f"{verb}_{facing}.png"),
                 frames, W, H, COLORS[verb], 57)
+    # The squad-combat phase armed the whole board: every squad fighter
+    # (SYN included) carries the yard's seven verbs on the render path,
+    # at the record's own frame counts.
     for fighter, out in SQUAD_RENDER96.items():
-        for verb, frames in {"idle": 4, "kneel": 2}.items():
+        for verb, frames in {"idle": 4, "kneel": 2, "run": 8, "aim": 2,
+                             "fire": 5, "hurt": 4, "death": 9}.items():
             for facing in FACINGS:
                 write_sheet(
                     os.path.join(out, f"{verb}_{facing}.png"),
                     frames, W, H, SQUAD_COLORS[fighter], 57)
     print("synthetic sheets: slice96 player roster (10 verbs) + render "
-          "squad (idle/kneel), all x 4 facings")
+          "squad (7 yard verbs x 4 fighters), all x 4 facings")
     sys.exit(0)
 
 for fighter in fighters:

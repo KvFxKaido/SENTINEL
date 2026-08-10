@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Re-frame the room squad's sheets onto the canon 96x80 body canvas.
 
-Reads the 24 IDLE/KNEEL sheets molded by squad_render_sheets.py and executes
-the squad record's anchor law: translation only, with one constant offset per
-strip. This deliberately differs from render_canvas96.py's single recorded
+Reads the 112 sheets molded by squad_render_sheets.py — the full yard roster
+(idle, kneel, run, aim, fire, hurt, death) for all four fighters — and
+executes the squad record's anchor law: translation only, with one constant
+offset per strip. This deliberately differs from render_canvas96.py's single recorded
 constant. The squad's generated states wobble +/-2 rows on the ground line;
 Cipher's never did. Per-frame anchoring would erase that authored movement,
 so each strip derives dy from its maximum last-opaque row and applies it to
@@ -13,13 +14,13 @@ every frame unchanged.
     dy = FEET_Y - max(frame last-opaque rows in this strip)
 
 Reads  assets/original/squad_render/sheets/
-       {fighter}/{idle,kneel}_{down,up,left,right}.png
+       {fighter}/{verb}_{down,up,left,right}.png
 Writes assets/original/squad_render/sheets96/... same names, frames at 96x80.
 
-Validated, then published: the source bill is exact, all 24 strips are rebuilt
-in memory, and every size, fit, byte-equality, and ground-anchor check passes
-before any output is written. Publication then sweeps stale PNGs and verifies
-the output side is the exact same bill.
+Validated, then published: the source bill is exact, all 112 strips are
+rebuilt in memory, and every size, fit, byte-equality, and ground-anchor
+check passes before any output is written. Publication then sweeps stale
+PNGs and verifies the output side is the exact same bill.
 """
 import json
 import os
@@ -37,9 +38,10 @@ SRC = os.path.join(HERE, "..", "assets", "original",
 OUT = os.path.join(HERE, "..", "assets", "original",
                    "squad_render", "sheets96")
 
-FIGHTERS = ("vesper", "koa", "sable")
+FIGHTERS = ("vesper", "koa", "sable", "syn")
 FACINGS = ("down", "up", "left", "right")
-FRAME_COUNTS = {"idle": 4, "kneel": 2}
+FRAME_COUNTS = {"idle": 4, "kneel": 2, "run": 8, "aim": 2,
+                "fire": 5, "hurt": 4, "death": 9}
 EXPECTED = {os.path.join(fighter, f"{verb}_{facing}.png")
             for fighter in FIGHTERS
             for verb in FRAME_COUNTS
@@ -174,12 +176,10 @@ def validate_record(record: dict) -> None:
         raise ValueError("facing_map order must be exactly "
                          f"{list(FACINGS)}, got "
                          f"{list(record.get('facing_map', {}))}")
-    if record.get("idle_frames_per_facing") != FRAME_COUNTS["idle"]:
-        raise ValueError("record idle frame count differs from the 4-frame "
-                         f"bill: {record.get('idle_frames_per_facing')!r}")
-    if record.get("kneel_frames_per_facing") != FRAME_COUNTS["kneel"]:
-        raise ValueError("record kneel frame count differs from the 2-frame "
-                         f"bill: {record.get('kneel_frames_per_facing')!r}")
+    if record.get("frames_per_facing") != FRAME_COUNTS:
+        raise ValueError("record frames_per_facing differs from this "
+                         f"re-framer's bill {FRAME_COUNTS}: "
+                         f"{record.get('frames_per_facing')!r}")
     for fighter, spec in record["fighters"].items():
         canvas = spec.get("canvas")
         if type(canvas) is not int or canvas <= 0:

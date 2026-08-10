@@ -1075,11 +1075,12 @@ function showAssetFault(errors) {
     <div class="gate-box">
       <h2>YARD SHEETS NOT LOADED</h2>
       <p>
-        The yard stages Cipher from RENDER 96 by default; regenerate it with
-        <code>walkoff_render_sheets.py</code>, then <code>render_canvas96.py</code>.
-        Vesper / Koa / Sable and SYN stay COMPOSED because their render path
-        has no yard combat verbs yet. <code>?body=composed</code> puts Cipher
-        on that path too, which takes all three stages in order:
+        The yard stages every fighter from RENDER 96 by default: Cipher's
+        sheets regenerate with <code>walkoff_render_sheets.py</code> then
+        <code>render_canvas96.py</code>; the squad's and SYN's with
+        <code>squad_render_sheets.py</code> then <code>squad_canvas96.py</code>.
+        <code>?body=composed</code> stages the licensed pipeline instead,
+        which takes all three stages in order:
         <code>roster_mold.py</code> molds the licensed pack,
         <code>compose_body.py</code> composes per-frame directories, and
         <code>pack_strip.py</code> packs those into the sheets loaded here.

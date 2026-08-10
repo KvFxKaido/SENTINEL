@@ -74,20 +74,27 @@ const SHEET_BUST = `?v=${Date.now()}`;
 export function sheetUrl(fighter, action, facing) {
   const spec = SHEETS[action];
   if (!spec) throw new Error(`no molded verb registered for ${action}`);
-  // Cipher alone has the full render combat roster. The squad and SYN stay
-  // composed because their render path has no combat verbs yet.
-  if (configuredBody === "render96" && fighter === "cipher") {
-    return `../../assets/original/cipher_render/sheets96/${spec.stem}_${facing}.png${SHEET_BUST}`;
+  // The squad-combat phase armed every fighter on the render path
+  // (2026-08-10), so render96 is the whole board's body: Cipher from his
+  // flat render sheets, the squad and SYN from the squad re-frame. The
+  // composed pipeline survives whole-roster behind ?body=composed.
+  if (configuredBody === "render96") {
+    if (fighter === "cipher") {
+      return `../../assets/original/cipher_render/sheets96/${spec.stem}_${facing}.png${SHEET_BUST}`;
+    }
+    return `../../assets/original/squad_render/sheets96/${fighter}/${spec.stem}_${facing}.png${SHEET_BUST}`;
   }
   return `../../assets/sprites/composed/${fighter}/${spec.folder}/${spec.stem}_${facing}.png${SHEET_BUST}`;
 }
 
-// Two bodies with different cadences now share verbs on one board, so fps
-// belongs to (fighter, action); the room's per-verb pin was not enough here.
+// Cadence follows the staged BODY: every render fighter shares the room's
+// render96 map, every composed fighter the per-verb pin. The signature
+// keeps (fighter, action) — it is the contract a future mixed-cadence
+// body would need, and both call sites already speak it.
 export function sheetFps(fighter, action) {
   const spec = SHEETS[action];
   if (!spec) throw new Error(`no molded verb registered for ${action}`);
-  if (configuredBody === "render96" && fighter === "cipher") return RENDER_FPS[action];
+  if (configuredBody === "render96") return RENDER_FPS[action];
   return spec.fps;
 }
 
