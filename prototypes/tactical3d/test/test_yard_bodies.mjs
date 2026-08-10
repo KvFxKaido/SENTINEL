@@ -94,17 +94,20 @@ check("configureBody rejects an unknown source",
 packSprites.configureBody?.("render96");
 const cipherRenderUrl = packSprites.sheetUrl("cipher", "idle", "down");
 const koaRenderUrl = packSprites.sheetUrl("koa", "idle", "down");
+// URLs end in the per-load cache buster (the room's stale-sheet lesson,
+// paid for here by CI), so the assertions pin the path and the buster's
+// shape rather than an exact string.
 check("render96 routes Cipher to the flat render sheet",
-  cipherRenderUrl === "../../assets/original/cipher_render/sheets96/idle_down.png",
+  cipherRenderUrl.startsWith("../../assets/original/cipher_render/sheets96/idle_down.png?v="),
   cipherRenderUrl);
 check("render96 leaves non-Cipher fighters on composed sheets",
-  koaRenderUrl === "../../assets/sprites/composed/koa/IDLE/idle_down.png",
+  koaRenderUrl.startsWith("../../assets/sprites/composed/koa/IDLE/idle_down.png?v="),
   koaRenderUrl);
 
 packSprites.configureBody?.("composed");
 const cipherComposedUrl = packSprites.sheetUrl("cipher", "idle", "down");
 check("composed leaves Cipher on the composed sheet",
-  cipherComposedUrl === "../../assets/sprites/composed/cipher/IDLE/idle_down.png",
+  cipherComposedUrl.startsWith("../../assets/sprites/composed/cipher/IDLE/idle_down.png?v="),
   cipherComposedUrl);
 
 packSprites.configureBody?.("render96");
