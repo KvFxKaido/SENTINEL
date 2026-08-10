@@ -298,7 +298,8 @@ combat verbs on the render path — a real generation phase, the
 designer's call. RETIRED 2026-08-10: the designer called it the next
 day, the phase ran (the entry below), and the yard flip routes every
 fighter to the render sheets — the last visible body swap at the door
-is gone. The yard's own 1× verdict is recorded there when walked.**
+is gone. The yard's own 1× verdict is recorded below — the designer
+walked it before the merge.**
 
 **THE SQUAD ARMS ITSELF (2026-08-10): run / aim / fire / hurt / death
 for VESPER / KOA / SABLE, and SYN entire — his first render verbs
@@ -328,6 +329,15 @@ own construction, executed by the molder from recorded bands. **With
 the yard flip PR, every fighter on both surfaces stages the render
 body from a plain URL; the composed pipeline survives only behind
 `?body=composed`, whole-roster on both pages.**
+
+**VERDICT (2026-08-10, designer, walked at 1× before the merge): the
+yard passes.** The squad fights in their render bodies through the
+door and the staging reads. One nit, recorded rather than hidden: the
+RUN reads a bit wonky at 1× — ruled cosmetic by the designer, no gate
+hangs on it. The fix is cheap whenever polish wants it: the run strips
+are template rolls, so a facing that bothers the eye is a ~4-gen
+re-roll against the same acceptance machinery, keeper-judged like
+everything else in the squad record.
 
 **Room staging (decided 2026-08-08):** the room admits the slice
 through a declared-verb body source — `?body=render96` routes the
