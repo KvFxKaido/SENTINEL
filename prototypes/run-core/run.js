@@ -249,8 +249,15 @@ export function fitness(run) {
   return { fit: clocks.length === 0, clocks };
 }
 
+// "__proto__" is refused by name: it is not a key, it is an accessor on
+// Object.prototype. Assigning wounds["__proto__"] or clocks["__proto__"]
+// invokes the inherited setter, records nothing, and fitness() would
+// call an unfit roster fit — the deal gate walked around by a fighter's
+// name (caught in review). Every dictionary key in this module is minted
+// through this check, so the refusal happens once, at the boundary.
 const isName = s =>
-  typeof s === "string" && s.length > 0 && s.length <= MAX_NAME;
+  typeof s === "string" && s.length > 0 && s.length <= MAX_NAME
+  && s !== "__proto__";
 
 const intIn = (n, lo, hi) =>
   Number.isInteger(n) && n >= lo && n <= hi;
@@ -260,6 +267,16 @@ const stampValid = st =>
   st !== null && typeof st === "object"
   && intIn(st.idx, 0, MAX_SLATE - 1)
   && entryValid(st);
+
+// Framing equality against the authored entry. Restore uses this to
+// enforce what the reducers wrote: every stamp and every pass carries
+// the slate's own word at its index, because that is the only place
+// applyCard and applyPass ever take framing from. A stored record that
+// says otherwise was not written by this module.
+const sameFraming = (rec, entry) =>
+  rec.venue === entry.venue
+  && rec.host === entry.host
+  && rec.sanction === entry.sanction;
 
 /* ---- what a card must look like before a run believes it ----------
    The room validates the seam payload before it gets here, and this
@@ -471,10 +488,27 @@ export function loadRun(at) {
   if (parsed && parsed.v === RUN_V && sane(parsed)) {
     return { run: parsed, how: "restored" };
   }
+  // Setting aside is not best-effort, for the same reason closing is not:
+  // the read-back is what makes "moved, never dropped" a behaviour. The
+  // write can throw under quota, and a store that silently drops writes —
+  // the inert default is one — does not throw at all; either way, saying
+  // "orphaned" while the orphan slot holds nothing invites the caller to
+  // save a fresh run over the only copy, which is exactly what the room
+  // does on that answer (caught in review, on the schema bump that made
+  // this path hot for every v1 run).
+  let preserved = false;
   try {
-    store.write(ORPHAN_KEY, typeof raw === "string" ? raw : JSON.stringify(raw));
-    store.remove(RUN_KEY);
-  } catch { /* a storage that refuses to write still gets a working run */ }
+    const blob = typeof raw === "string" ? raw : JSON.stringify(raw);
+    store.write(ORPHAN_KEY, blob);
+    preserved = store.read(ORPHAN_KEY) === blob;
+  } catch { preserved = false; }
+  if (!preserved) {
+    // The unreadable run keeps the live slot — it is the only copy, and
+    // the slot is not this page's to spend. The fresh run plays in
+    // memory, and the caller is told to write nothing.
+    return { run: openRun(at), how: "unpreserved" };
+  }
+  try { store.remove(RUN_KEY); } catch { /* the orphan copy is already safe */ }
   return { run: openRun(at), how: "orphaned" };
 }
 
@@ -517,12 +551,29 @@ function sane(r) {
     const s = r.season;
     if (typeof s !== "object" || Array.isArray(s)) return false;
     if (!slateValid(s.slate)) return false;
-    if (!intIn(s.pos, 0, s.slate.entries.length)) return false;
+    const entries = s.slate.entries;
+    if (!intIn(s.pos, 0, entries.length)) return false;
     if (!Array.isArray(s.passed) || s.passed.length > s.pos) return false;
-    if (!s.passed.every(p => p && typeof p === "object"
-      && intIn(p.idx, 0, s.slate.entries.length - 1)
+    // A pass is bound to its authored entry, not merely shaped like one:
+    // the idx must land on the real slate, the framing must be that
+    // entry's own word, and the indices must strictly climb — applyPass
+    // banks the current position and advances, so equal or regressing
+    // indices cannot come from this module (caught in review: a
+    // syntactically valid pass with forged framing restored fine and
+    // summary() reported a venue the slate never said).
+    if (!s.passed.every((p, i) => p && typeof p === "object"
+      && intIn(p.idx, 0, entries.length - 1)
       && entryValid(p)
+      && sameFraming(p, entries[p.idx])
+      && (i === 0 || p.idx > s.passed[i - 1].idx)
       && typeof p.at === "string" && p.at.length > 0)) return false;
+    // Cards are bound the same way: every card banked on a season was
+    // stamped by applyCard, so a season card with no stamp, a stamp off
+    // the real slate, or framing the slate never said is storage talking,
+    // not this module.
+    if (!r.recent.every(c => c.slate
+      && intIn(c.slate.idx, 0, entries.length - 1)
+      && sameFraming(c.slate, entries[c.slate.idx]))) return false;
     if (!s.clocks || typeof s.clocks !== "object" || Array.isArray(s.clocks)) return false;
     if (!Object.keys(s.clocks).every(isName)) return false;
     // 1, not 0: advance() drops a cleared clock, so a stored zero was
@@ -532,6 +583,10 @@ function sane(r) {
     // the position exactly once, and nothing else ever moves it — a run
     // whose books do not balance was not kept by this module.
     if (r.cards + s.passed.length !== s.pos) return false;
+  } else {
+    // And a plain run's cards carry no stamp at all — a stamp with no
+    // slate to answer to is unfalsifiable, so it does not restore.
+    if (!r.recent.every(c => c.slate === undefined)) return false;
   }
   if (r.rules !== null && typeof r.rules !== "string") return false;
   if (r.drift !== null && (typeof r.drift !== "object"

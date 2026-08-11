@@ -193,7 +193,13 @@ instead of a sentence.
 **Nothing is ever silently migrated or dropped.** A run from another
 schema version is *moved* to the orphan key and a fresh one opens, and
 `loadRun` returns `how: "orphaned"` so the surface can say a run was set
-aside. A run that is structurally wrong — hand-edited in devtools,
+aside. Setting aside is not best-effort either: the orphan write is
+**read back** before the live slot is cleared, because the write can
+throw under quota and a store that silently drops writes — the inert
+default is one — does not throw at all. When the read-back fails,
+`loadRun` returns `how: "unpreserved"`: the unreadable run keeps the
+live slot, the fresh run plays in memory, and the caller must not write
+— the slot holds the only copy, and it is not the page's to spend. A run that is structurally wrong — hand-edited in devtools,
 clobbered by another page on the origin — takes the same path: storage is
 not a trusted input, and the structural check goes *inside* the
 collections rather than stopping at "is it an array".
@@ -231,7 +237,8 @@ applyPass(run, at)                 → {run, accepted, why}; decline the current
 cardValid(card)                    the boundary check, exported for callers
 fitness(run)                       → {fit, clocks}; may the deal happen — the
                                      door and the surface get the same answer
-loadRun(at)                        → {run, how: fresh|restored|orphaned}
+loadRun(at)                        → {run, how: fresh|restored|orphaned|
+                                     unpreserved}
 saveRun(run)                       → false if storage refused, never throws
 closeRun(run, at)                  → {run, archived, closed, saved}; refuses
                                      to close what it could not archive

@@ -269,6 +269,41 @@ try {
   check("the unreadable run still exists",
     await page.evaluate(() => /99999/.test(localStorage.getItem("sentinel.run.orphan") ?? "")));
 
+  // ---- and a set-aside that cannot be verified spends nothing ---------
+  // The orphan write can throw under quota, or land in a store that
+  // keeps nothing. loadRun reads the orphan back before clearing the
+  // slot; when that fails, the room must not save a fresh run over the
+  // live slot, because it holds the only copy of the old one (caught in
+  // review). The patch drops writes to the orphan key only while the
+  // flag is set, so the later sections keep an honest store.
+  await page.addInitScript(() => {
+    const orig = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k, v) {
+      if (k === "sentinel.run.orphan"
+          && this.getItem("sentinel.test.dropOrphan") === "1") return;
+      return orig.call(this, k, v);
+    };
+  });
+  await page.evaluate(() => {
+    localStorage.setItem("sentinel.run", '{"v":0,"purse":77777}');
+    localStorage.setItem("sentinel.test.dropOrphan", "1");
+  });
+  await page.reload();
+  await page.waitForFunction(() =>
+    ["ready", "error"].includes(document.getElementById("cv").dataset.sprites),
+    null, { timeout: 20000 });
+  const stuckPanel = (await page.textContent("#runinfo")).replace(/\s+/g, " ").trim();
+  check("a set-aside that cannot be verified says so",
+    /COULD NOT BE SET ASIDE/.test(stuckPanel), stuckPanel);
+  check("and the room does not save over the only copy",
+    await page.evaluate(() => /77777/.test(localStorage.getItem("sentinel.run") ?? "")),
+    await page.evaluate(() => localStorage.getItem("sentinel.run")));
+  check("the stuck run's numbers never reach the surface",
+    !/77777/.test(stuckPanel), stuckPanel);
+  check("the unwritable page says the run is not persisted",
+    /NOT PERSISTED/.test(stuckPanel), stuckPanel);
+  await page.evaluate(() => localStorage.removeItem("sentinel.test.dropOrphan"));
+
   // ---- the seam carries the OTHER body too ---------------------------
   // A seam that always forwarded render96 would pass everything above, and
   // the forwarded value must control ASSET LOADING, not just telemetry —

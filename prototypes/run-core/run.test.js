@@ -669,6 +669,120 @@ test("closing a season archives the whole season with it", () => {
   assert.equal(out.run.season, null, "the fresh run is a plain one — a new season is opened, not inherited");
 });
 
+// ---- review findings, executed --------------------------------------
+
+test("an orphan that cannot be preserved does not claim it was", () => {
+  // The write can throw under quota. Before the read-back, loadRun said
+  // "orphaned" anyway — and the room saves a fresh run over the live
+  // slot on that answer, destroying the only copy while the panel said
+  // SET ASIDE (caught in review, on the schema bump that made this path
+  // hot for every v1 run).
+  const v1 = JSON.stringify({ v: 1, purse: 4321 });
+  const live = { [RUN_KEY]: v1 };
+  bindStore({
+    read: k => (k in live ? live[k] : null),
+    write: k => { if (k === ORPHAN_KEY) throw new Error("quota"); },
+    remove: k => { delete live[k]; },
+  });
+  const out = loadRun(AT);
+  assert.equal(out.how, "unpreserved");
+  assert.equal(out.run.cards, 0, "a fresh run still opens, in memory");
+  assert.equal(live[RUN_KEY], v1, "the unreadable run keeps the live slot");
+});
+
+test("a store that silently drops the orphan write cannot fake a set-aside", () => {
+  // The inert default is exactly this store: the write succeeds and
+  // keeps nothing. Same failure closeRun already guards against — read
+  // it back, or it did not happen.
+  const v1 = JSON.stringify({ v: 1, purse: 4321 });
+  const live = { [RUN_KEY]: v1 };
+  bindStore({
+    read: k => (k in live ? live[k] : null),
+    write: (k, v) => { if (k !== ORPHAN_KEY) live[k] = v; },
+    remove: k => { delete live[k]; },
+  });
+  assert.equal(loadRun(AT).how, "unpreserved");
+  assert.equal(live[RUN_KEY], v1);
+});
+
+test("__proto__ is not a fighter name — the deal gate cannot be walked around", () => {
+  // clocks["__proto__"] = WOUND_CLOCK invokes the inherited accessor and
+  // records nothing: Object.keys never sees the clock, fitness() calls
+  // the roster fit, and the wound gates no deal. Refused at the
+  // boundary, where every dictionary key in this module is minted.
+  const down = { ledger: { walked: 0, finished: 0, lost: 1 }, down: ["__proto__"] };
+  assert.equal(cardValid(card(down)), false);
+  const { accepted } = applyCard(openSeason(AT, slate()), card(down));
+  assert.equal(accepted, false, "the card is refused before it can wound nobody");
+});
+
+test("a stored run that smuggles __proto__ in is orphaned, not restored", () => {
+  const good = applyCard(openSeason(AT, slate()),
+    card({ ledger: { walked: 0, finished: 0, lost: 1 }, down: ["KOA"] })).run;
+  const blob = JSON.stringify(good);
+  for (const bad of [
+    blob.replace(`"clocks":{"KOA":${WOUND_CLOCK}}`, `"clocks":{"__proto__":${WOUND_CLOCK}}`),
+    blob.replace('"wounds":{"KOA":1}', '"wounds":{"__proto__":1}'),
+  ]) {
+    assert.notEqual(bad, blob, "the replacement must have found its target");
+    memoryStore({ [RUN_KEY]: bad });
+    assert.equal(loadRun(AT).how, "orphaned", bad.slice(0, 90));
+  }
+});
+
+test("a stored season cannot forge framing the slate never said", () => {
+  // Restore binds every record back to the authored slate: a pass or a
+  // stamp whose framing is not the slate's own word at its index was not
+  // written by this module (caught in review — it restored fine, and
+  // summary() reported a venue the slate never said).
+  let good = openSeason(AT, slate());
+  good = applyCard(good, card()).run;
+  good = applyPass(good, AT).run;
+  memoryStore({ [RUN_KEY]: JSON.stringify(good) });
+  assert.equal(loadRun(AT).how, "restored", "the honest season must still restore");
+
+  const forgedPass = JSON.parse(JSON.stringify(good));
+  forgedPass.season.passed[0].venue = "FORGED HALL";
+
+  const wanderedPass = JSON.parse(JSON.stringify(good));
+  wanderedPass.season.passed[0].idx = 2;   // in range, but entry 2's framing is not this one
+
+  const forgedStamp = JSON.parse(JSON.stringify(good));
+  forgedStamp.recent[0].slate.venue = "FORGED HALL";
+
+  const offSlateStamp = JSON.parse(JSON.stringify(good));
+  offSlateStamp.recent[0].slate.idx = 31;  // shaped fine, but not on this slate
+
+  const strippedStamp = JSON.parse(JSON.stringify(good));
+  delete strippedStamp.recent[0].slate;    // a season card always carries one
+
+  for (const bad of [forgedPass, wanderedPass, forgedStamp, offSlateStamp, strippedStamp]) {
+    memoryStore({ [RUN_KEY]: JSON.stringify(bad) });
+    assert.equal(loadRun(AT).how, "orphaned", JSON.stringify(bad).slice(0, 110));
+  }
+});
+
+test("a plain run's card cannot wear a stamp — no slate to answer to", () => {
+  const plain = applyCard(openRun(AT), card()).run;
+  const grafted = JSON.parse(JSON.stringify(plain));
+  grafted.recent[0].slate = { idx: 0, venue: "KESTREL YARD", host: "steel-syndicate", sanction: null };
+  memoryStore({ [RUN_KEY]: JSON.stringify(grafted) });
+  assert.equal(loadRun(AT).how, "orphaned");
+});
+
+test("pass indices climb — a duplicated pass cannot balance its way in", () => {
+  // applyPass banks the current position and advances, so indices
+  // strictly increase; a duplicate keeps the books balanced and is
+  // still not something this module could have written.
+  let good = openSeason(AT, slate());
+  good = applyPass(good, AT).run;
+  good = applyPass(good, AT).run;
+  const dup = JSON.parse(JSON.stringify(good));
+  dup.season.passed[1] = { ...dup.season.passed[0] };
+  memoryStore({ [RUN_KEY]: JSON.stringify(dup) });
+  assert.equal(loadRun(AT).how, "orphaned");
+});
+
 test("summary carries the season's numbers, and null for a plain run", () => {
   assert.equal(summary(openRun(AT)).season, null);
   const run = applyCard(openSeason(AT, slate()),
