@@ -32,6 +32,39 @@
    That decision deserves its own PR and its own argument. It is not
    something this module should smuggle in by being convenient.
 
+   ---- The slate (season-lite) ---------------------------------------
+
+   A run opened on a SLATE is a season (`architecture/
+   circuit_season_loop.md`, Tier 1). The slate is an authored tour:
+   an ordered list of entries, each carrying the faction framing that
+   says what that particular card MEANS — who owns the venue, who
+   sanctions the rules. The run holds the slate, points at the current
+   entry, and banks what happened to each one: fought (a card), or
+   passed (a declined entry, on the record with its framing).
+
+   Nothing about this crosses the door. The card payload from the yard
+   is unchanged; the witness certifies exactly what it certified
+   yesterday. The framing banked with a fought card comes from the
+   run's OWN slate, never from the payload — the seam does not get a
+   new input to tamper with just because the season wants context.
+
+   Wounds become CLOCKS, counted in slate positions — and passing is
+   always legal. A fighter who went down is recovering; while any
+   clock runs the roster is unfit and the deal is gated. What advances
+   a clock is the SLATE, not the card: passing an entry advances the
+   slate and every clock by one, at the entry's own cost (the purse
+   not won, the framing on the record of the card you declined).
+   Passing must stay legal precisely because clocks gate the deal —
+   a clock counted in cards dealt would gate the only mechanism that
+   heals it, and the season would deadlock (caught by both review
+   bots on the season doc's first draft).
+
+   Only BANKED cards advance the slate. A struck card is not a card:
+   it moves no money, no mercy, no wounds — and no slate. The entry
+   it was fought at remains the current entry, to be fought again or
+   passed. Same reasoning as the rules stamp sitting below the struck
+   return: what the edge disputed does not get to move the season.
+
    ---- What counts ---------------------------------------------------
 
    Inherited verbatim from the session ledger this replaces, because
@@ -55,7 +88,11 @@
    ARCHIVE instead of CAREER.
    ============================================================ */
 
-export const RUN_V = 1;
+// 2: the season joined the schema (slate, clocks, passes). A stored v1
+// run takes the orphan path below — moved aside and said so, exactly the
+// situation that path was built and tested for. Hydrating a v1 run with
+// an empty season in place would be a silent migration wearing a default.
+export const RUN_V = 2;
 // The live key is deliberately NOT versioned. It used to be
 // `sentinel.run.v${RUN_V}`, which made the orphan path below unreachable
 // in the only situation it exists for: bumping RUN_V to 2 would point
@@ -83,6 +120,15 @@ const MAX_RATING = 100;    // rules.js clamps the crowd meter to 0..100
 const MAX_PURSE = 10000;   // 100 rating x pursePerPoint 10, with an order of slack
 const MAX_SIDE = 16;       // hostiles per card, generously
 const RECENT = 12;         // cards kept in full on the run; older ones are totals only
+const MAX_SLATE = 32;      // entries per season slate — a tour, not a calendar
+const MAX_VENUE = 24;      // a venue name is a sign, not a paragraph
+const MAX_CLOCK = 16;      // sanity bound for a stored clock, not the tuning
+
+// How many slate positions a down fighter recovers for. This is the
+// number the season doc says wants the lite prototype rather than the
+// doc — tune it here, in one place, when play says so (open question 2:
+// recovery economics).
+export const WOUND_CLOCK = 2;
 
 // ---- storage binding ---------------------------------------------
 // Inert by default, exactly like the rules core's io: this module is
@@ -115,14 +161,122 @@ export function openRun(at) {
     rules: null,        // the rules stamp this run's numbers were earned under
     drift: null,        // { from, to, at } once the stamp changes mid-run
     recent: [],         // newest first, capped at RECENT
+    season: null,       // a slate, a position, clocks — or null: a plain run
   };
 }
 
+/* ---- the slate ----------------------------------------------------
+   Authored data, validated at this boundary the way cards are: the run
+   has to survive a slate it did not write. `host` and `sanction` are
+   required-but-nullable on purpose — an author must SAY nobody owns the
+   venue or nobody sanctions the card, not merely forget to mention it.
+   Explicit over implicit; a missing key is a missing decision. */
+function entryValid(e) {
+  if (!e || typeof e !== "object") return false;
+  if (typeof e.venue !== "string" || e.venue.length < 1 || e.venue.length > MAX_VENUE) return false;
+  if (e.host !== null && !isName(e.host)) return false;
+  if (e.sanction !== null && !isName(e.sanction)) return false;
+  return true;
+}
+
+export function slateValid(slate) {
+  if (!slate || typeof slate !== "object") return false;
+  if (!isName(slate.id)) return false;
+  if (!Array.isArray(slate.entries)) return false;
+  if (slate.entries.length < 1 || slate.entries.length > MAX_SLATE) return false;
+  return slate.entries.every(entryValid);
+}
+
+/* A season is a run opened on a slate — same shape, same storage, same
+   close verb; season close IS run close. Returns null rather than a
+   half-built season when the slate is not a slate: the surface loads
+   authored data, and authored data is not a trusted input either.
+
+   The entries are copied field-by-field so the season holds exactly the
+   three facts an entry is allowed to carry, not whatever else rode in on
+   the author's object. After this, the slate never changes — the season
+   moves through it; it does not edit it. */
+export function openSeason(at, slate) {
+  if (!slateValid(slate)) return null;
+  const run = openRun(at);
+  run.season = {
+    slate: {
+      id: slate.id,
+      entries: slate.entries.map(e => ({ venue: e.venue, host: e.host, sanction: e.sanction })),
+    },
+    pos: 0,        // the current entry; entries.length means the slate is complete
+    passed: [],    // declined entries, each on the record with its framing
+    clocks: {},    // NAME -> slate positions until that fighter is fit
+  };
+  return run;
+}
+
+const slateEntry = season =>
+  season.pos < season.slate.entries.length ? season.slate.entries[season.pos] : null;
+
+// The one copy of the season a reducer is allowed to write into. The
+// slate itself is shared, not copied — it is immutable after openSeason
+// and copying it per card would only make that sentence harder to check.
+const copySeason = s => s === null ? null : {
+  slate: s.slate,
+  pos: s.pos,
+  passed: s.passed.slice(),
+  clocks: { ...s.clocks },
+};
+
+/* Advancing the slate is ONE thing, whichever verb did it: the position
+   moves, and every clock ticks. "What advances the clock is the slate"
+   is the season doc's law; keeping it in one helper is what keeps it a
+   law instead of two agreeing coincidences. Cleared clocks are dropped,
+   not stored as zeros — a zero clock is not a short clock, it is no
+   clock, and sane() treats a stored zero as the junk it would be. */
+function advance(season) {
+  season.pos += 1;
+  for (const name of Object.keys(season.clocks)) {
+    const left = season.clocks[name] - 1;
+    if (left > 0) season.clocks[name] = left;
+    else delete season.clocks[name];
+  }
+}
+
+/* Derived in one place, like summary(): the surface and the door both
+   ask "may the deal happen", and they must get the same answer. */
+export function fitness(run) {
+  const clocks = run && run.season
+    ? Object.entries(run.season.clocks)
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    : [];
+  return { fit: clocks.length === 0, clocks };
+}
+
+// "__proto__" is refused by name: it is not a key, it is an accessor on
+// Object.prototype. Assigning wounds["__proto__"] or clocks["__proto__"]
+// invokes the inherited setter, records nothing, and fitness() would
+// call an unfit roster fit — the deal gate walked around by a fighter's
+// name (caught in review). Every dictionary key in this module is minted
+// through this check, so the refusal happens once, at the boundary.
 const isName = s =>
-  typeof s === "string" && s.length > 0 && s.length <= MAX_NAME;
+  typeof s === "string" && s.length > 0 && s.length <= MAX_NAME
+  && s !== "__proto__";
 
 const intIn = (n, lo, hi) =>
   Number.isInteger(n) && n >= lo && n <= hi;
+
+// The slate stamp a banked (or struck) card carries in `recent`.
+const stampValid = st =>
+  st !== null && typeof st === "object"
+  && intIn(st.idx, 0, MAX_SLATE - 1)
+  && entryValid(st);
+
+// Framing equality against the authored entry. Restore uses this to
+// enforce what the reducers wrote: every stamp and every pass carries
+// the slate's own word at its index, because that is the only place
+// applyCard and applyPass ever take framing from. A stored record that
+// says otherwise was not written by this module.
+const sameFraming = (rec, entry) =>
+  rec.venue === entry.venue
+  && rec.host === entry.host
+  && rec.sanction === entry.sanction;
 
 /* ---- what a card must look like before a run believes it ----------
    The room validates the seam payload before it gets here, and this
@@ -181,11 +335,27 @@ export function applyCard(run, card) {
     return { run, accepted: false, counted: false, why: "card is not a shape a run can bank" };
   }
 
+  // Season gates, both of them accepted:false on purpose. The room gates
+  // the deal at the door — a card arriving here while the slate is done
+  // or the roster is unfit means the room dealt when the season said not
+  // to, and that is a caller bug, not a countable outcome. Same contract
+  // as a malformed payload: the run is returned untouched and the seam
+  // harness's "the room never hits accepted:false" claim covers this too.
+  if (run.season) {
+    if (slateEntry(run.season) === null) {
+      return { run, accepted: false, counted: false, why: "the slate is complete — nothing left to fight" };
+    }
+    if (!fitness(run).fit) {
+      return { run, accepted: false, counted: false, why: "the deal was gated — the roster is unfit" };
+    }
+  }
+
   const next = {
     ...run,
     mercy: { ...run.mercy },
     wounds: { ...run.wounds },
     recent: run.recent.slice(),
+    season: copySeason(run.season),
   };
 
   const entry = {
@@ -199,6 +369,14 @@ export function applyCard(run, card) {
     down: card.down.slice(),
     at: card.at,
   };
+  // The framing comes from the run's OWN slate, never from the payload.
+  // A struck card is stamped too — it was fought at this entry, and the
+  // run's record should say where — but only a banked card will move the
+  // position below.
+  if (run.season) {
+    const e = slateEntry(run.season);
+    entry.slate = { idx: run.season.pos, venue: e.venue, host: e.host, sanction: e.sanction };
+  }
   next.recent = [entry, ...next.recent].slice(0, RECENT);
 
   if (card.cert === "struck") {
@@ -245,7 +423,51 @@ export function applyCard(run, card) {
   } else {
     next.streak = 0;
   }
+
+  // A banked card moves the season: the slate advances (a no-op for the
+  // clocks — the fitness gate above means none were running), and THEN
+  // the card's own dead start their clocks, so a fresh wound counts its
+  // recovery from the position after the card that caused it.
+  if (next.season) {
+    advance(next.season);
+    for (const name of card.down) next.season.clocks[name] = WOUND_CLOCK;
+  }
   return { run: next, accepted: true, counted: true, why: null };
+}
+
+/* ---- passing ------------------------------------------------------
+   The season's second verb, and the only one that is ALWAYS legal while
+   the slate has entries left — fit or unfit, that is the point. Passing
+   is how a wounded roster heals (the clocks tick on advance) and how a
+   fit one rests, and its cost is the record itself: the entry's framing
+   is banked with the pass, so the card you declined is a fact of the
+   season, not an absence from it.
+
+   Returns {run, accepted, why} — no `counted`, because there is no edge
+   verdict to count. A pass is the run's own act; nothing about it can
+   be disputed, so the two-negatives distinction has nothing to
+   distinguish. */
+export function applyPass(run, at) {
+  if (!run || run.v !== RUN_V) {
+    return { run, accepted: false, why: "run is not this schema version" };
+  }
+  if (!run.season) {
+    return { run, accepted: false, why: "a run without a slate has nothing to pass" };
+  }
+  const entry = slateEntry(run.season);
+  if (entry === null) {
+    return { run, accepted: false, why: "the slate is complete — nothing left to pass" };
+  }
+  if (typeof at !== "string" || !at) {
+    return { run, accepted: false, why: "a pass needs to know when it happened" };
+  }
+  const next = { ...run, season: copySeason(run.season) };
+  next.season.passed = [
+    ...next.season.passed,
+    { idx: next.season.pos, venue: entry.venue, host: entry.host, sanction: entry.sanction, at },
+  ];
+  advance(next.season);
+  return { run: next, accepted: true, why: null };
 }
 
 /* ---- reading a stored run ----------------------------------------
@@ -266,10 +488,27 @@ export function loadRun(at) {
   if (parsed && parsed.v === RUN_V && sane(parsed)) {
     return { run: parsed, how: "restored" };
   }
+  // Setting aside is not best-effort, for the same reason closing is not:
+  // the read-back is what makes "moved, never dropped" a behaviour. The
+  // write can throw under quota, and a store that silently drops writes —
+  // the inert default is one — does not throw at all; either way, saying
+  // "orphaned" while the orphan slot holds nothing invites the caller to
+  // save a fresh run over the only copy, which is exactly what the room
+  // does on that answer (caught in review, on the schema bump that made
+  // this path hot for every v1 run).
+  let preserved = false;
   try {
-    store.write(ORPHAN_KEY, typeof raw === "string" ? raw : JSON.stringify(raw));
-    store.remove(RUN_KEY);
-  } catch { /* a storage that refuses to write still gets a working run */ }
+    const blob = typeof raw === "string" ? raw : JSON.stringify(raw);
+    store.write(ORPHAN_KEY, blob);
+    preserved = store.read(ORPHAN_KEY) === blob;
+  } catch { preserved = false; }
+  if (!preserved) {
+    // The unreadable run keeps the live slot — it is the only copy, and
+    // the slot is not this page's to spend. The fresh run plays in
+    // memory, and the caller is told to write nothing.
+    return { run: openRun(at), how: "unpreserved" };
+  }
+  try { store.remove(RUN_KEY); } catch { /* the orphan copy is already safe */ }
   return { run: openRun(at), how: "orphaned" };
 }
 
@@ -302,7 +541,53 @@ function sane(r) {
     && intIn(c.purse, 0, MAX_PURSE)
     && ["certified", "unwitnessed", "struck"].includes(c.cert)
     && Array.isArray(c.down) && c.down.every(isName)
+    && (c.slate === undefined || stampValid(c.slate))
   )) return false;
+  // The season, when there is one, all the way in — same reasoning as the
+  // collections above: every field here reaches the room's surface or
+  // gates its door.
+  if (!("season" in r)) return false;
+  if (r.season !== null) {
+    const s = r.season;
+    if (typeof s !== "object" || Array.isArray(s)) return false;
+    if (!slateValid(s.slate)) return false;
+    const entries = s.slate.entries;
+    if (!intIn(s.pos, 0, entries.length)) return false;
+    if (!Array.isArray(s.passed) || s.passed.length > s.pos) return false;
+    // A pass is bound to its authored entry, not merely shaped like one:
+    // the idx must land on the real slate, the framing must be that
+    // entry's own word, and the indices must strictly climb — applyPass
+    // banks the current position and advances, so equal or regressing
+    // indices cannot come from this module (caught in review: a
+    // syntactically valid pass with forged framing restored fine and
+    // summary() reported a venue the slate never said).
+    if (!s.passed.every((p, i) => p && typeof p === "object"
+      && intIn(p.idx, 0, entries.length - 1)
+      && entryValid(p)
+      && sameFraming(p, entries[p.idx])
+      && (i === 0 || p.idx > s.passed[i - 1].idx)
+      && typeof p.at === "string" && p.at.length > 0)) return false;
+    // Cards are bound the same way: every card banked on a season was
+    // stamped by applyCard, so a season card with no stamp, a stamp off
+    // the real slate, or framing the slate never said is storage talking,
+    // not this module.
+    if (!r.recent.every(c => c.slate
+      && intIn(c.slate.idx, 0, entries.length - 1)
+      && sameFraming(c.slate, entries[c.slate.idx]))) return false;
+    if (!s.clocks || typeof s.clocks !== "object" || Array.isArray(s.clocks)) return false;
+    if (!Object.keys(s.clocks).every(isName)) return false;
+    // 1, not 0: advance() drops a cleared clock, so a stored zero was
+    // written by something other than this module
+    if (!Object.values(s.clocks).every(n => intIn(n, 1, MAX_CLOCK))) return false;
+    // The spine's own arithmetic. Every banked card and every pass moves
+    // the position exactly once, and nothing else ever moves it — a run
+    // whose books do not balance was not kept by this module.
+    if (r.cards + s.passed.length !== s.pos) return false;
+  } else {
+    // And a plain run's cards carry no stamp at all — a stamp with no
+    // slate to answer to is unfalsifiable, so it does not restore.
+    if (!r.recent.every(c => c.slate === undefined)) return false;
+  }
   if (r.rules !== null && typeof r.rules !== "string") return false;
   if (r.drift !== null && (typeof r.drift !== "object"
     || typeof r.drift.from !== "string" || typeof r.drift.to !== "string")) return false;
@@ -358,6 +643,7 @@ export function summary(run) {
   const wounded = Object.entries(run.wounds)
     .filter(([, n]) => n > 0)
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const f = fitness(run);
   return {
     cards: run.cards,
     record: `${run.wins}–${losses}`,
@@ -378,5 +664,20 @@ export function summary(run) {
     struck: run.struck,
     unwitnessed: run.unwitnessed,
     drift: run.drift,
+    // The season's numbers, or null for a plain run. `next` is the
+    // current entry's framing — what the door's card display shows —
+    // and null once the slate is complete. The room renders these and
+    // gates the deal on `fit`; it computes neither.
+    season: !run.season ? null : {
+      slate: run.season.slate.id,
+      pos: run.season.pos,
+      length: run.season.slate.entries.length,
+      complete: slateEntry(run.season) === null,
+      passes: run.season.passed.length,
+      passed: run.season.passed,
+      next: slateEntry(run.season),
+      fit: f.fit,
+      clocks: f.clocks,
+    },
   };
 }

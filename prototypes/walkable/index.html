@@ -1633,7 +1633,7 @@ document.addEventListener("keydown", event => {
     }
     const gone = summary(run);
     const at = new Date().toISOString();
-    const out = storageLive
+    const out = runWritable
       ? closeRun(run, at)
       // With no storage there is nothing to archive and nothing to lose:
       // closing is just starting over in memory, and the panel already
@@ -1783,14 +1783,22 @@ if (storageLive) {
 }
 const opened = loadRun(new Date().toISOString());
 let run = opened.run;
+// "unpreserved": something is stored that this schema cannot read, and it
+// could NOT be verifiably set aside — the live slot still holds the only
+// copy, so it is not this page's to spend. The run plays in memory, like
+// the no-storage room, and every write below is gated on this instead of
+// on storageLive alone.
+const runWritable = storageLive && opened.how !== "unpreserved";
 // Two kinds of thing the panel has to say, kept apart because they have
 // different lifetimes. A CONDITION is true until the page reloads; a NOTE
 // is about the last thing that happened and stops being true once
 // something else does. Rolling them into one line meant a stale "PREVIOUS
 // RUN CLOSED" hanging around under the next card's numbers.
-const runCondition = storageLive
-  ? null
-  : '<span class="warn">STORAGE UNAVAILABLE — THIS RUN WILL NOT SURVIVE THE PAGE</span>';
+const runCondition = !storageLive
+  ? '<span class="warn">STORAGE UNAVAILABLE — THIS RUN WILL NOT SURVIVE THE PAGE</span>'
+  : opened.how === "unpreserved"
+    ? '<span class="warn">A RUN FROM ANOTHER SCHEMA IS STUCK IN STORAGE AND COULD NOT BE SET ASIDE — THIS RUN WILL NOT SURVIVE THE PAGE</span>'
+    : null;
 // "orphaned" means something was stored that this schema cannot read. It
 // was moved aside rather than dropped, and the surface owes the player
 // that sentence — a run that silently restarts looks exactly like a run
@@ -1819,7 +1827,7 @@ let settling = 0;
 // A fresh run takes the live slot immediately — including the one opened
 // after an orphan, so the set-aside path leaves storage in the same state
 // as a first visit rather than in a third state nothing else expects.
-if (storageLive && opened.how !== "restored") saveRun(run);
+if (runWritable && opened.how !== "restored") saveRun(run);
 
 const pct = n => `${Math.round(n * 100)}%`;
 // Everything the run renders came from somewhere else — a restored blob
@@ -1871,7 +1879,7 @@ function renderRun() {
       `<span class="fp">${esc(s.drift.from)}</span> → now <span class="fp">${esc(s.drift.to)}</span>`
     );
   }
-  rows.push(`OPENED ${run.opened.slice(0, 10)}${storageLive ? "" : " · NOT PERSISTED"}`);
+  rows.push(`OPENED ${run.opened.slice(0, 10)}${runWritable ? "" : " · NOT PERSISTED"}`);
   if (runCondition) rows.push(runCondition);
   if (persistFailed) {
     rows.push('<span class="warn">STORAGE REFUSED THE LAST WRITE — WHAT IS ON SCREEN IS AHEAD OF WHAT IS SAVED</span>');
@@ -1897,7 +1905,7 @@ function bankCard(card) {
   runNote = null;   // a card is newer news than whatever the note was about
   // the return value is the point: a save that failed and said nothing
   // leaves the panel describing a run the next reload will not produce
-  if (storageLive && !saveRun(run)) persistFailed = true;
+  if (runWritable && !saveRun(run)) persistFailed = true;
   renderRun();
   return { accepted, counted, why };
 }
