@@ -1,7 +1,9 @@
 # run-core
 
 What survives the door. The run layer for the walkable world's north
-door: it banks what a returned card **cost**, and nothing else.
+door: it banks what a returned card **cost** — and, since season-lite,
+holds the slate: what the next card *means*, and whether the deal may
+happen at all.
 
 No DOM, no rules import, no clock of its own — it runs in Node, which is
 why the policy below is a test instead of a habit.
@@ -54,6 +56,54 @@ a feature. It needs, at minimum:
 
 That deserves its own PR and its own argument. It is not something this
 module gets to smuggle in by being convenient.
+
+## The slate (season-lite)
+
+A run opened on a **slate** is a season (`architecture/
+circuit_season_loop.md`, Tier 1). The slate is an authored tour — an
+ordered list of entries, each carrying the faction framing that says what
+that card *means*: who owns the venue, who sanctions the rules. The run
+holds the slate, points at the current entry, and banks what happened to
+each one: fought (a card, stamped with the entry's framing), or passed (a
+declined entry, on the record with its framing and when).
+
+**Nothing about this crosses the door.** The card payload from the yard
+is unchanged and the witness certifies exactly what it certified
+yesterday. The framing banked with a fought card comes from the run's
+*own* slate, never from the payload — the seam does not grow a new input
+to tamper with just because the season wants context.
+
+**Wounds are clocks, counted in slate positions — and passing is always
+legal.** A fighter who went down recovers for `WOUND_CLOCK` positions;
+while any clock runs, the roster is unfit and the deal is gated. A card
+arriving anyway is refused `accepted:false`: the room gates the door, so
+a card dealt to an unfit roster is a caller bug — the same contract as a
+malformed payload, and the same seam-harness claim covers it. What
+advances a clock is the *slate*: passing advances the position and every
+clock by one, at the entry's own cost — the purse not won, the framing
+of the card you declined sitting on the record. Passing must stay legal
+precisely because clocks gate the deal; a clock counted in cards dealt
+would gate the only mechanism that heals it, and the season would
+deadlock (caught by both review bots on the season doc's first draft).
+`WOUND_CLOCK` is 2 today and lives in one place — the season doc's open
+question 2 says that number wants this prototype, not the doc.
+
+**Only banked cards advance the slate.** A struck card moves no money,
+no mercy, no wounds — and no slate. The entry it was fought at stays
+current, to be fought again or passed; the attempt stays on the run's
+record, stamped with where it happened. Same reasoning as the rules
+stamp sitting below the struck early-return: what the edge disputed does
+not get to move the season.
+
+**The books always balance.** Banked cards plus passes *is* the slate
+position. `sane()` enforces the arithmetic on restore — a stored season
+whose books do not check out was not kept by this module, and is
+orphaned rather than rendered.
+
+A completed slate refuses both verbs. It does not close the run —
+closing stays the player's verb, and it archives the season whole; the
+fresh run that opens is a plain one. A new season is opened, not
+inherited.
 
 ## What counts
 
@@ -167,12 +217,20 @@ forgetting at the end of it.
 ## Shape of the interface
 
 ```
-RUN_V, RUN_KEY, CLOSED_KEY, ORPHAN_KEY
+RUN_V, RUN_KEY, CLOSED_KEY, ORPHAN_KEY, WOUND_CLOCK
 
 bindStore({read, write, remove})   host supplies storage; inert default
 openRun(at)                        a fresh run — `at` is injected, never read
+openSeason(at, slate)              a run opened on a slate — a season; null
+                                     rather than half a season if the slate
+                                     is not a slate
+slateValid(slate)                  the boundary check for authored slates
 applyCard(run, card)               → {run, accepted, counted, why}; pure
+applyPass(run, at)                 → {run, accepted, why}; decline the current
+                                     entry — advance the slate and every clock
 cardValid(card)                    the boundary check, exported for callers
+fitness(run)                       → {fit, clocks}; may the deal happen — the
+                                     door and the surface get the same answer
 loadRun(at)                        → {run, how: fresh|restored|orphaned}
 saveRun(run)                       → false if storage refused, never throws
 closeRun(run, at)                  → {run, archived, closed, saved}; refuses
@@ -180,6 +238,16 @@ closeRun(run, at)                  → {run, archived, closed, saved}; refuses
 readClosed()                       the archived run, or null
 summary(run)                       every number the surface renders
 ```
+
+`applyPass` returns no `counted` — there is no edge verdict to count. A
+pass is the run's own act; nothing about it can be disputed, so the
+two-negatives distinction has nothing to distinguish.
+
+`RUN_V` is 2: the season joined the schema. A stored v1 run takes the
+orphan path below — moved aside and said so, which is the exact
+situation that path was built and tested for. Hydrating a v1 run with an
+empty season in place would have been a silent migration wearing a
+default.
 
 `saveRun`'s return value is not decoration — the room raises a standing
 warning when a write fails after the probe passed, because a panel

@@ -13,9 +13,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  RUN_V, RUN_KEY, CLOSED_KEY, ORPHAN_KEY,
-  bindStore, openRun, applyCard, cardValid, loadRun, saveRun, closeRun,
-  readClosed, summary,
+  RUN_V, RUN_KEY, CLOSED_KEY, ORPHAN_KEY, WOUND_CLOCK,
+  bindStore, openRun, openSeason, slateValid, applyCard, applyPass,
+  cardValid, fitness, loadRun, saveRun, closeRun, readClosed, summary,
 } from "./run.js";
 
 const AT = "2026-08-04T12:00:00.000Z";
@@ -30,6 +30,22 @@ function memoryStore(seed = {}) {
     remove: k => { delete box[k]; },
   });
   return box;
+}
+
+// An authored slate: four entries, each saying what its card means.
+// host and sanction are present-but-null on purpose — the author said
+// nobody, rather than saying nothing.
+function slate(over = {}) {
+  return {
+    id: "opening-tour",
+    entries: [
+      { venue: "KESTREL YARD", host: "steel-syndicate", sanction: null },
+      { venue: "THE COLD COURT", host: null, sanction: "covenant" },
+      { venue: "LATTICE FLOOR 9", host: "lattice", sanction: null },
+      { venue: "THE DRAIN", host: "ghost-networks", sanction: null },
+    ],
+    ...over,
+  };
 }
 
 // A certified win, three hostiles yielded and walked, nobody of ours lost.
@@ -59,6 +75,7 @@ test("a fresh run is empty, versioned, and stamped with when it opened", () => {
   assert.equal(r.rules, null);
   assert.deepEqual(r.wounds, {});
   assert.deepEqual(r.recent, []);
+  assert.equal(r.season, null, "a plain run has no slate — a season is opened, not implied");
 });
 
 // ---- the reducer ---------------------------------------------------
@@ -451,4 +468,218 @@ test("summary reports drift so the surface can refuse to imply continuity", () =
   assert.equal(summary(run).drift, null);
   run = applyCard(run, card({ rules: "stampB", at: "later" })).run;
   assert.deepEqual(summary(run).drift, { from: "stampA", to: "stampB", at: "later" });
+});
+
+// ---- the slate (season-lite) ---------------------------------------
+
+test("a season is a run opened on a slate", () => {
+  const r = openSeason(AT, slate());
+  assert.equal(r.v, RUN_V);
+  assert.equal(r.cards, 0);
+  assert.equal(r.season.pos, 0);
+  assert.deepEqual(r.season.clocks, {});
+  assert.deepEqual(r.season.passed, []);
+  assert.equal(r.season.slate.id, "opening-tour");
+  assert.equal(r.season.slate.entries.length, 4);
+});
+
+test("a slate that is not a slate opens nothing, not half a season", () => {
+  for (const bad of [
+    null, 42, {},
+    slate({ id: "" }),
+    slate({ id: "X".repeat(17) }),
+    slate({ entries: [] }),
+    slate({ entries: new Array(33).fill({ venue: "V", host: null, sanction: null }) }),
+    slate({ entries: [{ venue: "", host: null, sanction: null }] }),
+    slate({ entries: [{ venue: "V".repeat(25), host: null, sanction: null }] }),
+    slate({ entries: [{ venue: "V", host: null }] }),       // sanction never said
+    slate({ entries: [{ venue: "V", sanction: null }] }),   // host never said
+    slate({ entries: [{ venue: "V", host: 7, sanction: null }] }),
+  ]) {
+    assert.equal(slateValid(bad), false, `a non-slate validated: ${JSON.stringify(bad)?.slice(0, 80)}`);
+    assert.equal(openSeason(AT, bad), null, "and it must not open half a season");
+  }
+});
+
+test("openSeason keeps its own copy of the slate, three facts per entry", () => {
+  const authored = slate();
+  authored.entries[0].extra = "rides along?";
+  const r = openSeason(AT, authored);
+  assert.equal(r.season.slate.entries[0].extra, undefined, "an entry is three facts, not whatever rode in");
+  authored.entries[0].venue = "EDITED AFTER";
+  assert.equal(r.season.slate.entries[0].venue, "KESTREL YARD", "the season holds its own slate");
+});
+
+test("a banked card is stamped from the run's own slate and advances it", () => {
+  const { run, counted } = applyCard(openSeason(AT, slate()), card());
+  assert.equal(counted, true);
+  assert.equal(run.season.pos, 1);
+  assert.deepEqual(
+    run.recent[0].slate,
+    { idx: 0, venue: "KESTREL YARD", host: "steel-syndicate", sanction: null },
+    "the framing is the slate's own word — the payload never carried one",
+  );
+});
+
+test("a plain run's cards carry no slate stamp", () => {
+  const { run } = applyCard(openRun(AT), card());
+  assert.equal(run.recent[0].slate, undefined);
+});
+
+test("a pass banks the entry it declined and advances the slate", () => {
+  const { run, accepted } = applyPass(openSeason(AT, slate()), AT);
+  assert.equal(accepted, true);
+  assert.equal(run.season.pos, 1);
+  assert.equal(run.cards, 0, "a pass is not a card");
+  assert.deepEqual(run.season.passed, [
+    { idx: 0, venue: "KESTREL YARD", host: "steel-syndicate", sanction: null, at: AT },
+  ], "the card you declined is a fact of the season, framing and all");
+});
+
+test("wounds are clocks: a down fighter gates the deal", () => {
+  const hurt = applyCard(openSeason(AT, slate()),
+    card({ ledger: { walked: 2, finished: 0, lost: 1 }, down: ["VESPER"] })).run;
+  assert.deepEqual(hurt.season.clocks, { VESPER: WOUND_CLOCK });
+  assert.equal(fitness(hurt).fit, false);
+  const snapshot = JSON.stringify(hurt);
+  const { run, accepted, counted, why } = applyCard(hurt, card());
+  assert.equal(accepted, false, "a card dealt to an unfit roster is a caller bug, not an outcome");
+  assert.equal(counted, false);
+  assert.match(why, /unfit/);
+  assert.equal(JSON.stringify(run), snapshot, "and the run is untouched");
+});
+
+test("passing is always legal, and passing is what heals — the deadlock law", () => {
+  // Clocks counted in cards dealt would gate the only mechanism that
+  // heals them (caught by both bots on the season doc's first draft).
+  // Clocks count SLATE POSITIONS, and a pass advances both.
+  let run = applyCard(openSeason(AT, slate()),
+    card({ ledger: { walked: 2, finished: 0, lost: 1 }, down: ["VESPER"] })).run;
+  for (let i = 0; i < WOUND_CLOCK; i++) {
+    assert.equal(fitness(run).fit, false);
+    const out = applyPass(run, AT);
+    assert.equal(out.accepted, true, "passing must stay legal while unfit — that is the point");
+    run = out.run;
+  }
+  assert.equal(fitness(run).fit, true);
+  assert.deepEqual(run.season.clocks, {}, "a cleared clock is dropped, not stored at zero");
+  assert.equal(applyCard(run, card()).counted, true, "and the deal is legal again");
+});
+
+test("a struck card does not advance the slate", () => {
+  const { run: after, counted } = applyCard(openSeason(AT, slate()),
+    card({ cert: "struck", ledger: { walked: 0, finished: 0, lost: 1 }, down: ["KOA"] }));
+  assert.equal(counted, false);
+  assert.equal(after.season.pos, 0, "the entry the edge disputed is still the current entry");
+  assert.deepEqual(after.season.clocks, {}, "and it wounds nobody");
+  assert.equal(after.recent[0].slate.idx, 0, "but the attempt is on the record, with its framing");
+  const again = applyCard(after, card()).run;
+  assert.equal(again.season.pos, 1, "the entry can be fought again");
+  assert.equal(again.recent[0].slate.idx, 0, "at the same position");
+});
+
+test("a completed slate refuses both verbs — closing is the player's verb", () => {
+  const one = openSeason(AT, slate({ entries: [{ venue: "ONLY CARD", host: null, sanction: null }] }));
+  const run = applyCard(one, card()).run;
+  assert.equal(summary(run).season.complete, true);
+  const fought = applyCard(run, card());
+  assert.equal(fought.accepted, false);
+  assert.match(fought.why, /complete/);
+  const passed = applyPass(run, AT);
+  assert.equal(passed.accepted, false);
+  assert.match(passed.why, /complete/);
+});
+
+test("cards plus passes is the position — the books always balance", () => {
+  let run = openSeason(AT, slate());
+  run = applyCard(run, card()).run;                          // fought: pos 1
+  run = applyPass(run, AT).run;                              // passed: pos 2
+  run = applyCard(run, card({ cert: "struck" })).run;        // struck: pos 2 still
+  run = applyCard(run, card({ cert: "unwitnessed" })).run;   // counted: pos 3
+  assert.equal(run.season.pos, 3);
+  assert.equal(run.cards + run.season.passed.length, run.season.pos);
+});
+
+test("a pass on a plain run is refused — there is nothing to decline", () => {
+  const { accepted, why } = applyPass(openRun(AT), AT);
+  assert.equal(accepted, false);
+  assert.match(why, /without a slate/);
+});
+
+test("a pass with no timestamp is refused", () => {
+  const r = openSeason(AT, slate());
+  assert.equal(applyPass(r, "").accepted, false);
+  assert.equal(applyPass(r, undefined).accepted, false);
+});
+
+test("applyPass never mutates the run it was given", () => {
+  const hurt = applyCard(openSeason(AT, slate()),
+    card({ ledger: { walked: 0, finished: 0, lost: 1 }, down: ["KOA"] })).run;
+  const snapshot = JSON.stringify(hurt);
+  applyPass(hurt, AT);
+  assert.equal(JSON.stringify(hurt), snapshot);
+});
+
+test("a season run survives the round trip through storage", () => {
+  let run = openSeason(AT, slate());
+  run = applyCard(run, card({ ledger: { walked: 0, finished: 0, lost: 1 }, down: ["KOA"] })).run;
+  run = applyPass(run, AT).run;
+  memoryStore({ [RUN_KEY]: JSON.stringify(run) });
+  const { run: back, how } = loadRun("2026-09-01T00:00:00.000Z");
+  assert.equal(how, "restored");
+  assert.deepEqual(back, run);
+});
+
+test("a hand-edited season that is structurally wrong is orphaned", () => {
+  const good = applyCard(openSeason(AT, slate()),
+    card({ ledger: { walked: 0, finished: 0, lost: 1 }, down: ["KOA"] })).run;
+  memoryStore({ [RUN_KEY]: JSON.stringify(good) });
+  assert.equal(loadRun(AT).how, "restored", "the real one must still restore");
+  const s = good.season;
+  const noSeasonKey = { ...good };
+  delete noSeasonKey.season;
+  for (const bad of [
+    { ...good, season: 42 },
+    { ...good, season: { ...s, slate: null } },
+    { ...good, season: { ...s, pos: -1 } },
+    { ...good, season: { ...s, pos: 99 } },
+    // pos 3 with one card and no passes: the books do not balance
+    { ...good, season: { ...s, pos: 3 } },
+    // a stored zero clock was written by somebody else — advance() drops them
+    { ...good, season: { ...s, clocks: { KOA: 0 } } },
+    { ...good, season: { ...s, clocks: { KOA: -2 } } },
+    { ...good, season: { ...s, clocks: { KOA: "soon" } } },
+    { ...good, season: { ...s, passed: [{ idx: 0, venue: "V", host: null, sanction: null }] } },
+    noSeasonKey,
+    { ...good, recent: [{ ...good.recent[0], slate: { idx: -1, venue: "V", host: null, sanction: null } }] },
+  ]) {
+    memoryStore({ [RUN_KEY]: JSON.stringify(bad) });
+    assert.equal(loadRun(AT).how, "orphaned", `restored junk: ${JSON.stringify(bad).slice(0, 100)}`);
+  }
+});
+
+test("closing a season archives the whole season with it", () => {
+  memoryStore();
+  let run = openSeason(AT, slate());
+  run = applyCard(run, card()).run;
+  saveRun(run);
+  const out = closeRun(run, "2026-09-01T00:00:00.000Z");
+  assert.equal(out.closed, true);
+  assert.equal(readClosed().season.pos, 1, "the season's shape survives in the archive");
+  assert.equal(out.run.season, null, "the fresh run is a plain one — a new season is opened, not inherited");
+});
+
+test("summary carries the season's numbers, and null for a plain run", () => {
+  assert.equal(summary(openRun(AT)).season, null);
+  const run = applyCard(openSeason(AT, slate()),
+    card({ ledger: { walked: 0, finished: 0, lost: 1 }, down: ["VESPER"] })).run;
+  const s = summary(run).season;
+  assert.equal(s.slate, "opening-tour");
+  assert.equal(s.pos, 1);
+  assert.equal(s.length, 4);
+  assert.equal(s.complete, false);
+  assert.equal(s.passes, 0);
+  assert.equal(s.fit, false);
+  assert.deepEqual(s.clocks, [["VESPER", WOUND_CLOCK]]);
+  assert.deepEqual(s.next, { venue: "THE COLD COURT", host: null, sanction: "covenant" });
 });
