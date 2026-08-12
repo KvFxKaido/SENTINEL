@@ -67,6 +67,17 @@ the page. `Shift`+`N` closes a run and archives it — refusing if it cannot
 archive, and refusing while a card is still settling at the edge, because
 a card in flight belongs to the run that dealt it.
 
+Since the front office (2026-08-11) a fresh run opens on the **house
+slate** and is a season (`architecture/circuit_season_loop.md`, Tier 1):
+an authored tour with faction framing, wounds as recovery clocks counted
+in slate positions, and passing — `Shift`+`P` — always legal precisely
+because the clocks gate the deal. The panel says where the tour stands,
+what the next entry means, and why the door would refuse to deal; the
+cut card frames each crossing from the run's **own** slate. Nothing
+seasonal crosses the seam — the yard is dealt exactly what it was always
+dealt. A stored plain run stays plain; a stored season keeps its own
+slate even if the house slate has since changed.
+
 Since the convergence (2026-08-01) the same **body** crosses too. Both
 surfaces load the molded pack sheets from `assets/sprites/<fighter>/`, so
 a fighter does not change species at the door — which is also why the

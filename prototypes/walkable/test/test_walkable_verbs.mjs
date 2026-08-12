@@ -452,6 +452,37 @@ try {
   check("the house tour can be passed from the door",
     (await ds("season")) === "1/6:1:fit", await ds("season"));
 
+  // storage that accepts the one-byte probe but refuses the run: the
+  // panel must say so from the very FIRST write — the fresh season's
+  // boot save — and a later write that succeeds must clear the caveat,
+  // because saveRun writes the whole run and one success means storage
+  // caught up. A warning that outlives its truth is the surface lying
+  // in the other direction (both caught in review, beat 2). The patch
+  // throws only while the flag is set, so later sections keep an
+  // honest store.
+  await page.addInitScript(() => {
+    const orig = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k, v) {
+      if (k === "sentinel.run"
+          && this.getItem("sentinel.test.refuseRun") === "1") {
+        throw new Error("quota, allegedly");
+      }
+      return orig.call(this, k, v);
+    };
+  });
+  await page.evaluate(() => {
+    localStorage.removeItem("sentinel.run");
+    localStorage.setItem("sentinel.test.refuseRun", "1");
+  });
+  await boot("?body=composed");
+  check("a refused first save is a caveat, not a silence",
+    /STORAGE REFUSED/.test(await panelText()), await panelText());
+  await page.evaluate(() => localStorage.removeItem("sentinel.test.refuseRun"));
+  await pass();
+  check("a later successful write clears the caveat",
+    !/STORAGE REFUSED/.test(await panelText()) && (await ds("season")) === "1/6:1:fit",
+    await panelText());
+
   await page.evaluate(() => localStorage.removeItem("sentinel.run"));
   await boot("?body=composed");
 

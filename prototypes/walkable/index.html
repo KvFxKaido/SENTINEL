@@ -1473,7 +1473,22 @@ function stepBody(dx, dz) {
 // is fit to fight it.
 function dealGate() {
   const s = summary(run).season;
+  // A plain run's door is always live — including mid-settlement, the
+  // recorded liberty the settling COUNT exists for: nothing positional
+  // rides a plain card, so two in flight bank in either order.
   if (!s) return null;
+  // A season's door shares the settling guard close and pass already
+  // hold, because the position a new card would be stamped at is not
+  // final while one is in flight: if the settling card banks first, the
+  // slate advances underneath the new deal and applyCard either stamps
+  // it at an entry it never fought or refuses it as a caller bug
+  // (caught in review, beat 2).
+  if (settling > 0) {
+    return {
+      name: "A CARD IS STILL SETTLING",
+      sub: "THE SEASON'S POSITION IS NOT FINAL — THE DOOR DEALS ONCE IT LANDS",
+    };
+  }
   if (s.complete) {
     return {
       name: "THE SLATE IS COMPLETE",
@@ -1694,7 +1709,7 @@ document.addEventListener("keydown", event => {
     // the machinery that already covers a failed save covers this one.
     if (out.closed) {
       run = openSeason(at, HOUSE_SLATE);
-      if (runWritable && !saveRun(run)) persistFailed = true;
+      if (runWritable) persistFailed = !saveRun(run);
     } else {
       run = out.run;
     }
@@ -1742,7 +1757,7 @@ document.addEventListener("keydown", event => {
     run = out.run;
     const passed = run.season.passed[run.season.passed.length - 1];
     runNote = `PASSED <b>${esc(passed.venue)}</b> — ON THE RECORD, AND THE SLATE MOVES ON`;
-    if (runWritable && !saveRun(run)) persistFailed = true;
+    if (runWritable) persistFailed = !saveRun(run);
     renderRun();
     return;
   }
@@ -1937,6 +1952,11 @@ let runNote = opened.how === "orphaned"
 // after the panel has already drawn the card would leave the surface
 // claiming a card the next reload cannot produce, so a failed save
 // becomes a standing condition rather than a silence (caught in review).
+// And a save that later SUCCEEDS clears it, because saveRun writes the
+// whole run: one success means storage has caught up, and a caveat that
+// outlives its truth is the surface lying in the other direction
+// (caught in review, beat 2 — every writer below assigns rather than
+// latches).
 let persistFailed = false;
 // Cards in flight: raised when one comes home, lowered when the edge has
 // ruled on it. Closing the run in that window used to archive the old run
@@ -1953,7 +1973,10 @@ let settling = 0;
 // A fresh run takes the live slot immediately — including the one opened
 // after an orphan, so the set-aside path leaves storage in the same state
 // as a first visit rather than in a third state nothing else expects.
-if (runWritable && opened.how !== "restored") saveRun(run);
+// The return value is not decoration here either: a first write refused
+// under quota with nothing said would strand the panel describing a
+// season the next reload cannot produce (caught in review, beat 2).
+if (runWritable && opened.how !== "restored") persistFailed = !saveRun(run);
 
 const pct = n => `${Math.round(n * 100)}%`;
 // Everything the run renders came from somewhere else — a restored blob
@@ -2081,7 +2104,7 @@ function bankCard(card) {
   runNote = null;   // a card is newer news than whatever the note was about
   // the return value is the point: a save that failed and said nothing
   // leaves the panel describing a run the next reload will not produce
-  if (runWritable && !saveRun(run)) persistFailed = true;
+  if (runWritable) persistFailed = !saveRun(run);
   renderRun();
   return { accepted, counted, why };
 }

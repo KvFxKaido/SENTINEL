@@ -174,6 +174,25 @@ try {
   check("and the refused pass moved nothing",
     (await seasonOf()) === "0/6:0:fit", await seasonOf());
 
+  // And the DOOR shares the guard: the position a new card would be
+  // stamped at is not final while one is in flight — if the settling
+  // card banked first, the slate would advance underneath the new deal.
+  // Without this gate the second card is either stamped at an entry it
+  // never fought or refused by the run as a caller bug (caught in
+  // review, beat 2).
+  await page.keyboard.down("KeyW");
+  await page.keyboard.down("KeyD");
+  const gatedSettling = await page.waitForFunction(() =>
+    document.getElementById("cv").dataset.seam === "gated",
+    null, { timeout: 15000 }).then(() => true, () => false);
+  await page.keyboard.up("KeyW");
+  await page.keyboard.up("KeyD");
+  const settlingCut = (await page.textContent("#seamcut")).replace(/\s+/g, " ").trim();
+  check("the door is gated while a card is settling", gatedSettling);
+  check("a settling gate never opens the seam", !(await page.$("#seamframe")));
+  check("and the cut says the card is still settling",
+    /STILL SETTLING/.test(settlingCut), settlingCut);
+
   const t0 = Date.now();
   const settled = await page.waitForFunction(
     () => /CERTIFIED|UNCERTIFIED|STRUCK/.test(document.getElementById("seaminfo").textContent),
