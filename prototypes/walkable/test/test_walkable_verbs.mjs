@@ -380,6 +380,11 @@ try {
   await page.keyboard.up("KeyD");
   check("an unfit roster gates the door", gated);
   check("a gated door never opens the seam", !(await page.$("#seamframe")));
+  // the walked refusal and the door's PUBLISHED answer are the same
+  // function: this is what lets the witness suite assert the settling
+  // branch off the published value alone, where walking is a footrace
+  check("the walked refusal is the door's own published answer",
+    (await ds("dealGate")) === "unfit", await ds("dealGate"));
   const gateCut = (await page.textContent("#seamcut")).replace(/\s+/g, " ").trim();
   check("the refusal says why and what heals it",
     /THE DEAL IS GATED/.test(gateCut) && /SABLE 2/.test(gateCut)
@@ -415,6 +420,8 @@ try {
   check("and the cut says the slate is complete",
     /SLATE IS COMPLETE/.test(completeCut) && /NOTHING LEFT TO FIGHT/.test(completeCut),
     completeCut);
+  check("the complete gate is published under its own reason",
+    (await ds("dealGate")) === "complete", await ds("dealGate"));
   await pass();
   check("a pass on a complete slate is refused in the run's own words",
     /NOTHING LEFT TO PASS/.test(await panelText()), await panelText());
@@ -432,6 +439,10 @@ try {
   await boot("?body=composed");
   check("a plain run reads none on the season surface",
     (await ds("season")) === "none", await ds("season"));
+  // a plain run's door is always live — the recorded liberty the
+  // settling COUNT exists for: nothing positional rides a plain card
+  check("a plain run's door is never gated",
+    (await ds("dealGate")) === "live", await ds("dealGate"));
   check("a plain run's panel carries no slate line",
     !/SLATE /.test(await panelText()), await panelText());
   await pass();

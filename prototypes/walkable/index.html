@@ -1485,18 +1485,21 @@ function dealGate() {
   // (caught in review, beat 2).
   if (settling > 0) {
     return {
+      kind: "settling",
       name: "A CARD IS STILL SETTLING",
       sub: "THE SEASON'S POSITION IS NOT FINAL — THE DOOR DEALS ONCE IT LANDS",
     };
   }
   if (s.complete) {
     return {
+      kind: "complete",
       name: "THE SLATE IS COMPLETE",
       sub: "NOTHING LEFT TO FIGHT — CLOSE THE RUN (SHIFT+N)",
     };
   }
   if (!s.fit) {
     return {
+      kind: "unfit",
       name: "THE DEAL IS GATED",
       sub: "ROSTER UNFIT · "
         + s.clocks.map(([name, left]) => `${esc(name)} ${left}`).join(" · ")
@@ -1505,6 +1508,7 @@ function dealGate() {
   }
   return null;
 }
+
 
 // The refusal is a cut, not a silence: the body is set back inside the
 // walls and the door says why it would not deal. Walking into it again
@@ -1717,17 +1721,17 @@ document.addEventListener("keydown", event => {
     // so this reports what happened instead of assuming it worked. What
     // the closed run held: cards fought, and — for a season — how far the
     // tour got, so a pass-only run does not close as "nothing in it".
-    const held = [];
+    const carried = [];
     if (gone.cards || gone.struck) {
-      held.push(`${gone.cards} CARD${gone.cards === 1 ? "" : "S"} · ${gone.record} · ${gone.purse}c`);
+      carried.push(`${gone.cards} CARD${gone.cards === 1 ? "" : "S"} · ${gone.record} · ${gone.purse}c`);
     }
     if (gone.season && gone.season.pos) {
-      held.push(`TOURED ${gone.season.pos} OF ${gone.season.length}`);
+      carried.push(`TOURED ${gone.season.pos} OF ${gone.season.length}`);
     }
     runNote = !out.closed
       ? '<span class="warn">COULD NOT ARCHIVE — THE RUN IS STILL OPEN</span>'
-      : held.length
-        ? `PREVIOUS RUN CLOSED · ${held.join(" · ")}` + (out.archived ? " · ARCHIVED" : "")
+      : carried.length
+        ? `PREVIOUS RUN CLOSED · ${carried.join(" · ")}` + (out.archived ? " · ARCHIVED" : "")
         : "PREVIOUS RUN CLOSED · IT HAD NOTHING IN IT";
     renderRun();
     return;
@@ -1993,12 +1997,16 @@ function renderRun() {
   syncSquadPostures();
   const s = summary(run);
   const rows = [];
-  // The door's state, derived once so this line and dealGate() cannot
-  // disagree: a season's door is live only while an entry remains and
-  // the roster is fit — and "the north door is live" is a claim, so it
-  // is only made when it is true (a pass-only run can complete its slate
-  // with zero cards and still land in this branch).
-  const doorLive = !s.season || (s.season.fit && !s.season.complete);
+  // The door's state, asked of the door itself — not re-derived here.
+  // The first version of this line rebuilt the condition out of the
+  // season fields and omitted the settling gate, so a card in flight
+  // behind a slow witness left "the north door is live" on the panel
+  // while the door was refusing entry — with a comment above it
+  // claiming the two could not disagree (caught by both review bots).
+  // One call, one answer: "the north door is live" is a claim, and it
+  // is now made only when the door would actually deal.
+  const gate = dealGate();
+  const doorLive = gate === null;
   if (s.cards === 0 && s.struck === 0) {
     rows.push(`<b>RUN OPEN</b> · NO CARDS YET${doorLive ? " · the north door is live" : ""}`);
   } else {
@@ -2094,6 +2102,19 @@ function renderRun() {
     ? "none"
     : `${s.season.pos}/${s.season.length}:${s.season.passes}:`
       + (s.season.complete ? "complete" : s.season.fit ? "fit" : "unfit");
+  // The door's own answer, published from the same call the panel used.
+  //
+  // Telemetry, not the player's surface — the player walks the door and
+  // reads the cut. It exists because the SETTLING gate cannot be
+  // asserted by walking: the witness deadline is 8s, and a harness that
+  // walks the body inside that window passes locally and loses the race
+  // on a loaded CI runner, which is how it first went red — the cut said
+  // ROSTER UNFIT because the card had already banked. A claim that
+  // depends on out-walking a deadline is not a claim. The walked gate
+  // stays under test for the two reasons that hold still (unfit,
+  // complete); this makes the third one a fact about the room rather
+  // than a footrace.
+  canvas.dataset.dealGate = gate ? gate.kind : "live";
 }
 
 // Bank a returned card and redraw. One place writes the run, so the
@@ -2273,6 +2294,11 @@ function endSeam(result) {
   // is in flight and the run can still be closed out from under it
   settling += 1;
   canvas.dataset.settling = String(settling);
+  // The panel is redrawn because the DOOR just changed: a card in flight
+  // closes a season's door, and a panel still saying it is live would be
+  // the surface disagreeing with the threshold for as long as the
+  // witness takes (caught by both review bots).
+  renderRun();
   certifySeam(result);
 
   showCut("FEED RETURNED", "THE RECORD CAME BACK WITH YOU");
@@ -2334,6 +2360,9 @@ async function certifySeam(d) {
 
   // this card has landed on the run that dealt it; closing is safe again
   // once nothing else is still in the air
+  // Lowered synchronously with the bank below, so there is no frame in
+  // which the counter has dropped and the card has not landed —
+  // bankCard's renderRun publishes both the panel and the door's answer.
   settling = Math.max(0, settling - 1);
   canvas.dataset.settling = String(settling);
 

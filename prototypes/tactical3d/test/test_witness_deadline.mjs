@@ -176,22 +176,30 @@ try {
 
   // And the DOOR shares the guard: the position a new card would be
   // stamped at is not final while one is in flight — if the settling
-  // card banked first, the slate would advance underneath the new deal.
-  // Without this gate the second card is either stamped at an entry it
-  // never fought or refused by the run as a caller bug (caught in
-  // review, beat 2).
-  await page.keyboard.down("KeyW");
-  await page.keyboard.down("KeyD");
-  const gatedSettling = await page.waitForFunction(() =>
-    document.getElementById("cv").dataset.seam === "gated",
-    null, { timeout: 15000 }).then(() => true, () => false);
-  await page.keyboard.up("KeyW");
-  await page.keyboard.up("KeyD");
-  const settlingCut = (await page.textContent("#seamcut")).replace(/\s+/g, " ").trim();
-  check("the door is gated while a card is settling", gatedSettling);
-  check("a settling gate never opens the seam", !(await page.$("#seamframe")));
-  check("and the cut says the card is still settling",
-    /STILL SETTLING/.test(settlingCut), settlingCut);
+  // card banked first, the slate would advance underneath the new deal,
+  // and the second card would be stamped at an entry it never fought or
+  // refused by the run as a caller bug (caught in review, beat 2).
+  //
+  // Asserted off the door's published answer rather than by WALKING it.
+  // The walk is a footrace against the 8s witness deadline: it passed
+  // locally with three seconds to spare and lost on a loaded CI runner,
+  // where the card banked mid-walk and the cut honestly said ROSTER
+  // UNFIT (caught in CI). The walked gate is covered by the verbs
+  // suite's two standing reasons; this covers the branch that only
+  // exists inside a window.
+  const gateOf = () => page.evaluate(() =>
+    document.getElementById("cv").dataset.dealGate);
+  check("the door refuses to deal while a card is in flight",
+    (await gateOf()) === "settling", await gateOf());
+  // ...and the PANEL says the same thing the threshold does. It used to
+  // rebuild the door's condition out of the season fields and omit the
+  // settling gate, so a fresh season with a card in flight kept "the
+  // north door is live" on screen for the whole witness deadline while
+  // the door refused entry (caught by both review bots). The panel and
+  // the door are one call now, and this is what says so.
+  const flightPanel = (await page.textContent("#runinfo")).replace(/\s+/g, " ").trim();
+  check("the panel does not claim a live door while a card is in flight",
+    !/north door is live/.test(flightPanel), flightPanel);
 
   const t0 = Date.now();
   const settled = await page.waitForFunction(
@@ -221,6 +229,12 @@ try {
   // as a certified one would — the caveat rides the run, not the slate
   check("the unwitnessed card still moves the season",
     (await seasonOf()) === "1/6:0:unfit", await seasonOf());
+  // and the door's answer changes reason rather than opening: the card
+  // that was in flight is now a banked loss, so the gate that was
+  // "settling" is "unfit" — the same door, refusing for the reason that
+  // outlived the window
+  check("the settled card leaves the door gated for its own reason",
+    (await gateOf()) === "unfit", await gateOf());
 } finally {
   if (browser) await browser.close().catch(() => {});
   if (server) server.kill();
