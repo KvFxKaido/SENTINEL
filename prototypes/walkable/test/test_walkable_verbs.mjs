@@ -19,7 +19,7 @@ import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { openRun, applyCard } from "../../run-core/run.js";
+import { openRun, openSeason, applyCard } from "../../run-core/run.js";
 // The room may never import the rules; this harness may, and that asymmetry
 // is the point. The room derives an operative's name from its sheet slug,
 // so its two identifiers cannot drift from each other — but nothing inside
@@ -331,6 +331,169 @@ try {
   const struckSquad = await ds("squad");
   check("a run with only struck cards leaves the whole squad idle",
     struckSquad === "vesper:idle,koa:idle,sable:idle", struckSquad);
+
+  // ---- the front office: the room surfaces the season ----------------
+  // Beat 2 of season-lite. The slate, the position, the next entry's
+  // framing, the clocks and the pass verb all reach the surface, and the
+  // door enforces what the panel says. Fixtures are built with run-core
+  // itself (openSeason + applyCard, the modules the room consumes), so
+  // every claim here is about the SURFACE, not the arithmetic.
+  const TOUR = {
+    id: "test-tour",
+    entries: [
+      { venue: "FIRST YARD",   host: "steel-syndicate", sanction: null },
+      { venue: "SECOND COURT", host: null,              sanction: "covenant" },
+      { venue: "THIRD FLOOR",  host: "lattice",         sanction: "lattice" },
+    ],
+  };
+  const sOut = applyCard(openSeason("2026-08-11T00:00:00Z", TOUR), card("a", ["SABLE"]));
+  if (!sOut.accepted) throw new Error(`season fixture refused: ${sOut.why}`);
+  await page.evaluate(value =>
+    localStorage.setItem("sentinel.run", JSON.stringify(value)), sOut.run);
+  await boot("?body=composed");
+  const panelText = async () =>
+    (await page.textContent("#runinfo")).replace(/\s+/g, " ").trim();
+  const pass = async () => {
+    await page.keyboard.down("Shift");
+    await page.keyboard.press("KeyP");
+    await page.keyboard.up("Shift");
+  };
+
+  check("a restored season reaches the surface machine-readably",
+    (await ds("season")) === "1/3:0:unfit", await ds("season"));
+  let sPanel = await panelText();
+  check("the panel names the slate and the position",
+    /SLATE TEST-TOUR/.test(sPanel) && /STOP 2 OF 3/.test(sPanel), sPanel);
+  check("the next entry's framing is on the surface, nulls said out loud",
+    /NEXT · SECOND COURT · UNCLAIMED · SANCTIONED BY COVENANT/.test(sPanel), sPanel);
+  check("the clocks are on the surface with their stops",
+    /ROSTER UNFIT/.test(sPanel) && /SABLE 2 STOPS/.test(sPanel), sPanel);
+
+  // the door enforces what the panel says: unfit means no deal, said as
+  // a cut rather than a dead trigger — and no seam frame ever exists
+  await page.keyboard.down("KeyW");
+  await page.keyboard.down("KeyD");
+  const gated = await page.waitForFunction(() =>
+    document.getElementById("cv").dataset.seam === "gated",
+    null, { timeout: 30000 }).then(() => true, () => false);
+  await page.keyboard.up("KeyW");
+  await page.keyboard.up("KeyD");
+  check("an unfit roster gates the door", gated);
+  check("a gated door never opens the seam", !(await page.$("#seamframe")));
+  // the walked refusal and the door's PUBLISHED answer are the same
+  // function: this is what lets the witness suite assert the settling
+  // branch off the published value alone, where walking is a footrace
+  check("the walked refusal is the door's own published answer",
+    (await ds("dealGate")) === "unfit", await ds("dealGate"));
+  const gateCut = (await page.textContent("#seamcut")).replace(/\s+/g, " ").trim();
+  check("the refusal says why and what heals it",
+    /THE DEAL IS GATED/.test(gateCut) && /SABLE 2/.test(gateCut)
+      && /SHIFT\+P/.test(gateCut), gateCut);
+
+  // the pass verb: always legal, ticks the clocks, banks the entry
+  await pass();
+  check("a pass advances the slate and ticks the clock",
+    (await ds("season")) === "2/3:1:unfit", await ds("season"));
+  sPanel = await panelText();
+  check("the passed entry is on the record with its venue",
+    /PASSED/.test(sPanel) && /SECOND COURT/.test(sPanel), sPanel);
+  check("the ticked clock reads one stop",
+    /SABLE 1 STOP\b/.test(sPanel), sPanel);
+  await pass();
+  check("passing out the slate completes it and clears the clock",
+    (await ds("season")) === "3/3:2:complete", await ds("season"));
+  sPanel = await panelText();
+  check("a complete slate says so and points at the close verb",
+    /COMPLETE/.test(sPanel) && /NOTHING LEFT TO FIGHT/.test(sPanel), sPanel);
+
+  // a complete slate gates the door with its own sentence
+  await page.evaluate(() => { document.getElementById("cv").dataset.seam = "reset"; });
+  await page.keyboard.down("KeyW");
+  await page.keyboard.down("KeyD");
+  const gatedComplete = await page.waitForFunction(() =>
+    document.getElementById("cv").dataset.seam === "gated",
+    null, { timeout: 30000 }).then(() => true, () => false);
+  await page.keyboard.up("KeyW");
+  await page.keyboard.up("KeyD");
+  check("a complete slate gates the door", gatedComplete);
+  const completeCut = (await page.textContent("#seamcut")).replace(/\s+/g, " ").trim();
+  check("and the cut says the slate is complete",
+    /SLATE IS COMPLETE/.test(completeCut) && /NOTHING LEFT TO FIGHT/.test(completeCut),
+    completeCut);
+  check("the complete gate is published under its own reason",
+    (await ds("dealGate")) === "complete", await ds("dealGate"));
+  await pass();
+  check("a pass on a complete slate is refused in the run's own words",
+    /NOTHING LEFT TO PASS/.test(await panelText()), await panelText());
+
+  // the toured season survives a reload — passes, clocks and all
+  await boot("?body=composed");
+  check("the season survives a reload",
+    (await ds("season")) === "3/3:2:complete", await ds("season"));
+
+  // a plain stored run stays plain: no slate, no season surface, and the
+  // pass verb refused rather than invented — nothing is silently migrated
+  await page.evaluate(value =>
+    localStorage.setItem("sentinel.run", JSON.stringify(value)),
+    runWith([card("5", ["VESPER"])]));
+  await boot("?body=composed");
+  check("a plain run reads none on the season surface",
+    (await ds("season")) === "none", await ds("season"));
+  // a plain run's door is always live — the recorded liberty the
+  // settling COUNT exists for: nothing positional rides a plain card
+  check("a plain run's door is never gated",
+    (await ds("dealGate")) === "live", await ds("dealGate"));
+  check("a plain run's panel carries no slate line",
+    !/SLATE /.test(await panelText()), await panelText());
+  await pass();
+  check("a plain run has nothing to pass and says so",
+    /NOTHING TO PASS/.test(await panelText()), await panelText());
+
+  // and a FRESH room opens on the house slate — the front office is the
+  // default surface, not an opt-in
+  await page.evaluate(() => localStorage.removeItem("sentinel.run"));
+  await boot("?body=composed");
+  check("a fresh room opens a season on the house slate",
+    (await ds("season")) === "0/6:0:fit", await ds("season"));
+  sPanel = await panelText();
+  check("the house tour opens at its first entry, framed",
+    /SLATE OPENING-CIRCUIT/.test(sPanel) && /STOP 1 OF 6/.test(sPanel)
+      && /NEXT · KESTREL YARD · HELD BY STEEL-SYNDICATE/.test(sPanel), sPanel);
+  await pass();
+  check("the house tour can be passed from the door",
+    (await ds("season")) === "1/6:1:fit", await ds("season"));
+
+  // storage that accepts the one-byte probe but refuses the run: the
+  // panel must say so from the very FIRST write — the fresh season's
+  // boot save — and a later write that succeeds must clear the caveat,
+  // because saveRun writes the whole run and one success means storage
+  // caught up. A warning that outlives its truth is the surface lying
+  // in the other direction (both caught in review, beat 2). The patch
+  // throws only while the flag is set, so later sections keep an
+  // honest store.
+  await page.addInitScript(() => {
+    const orig = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k, v) {
+      if (k === "sentinel.run"
+          && this.getItem("sentinel.test.refuseRun") === "1") {
+        throw new Error("quota, allegedly");
+      }
+      return orig.call(this, k, v);
+    };
+  });
+  await page.evaluate(() => {
+    localStorage.removeItem("sentinel.run");
+    localStorage.setItem("sentinel.test.refuseRun", "1");
+  });
+  await boot("?body=composed");
+  check("a refused first save is a caveat, not a silence",
+    /STORAGE REFUSED/.test(await panelText()), await panelText());
+  await page.evaluate(() => localStorage.removeItem("sentinel.test.refuseRun"));
+  await pass();
+  check("a later successful write clears the caveat",
+    !/STORAGE REFUSED/.test(await panelText()) && (await ds("season")) === "1/6:1:fit",
+    await panelText());
+
   await page.evaluate(() => localStorage.removeItem("sentinel.run"));
   await boot("?body=composed");
 

@@ -97,6 +97,13 @@ try {
   check("the room boots", (await page.evaluate(() =>
     document.getElementById("cv").dataset.sprites)) === "ready");
 
+  // Beat 2 of season-lite: a fresh room is a front office. The season
+  // surface is read the same way dataset.run is — off the page, because
+  // what is asserted is what a player would see.
+  const seasonOf = p => p.evaluate(() => document.getElementById("cv").dataset.season);
+  check("a fresh room opens on the house slate, fit and at stop one",
+    (await seasonOf(page)) === "0/6:0:fit", await seasonOf(page));
+
   // W is camera-FORWARD, which is diagonal in this 2:1 view — held alone it
   // slides the body off the door span and pins it on the west wall. W+D is
   // true north, and the door only deals a card to a body inside its span.
@@ -112,6 +119,11 @@ try {
   const seamSrc = await page.getAttribute("#seamframe", "src");
   check("a plain room deals render96 through the seam",
     new URL(seamSrc, page.url()).searchParams.get("body") === "render96", seamSrc);
+  // the cut card carries the current entry's framing — the run's own
+  // slate talking, since nothing seasonal crosses the seam itself
+  const cut = (await page.textContent("#seamcut")).replace(/\s+/g, " ").trim();
+  check("the cut card frames the deal from the run's own slate",
+    /KESTREL YARD/.test(cut) && /HELD BY STEEL-SYNDICATE/.test(cut), cut);
 
   const frame = await (await page.$("#seamframe")).contentFrame();
   await frame.waitForFunction(() =>
@@ -204,6 +216,8 @@ try {
   // the two validators disagreeing is exactly what this catches.
   check("the run does not refuse a card the room accepted",
     !/RUN REFUSED/.test(verdict), verdict);
+  check("the banked card says where it banked",
+    /AT KESTREL YARD/.test(verdict), verdict);
 
   // ---- the run outlives the tab -------------------------------------
   // The whole point of the run layer. dataset.run is the surface's own
@@ -218,6 +232,11 @@ try {
   check("the card is banked on the run", +cards === 1, banked);
   check("the run knows it was a loss", /^0.1$/.test(record), banked);
   check("the run banks a purse", +purse > 0, banked);
+  // a loss fires only when the op side is wiped (rules.js), so a banked
+  // loss ALWAYS starts recovery clocks: the slate advanced and the deal
+  // is now gated — the season's whole texture, executed in one string
+  check("the banked loss advances the slate and gates the deal",
+    (await seasonOf(page)) === "1/6:0:unfit", await seasonOf(page));
 
   await page.reload();
   await page.waitForFunction(() =>
@@ -229,6 +248,10 @@ try {
   check("the reloaded panel shows the banked card", /1 CARD\b/.test(panel), panel);
   check("the reloaded panel is not carrying a caveat it did not earn",
     !/STORAGE UNAVAILABLE|SET ASIDE|REFUSED/.test(panel), panel);
+  check("the season survives the reload",
+    (await seasonOf(page)) === "1/6:0:unfit", await seasonOf(page));
+  check("the reloaded panel holds the front office",
+    /STOP 2 OF 6/.test(panel) && /ROSTER UNFIT/.test(panel), panel);
 
   // ---- closing a run is destructive, and archives ---------------------
   await page.keyboard.down("Shift");
@@ -245,6 +268,13 @@ try {
     JSON.parse(localStorage.getItem("sentinel.run.closed") ?? "null"));
   check("the closed run is archived, not dropped",
     archived !== null && archived.cards === 1, JSON.stringify(archived));
+  check("the run is archived season and all",
+    archived !== null && archived.season !== null
+      && archived.season.pos === 1
+      && archived.season.slate.id === "opening-circuit",
+    JSON.stringify(archived?.season?.slate?.id ?? null));
+  check("closing a season opens a fresh one on the house slate",
+    (await seasonOf(page)) === "0/6:0:fit", await seasonOf(page));
   await page.reload();
   await page.waitForFunction(() =>
     ["ready", "error"].includes(document.getElementById("cv").dataset.sprites),
