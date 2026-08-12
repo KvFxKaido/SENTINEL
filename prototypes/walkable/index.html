@@ -362,6 +362,7 @@
         <tr><th><kbd>Q</kbd> / <kbd>E</kbd></th><td>orbit 90°</td></tr>
         <tr><th><kbd>P</kbd></th><td>LCD / crunch / clean</td></tr>
         <tr><th><kbd>Shift</kbd>+<kbd>N</kbd></th><td>close the run, open a fresh one</td></tr>
+        <tr><th><kbd>Shift</kbd>+<kbd>P</kbd></th><td>pass the slate entry — always legal</td></tr>
         <tr><th>NORTH DOOR</th><td>walk it — the yard takes the feed</td></tr>
       </table>
     </section>
@@ -373,7 +374,7 @@
 
     <section class="box" id="yardbox">
       <h2>THE YARD / LAST CARD</h2>
-      <div id="seaminfo">No card on file this session. The north door is live.</div>
+      <div id="seaminfo">No card on file this session.</div>
     </section>
 
     <section class="box audition">
@@ -414,7 +415,8 @@
 
 import * as THREE from "../tactical3d/vendor/three.module.js";
 import {
-  bindStore, loadRun, saveRun, applyCard, closeRun, openRun, summary,
+  bindStore, loadRun, saveRun, applyCard, applyPass, closeRun, openSeason,
+  slateValid, summary,
 } from "../run-core/run.js";
 
 // ---- room coordinates ---------------------------------------------
@@ -1454,9 +1456,51 @@ function stepBody(dx, dz) {
     && character.position.x >= DOOR.minX
     && character.position.x <= DOOR.maxX
   ) {
-    beginSeam();
+    // The room gates the DEAL; run-core gates the BANK. applyCard's
+    // season gates are accepted:false — a caller bug — precisely because
+    // this threshold is where the season's word is supposed to be
+    // enforced. A gated door refuses out loud instead of going dead.
+    const gate = dealGate();
+    if (gate) refuseDeal(gate);
+    else beginSeam();
   }
   return true;
+}
+
+// What the season says about the door, asked of summary() so the panel,
+// the door and run-core cannot disagree: a plain run's door is always
+// live; a season's door deals only while an entry remains and the roster
+// is fit to fight it.
+function dealGate() {
+  const s = summary(run).season;
+  if (!s) return null;
+  if (s.complete) {
+    return {
+      name: "THE SLATE IS COMPLETE",
+      sub: "NOTHING LEFT TO FIGHT — CLOSE THE RUN (SHIFT+N)",
+    };
+  }
+  if (!s.fit) {
+    return {
+      name: "THE DEAL IS GATED",
+      sub: "ROSTER UNFIT · "
+        + s.clocks.map(([name, left]) => `${esc(name)} ${left}`).join(" · ")
+        + " · PASS TO MOVE ON (SHIFT+P)",
+    };
+  }
+  return null;
+}
+
+// The refusal is a cut, not a silence: the body is set back inside the
+// walls and the door says why it would not deal. Walking into it again
+// re-shows the same refusal — a player leaning on the door keeps being
+// told, which is the honest version of a door that will not open.
+function refuseDeal(gate) {
+  clearCutTimers();
+  stepBackInside();
+  canvas.dataset.seam = "gated";
+  showCut(gate.name, gate.sub);
+  dropCut(1600);
 }
 
 function wantsWalk() {
@@ -1640,17 +1684,65 @@ document.addEventListener("keydown", event => {
       // says this run is not being persisted at all. closeRun would
       // otherwise refuse here, because its read-back cannot tell an inert
       // store from a full one — and it is right not to guess.
-      : { run: openRun(at), archived: false, closed: true };
-    run = out.run;
+      : { archived: false, closed: true };
+    // Season close IS run close, and a fresh run in this room opens on
+    // the house slate — same rule as boot. closeRun already saved a plain
+    // fresh run into the live slot; this second write replaces it with
+    // the season in the same tick. If the second write fails where the
+    // first succeeded (quota is about bytes), the slot holds a legal
+    // plain run and persistFailed says the screen is ahead of storage —
+    // the machinery that already covers a failed save covers this one.
+    if (out.closed) {
+      run = openSeason(at, HOUSE_SLATE);
+      if (runWritable && !saveRun(run)) persistFailed = true;
+    } else {
+      run = out.run;
+    }
     // closeRun refuses rather than destroying what it could not preserve,
-    // so this reports what happened instead of assuming it worked
+    // so this reports what happened instead of assuming it worked. What
+    // the closed run held: cards fought, and — for a season — how far the
+    // tour got, so a pass-only run does not close as "nothing in it".
+    const held = [];
+    if (gone.cards || gone.struck) {
+      held.push(`${gone.cards} CARD${gone.cards === 1 ? "" : "S"} · ${gone.record} · ${gone.purse}c`);
+    }
+    if (gone.season && gone.season.pos) {
+      held.push(`TOURED ${gone.season.pos} OF ${gone.season.length}`);
+    }
     runNote = !out.closed
       ? '<span class="warn">COULD NOT ARCHIVE — THE RUN IS STILL OPEN</span>'
-      : gone.cards || gone.struck
-        ? `PREVIOUS RUN CLOSED · ${gone.cards} CARD${gone.cards === 1 ? "" : "S"}` +
-          ` · ${gone.record} · ${gone.purse}c` + (out.archived ? " · ARCHIVED" : "")
+      : held.length
+        ? `PREVIOUS RUN CLOSED · ${held.join(" · ")}` + (out.archived ? " · ARCHIVED" : "")
         : "PREVIOUS RUN CLOSED · IT HAD NOTHING IN IT";
-    if (out.closed && out.saved === false) persistFailed = true;
+    renderRun();
+    return;
+  }
+  // Passing is the season's other verb — the run-level pair to closing,
+  // so it takes the same shift, and like closing it works from the floor:
+  // it is a front-office act, not a body verb. Always legal while the
+  // slate has entries left (the deadlock law: clocks gate the deal, so
+  // the verb that ticks them must never be gated) — but not while a card
+  // is in flight. That card was dealt at the CURRENT entry, and passing
+  // under it would advance the slate before the card banks, stamping the
+  // card with an entry it was never fought at.
+  if (event.code === "KeyP" && event.shiftKey && !event.repeat) {
+    if (settling > 0) {
+      runNote = '<span class="warn">A CARD IS STILL SETTLING — PASS ONCE IT LANDS</span>';
+      renderRun();
+      return;
+    }
+    const out = applyPass(run, new Date().toISOString());
+    if (!out.accepted) {
+      // accepted:false is applyPass saying this run cannot pass — a plain
+      // run, or a completed slate. Surfaced in the run's own words.
+      runNote = `<span class="warn">${esc(out.why.toUpperCase())}</span>`;
+      renderRun();
+      return;
+    }
+    run = out.run;
+    const passed = run.season.passed[run.season.passed.length - 1];
+    runNote = `PASSED <b>${esc(passed.venue)}</b> — ON THE RECORD, AND THE SLATE MOVES ON`;
+    if (runWritable && !saveRun(run)) persistFailed = true;
     renderRun();
     return;
   }
@@ -1765,6 +1857,33 @@ const SEAM_BOOT_MS = 7000;
    not on write, so the feature test has to touch it. A room that
    cannot persist still plays; it just says the run will not survive
    the page instead of quietly forgetting at the end of it. */
+/* ---- the house slate ----------------------------------------------
+   The authored tour a fresh run opens on (circuit_season_loop.md, Tier 1
+   — the room is the front office). Entries carry faction framing: who
+   holds the venue, who sanctions the card. `null` is an authored word,
+   not an omission — THE DRAIN answers to nobody's rules, TERMINAL WEST
+   is a wanderer venue fought under covenant sanction. None of this
+   crosses the seam: the yard is dealt exactly what it was always dealt,
+   and the framing is the run's own slate talking.
+
+   Validated at boot like the sheet manifests, and a bad slate THROWS:
+   authored data that does not validate is a boot fault, not something
+   to quietly fall back from. */
+const HOUSE_SLATE = {
+  id: "opening-circuit",
+  entries: [
+    { venue: "KESTREL YARD",    host: "steel-syndicate", sanction: "steel-syndicate" },
+    { venue: "THE COLD COURT",  host: "covenant",        sanction: "covenant" },
+    { venue: "LATTICE FLOOR 9", host: "lattice",         sanction: "lattice" },
+    { venue: "THE DRAIN",       host: "ghost-networks",  sanction: null },
+    { venue: "TERMINAL WEST",   host: "wanderers",       sanction: "covenant" },
+    { venue: "THE ARCHIVE PIT", host: "witnesses",       sanction: "witnesses" },
+  ],
+};
+if (!slateValid(HOUSE_SLATE)) {
+  throw new Error("the house slate does not validate — fix the authored entries");
+}
+
 const runInfo = document.getElementById("runinfo");
 const storageLive = (() => {
   try {
@@ -1781,8 +1900,15 @@ if (storageLive) {
     remove: k => localStorage.removeItem(k),
   });
 }
-const opened = loadRun(new Date().toISOString());
-let run = opened.run;
+const bootAt = new Date().toISOString();
+const opened = loadRun(bootAt);
+// A fresh run in THIS room is a season: opened on the house slate, which
+// makes the panel below a front office rather than a scoreboard. Only
+// "restored" keeps what storage held — a stored plain run stays a plain
+// run (nothing is silently migrated into a season), and a stored season
+// keeps ITS OWN slate even if the house slate has since changed: the
+// tour you were on is the tour you are on.
+let run = opened.how === "restored" ? opened.run : openSeason(bootAt, HOUSE_SLATE);
 // "unpreserved": something is stored that this schema cannot read, and it
 // could NOT be verifiably set aside — the live slot still holds the only
 // copy, so it is not this page's to spend. The run plays in memory, like
@@ -1844,8 +1970,14 @@ function renderRun() {
   syncSquadPostures();
   const s = summary(run);
   const rows = [];
+  // The door's state, derived once so this line and dealGate() cannot
+  // disagree: a season's door is live only while an entry remains and
+  // the roster is fit — and "the north door is live" is a claim, so it
+  // is only made when it is true (a pass-only run can complete its slate
+  // with zero cards and still land in this branch).
+  const doorLive = !s.season || (s.season.fit && !s.season.complete);
   if (s.cards === 0 && s.struck === 0) {
-    rows.push(`<b>RUN OPEN</b> · NO CARDS YET · the north door is live`);
+    rows.push(`<b>RUN OPEN</b> · NO CARDS YET${doorLive ? " · the north door is live" : ""}`);
   } else {
     rows.push(`<b>${s.cards} CARD${s.cards === 1 ? "" : "S"}</b> · ${s.record} · <b>${s.purse}c</b> BANKED`);
     const streak = s.streak > 1 ? ` · ${s.streak} STRAIGHT` : "";
@@ -1869,6 +2001,44 @@ function renderRun() {
         ? `<span class="warn">${c.result === "win" ? "W" : "L"}${c.rating}✗</span>`
         : `${c.result === "win" ? "W" : "L"}${c.rating}`
     ).join(" "));
+  }
+  // ---- the front office -------------------------------------------
+  // Where the season stands, rendered from summary() and computed
+  // nowhere here. The acceptance law this exists for: a season fact not
+  // visible in the room or on the card does not exist — so the slate,
+  // the position, the next entry's framing, the clocks and the passes
+  // all reach the surface, and the panel always answers "will the door
+  // deal, and if not, why not".
+  if (s.season) {
+    const se = s.season;
+    rows.push(
+      `SLATE <b>${esc(se.slate.toUpperCase())}</b> · ` +
+      (se.complete
+        ? `<b>COMPLETE</b> · ${se.length} ENTRIES TOURED`
+        : `STOP ${se.pos + 1} OF ${se.length}`) +
+      (se.passes ? ` · ${se.passes} PASSED` : ""));
+    if (se.complete) {
+      rows.push("NOTHING LEFT TO FIGHT — CLOSE THE RUN (SHIFT+N) TO OPEN THE NEXT");
+    } else {
+      const n = se.next;
+      rows.push(
+        `NEXT · <b>${esc(n.venue)}</b> · ` +
+        (n.host ? `HELD BY ${esc(n.host.toUpperCase())}` : "UNCLAIMED") + " · " +
+        (n.sanction ? `SANCTIONED BY ${esc(n.sanction.toUpperCase())}` : "UNSANCTIONED"));
+    }
+    if (!se.fit) {
+      rows.push(
+        '<span class="warn">ROSTER UNFIT — THE DEAL IS GATED</span> · ' +
+        se.clocks.map(([name, left]) =>
+          `${esc(name)} ${left} STOP${left === 1 ? "" : "S"}`).join(" · ") +
+        " · PASS TO MOVE ON (SHIFT+P)");
+    }
+    if (se.passes) {
+      const shown = se.passed.slice(-4).map(p => esc(p.venue));
+      rows.push("PASSED · "
+        + (se.passes > shown.length ? `+${se.passes - shown.length} EARLIER · ` : "")
+        + shown.join(" · "));
+    }
   }
   // Caveats last and marked, so a run carrying them never reads clean.
   if (s.struck) rows.push(`<span class="warn">${s.struck} CARD${s.struck === 1 ? "" : "S"} STRUCK — BANKED BY NOBODY</span>`);
@@ -1895,6 +2065,12 @@ function renderRun() {
   // the harness reads the run off the surface rather than out of storage:
   // what is asserted is what a player would actually see
   canvas.dataset.run = `${s.cards}:${s.record}:${s.purse}:${s.walked}:${s.finished}:${s.struck}`;
+  // and the season the same way: "pos/length:passes:door-state", or
+  // "none" for a plain run — the panel's own facts, machine-readable
+  canvas.dataset.season = !s.season
+    ? "none"
+    : `${s.season.pos}/${s.season.length}:${s.season.passes}:`
+      + (s.season.complete ? "complete" : s.season.fit ? "fit" : "unfit");
 }
 
 // Bank a returned card and redraw. One place writes the run, so the
@@ -1956,13 +2132,25 @@ function beginSeam() {
   locked = null;
   const seed = DEAL ?? (Math.random() * 0xffffffff) >>> 0;
   seamDealt = seed.toString(16);
-  showCut("KESTREL YARD", `THE FEED CUTS TO THE CARD · seed ${seamDealt}`);
+  // On a season the cut card carries the ENTRY's framing — what this card
+  // MEANS is front-office fact, and the door is where it is said. The
+  // framing never crosses the seam: the yard is dealt exactly what it was
+  // always dealt (seed + body), and the venue on the cut is the run's own
+  // slate talking. dealGate() ran before this, so a season here always
+  // has a current entry; a plain run keeps the yard's own name.
+  const entry = run.season ? summary(run).season.next : null;
+  const framing = entry === null
+    ? "THE FEED CUTS TO THE CARD"
+    : (entry.host ? `HELD BY ${esc(entry.host.toUpperCase())}` : "UNCLAIMED")
+      + " · "
+      + (entry.sanction ? `SANCTIONED BY ${esc(entry.sanction.toUpperCase())}` : "UNSANCTIONED");
+  showCut(entry ? esc(entry.venue) : "KESTREL YARD", `${framing} · seed ${seamDealt}`);
   actionStateEl.textContent = "CROSSING";
   canvas.dataset.seam = "open";
 
   seamFrame = document.createElement("iframe");
   seamFrame.id = "seamframe";
-  seamFrame.title = "KESTREL YARD — live card";
+  seamFrame.title = `${entry ? entry.venue : "KESTREL YARD"} — live card`;
   // The seam carries the body so Cipher cannot change bodies at the door —
   // the yard stages what the room stages in both directions of the crossing.
   let src = `../tactical3d/index.html?seam=1&seed=${seamDealt}&body=${BODY_PARAM}`;
@@ -2146,10 +2334,14 @@ async function certifySeam(d) {
     // one — the room validated this payload already, so reaching here
     // means the two validators disagree and somebody should look.
     const totals = `${s.cards} CARD${s.cards === 1 ? "" : "S"} · ${s.record} · ${s.purse}c`;
+    // A banked card on a season says WHERE it banked — the stamp is the
+    // run's own slate, written by applyCard, and recent[0] is this card
+    // exactly when it was accepted.
+    const stamp = accepted && counted && run.recent[0] && run.recent[0].slate;
     totEl.innerHTML = !accepted
       ? '<span class="warn">RUN REFUSED THIS CARD — NOT BANKED (this is a bug, not a dispute)</span>'
       : counted
-        ? `BANKED TO THE RUN · ${totals}`
+        ? `BANKED TO THE RUN · ${totals}${stamp ? ` · AT ${esc(stamp.venue)}` : ""}`
         // said this way round on purpose: the totals follow the word
         // UNCHANGED, so a struck card can never look like it moved them
         : `<span class="warn">NOT BANKED — CARD STRUCK</span> · RUN UNCHANGED AT ${totals}`;

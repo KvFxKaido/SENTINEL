@@ -158,6 +158,22 @@ try {
     && await page.evaluate(() => localStorage.getItem("sentinel.run.closed") === null),
     midFlight);
 
+  // Passing shares the guard, for the same reason with the season's own
+  // teeth: the card in flight was dealt at the CURRENT entry, and a pass
+  // under it would advance the slate before the card banks — stamping
+  // the card with an entry it was never fought at.
+  const seasonOf = () => page.evaluate(() =>
+    document.getElementById("cv").dataset.season);
+  await page.keyboard.down("Shift");
+  await page.keyboard.press("KeyP");
+  await page.keyboard.up("Shift");
+  await page.waitForTimeout(150);
+  const passMidFlight = (await page.textContent("#runinfo")).replace(/\s+/g, " ").trim();
+  check("passing is refused while a card is settling",
+    /PASS ONCE IT LANDS/.test(passMidFlight), passMidFlight);
+  check("and the refused pass moved nothing",
+    (await seasonOf()) === "0/6:0:fit", await seasonOf());
+
   const t0 = Date.now();
   const settled = await page.waitForFunction(
     () => /CERTIFIED|UNCERTIFIED|STRUCK/.test(document.getElementById("seaminfo").textContent),
@@ -182,6 +198,10 @@ try {
     /COUNTED UNWITNESSED/.test(runPanel), runPanel);
   check("an unwitnessed card is not also struck",
     !/STRUCK/.test(runPanel), runPanel);
+  // counted means counted: an unwitnessed card moves the season exactly
+  // as a certified one would — the caveat rides the run, not the slate
+  check("the unwitnessed card still moves the season",
+    (await seasonOf()) === "1/6:0:unfit", await seasonOf());
 } finally {
   if (browser) await browser.close().catch(() => {});
   if (server) server.kill();
