@@ -130,6 +130,29 @@ try {
   check("the card plays to a finish", over);
   if (!over) throw new Error("the match never ended");
 
+  // Arm an IN-PAGE recorder before the card comes home. Everything the
+  // next forty lines claim is true only inside the witness deadline, and
+  // reading it from out here is a footrace with that deadline: the walked
+  // version of this lost it once (beat 2), and the version that read the
+  // PUBLISHED value lost it too (caught in CI on this PR) — later in the
+  // window, but still inside it. Sampling every frame while the card is
+  // in flight and asserting on the recording afterwards is the only shape
+  // of this claim that does not depend on how fast the runner is.
+  await page.evaluate(() => {
+    const cv = document.getElementById("cv");
+    const info = document.getElementById("runinfo");
+    window.__inFlight = { gates: [], panelSaidLive: false, frames: 0 };
+    const tick = () => {
+      if (cv.dataset.settling === "1") {
+        window.__inFlight.frames++;
+        window.__inFlight.gates.push(cv.dataset.dealGate);
+        if (/north door is live/.test(info.textContent)) window.__inFlight.panelSaidLive = true;
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+
   await frame.click("#ovwalk");
   await page.waitForFunction(() => !document.getElementById("seamframe"),
     null, { timeout: 15000 }).then(() => true, () => false);
@@ -180,26 +203,25 @@ try {
   // and the second card would be stamped at an entry it never fought or
   // refused by the run as a caller bug (caught in review, beat 2).
   //
-  // Asserted off the door's published answer rather than by WALKING it.
-  // The walk is a footrace against the 8s witness deadline: it passed
-  // locally with three seconds to spare and lost on a loaded CI runner,
-  // where the card banked mid-walk and the cut honestly said ROSTER
-  // UNFIT (caught in CI). The walked gate is covered by the verbs
-  // suite's two standing reasons; this covers the branch that only
-  // exists inside a window.
-  const gateOf = () => page.evaluate(() =>
-    document.getElementById("cv").dataset.dealGate);
-  check("the door refuses to deal while a card is in flight",
-    (await gateOf()) === "settling", await gateOf());
-  // ...and the PANEL says the same thing the threshold does. It used to
-  // rebuild the door's condition out of the season fields and omit the
-  // settling gate, so a fresh season with a card in flight kept "the
-  // north door is live" on screen for the whole witness deadline while
-  // the door refused entry (caught by both review bots). The panel and
-  // the door are one call now, and this is what says so.
-  const flightPanel = (await page.textContent("#runinfo")).replace(/\s+/g, " ").trim();
-  check("the panel does not claim a live door while a card is in flight",
-    !/north door is live/.test(flightPanel), flightPanel);
+  // Read off the in-page recording armed before the walk home, not
+  // sampled live: the door's published answer is only "settling" INSIDE
+  // the deadline, and a live read is a race with it — the walked version
+  // lost that race in beat 2 and the live-read version lost it here,
+  // eight seconds later in the same window but still inside it. Every
+  // frame the card was in flight is in the recording, so the claim no
+  // longer depends on how loaded the runner is.
+  const inFlight = await page.evaluate(() => window.__inFlight);
+  check("the door refused to deal on every frame the card was in flight",
+    inFlight.frames > 0 && inFlight.gates.every(g => g === "settling"),
+    `${inFlight.frames} frames, gates seen: ${[...new Set(inFlight.gates)].join(",")}`);
+  // ...and the PANEL said the same thing the threshold did, for the same
+  // frames. It used to rebuild the door's condition out of the season
+  // fields and omit the settling gate, so a fresh season with a card in
+  // flight kept "the north door is live" on screen for the whole witness
+  // deadline while the door refused entry (caught by both review bots).
+  // The panel and the door are one call now, and this is what says so.
+  check("the panel never claimed a live door while the card was in flight",
+    !inFlight.panelSaidLive, `${inFlight.frames} frames sampled`);
 
   const t0 = Date.now();
   const settled = await page.waitForFunction(
@@ -233,8 +255,12 @@ try {
   // that was in flight is now a banked loss, so the gate that was
   // "settling" is "unfit" — the same door, refusing for the reason that
   // outlived the window
+  // A live read is right HERE and only here: the window has closed, so
+  // this value is stable rather than racing anything.
+  const gateNow = await page.evaluate(() =>
+    document.getElementById("cv").dataset.dealGate);
   check("the settled card leaves the door gated for its own reason",
-    (await gateOf()) === "unfit", await gateOf());
+    gateNow === "unfit", gateNow);
 } finally {
   if (browser) await browser.close().catch(() => {});
   if (server) server.kill();
