@@ -1926,6 +1926,23 @@ try {
     throw new Error(`unreadable ?roster=${ROSTER_PARAM} — expected NAME:hp,NAME:hp,NAME:hp `
       + `with unique names and hp 1..${OP_MAX_HP}`);
   }
+  // Two different questions, and only one of them is the rules core's.
+  // `rosterValid` says who may FIGHT; this page says who it can DRAW, and
+  // a name that passes the first and fails the second is a real gap —
+  // `?roster=NIX:10,…` validates, fields, and then throws inside
+  // fighterSlug on the first frame, AFTER this boot guard, so the yard
+  // dies silently and the room waits out its hand-off timer (caught in
+  // review). A body this page has no sheets for is a fault at the door,
+  // with the roster named, like every other asset fault here.
+  if (ROSTER !== null) {
+    const unstageable = ROSTER.map(f => f.name).filter(name => {
+      try { fighterSlug(name); return false; } catch { return true; }
+    });
+    if (unstageable.length) {
+      throw new Error(`this yard has no molded body for ${unstageable.join(", ")} — `
+        + `?roster= may only field fighters it can stage: ${FIGHTERS.join(", ")}`);
+    }
+  }
   configureBody(BODY_PARAM);
   canvas.dataset.body = BODY_PARAM;
   yardRosterReady = await bootYardRoster();

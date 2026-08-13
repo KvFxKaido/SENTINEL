@@ -2800,6 +2800,17 @@ window.addEventListener("message", event => {
 
   if (data.type === "sentinel-seam-ready") {
     if (data.seed !== seamDealt) return;   // answering for a different deal
+    // The squad is checked at the HANDSHAKE, not only on the walk home.
+    // The result message is checked too (seamResultValid), but by then a
+    // card has been played — catching a yard that fielded something else
+    // before the player fights it is the difference between a refusal and
+    // a wasted match. Loud rather than ignored, unlike the seed above:
+    // a seed mismatch is a stale frame answering for an old deal, while a
+    // roster mismatch is this deal, fielded wrong.
+    if (!sameRoster(data.roster, FIELDED)) {
+      abortSeam("THE YARD FIELDED A DIFFERENT SQUAD — REFUSED");
+      return;
+    }
     seamReady = true;
     clearTimeout(seamBootTimer);
     canvas.dataset.seam = "live";

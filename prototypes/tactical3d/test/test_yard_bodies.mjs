@@ -342,6 +342,28 @@ try {
   check("a downed body plays the death verb", played.includes("death"), played.join(","));
   check("a yielded body kneels", played.includes("kneel"), played.join(","));
 
+  // ---- a roster this yard cannot STAGE faults at the door -----------
+  // Two different questions, and only one is the rules core's:
+  // `rosterValid` says who may FIGHT, this page says who it can DRAW.
+  // `?roster=NIX:10,…` passes the first and fails the second — it used to
+  // validate, field, and then throw inside fighterSlug on the first
+  // frame, AFTER the boot guard, so the yard died silently and a room
+  // waiting on the hand-off sat there until its own timer gave up
+  // (caught in review). A body with no sheets is a fault, named.
+  await boot("&roster=NIX:10,KOA:10,SABLE:10");
+  check("a roster this yard cannot stage faults", (await ds("sprites")) === "error", await ds("sprites"));
+  const rosterFault = await page.textContent("#asset-detail").catch(() => "");
+  check("the roster fault names who it cannot draw, and who it can",
+    /NIX/.test(rosterFault) && /vesper/.test(rosterFault), rosterFault);
+  check("no bodies are drawn behind the roster fault",
+    !((await ds("units")) ?? "").includes(":idle:"), (await ds("units")) ?? "");
+  // ...and a roster it CAN stage boots exactly as the default does
+  await boot("&roster=VESPER:10,KOA:7,SABLE:10");
+  check("a stageable roster boots", (await ds("sprites")) === "ready", await ds("sprites"));
+  check("and the yard fields exactly it",
+    (await ds("fielded")) === "VESPER:10|KOA:7|SABLE:10", await ds("fielded"));
+  await boot();
+
   // ---- a missing verb faults; it never falls back to the old grids ---
   // This is the whole point of the convergence: a quiet fallback would
   // put a 32×32 body back on the board while the room shows a pack body,

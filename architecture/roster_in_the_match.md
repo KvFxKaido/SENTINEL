@@ -86,6 +86,14 @@ squad nobody asked for and then certify the result. Each caller answers
 for it in its own grammar: the Worker with a 400, the yard with a boot
 fault.
 
+And the yard asks a **second** question the rules core does not:
+`rosterValid` says who may *fight*; the renderer says who it can *draw*.
+A name that passes the first and fails the second used to validate,
+field, and then throw inside `fighterSlug` on the first frame — after the
+boot guard, so the yard died silently and the room sat waiting out its
+hand-off timer (caught in review). A body with no sheets is now a fault
+at the door, naming who it cannot draw and who it can.
+
 The room, notably, does **not** validate. It cannot import the rules, and
 a first cut that re-checked name shape and uniqueness at the room's own
 boundary was worse than nothing: a second, *incomplete* roster grammar
