@@ -1094,6 +1094,32 @@ test("a run whose history has scrolled off still restores — on the bound", () 
   assert.equal(loadRun(AT).how, "orphaned");
 });
 
+test("a full receipt buffer is still a complete receipt", () => {
+  // The boundary both review bots found: RECENT cards have evicted
+  // nothing, so testing the buffer's FULLNESS instead of its
+  // COMPLETENESS dropped an honest-length run into the loose branch and
+  // reopened the forged-purse hole one card above where it was closed.
+  let run = openRun(AT);
+  for (let i = 0; i < 12; i++) run = applyCard(run, card({ purse: 0, rating: 0 })).run;
+  assert.equal(run.recent.length, 12, "the buffer is exactly full");
+  assert.equal(run.purse, 0);
+  memoryStore({ [RUN_KEY]: JSON.stringify(run) });
+  assert.equal(loadRun(AT).how, "restored", "an honest full buffer must restore");
+
+  const rich = JSON.parse(JSON.stringify(run));
+  rich.purse = 120000;
+  memoryStore({ [RUN_KEY]: JSON.stringify(rich) });
+  assert.equal(loadRun(AT).how, "orphaned", "full is not the same as truncated");
+
+  // ...and claiming an extra card to escape into the loose branch buys
+  // exactly one card's worth of headroom, not a free pass: what is still
+  // on the receipt is a floor.
+  const inflated = JSON.parse(JSON.stringify(rich));
+  inflated.cards = 13;
+  memoryStore({ [RUN_KEY]: JSON.stringify(inflated) });
+  assert.equal(loadRun(AT).how, "orphaned");
+});
+
 test("a purchase cannot be stamped where the season has not been", () => {
   // Both caught in review, beat 3. applyBuy stamps the CURRENT position
   // and the position only climbs, so a stamp in the future is impossible —

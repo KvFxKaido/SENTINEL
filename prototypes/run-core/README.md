@@ -159,12 +159,20 @@ arrived with a `verb` on it would be Tier 2 roster state sitting inside
 a Tier 1 run.
 
 **And the purse itself is checked, now that it buys things.** `recent`
-is the run's own receipt, so while nothing has been evicted from it,
-every total that is a sum or a count must *be* that sum or count —
-cards, wins, struck, unwitnessed, purse, and the mercy ledger. Past the
-12-card cap the receipts are gone by design and only the bound survives:
-a card can have paid at most `MAX_PURSE`. A hand-edited fresh run with
-`purse: 10000` used to restore and buy a hood with it.
+is the run's own receipt, and every card pushes exactly one entry, so
+`cards + struck === recent.length` is precisely *nothing has scrolled
+off* — while that holds, every total that is a sum or a count must *be*
+that sum or count: cards, wins, struck, unwitnessed, purse, and the mercy
+ledger. A hand-edited fresh run with `purse: 10000` used to restore and
+buy a hood with it.
+
+Not "the buffer is not full", which was the first cut and is a different
+claim: a run of exactly 12 cards has evicted nothing either, and testing
+fullness dropped it into the loose branch one card above where the hole
+was closed. Once entries really have scrolled off, what is left is a
+**floor** — the visible receipts, plus at most `MAX_PURSE` for each card
+that vanished. A run claiming a hundred cards can claim a hundred cards'
+purse; that is the honest limit of what a twelve-entry receipt proves.
 
 ## What counts
 

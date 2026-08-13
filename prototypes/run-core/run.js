@@ -729,26 +729,56 @@ function sane(r) {
      hand-edited fresh run with `purse: 10000` used to restore and buy a
      hood with it (caught in review, beat 3).
 
-     `recent` is the run's own receipt for everything it claims, so while
-     nothing has been evicted from it, every total that is a sum or a
-     count must BE that sum or count. Past the cap the history is gone by
-     design and only the bound survives: a card can pay at most MAX_PURSE.
+     `recent` is the run's own receipt for everything it claims. Every
+     applyCard pushes exactly one entry, banked or struck, so `cards +
+     struck === recent.length` is precisely "nothing has scrolled off" —
+     and while that holds, every total that is a sum or a count must BE
+     that sum or count.
+
+     Not `recent.length < RECENT`, which was the first cut: a run of
+     exactly RECENT cards has evicted nothing either, and testing the
+     buffer's fullness instead of its completeness dropped that run into
+     the loose branch — where a hand-edited purse restored and became
+     spendable balance, the exact hole this check exists to close (caught
+     by BOTH review bots, independently).
+
+     Once events really have scrolled off, the receipts for them are gone
+     by design and the totals cannot be re-derived. What is still visible
+     is a FLOOR, and each vanished card can have paid at most MAX_PURSE —
+     which also means inflating `cards` to buy headroom for a forged purse
+     buys exactly MAX_PURSE per claimed card, not a free pass. A run that
+     claims a hundred cards can claim the purse of a hundred cards; that
+     is the honest limit of what a 12-entry receipt can prove, and this
+     says so rather than pretending otherwise.
+
      `best`, `streak` and `longest` are order-derived rather than summed
      and stay on their existing bounds — they can be lied about, but a lie
      there buys nothing. */
-  const bankedCards = r.recent.filter(c => c.cert !== "struck");
-  if (r.recent.length < RECENT) {
-    if (bankedCards.length !== r.cards) return false;
-    if (bankedCards.filter(c => c.result === "win").length !== r.wins) return false;
-    if (bankedCards.filter(c => c.cert === "unwitnessed").length !== r.unwitnessed) return false;
-    if (r.recent.length - bankedCards.length !== r.struck) return false;
-    if (bankedCards.reduce((n, c) => n + c.purse, 0) !== r.purse) return false;
+  const banked = r.recent.filter(c => c.cert !== "struck");
+  const sum = (list, of) => list.reduce((n, c) => n + of(c), 0);
+  const wins = banked.filter(c => c.result === "win").length;
+  const unwitnessed = banked.filter(c => c.cert === "unwitnessed").length;
+  if (r.cards + r.struck === r.recent.length) {
+    if (banked.length !== r.cards) return false;
+    if (wins !== r.wins) return false;
+    if (unwitnessed !== r.unwitnessed) return false;
+    if (sum(banked, c => c.purse) !== r.purse) return false;
     // The mercy ledger is the run's actual thesis, so it gets the same
     // treatment: a forged rate buys nothing, but it is a lie about who
     // you have been, which is worse than a lie about money.
-    if (bankedCards.reduce((n, c) => n + c.walked, 0) !== r.mercy.walked) return false;
-    if (bankedCards.reduce((n, c) => n + c.finished, 0) !== r.mercy.finished) return false;
-  } else if (r.purse > r.cards * MAX_PURSE) return false;
+    if (sum(banked, c => c.walked) !== r.mercy.walked) return false;
+    if (sum(banked, c => c.finished) !== r.mercy.finished) return false;
+  } else {
+    // The only way an event can be missing is the buffer being full.
+    if (r.cards + r.struck <= RECENT || r.recent.length !== RECENT) return false;
+    const gone = r.cards - banked.length;
+    if (gone < 0) return false;
+    if (r.purse > sum(banked, c => c.purse) + gone * MAX_PURSE) return false;
+    if (r.wins < wins || r.unwitnessed < unwitnessed) return false;
+    if (r.struck < r.recent.length - banked.length) return false;
+    if (r.mercy.walked < sum(banked, c => c.walked)) return false;
+    if (r.mercy.finished < sum(banked, c => c.finished)) return false;
+  }
   // The season, when there is one, all the way in — same reasoning as the
   // collections above: every field here reaches the room's surface or
   // gates its door.
