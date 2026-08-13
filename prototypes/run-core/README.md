@@ -33,20 +33,12 @@ module does not cross it.
 **A run accumulates the consequences of cards. It does not change what a
 card is.**
 
-That is load-bearing, not fastidious. `seed + record IS the match` is
-written into the rules core, into the witness Worker's own docs, and into
-the content-addressed key every filed record lives under. The Worker
-replays a match from its seed alone. The moment a run hands a *wounded
-roster* into the yard, a certified card becomes a claim the edge cannot
-check — and the room's own verdict, `EDGE DISPUTES THE FEED — STRUCK`,
-starts firing on honest play.
-
-So v1 persists purse, the mercy ledger, and who went down, and the next
-card is still fought by the canonical three at full strength. **Wounds
-are a record, not a modifier.**
-
-Making them a modifier is wanted, and it is a doctrine change rather than
-a feature. It needs, at minimum:
+Still true, and now true for a different reason. It used to be structural:
+under `seed + record IS the match`, a run that handed a *wounded roster*
+into the yard turned a certified card into a claim the edge could not
+check, and the room's own verdict — `EDGE DISPUTES THE FEED — STRUCK` —
+would have started firing on honest play. The price of changing that was
+written here as a checklist:
 
 - `restart(seed, roster)` and `replayMatch(seed, commands, roster)`
 - a roster in the `/certify` and `/file` bodies
@@ -54,8 +46,21 @@ a feature. It needs, at minimum:
 - a decision about what a filed record *means* when two players can play
   the same seed with different squads
 
-That deserves its own PR and its own argument. It is not something this
-module gets to smuggle in by being convenient.
+**That bill has been paid** (`architecture/roster_in_the_match.md`,
+2026-08-13). The law is now `seed + roster + record = the match`: the
+roster is a certified input, replayed from rather than trusted, carried
+in the certificate as its own field and in the content address — the last
+item's answer being that a record individuates by what actually fought.
+The third bullet landed with one deliberate correction: the roster is
+**not** in the rules stamp, because a wound is not a rules deployment;
+the stamp instead gained a golden that exercises roster handling.
+
+So the line above is now a *choice* rather than a constraint. This module
+still persists purse, the mercy ledger and who went down, and the room
+still deals the canonical three at full strength — whether a wound is
+carried into the next card is a design decision that belongs to the
+designer, and it is a one-line change in the room rather than a doctrine
+change in the stack.
 
 ## The slate (season-lite)
 

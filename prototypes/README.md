@@ -55,10 +55,13 @@ who went down now outlive the tab, in `localStorage`, under
 [`run-core/`](run-core/).
 
 The run banks what a card **cost**. It does not change what a card **is** —
-the next card is still fought by the canonical three at full strength,
-because `seed + record IS the match` is what lets the witness certify
-anything at all. Wounds are a record, not a modifier; making them a
-modifier is a doctrine change and `run-core/README.md` prices it.
+the next card is still fought by the canonical three at full strength.
+That used to be forced: `seed + record IS the match` was what let the
+witness certify anything at all. Since the doctrine change
+(`architecture/roster_in_the_match.md`, 2026-08-13) the law is **seed +
+roster + record**, the squad crosses the door as a certified input, and
+carrying a wound into the next card is a design decision rather than an
+impossibility. The room still deals full strength today.
 
 Nothing is silently migrated or dropped: a stored run this schema cannot
 read is *moved aside*, a fresh one opens, and the panel says so. A room

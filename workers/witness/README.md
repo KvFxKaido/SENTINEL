@@ -10,7 +10,8 @@ Live at: `https://sentinel-witness.ishawnd.workers.dev`
 
 ```
 GET  /replay?seed=deadbeef
-POST /certify      {"seed":"6","record":[["move",0,1,7],...,["spare"]]}
+POST /certify      {"seed":"6","record":[["move",0,1,7],...,["spare"]],
+                    "roster":[{"name":"VESPER","hp":10},...]}
 POST /file         same body — certifies AND archives
 GET  /matches      the archive, newest first (metadata only)
 GET  /matches/{id} one filed match in full: record + certificate
@@ -18,8 +19,10 @@ GET  /matches/{id} one filed match in full: record + certificate
 
 `/replay` replays the no-input encounter for a seed. `/certify` takes a
 **played match** — the input-log protocol, Circuit roadmap step 5: `seed +
-record` is the match, where the record is the command list the rules core
-accumulated in `S.record` while the match was played. Both replay through
+roster + record` is the match (`architecture/roster_in_the_match.md`;
+the law was `seed + record` until the roster became a certified input),
+where the record is the command list the rules core accumulated in
+`S.record` while the match was played. Both replay through
 the shared rules module and return the certified transcript: result,
 rating, purse, line count, the FNV-1a fingerprint, and the transcript
 itself. The grammar spans seven verbs — the player's six and the house's
@@ -56,30 +59,51 @@ stamp alongside them and send it back as `rules` when certifying, so a
 record can never be silently reinterpreted by newer rules as if history
 had always been that way.
 
-Since showrunner twists landed (2026-07-29) the stamp hashes **two**
-playouts: the deadbeef no-input golden (`39e8be71`, the base game) and
-the showrunner golden (`6495eab3`, a played match with MERCY ODDS on the
-record — `prototypes/tactical-core/showrunner-golden.js`). The second
-exists because a no-input playout can never play a card: without it, a
-balance patch to a card's terms would move nothing and old records would
-silently certify under new card math. Each golden contributes its
-transcript fingerprint **and its outcome** — result, rating, purse —
-because rating is deliberately never a transcript line, so payout
-behavior could otherwise change under an unchanged stamp (caught in
-review). Today's stamp is `1b07379b` =
-`fnv("39e8be71:loss:29:290:6495eab3:win:92:920")`. Extending the stamp's
-*inputs* is the one legitimate way the stamp changes without behavior
-changing — it happened here, deliberately, and records stamped
-`39e8be71` are now correctly refused as claiming a different rules
-version (they do: the grammar grew a verb).
+The stamp hashes **three** playouts, each pinning an area the others
+cannot reach:
+
+| golden | pins | fingerprint |
+|---|---|---|
+| deadbeef, no input | the base game | `39e8be71` |
+| showrunner (`showrunner-golden.js`) | the twist grammar and card math | `6495eab3` |
+| roster (`roster-golden.js`) | how a fielded squad is carried in | `d44833c0` |
+
+The second landed with twists (2026-07-29) because a no-input playout can
+never play a card: without it, a balance patch to a card's terms would
+move nothing and old records would silently certify under new card math.
+The third landed with the roster doctrine (2026-08-13) for exactly the
+same reason — the other two both field the canonical three, so neither
+can stamp what a roster does.
+
+Each golden contributes its transcript fingerprint **and its outcome** —
+result, rating, purse — because rating is deliberately never a transcript
+line, so payout behavior could otherwise change under an unchanged stamp
+(caught in review); the roster golden adds its canonical key. Today's
+stamp is `bc119060` =
+`fnv("39e8be71:loss:29:290:6495eab3:win:92:920:d44833c0:loss:35:350:VESPER:6|NIX:10|SABLE:3")`.
+
+Extending the stamp's *inputs* is the one legitimate way the stamp
+changes without behavior changing — it has happened twice now, both times
+deliberately. Records stamped under an older input set are correctly
+refused as claiming a different rules version, because they are.
+
+What the stamp does **not** cover: which roster a given card fielded. That
+is the certificate's own `rosterHash` field. A wound is not a rules
+deployment, and folding the two would report ordinary season progression
+as rules drift on every card.
 
 ## The archive (campaign wiring, the persistence half)
 
 `POST /file` certifies and then stores the match in KV. Identity is
 **content-addressed**: the id is a SHA-256 digest (truncated to 128 bits)
-of `{rules, seed, record}` — everything that makes the match the match.
-Rules are in the digest on purpose: the same record under different rules
-is a *different* match, never an overwrite. (The transcript fingerprint
+of `{rules, seed, roster, record}` — everything that makes the match the
+match. Rules are in the digest on purpose: the same record under different
+rules is a *different* match, never an overwrite. The roster is there for
+the same reason, and it answers the question run-core's price list left
+open: what a filed record *means* when two players play the same seed with
+different squads. It means what it says — a record individuates by what
+actually fought, so the same commands under a substituted fighter file as
+their own match and neither can clobber the other. (The transcript fingerprint
 stays FNV-32 for continuity with the goldens — it is a checksum, not an
 identity.) Filing is **state-idempotent**: an already-filed match returns
 the original entry with its original timestamp, so resubmission can
@@ -92,8 +116,20 @@ to a different match; the claim makes the worker refuse rather than
 archive a transcript the player never saw. The prototype always sends it.
 
 Certificates (and stored metadata) carry the **ledger** — walked /
-finished / lost, derived from the replayed state — and the rules stamp,
+finished / lost, derived from the replayed state — the **roster** the
+replay actually fielded with its own `rosterHash`, and the rules stamp,
 so a future rules version can refuse to silently reinterpret the archive.
+
+The roster is validated at this boundary with the rules core's own
+`rosterValid` — one definition of what a squad is, not a second one
+drifting out here — and a malformed one is a **400**, not a 422: it is a
+request that cannot be understood, not a record that failed to replay.
+Absent, the canonical three at full strength are fielded, so every record
+filed before this input existed still certifies to the squad it was
+actually fought by. `rosterHash` is deliberately its **own** field rather
+than being folded into the rules stamp: a wound is not a rules
+deployment, and conflating them would report ordinary season progression
+as rules drift on every card.
 `GET /matches` walks every KV page before sorting: the listing is
 globally newest-first and complete, bounded by the cap.
 

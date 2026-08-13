@@ -9,6 +9,7 @@ import {
   setOverwatch, solution, reachable, living, formatEvent,
 } from "../../prototypes/tactical-core/rules.js";
 import { SHOWRUNNER_GOLDEN } from "../../prototypes/tactical-core/showrunner-golden.js";
+import { ROSTER_GOLDEN } from "../../prototypes/tactical-core/roster-golden.js";
 
 const BASE = process.argv[2] ?? "http://localhost:8787";
 // outcome constants (rating/purse) are pinned literals on purpose: they
@@ -48,14 +49,14 @@ for (const g of GOLDENS) {
 // ---- play a match HERE, have the edge certify it ---------------
 // The same deterministic auto-player the core tests use: any record a
 // player produces locally, the edge must replay to the same bytes.
-async function autoPlay(seed, resolve = "spare", maxTurns = 20) {
+async function autoPlay(seed, resolve = "spare", maxTurns = 20, roster = null) {
   const lines = [];
   bindIO({
     sleep: () => Promise.resolve(),
     emit: ev => { const l = formatEvent(ev); if (l !== null) lines.push(l); },
     changed: () => {},
   });
-  restart(seed);
+  restart(seed, roster);
   const bestTarget = u => {
     let best = null;
     for (const t of living("ho").filter(t => !t.yielded)) {
@@ -125,19 +126,21 @@ check(cert.status === 200 && cert.body.certified === true &&
   `certify: edge fp=${cert.body.fingerprint} vs local ${local.fingerprint}, rating ${cert.body.rating} vs ${local.rating}, purse=${cert.body.purse}`);
 
 // ---- the rules stamp --------------------------------------------
-// Version-as-behavior, over TWO playouts: the deadbeef golden pins the
+// Version-as-behavior, over THREE playouts: the deadbeef golden pins the
 // base game, the showrunner golden pins the twist grammar and card math
-// a no-input playout never reaches. Each contributes transcript AND
-// outcome — rating is never a transcript line, so economics are stamped
-// explicitly (caught in review). The edge must derive the same stamp
-// from the same pinned constants, and a record claiming other rules
-// must be refused before replay.
+// a no-input playout never reaches, and the roster golden pins how a
+// fielded squad is carried in. Each contributes transcript AND outcome —
+// rating is never a transcript line, so economics are stamped explicitly
+// (caught in review). The edge must derive the same stamp from the same
+// pinned constants, and a record claiming other rules must be refused
+// before replay.
 const STAMP = fnv([
   GOLDENS[0].fingerprint, GOLDENS[0].result, GOLDENS[0].rating, GOLDENS[0].purse,
   SHOWRUNNER_GOLDEN.fingerprint, SHOWRUNNER_GOLDEN.result, SHOWRUNNER_GOLDEN.rating, SHOWRUNNER_GOLDEN.purse,
+  ROSTER_GOLDEN.fingerprint, ROSTER_GOLDEN.result, ROSTER_GOLDEN.rating, ROSTER_GOLDEN.purse, ROSTER_GOLDEN.key,
 ].join(":"));
 check(cert.body.rules === STAMP,
-  `certificate carries the two-golden rules stamp: ${cert.body.rules} (expected ${STAMP})`);
+  `certificate carries the three-golden rules stamp: ${cert.body.rules} (expected ${STAMP})`);
 const claimed = await post({ seed: "6", record: local.record, rules: STAMP });
 check(claimed.status === 200 && claimed.body.certified === true,
   `record claiming the current rules certifies: ${claimed.status}`);
@@ -165,6 +168,48 @@ midRound.splice(3, 0, ["twist", 1]);   // mid-round, and over budget besides
 const badTwist = await post({ seed: SHOWRUNNER_GOLDEN.seed.toString(16), record: midRound });
 check(badTwist.status === 422 && badTwist.body.error === "record does not replay",
   `illegally-timed twist refused: ${badTwist.status} "${badTwist.body.error}"`);
+
+// ---- the roster: the match's second certified input ---------------
+// `architecture/roster_in_the_match.md`. The sharpest available form of
+// the claim: substitution changes no roll — ids, positions and hp are
+// identical — so the SAME seed auto-plays to the SAME record, and only
+// the squad differs. Everything the edge then says about it must differ.
+const SUB_ROSTER = [{ name: "VESPER", hp: 10 }, { name: "NIX", hp: 10 }, { name: "SABLE", hp: 10 }];
+const subbed = await autoPlay(6, "spare", 20, SUB_ROSTER);
+check(JSON.stringify(subbed.record) === JSON.stringify(local.record),
+  `same seed, same play, one substitution: ${subbed.record.length} identical commands`);
+check(subbed.fingerprint !== local.fingerprint,
+  `...and it is not the same transcript: ${subbed.fingerprint} vs ${local.fingerprint}`);
+
+const subCert = await post({ seed: "6", record: subbed.record, roster: SUB_ROSTER });
+check(subCert.status === 200 && subCert.body.certified === true &&
+      subCert.body.fingerprint === subbed.fingerprint,
+  `edge certifies the record under the roster it was fought with: ${subCert.body.fingerprint}`);
+check(JSON.stringify(subCert.body.roster) === JSON.stringify(SUB_ROSTER) &&
+      subCert.body.rosterHash === fnv("VESPER:10|NIX:10|SABLE:10"),
+  `certificate carries the fielded roster and its own hash: ${subCert.body.rosterHash}`);
+check(cert.body.rosterHash === fnv("VESPER:10|KOA:10|SABLE:10"),
+  `a roster-less record certifies as the canonical three: ${cert.body.rosterHash}`);
+check(cert.body.rules === subCert.body.rules,
+  "the rules stamp does NOT move with the roster — a wound is not a deployment");
+
+// the same record, the same seed, the wrong squad: not the match you watched
+const wrongSquad = await post({ seed: "6", record: subbed.record, fingerprint: subbed.fingerprint });
+check(wrongSquad.status === 422 &&
+      wrongSquad.body.error === "record replays to a different match than claimed",
+  `record certified under the wrong roster is refused: ${wrongSquad.status} "${wrongSquad.body.error}"`);
+
+for (const [label, roster] of [
+  ["two fighters", [{ name: "VESPER", hp: 10 }, { name: "KOA", hp: 10 }]],
+  ["hp past the ceiling", [{ name: "VESPER", hp: 11 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 }]],
+  ["fielded at zero", [{ name: "VESPER", hp: 0 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 }]],
+  ["a hostile's name", [{ name: "SYN-1", hp: 10 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 }]],
+  ["two of the same fighter", [{ name: "KOA", hp: 10 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 }]],
+  ["a string", "VESPER:10|KOA:10|SABLE:10"],
+]) {
+  const r = await post({ seed: "6", record: local.record, roster });
+  check(r.status === 400, `malformed roster (${label}) rejected at the wire: ${r.status}`);
+}
 
 // ---- refusals ---------------------------------------------------
 const bent = JSON.parse(JSON.stringify(local.record));
@@ -242,6 +287,23 @@ const fetched = (await getJson(`/matches/${filed.body.id}`)).body;
 check(JSON.stringify(fetched.record) === JSON.stringify(local.record) &&
       fetched.certificate?.fingerprint === local.fingerprint,
   `filed match fetches back in full: ${fetched.record?.length} commands + certificate`);
+
+// The fourth item on run-core's price list, answered at the edge: what
+// does a filed record MEAN when two players play the same seed with
+// different squads? It means what it says — the roster is in the content
+// address, so a record individuates by what actually fought. Same seed,
+// byte-identical record, one substitution: two matches, two ids, and
+// neither overwrites the other.
+const filedSub = await postTo("/file", { seed: "6", record: subbed.record, roster: SUB_ROSTER });
+check(filedSub.status === 200 && filedSub.body.filed === true && filedSub.body.id !== filed.body.id,
+  `a different squad files as a different match: ${filedSub.body.id} vs ${filed.body.id}`);
+const refiledSub = await postTo("/file", { seed: "6", record: subbed.record, roster: SUB_ROSTER });
+check(refiledSub.body.id === filedSub.body.id && refiledSub.body.existing === true,
+  `...and it is still idempotent under its own roster: ${refiledSub.body.id}`);
+const subInArchive = (await getJson(`/matches/${filedSub.body.id}`)).body;
+check(subInArchive.certificate?.rosterHash === fnv("VESPER:10|NIX:10|SABLE:10") &&
+      subInArchive.certificate?.fingerprint === subbed.fingerprint,
+  `the archive keeps the roster with the match: ${subInArchive.certificate?.rosterHash}`);
 
 const tamperedFile = await postTo("/file", { seed: "6", record: bent });
 check(tamperedFile.status === 422 && tamperedFile.body.filed === false,

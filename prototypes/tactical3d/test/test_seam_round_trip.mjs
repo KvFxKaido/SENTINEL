@@ -123,6 +123,17 @@ try {
   const seamSrc = await page.getAttribute("#seamframe", "src");
   check("a plain room deals render96 through the seam",
     new URL(seamSrc, page.url()).searchParams.get("body") === "render96", seamSrc);
+  // ---- the roster crosses the door ----------------------------------
+  // `architecture/roster_in_the_match.md`: the law is now
+  // `seed + roster + record = the match`, so the world deals WHO fights
+  // beside WHICH card. This is the one suite that can watch the whole
+  // chain — dealt, fielded, posted home, certified — in one crossing.
+  const dealtRoster = new URL(seamSrc, page.url()).searchParams.get("roster");
+  check("the world deals the squad beside the seed",
+    dealtRoster === "VESPER:10,KOA:10,SABLE:10", dealtRoster);
+  const cutFielding = (await page.textContent("#seamcut")).replace(/\s+/g, " ").trim();
+  check("the cut card says who is fighting",
+    /FIELDING VESPER · KOA · SABLE/.test(cutFielding), cutFielding);
   // the cut card carries the current entry's framing — the run's own
   // slate talking, since nothing seasonal crosses the seam itself
   const cut = (await page.textContent("#seamcut")).replace(/\s+/g, " ").trim();
@@ -142,6 +153,13 @@ try {
     (await frame.evaluate(() => document.getElementById("cv").dataset.roster)) === "full");
   check("the yard stages the room's render96 body",
     (await frame.evaluate(() => document.getElementById("cv").dataset.body)) === "render96");
+  // and it fields the squad the world dealt, in the rules core's own
+  // canonical form — the yard's word about its own board, not the URL
+  // read back to itself
+  const yardFielded = await frame.evaluate(() =>
+    document.getElementById("cv").dataset.fielded);
+  check("the yard fields exactly the squad the world dealt",
+    yardFielded === "VESPER:10|KOA:10|SABLE:10", yardFielded);
   // loading, not telemetry: the render idle is 4 frames where composed is 8
   const renderIdles = await frame.evaluate(() =>
     document.getElementById("cv").dataset.idleFrames ?? "");
@@ -222,6 +240,10 @@ try {
     !/RUN REFUSED/.test(verdict), verdict);
   check("the banked card says where it banked",
     /AT KESTREL YARD/.test(verdict), verdict);
+  // the second input, on the surface: the card the room settles names the
+  // squad that fought it, not only the seed that dealt it
+  check("the settled card names the squad that fought it",
+    /FIELDED VESPER 10\/10 · KOA 10\/10 · SABLE 10\/10/.test(verdict), verdict);
 
   // ---- the run outlives the tab -------------------------------------
   // The whole point of the run layer. dataset.run is the surface's own

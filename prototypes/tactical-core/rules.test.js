@@ -16,8 +16,10 @@ import {
   los, coverBonus, solution, reachable, living, unitAt, W, H,
   mulberry32, MORALE, RATING, tryShoot, tryFinish, spare, setOverwatch, tryMove,
   replayMatch, TWISTS, playTwist, twistWindow,
+  rosterValid, rosterKey, CANON_ROSTER, ROSTER_SLOTS, OP_MAX_HP,
 } from "./rules.js";
 import { SHOWRUNNER_GOLDEN } from "./showrunner-golden.js";
+import { ROSTER_GOLDEN } from "./roster-golden.js";
 import { directorTick } from "./director.js";
 
 // FNV-1a, matching the fingerprint taken in the browser
@@ -30,14 +32,14 @@ function fnv(s) {
 // Play an encounter with no player input: every hostile turn resolves and
 // the operatives never act, so the entire transcript is a pure function of
 // the seed. Sleeps are collapsed to nothing — timing must not affect rolls.
-async function playOut(seed, maxTurns = 14) {
+async function playOut(seed, maxTurns = 14, roster = null) {
   const lines = [];
   bindIO({
     sleep: () => Promise.resolve(),
     emit: ev => { const l = formatEvent(ev); if (l !== null) lines.push(l); },
     changed: () => {},
   });
-  restart(seed);
+  restart(seed, roster);
   for (let i = 0; i < maxTurns && !S.gameOver; i++) await endPlayerTurn();
   return lines;
 }
@@ -821,4 +823,121 @@ test("the showrunner golden replays to its captured fingerprint", async () => {
   await replayMatch(seed, bare);
   assert.equal(S.rating, rating - TWISTS[1].spareRating + RATING.spare,
     "card off, same fight — only the spare payout moves");
+});
+
+/* ---- the roster: the match's second certified input ---------------
+ * `architecture/roster_in_the_match.md`. The old law was
+ * `seed + record = the match`; the new one is
+ * `seed + roster + record = the match`, and everything below is that
+ * sentence made executable. The two goldens at the top of this file are
+ * the other half of the proof: they field no roster at all and did not
+ * move, so the input is genuinely additive.
+ */
+
+test("no roster fields the canonical three, exactly as before", async () => {
+  await playOut(0xdeadbeef, 1);
+  assert.deepEqual(
+    S.units.filter(u => u.side === "op").map(u => ({ name: u.name, hp: u.hp })),
+    CANON_ROSTER.map(f => ({ name: f.name, hp: f.hp })));
+  assert.deepEqual(S.roster, CANON_ROSTER.map(f => ({ name: f.name, hp: f.hp })),
+    "the state reports what was fielded, so a certificate need not take the caller's word");
+});
+
+test("passing the canonical roster is the same match as passing none", async () => {
+  const bare = await playOut(0xdeadbeef);
+  const named = await playOut(0xdeadbeef, 14, CANON_ROSTER.map(f => ({ ...f })));
+  assert.deepEqual(named, bare, "saying the default out loud cannot change the match");
+});
+
+test("the roster golden: same seed, same input, different squad, different match", async () => {
+  // The doctrine in one assertion. Nothing about the seed or the record
+  // changed; the squad did, and the match is not the same match.
+  const { seed, roster, result, rating, purse, lines: lineCount, fingerprint } = ROSTER_GOLDEN;
+  const lines = await playOut(seed, 14, roster);
+  assert.equal(lines.length, lineCount, "line count drifted:\n" + lines.join("\n"));
+  assert.equal(fnv(lines.join("\n")), fingerprint,
+    "the stamp's third golden: any change to roster behavior must move this");
+  assert.equal(S.gameOver, result);
+  assert.equal(S.rating, rating);
+  assert.equal(S.rating * RATING.pursePerPoint, purse);
+  assert.equal(rosterKey(roster), ROSTER_GOLDEN.key);
+
+  const canonical = await playOut(seed);
+  assert.notEqual(fnv(canonical.join("\n")), fingerprint,
+    "if these ever agree, the roster is not an input and the doctrine is a lie");
+  assert.equal(fnv(canonical.join("\n")), "39e8be71", "...and its twin is the untouched golden");
+});
+
+test("a substituted name rides the record", async () => {
+  // Lineup is rules-level — this is precisely why season-lite could not
+  // bench anyone without breaking the certificate.
+  const lines = await playOut(0xdeadbeef, 14,
+    [{ name: "NIX", hp: 10 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 }]);
+  assert.ok(lines.some(l => /NIX/.test(l)), "the fielded name reaches the transcript");
+  assert.ok(!lines.some(l => /VESPER/.test(l)), "and the benched one does not");
+});
+
+test("a carried wound is hp, not a smaller fighter", async () => {
+  await playOut(0xdeadbeef, 1, [{ name: "VESPER", hp: 4 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 }]);
+  const vesper = S.units.find(u => u.name === "VESPER");
+  assert.equal(vesper.hp, 4);
+  assert.equal(vesper.maxHp, OP_MAX_HP, "four OF ten — the distinction a wound heals across");
+});
+
+test("a roster that is not a roster is refused, never defaulted", async () => {
+  // Falling back to the canonical three would field a squad the caller
+  // never asked for and then certify the result.
+  const bad = [
+    [],
+    [{ name: "VESPER", hp: 10 }],
+    [{ name: "VESPER", hp: 10 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 }, { name: "NIX", hp: 10 }],
+    [{ name: "VESPER", hp: 0 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 }],
+    [{ name: "VESPER", hp: 11 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 }],
+    [{ name: "VESPER", hp: 1.5 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 }],
+    [{ name: "vesper", hp: 10 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 }],
+    [{ name: "", hp: 10 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 }],
+    [{ name: "KOA", hp: 10 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 }],
+    [{ name: "SYN-1", hp: 10 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 }],
+    [{ hp: 10 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 }],
+    "VESPER:10|KOA:10|SABLE:10",
+    {},
+  ];
+  for (const roster of bad) {
+    assert.equal(rosterValid(roster), false, JSON.stringify(roster));
+    assert.throws(() => restart(1, roster), /not a roster/, JSON.stringify(roster));
+  }
+  assert.equal(rosterValid(CANON_ROSTER), true);
+  assert.equal(ROSTER_SLOTS, 3);
+});
+
+test("a duplicated or hostile name is refused because the record must name one fighter", async () => {
+  // The transcript is what gets certified. Two fighters answering to one
+  // name makes a line that cannot say who did what.
+  assert.equal(rosterValid([{ name: "SYN-2", hp: 10 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 }]), false);
+  assert.equal(rosterValid([{ name: "NIX", hp: 10 }, { name: "NIX", hp: 9 }, { name: "SABLE", hp: 10 }]), false);
+});
+
+test("rosterKey is one canonical form, and hp is part of it", () => {
+  assert.equal(rosterKey(null), "VESPER:10|KOA:10|SABLE:10", "no roster keys as the canonical three");
+  assert.equal(rosterKey(CANON_ROSTER), rosterKey(null));
+  assert.notEqual(
+    rosterKey([{ name: "VESPER", hp: 9 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 }]),
+    rosterKey(null),
+    "a wound changes the key — otherwise the address could not individuate by it");
+  assert.notEqual(
+    rosterKey([{ name: "KOA", hp: 10 }, { name: "VESPER", hp: 10 }, { name: "SABLE", hp: 10 }]),
+    rosterKey(null),
+    "and so does the slot they stand in");
+});
+
+test("replayMatch takes the roster it was fought under", async () => {
+  // The Worker's whole job: the record replays under the roster it was
+  // played with, and under any other roster it is a different match.
+  const roster = ROSTER_GOLDEN.roster.map(f => ({ ...f }));
+  const record = [["move", 0, 2, 6], ["shoot", 0, 4], ["end"]];
+  const played = await replayMatch(ROSTER_GOLDEN.seed, record, roster);
+  assert.equal(played.faithful, true);
+  assert.deepEqual(S.roster, roster);
+  const names = S.units.filter(u => u.side === "op").map(u => u.name);
+  assert.deepEqual(names, ["VESPER", "NIX", "SABLE"]);
 });

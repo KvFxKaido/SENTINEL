@@ -12,17 +12,29 @@
 
    GET  /replay?seed=<hex>     — no-input playout, a pure function of the
                                  seed. The goldens live here.
-   POST /certify {seed,record} — a PLAYED match: the input-log protocol
+   POST /certify {seed,roster,record}
+                               — a PLAYED match: the input-log protocol
                                  (Circuit roadmap step 5), designed in the
                                  rules core (S.record / replayMatch) and
                                  inherited here. The record replays through
                                  the same verbs the player used; a replay
                                  that cannot reproduce its own input, or
                                  that ends unfinished, certifies nothing.
+
+   The roster is the second certified input (`architecture/
+   roster_in_the_match.md`): the law is now `seed + roster + record = the
+   match`. It is validated at this boundary with the rules core's own
+   check, replayed from rather than trusted, reported in the certificate
+   as its own field, and folded into the content address — so the same
+   record fought by a different squad is a DIFFERENT match, never an
+   overwrite. It is deliberately NOT folded into the rules stamp: a wound
+   is not a rules deployment, and conflating the two would mark ordinary
+   season progression as drift on every card.
    ============================================================ */
 
-import { S, bindIO, restart, endPlayerTurn, replayMatch, formatEvent, RATING } from "../../prototypes/tactical-core/rules.js";
+import { S, bindIO, restart, endPlayerTurn, replayMatch, formatEvent, RATING, rosterValid, rosterKey } from "../../prototypes/tactical-core/rules.js";
 import { SHOWRUNNER_GOLDEN } from "../../prototypes/tactical-core/showrunner-golden.js";
+import { ROSTER_GOLDEN } from "../../prototypes/tactical-core/roster-golden.js";
 
 // FNV-1a, mirroring rules.test.js — the certificate must be the same hash
 // the goldens assert or it certifies nothing.
@@ -51,27 +63,39 @@ function serialized(fn) {
 // carry it, and a record claiming a different stamp is refused before
 // replay — its faithfulness under these rules would be meaningless.
 //
-// TWO playouts, one stamp: the deadbeef golden exercises the base game,
-// and the showrunner golden exercises the twist grammar and card math a
-// no-input playout can never reach — without it, a balance patch to a
-// card would move nothing and old records would silently certify under
-// new card terms. Each golden contributes its transcript fingerprint AND
-// its outcome (result, rating, purse): rating is deliberately never a
+// THREE playouts, one stamp: the deadbeef golden exercises the base game,
+// the showrunner golden exercises the twist grammar and card math a
+// no-input playout can never reach, and the roster golden exercises the
+// second certified input — without each of them, a change in that area
+// would move nothing and old records would silently certify under new
+// terms. Each golden contributes its transcript fingerprint AND its
+// outcome (result, rating, purse): rating is deliberately never a
 // transcript line, so payout behavior could otherwise change under an
 // unchanged stamp (caught in review). Extending the stamp's INPUTS is
 // the one legitimate way the stamp changes without behavior changing;
-// it happened when twists landed, deliberately, and it is why the stamp
-// is no longer the bare deadbeef fingerprint. Computed once per isolate;
-// callers must hold the mutex (it runs the shared S machine).
+// it happened when twists landed, it happens again here, and both times
+// deliberately. Note what this does NOT do: the stamp covers how a
+// roster is APPLIED, never which roster a given card fielded — that is
+// the certificate's own field, because a wound is not a deployment.
+// Computed once per isolate; callers must hold the mutex (it runs the
+// shared S machine).
 let rulesStamp = null;
 async function rulesFingerprint() {
   if (rulesStamp === null) {
     const base = await replay(0xdeadbeef);
-    const lines = captureLines();
+    const twistLines = captureLines();
     await replayMatch(SHOWRUNNER_GOLDEN.seed, SHOWRUNNER_GOLDEN.record);
+    const twist = [fnv(twistLines.join("\n")), S.gameOver, S.rating, S.rating * RATING.pursePerPoint];
+    const rosterLines = captureLines();
+    restart(ROSTER_GOLDEN.seed, ROSTER_GOLDEN.roster);
+    for (let i = 0; i < 14 && !S.gameOver; i++) await endPlayerTurn();
+    const roster = [
+      fnv(rosterLines.join("\n")), S.gameOver, S.rating,
+      S.rating * RATING.pursePerPoint, rosterKey(S.roster),
+    ];
     rulesStamp = fnv([
       base.fingerprint, base.result, base.rating, base.purse,
-      fnv(lines.join("\n")), S.gameOver, S.rating, S.rating * RATING.pursePerPoint,
+      ...twist, ...roster,
     ].join(":"));
   }
   return rulesStamp;
@@ -90,6 +114,12 @@ function captureLines() {
 function certificate(seed, lines, extra = {}) {
   return {
     seed: (seed >>> 0).toString(16),
+    // The squad the REPLAY fielded, not the one the request claimed — a
+    // certificate that echoed its input would be attesting to a promise
+    // rather than to a playout. `rosterHash` is its own field on purpose;
+    // see the header on why it is not in the rules stamp.
+    roster: S.roster,
+    rosterHash: fnv(rosterKey(S.roster)),
     result: S.gameOver,
     rating: S.rating,
     purse: S.rating * RATING.pursePerPoint,
@@ -118,7 +148,7 @@ async function replay(seed) {
 // validation, not provenance. WHO played it is a claim this Worker
 // cannot check yet; that layer (commitments/signatures) arrives with
 // player identity, which does not exist anywhere yet.
-async function certify(seed, record, claimedRules, claimedFp) {
+async function certify(seed, record, roster, claimedRules, claimedFp) {
   const rules = await rulesFingerprint();
   if (claimedRules !== undefined && claimedRules !== rules) {
     return { status: 422, body: {
@@ -127,7 +157,7 @@ async function certify(seed, record, claimedRules, claimedFp) {
     } };
   }
   const lines = captureLines();
-  const fidelity = await replayMatch(seed, record);
+  const fidelity = await replayMatch(seed, record, roster);
   if (!fidelity.faithful) {
     return { status: 422, body: {
       certified: false, error: "record does not replay", rules,
@@ -200,19 +230,29 @@ async function sha256hex(s) {
 
 // Filing: certify, then archive. Identity is content-addressed — a
 // SHA-256 digest of everything that makes the match the match: the rules
-// stamp, the seed, and the record. Rules included on purpose: the same
-// record under different rules is a DIFFERENT match, never an overwrite.
+// stamp, the seed, the ROSTER, and the record. Rules included on purpose:
+// the same record under different rules is a DIFFERENT match, never an
+// overwrite. The roster is there for the same reason and answers the
+// fourth item on run-core's price list — what a filed record means when
+// two players play the same seed with different squads. It means what it
+// says: a record individuates by what actually fought.
 // (The transcript fingerprint stays FNV for continuity with the goldens;
 // it is a checksum, not an identity — caught in review.) Filing is
 // state-idempotent: an already-filed match returns the original entry,
 // original timestamp — resubmission can neither inflate a career nor
 // bump an old record to the top of the archive.
-async function fileMatch(env, seed, record, claimedRules, claimedFp) {
+//
+// The roster enters as its canonical KEY rather than the array: the
+// address must not move because a caller spelled the same squad with
+// different whitespace or key order.
+async function fileMatch(env, seed, record, roster, claimedRules, claimedFp) {
   // KV work stays outside the mutex; the replay machine inside it
-  const out = await serialized(() => certify(seed, record, claimedRules, claimedFp));
+  const out = await serialized(() => certify(seed, record, roster, claimedRules, claimedFp));
   if (out.status !== 200) return { status: out.status, body: { filed: false, ...out.body } };
   const cert = out.body;
-  const id = (await sha256hex(JSON.stringify({ rules: cert.rules, seed: cert.seed, record }))).slice(0, 32);
+  const id = (await sha256hex(JSON.stringify({
+    rules: cert.rules, seed: cert.seed, roster: rosterKey(cert.roster), record,
+  }))).slice(0, 32);
   const key = `match:${id}`;
   const prior = await env.RECORDS.get(key, "json");
   if (prior) {
@@ -231,6 +271,7 @@ async function fileMatch(env, seed, record, claimedRules, claimedFp) {
   const meta = {
     at, seed: cert.seed, result: cert.result, rating: cert.rating,
     purse: cert.purse, fingerprint: cert.fingerprint, rules: cert.rules,
+    rosterHash: cert.rosterHash,
     commands: cert.commands, ledger: cert.ledger,
   };
   await env.RECORDS.put(key, JSON.stringify({ filed_at: at, record, certificate: cert }), { metadata: meta });
@@ -273,10 +314,21 @@ export default {
       if (body.fingerprint !== undefined && !/^[0-9a-f]{1,8}$/.test(body.fingerprint ?? "")) {
         return json({ error: "fingerprint, if claimed, is the transcript hash the post-match card shows" }, 400);
       }
+      // The roster is optional on the wire and canonical when absent, so
+      // every record filed before this input existed still certifies to
+      // the squad it was actually fought by. Present, it is checked with
+      // the rules core's OWN boundary check — one definition of what a
+      // roster is, not a second one drifting out here. 400, not 422: a
+      // malformed roster is not a record that failed to replay, it is a
+      // request that cannot be understood.
+      if (body.roster !== undefined && !rosterValid(body.roster)) {
+        return json({ error: "roster, if claimed, is three fielded operatives — [{name, hp}, ...] with unique names and hp 1..10" }, 400);
+      }
+      const roster = body.roster ?? null;
       try {
         const { status, body: out } = await (url.pathname === "/file"
-          ? fileMatch(env, parseInt(raw, 16), body.record, body.rules, body.fingerprint)
-          : serialized(() => certify(parseInt(raw, 16), body.record, body.rules, body.fingerprint)));
+          ? fileMatch(env, parseInt(raw, 16), body.record, roster, body.rules, body.fingerprint)
+          : serialized(() => certify(parseInt(raw, 16), body.record, roster, body.rules, body.fingerprint)));
         return json(out, status);
       } catch (err) {
         console.log(JSON.stringify({ level: "error", event: "witness_certify_failed", path: url.pathname, seed: raw, message: String(err) }));
@@ -307,11 +359,11 @@ export default {
       what: "replays Kestrel Yard matches through the same rules module the renderers run, and certifies the transcript",
       usage: {
         replay: "GET /replay?seed=deadbeef — no-input playout, a pure function of the seed",
-        certify: 'POST /certify {"seed":"<hex>","record":[...],"rules":"<optional fingerprint>"} — a played match; certified only if the record replays faithfully to a finished match under these rules',
-        file: "POST /file — same body as /certify; certifies AND archives. Idempotent: the key is content-derived, so a match files once no matter how often it is submitted",
+        certify: 'POST /certify {"seed":"<hex>","record":[...],"roster":[{"name":"VESPER","hp":10},...],"rules":"<optional fingerprint>"} — a played match; certified only if the record replays faithfully to a finished match under these rules and this roster',
+        file: "POST /file — same body as /certify; certifies AND archives. Idempotent: the key is content-derived, so a match files once no matter how often it is submitted — and a different roster is a different key, because it is a different match",
         matches: "GET /matches — the archive, newest first (metadata only). GET /matches/{id} — one filed match in full: record + certificate",
       },
-      note: "the record grammar lives in prototypes/tactical-core/rules.js (S.record / replayMatch) — seed + record IS the match. A certificate attests validity under the stamped rules version, not who played it; identity/signatures do not exist yet, so the archive is self-attested but replay-verified.",
+      note: "the record grammar lives in prototypes/tactical-core/rules.js (S.record / replayMatch) — seed + roster + record IS the match (architecture/roster_in_the_match.md; the roster is optional on the wire and canonical when absent). A certificate attests validity under the stamped rules version, not who played it; identity/signatures do not exist yet, so the archive is self-attested but replay-verified.",
     });
   },
 };

@@ -2092,6 +2092,52 @@ function syncRack() {
   canvas.dataset.rack = `${RACK_HOOKS.length}:${filled}`;
 }
 
+/* ---- the fielded roster -------------------------------------------
+   The match's second certified input (`architecture/roster_in_the_match.md`).
+   The law is now `seed + roster + record = the match`, and this is the
+   room's half of it: the world deals WHO fights, the yard fields exactly
+   that, the witness replays from exactly that, and the certificate
+   carries its hash.
+
+   Derived from the bodies this room actually stages, which turns a
+   coincidence into a contract. Before this input existed, the room
+   staging vesper/koa/sable and the yard fielding VESPER/KOA/SABLE agreed
+   only because two files happened to say the same thing — the harness
+   pinned them against each other precisely because nothing at runtime
+   could. Now the room deals the names and the edge certifies them.
+
+   And the room still imports no rules. It does not validate this against
+   the rules core's own check, does not compute the canonical key, and
+   does not hash anything: it deals a roster and later compares what came
+   home against what it dealt, field by field. The harness holds this
+   list against `rosterValid` and `CANON_ROSTER`, which is the same
+   asymmetry that has always guarded the names — this file cannot import
+   the rules; the test can. */
+const FULL_STRENGTH = 10;   // pinned against the rules core's OP_MAX_HP in CI
+const FIELDED = SQUAD_ROSTER.map(m => ({ name: m.fighter.toUpperCase(), hp: FULL_STRENGTH }));
+// Authored data validated at boot, the same way the house slate and the
+// house stock are — a bad one THROWS. This is not a second copy of
+// `rosterValid` (it cannot be: no rules import) and it is not trying to
+// be: it is the room refusing to deal a squad it cannot even spell. The
+// harness holds the published result against the rules core's real
+// check, which is where the two are actually reconciled.
+if (!FIELDED.every(f => /^[A-Z0-9][A-Z0-9-]{0,15}$/.test(f.name))
+    || new Set(FIELDED.map(f => f.name)).size !== FIELDED.length) {
+  throw new Error("this room stages a squad it cannot deal — fix SQUAD_ROSTER's slugs");
+}
+// The wire form the seam deals: NAME:hp, in fielding order.
+const rosterParam = roster => roster.map(f => `${f.name}:${f.hp}`).join(",");
+// Structural equality against what was dealt — the same distrust the
+// returned seed has always been held to. A yard that fielded a different
+// squad than the world dealt is not reporting a match the world can bank.
+const sameRoster = (a, b) =>
+  Array.isArray(a) && Array.isArray(b) && a.length === b.length
+  && a.every((f, i) => f && b[i] && f.name === b[i].name && f.hp === b[i].hp);
+// Published so the harness can hold this room's squad against the rules
+// core's own roster check — the asymmetry that has always guarded the
+// names, now guarding the whole input.
+document.getElementById("cv").dataset.fielded = rosterParam(FIELDED);
+
 const runInfo = document.getElementById("runinfo");
 const kitBox = document.getElementById("kitbox");
 const kitInfo = document.getElementById("kitinfo");
@@ -2497,7 +2543,12 @@ function beginSeam() {
     : (entry.host ? `HELD BY ${esc(entry.host.toUpperCase())}` : "UNCLAIMED")
       + " · "
       + (entry.sanction ? `SANCTIONED BY ${esc(entry.sanction.toUpperCase())}` : "UNSANCTIONED");
-  showCut(entry ? esc(entry.venue) : "KESTREL YARD", `${framing} · seed ${seamDealt}`);
+  // WHO is fighting is now part of what the card IS, so the cut says it:
+  // the tale of the tape, and the one line that would make a substitution
+  // visible at the threshold rather than only in the certificate.
+  showCut(entry ? esc(entry.venue) : "KESTREL YARD",
+    `${framing} · seed ${seamDealt}`
+    + `<br>FIELDING ${FIELDED.map(f => esc(f.name)).join(" · ")}`);
   actionStateEl.textContent = "CROSSING";
   canvas.dataset.seam = "open";
 
@@ -2506,7 +2557,8 @@ function beginSeam() {
   seamFrame.title = `${entry ? entry.venue : "KESTREL YARD"} — live card`;
   // The seam carries the body so Cipher cannot change bodies at the door —
   // the yard stages what the room stages in both directions of the crossing.
-  let src = `../tactical3d/index.html?seam=1&seed=${seamDealt}&body=${BODY_PARAM}`;
+  let src = `../tactical3d/index.html?seam=1&seed=${seamDealt}&body=${BODY_PARAM}`
+    + `&roster=${encodeURIComponent(rosterParam(FIELDED))}`;
   if (WITNESS_PARAM) src += `&witness=${encodeURIComponent(WITNESS_PARAM)}`;
   seamFrame.src = src;
   document.body.appendChild(seamFrame);
@@ -2545,6 +2597,11 @@ function abortSeam(why) {
 function seamResultValid(d) {
   const count = n => Number.isInteger(n) && n >= 0 && n <= 16;
   return d.seed === seamDealt
+    // ...and fought by the squad this room dealt. The seed check has
+    // always asked "is this the card I dealt"; under the new law that
+    // question has a second half, because the same seed fought by a
+    // different squad is a different match (roster_in_the_match.md).
+    && sameRoster(d.roster, FIELDED)
     && (d.result === "win" || d.result === "loss")
     // integers in the domain the rules clamp to, not merely finite: these
     // are banked now, and a fractional rating truncated on its way into a
@@ -2594,6 +2651,11 @@ function endSeam(result) {
     `${result.ledger.walked} WALKED · ${result.ledger.finished} FINISHED` +
     ` · ${result.ledger.lost} OF YOURS DOWN` +
     (result.down.length ? ` (${result.down.map(esc).join(", ")})` : "") + `<br>` +
+    // The card's second input, said out loud beside its first: under the
+    // new law the seed alone does not name the match, and a surface that
+    // showed only the seed would be describing a card that no longer
+    // exists (roster_in_the_match.md).
+    `FIELDED ${result.roster.map(f => `${esc(f.name)} ${f.hp}/${FULL_STRENGTH}`).join(" · ")}<br>` +
     `seed ${esc(result.seed)} · ${result.record.length} commands` +
     ` · fp <span class="fp">${esc(result.fingerprint)}</span><br>` +
     `<span id="seamcert">CERT · ASKING THE EDGE…</span><br>` +
@@ -2630,6 +2692,7 @@ async function certifySeam(d) {
       body: JSON.stringify({
         seed: d.seed,
         record: d.record,
+        roster: d.roster,
         fingerprint: d.fingerprint,
       }),
       // a hang is unreachable too — the abort lands in the catch below, so
