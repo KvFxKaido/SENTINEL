@@ -78,9 +78,15 @@ can stamp what a roster does.
 Each golden contributes its transcript fingerprint **and its outcome** —
 result, rating, purse — because rating is deliberately never a transcript
 line, so payout behavior could otherwise change under an unchanged stamp
-(caught in review); the roster golden adds its canonical key. Today's
-stamp is `bc119060` =
-`fnv("39e8be71:loss:29:290:6495eab3:win:92:920:d44833c0:loss:35:350:VESPER:6|NIX:10|SABLE:3")`.
+(caught in review); the roster golden adds its canonical key and its
+`faithful` flag. Today's stamp is `cb003a2` =
+`fnv("39e8be71:loss:29:290:6495eab3:win:92:920:d44833c0:loss:35:350:VESPER:6|NIX:10|SABLE:3:true")`.
+
+The roster golden runs through **`replayMatch(seed, record, roster)`**,
+not `restart` — the path certification actually takes. Stamping the
+neighbouring path left the roster's *forwarding* unstamped: a
+`replayMatch` that dropped its third argument moved nothing while quietly
+fielding the canonical three (caught in review, executed as a mutation).
 
 Extending the stamp's *inputs* is the one legitimate way the stamp
 changes without behavior changing — it has happened twice now, both times

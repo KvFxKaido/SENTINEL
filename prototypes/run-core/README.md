@@ -72,11 +72,12 @@ holds the slate, points at the current entry, and banks what happened to
 each one: fought (a card, stamped with the entry's framing), or passed (a
 declined entry, on the record with its framing and when).
 
-**Nothing about this crosses the door.** The card payload from the yard
-is unchanged and the witness certifies exactly what it certified
-yesterday. The framing banked with a fought card comes from the run's
-*own* slate, never from the payload — the seam does not grow a new input
-to tamper with just because the season wants context.
+**Nothing about the SEASON crosses the door.** The framing banked with a
+fought card comes from the run's *own* slate, never from the payload —
+the seam does not grow an input to tamper with just because the season
+wants context. (The seam did grow one input since, and deliberately: the
+roster, which is certified end to end. The season's slate, clocks and
+passes are still not in it and never were.)
 
 **Wounds are clocks, counted in slate positions — and passing is always
 legal.** A fighter who went down recovers for `WOUND_CLOCK` positions;

@@ -429,6 +429,111 @@ try {
     check("the cut is framed by the restored run's own slate",
       /THE COLD COURT/.test(dressedCut) && /SANCTIONED BY COVENANT/.test(dressedCut),
       dressedCut);
+
+    // ---- the room does not trust the edge about the squad either ------
+    // The certificate reports what the REPLAY fielded. An edge that
+    // ignored the roster and certified the canonical three would agree
+    // on every other number for any card where the difference happened
+    // not to change the outcome — so without this check it would look
+    // exactly like agreement (caught in review).
+    //
+    // Driven by stubbing /certify rather than by playing a card: the
+    // claim is about what the ROOM does with an answer, and a crafted
+    // answer is the only way to produce the disagreement on demand. The
+    // seam result is posted from INSIDE the frame because the room
+    // refuses any message that is not its own iframe's.
+    const DEALT = [{ name: "VESPER", hp: 10 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 }];
+    const stubCert = certRoster => page.route(/\/certify$/, route => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        certified: true, rules: "stub-rules", result: "loss", rating: 7, purse: 70,
+        ledger: { walked: 0, finished: 0, lost: 0 }, roster: certRoster,
+        rosterHash: "stub", fingerprint: "abc123", lines: 1, transcript: [],
+      }),
+    }));
+    const postHome = frameHandle => frameHandle.evaluate(() => {
+      window.parent.postMessage({
+        type: "sentinel-seam-result",
+        seed: "6", record: [["end"]], result: "loss", rating: 7, purse: 70,
+        ledger: { walked: 0, finished: 0, lost: 0 }, down: [],
+        roster: [{ name: "VESPER", hp: 10 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 }],
+        fingerprint: "abc123", lines: 1,
+      }, location.origin);
+    });
+    const settledVerdict = async () => {
+      await page.waitForFunction(
+        () => /CERTIFIED|UNCERTIFIED|STRUCK|REFUSED/.test(
+          document.getElementById("seaminfo").textContent),
+        null, { timeout: 20000 }).catch(() => {});
+      return (await page.textContent("#seaminfo")).replace(/\s+/g, " ").trim();
+    };
+
+    const dressedFrame = await (await page.$("#seamframe")).contentFrame();
+    await stubCert([{ name: "VESPER", hp: 10 }, { name: "NIX", hp: 10 }, { name: "SABLE", hp: 10 }]);
+    await postHome(dressedFrame);
+    const wrongSquadVerdict = await settledVerdict();
+    check("an edge certifying a squad the room did not deal is disputed",
+      /STRUCK/.test(wrongSquadVerdict), wrongSquadVerdict);
+
+    // ...and the same stub agreeing about the squad certifies, so the
+    // check above is discriminating rather than merely strict
+    await page.goto(ROOM_URL);
+    await page.waitForFunction(() =>
+      ["ready", "error"].includes(document.getElementById("cv").dataset.sprites),
+      null, { timeout: 20000 });
+    await page.keyboard.down("KeyW");
+    await page.keyboard.down("KeyD");
+    const reopened = await page.waitForFunction(() => !!document.getElementById("seamframe"),
+      null, { timeout: 30000 }).then(() => true, () => false);
+    await page.keyboard.up("KeyW");
+    await page.keyboard.up("KeyD");
+    if (reopened) {
+      await stubCert(DEALT);
+      await postHome(await (await page.$("#seamframe")).contentFrame());
+      const rightSquadVerdict = await settledVerdict();
+      check("and the same stub agreeing about the squad certifies",
+        /CERTIFIED/.test(rightSquadVerdict) && !/STRUCK/.test(rightSquadVerdict),
+        rightSquadVerdict);
+      check("...and does not carry the not-attested caveat",
+        !/SQUAD NOT ATTESTED/.test(rightSquadVerdict), rightSquadVerdict);
+    } else {
+      check("and the same stub agreeing about the squad certifies", false, "the door never re-dealt");
+    }
+
+    // The third case, and the one the live edge is in until the Worker is
+    // redeployed: a certificate that says nothing about the squad. It
+    // certified the match honestly and never spoke to who fought it —
+    // counted, and LABELED, because requiring the field would strike
+    // every honest card and assuming agreement would be the silent half
+    // of the same mistake.
+    //
+    // On a FRESH run: the two-entry fixture tour is complete by now (the
+    // stub card above banked its last entry), and a complete slate gates
+    // the door — correctly, and unhelpfully for a third crossing.
+    await page.evaluate(() => localStorage.clear());
+    await page.goto(ROOM_URL);
+    await page.waitForFunction(() =>
+      ["ready", "error"].includes(document.getElementById("cv").dataset.sprites),
+      null, { timeout: 20000 });
+    await page.keyboard.down("KeyW");
+    await page.keyboard.down("KeyD");
+    const thirdDeal = await page.waitForFunction(() => !!document.getElementById("seamframe"),
+      null, { timeout: 30000 }).then(() => true, () => false);
+    await page.keyboard.up("KeyW");
+    await page.keyboard.up("KeyD");
+    if (thirdDeal) {
+      await stubCert(undefined);
+      await postHome(await (await page.$("#seamframe")).contentFrame());
+      const silentVerdict = await settledVerdict();
+      check("an edge that predates the roster counts, and says it did not attest the squad",
+        /CERTIFIED/.test(silentVerdict) && /SQUAD NOT ATTESTED/.test(silentVerdict)
+          && !/STRUCK/.test(silentVerdict),
+        silentVerdict);
+    } else {
+      check("an edge that predates the roster counts, and says so", false, "the door never re-dealt");
+    }
+    await page.unroute(/\/certify$/);
   }
 
   // ---- the seam carries the OTHER body too ---------------------------

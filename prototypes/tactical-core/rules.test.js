@@ -849,11 +849,21 @@ test("passing the canonical roster is the same match as passing none", async () 
   assert.deepEqual(named, bare, "saying the default out loud cannot change the match");
 });
 
-test("the roster golden: same seed, same input, different squad, different match", async () => {
-  // The doctrine in one assertion. Nothing about the seed or the record
-  // changed; the squad did, and the match is not the same match.
-  const { seed, roster, result, rating, purse, lines: lineCount, fingerprint } = ROSTER_GOLDEN;
-  const lines = await playOut(seed, 14, roster);
+test("the roster golden replays to its captured fingerprint", async () => {
+  // Through replayMatch with a RECORD, because that is the path the
+  // Worker's stamp and every certification take. Stamping the adjacent
+  // restart() path left the roster's FORWARDING unstamped (caught in
+  // review, executed as a mutation): replayMatch could drop its third
+  // argument and the stamp would not move.
+  const { seed, roster, record, result, rating, purse, lines: lineCount, fingerprint } = ROSTER_GOLDEN;
+  const lines = [];
+  bindIO({
+    sleep: () => Promise.resolve(),
+    emit: ev => { const l = formatEvent(ev); if (l !== null) lines.push(l); },
+    changed: () => {},
+  });
+  const played = await replayMatch(seed, record, roster);
+  assert.equal(played.faithful, true, "the golden's record must reproduce its own input");
   assert.equal(lines.length, lineCount, "line count drifted:\n" + lines.join("\n"));
   assert.equal(fnv(lines.join("\n")), fingerprint,
     "the stamp's third golden: any change to roster behavior must move this");
@@ -861,11 +871,33 @@ test("the roster golden: same seed, same input, different squad, different match
   assert.equal(S.rating, rating);
   assert.equal(S.rating * RATING.pursePerPoint, purse);
   assert.equal(rosterKey(roster), ROSTER_GOLDEN.key);
+  assert.deepEqual(S.roster, roster,
+    "and replayMatch fielded the roster it was given, not the canonical three");
+});
 
-  const canonical = await playOut(seed);
-  assert.notEqual(fnv(canonical.join("\n")), fingerprint,
+test("the same record under the canonical three is a different match", async () => {
+  // The doctrine, executed: only the squad differs between these two.
+  const { seed, roster, record, fingerprint } = ROSTER_GOLDEN;
+  const bare = [];
+  bindIO({
+    sleep: () => Promise.resolve(),
+    emit: ev => { const l = formatEvent(ev); if (l !== null) bare.push(l); },
+    changed: () => {},
+  });
+  await replayMatch(seed, record, null);
+  assert.notEqual(fnv(bare.join("\n")), fingerprint,
     "if these ever agree, the roster is not an input and the doctrine is a lie");
-  assert.equal(fnv(canonical.join("\n")), "39e8be71", "...and its twin is the untouched golden");
+  assert.deepEqual(S.roster, CANON_ROSTER.map(f => ({ ...f })));
+  // ...and the canonical squad outlives this record, which is why its own
+  // golden runs a round longer. These two records are NOT the same
+  // length: the identical-record form of the claim is a pure
+  // SUBSTITUTION, and witness_check.mjs owns it (an earlier draft of this
+  // test claimed the records matched — they never did, and it never
+  // compared them; caught in review).
+  assert.equal(record.length, 7);
+  const canonical = await playOut(seed);
+  assert.equal(S.record.length, 8, "the unwounded squad lasts a round longer");
+  assert.equal(fnv(canonical.join("\n")), "39e8be71", "and its twin is the untouched golden");
 });
 
 test("a substituted name rides the record", async () => {
@@ -940,4 +972,23 @@ test("replayMatch takes the roster it was fought under", async () => {
   assert.deepEqual(S.roster, roster);
   const names = S.units.filter(u => u.side === "op").map(u => u.name);
   assert.deepEqual(names, ["VESPER", "NIX", "SABLE"]);
+});
+
+test("a roster entry carrying anything else is refused", async () => {
+  // Checking only that the required fields are present let a caller send
+  // a fighter with `gear` bolted on, get a 200 from the edge, and file
+  // under the same content address as the clean roster — the extra
+  // silently stripped by restart's field-by-field copy (caught in
+  // review). It looks exactly like the Tier 2 future working, which is
+  // the worst shape the bug could take.
+  const smuggled = [
+    { name: "VESPER", hp: 10, gear: { primary: "CANNON" } },
+    { name: "KOA", hp: 10 },
+    { name: "SABLE", hp: 10 },
+  ];
+  assert.equal(rosterValid(smuggled), false);
+  assert.throws(() => restart(1, smuggled), /not a roster/);
+  assert.equal(rosterValid([{ name: "VESPER", hp: 10, x: 9 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 }]), false);
+  assert.equal(rosterValid(CANON_ROSTER.map(f => ({ name: f.name, hp: f.hp }))), true,
+    "...and the exact shape still passes");
 });

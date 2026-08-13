@@ -74,11 +74,27 @@ room, the yard and the Worker cannot each hold a different idea of what a
 squad is. `rosterKey()` is its one canonical form — a hash computed three
 ways is three hashes.
 
+A roster entry carries **exactly** those two fields. Checking only that
+the required ones were present let a caller send a fighter with `gear`
+bolted on, get a 200 back, and file under the same content address as the
+clean roster — the extra silently dropped on the way in. That bug's worst
+property is that it looks exactly like the Tier 2 future already working.
+
 **Malformed is a fault, never a default.** `restart()` throws rather than
 falling back to the canonical three, because falling back would field a
 squad nobody asked for and then certify the result. Each caller answers
 for it in its own grammar: the Worker with a 400, the yard with a boot
-fault, the room by validating its own authored list.
+fault.
+
+The room, notably, does **not** validate. It cannot import the rules, and
+a first cut that re-checked name shape and uniqueness at the room's own
+boundary was worse than nothing: a second, *incomplete* roster grammar
+(no slot count, no hp bounds, no hostile-name collision) sitting where
+the single definition is supposed to be, free to drift. The room
+publishes the wire form it deals; the harness holds that against
+`rosterValid` and `CANON_ROSTER`, which is the same asymmetry that has
+always guarded the operative names — the room may not import the rules,
+the test may.
 
 **Absent is canonical.** No roster means the canonical three at full
 strength — what every match was fought by before this input existed. That
@@ -114,7 +130,12 @@ detail and is not:
   canonical three — so without a third golden, a change to roster
   handling would move nothing and old records would silently certify
   under new semantics. Same gap the showrunner golden closed for twists,
-  closed the same way.
+  closed the same way. It carries a **record** and runs through
+  `replayMatch(seed, record, roster)` rather than `restart`, because that
+  is the path certification takes: stamping the neighbouring path left
+  the roster's *forwarding* unstamped, and a `replayMatch` that dropped
+  its third argument moved nothing while fielding the canonical three
+  (caught in review, executed as a mutation).
 
 So the stamp moves once, on this deploy, because its inputs grew — the
 second time that has happened, and deliberately both times. Runs open
@@ -152,7 +173,24 @@ Every line is paid here:
 - ✅ a decision about what a filed record *means* when two players play
   the same seed with different squads (§6)
 
-## 8. What This Does Not Do
+## 8. Deploying It
+
+The Worker and the pages ship separately, so the two orders differ:
+
+- **new Worker, old pages** — fine. The certificate grows a field nobody
+  reads yet.
+- **old Worker, new pages** — the certificate says nothing about the
+  squad. The room treats that as a third case rather than a failure:
+  the card is **counted and labelled** `SQUAD NOT ATTESTED — THIS EDGE
+  PREDATES THE ROSTER`. Requiring the field would strike every honest
+  card until the Worker is redeployed; assuming agreement would be the
+  silent half of the same mistake. All three cases are executed in
+  `test_seam_round_trip.mjs` against a stubbed edge.
+
+The stamp moves on this deploy (§5), so runs open across it report drift.
+That is correct: their banked numbers were earned under different rules.
+
+## 9. What This Does Not Do
 
 Named plainly, because a doctrine PR that quietly smuggled a balance
 change would be exactly the thing this repo argues against:
@@ -174,7 +212,7 @@ change would be exactly the thing this repo argues against:
 - **No gear, no verbs.** Circuit §6's registers stay asleep. They wake as
   more roster state, in a snapshot that is already certified.
 
-## 9. What Wakes Up
+## 10. What Wakes Up
 
 Everything §6 of the Circuit doc designed and gated, and everything Tier 2
 of the season doc promised: gear slots carrying verbs and geometry,

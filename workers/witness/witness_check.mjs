@@ -137,7 +137,12 @@ check(cert.status === 200 && cert.body.certified === true &&
 const STAMP = fnv([
   GOLDENS[0].fingerprint, GOLDENS[0].result, GOLDENS[0].rating, GOLDENS[0].purse,
   SHOWRUNNER_GOLDEN.fingerprint, SHOWRUNNER_GOLDEN.result, SHOWRUNNER_GOLDEN.rating, SHOWRUNNER_GOLDEN.purse,
-  ROSTER_GOLDEN.fingerprint, ROSTER_GOLDEN.result, ROSTER_GOLDEN.rating, ROSTER_GOLDEN.purse, ROSTER_GOLDEN.key,
+  ROSTER_GOLDEN.fingerprint, ROSTER_GOLDEN.result, ROSTER_GOLDEN.rating, ROSTER_GOLDEN.purse,
+  ROSTER_GOLDEN.key,
+  // `faithful` too: the roster golden runs through replayMatch, the path
+  // certification takes, so a record that stopped reproducing itself
+  // under a roster moves the stamp rather than passing unnoticed
+  true,
 ].join(":"));
 check(cert.body.rules === STAMP,
   `certificate carries the three-golden rules stamp: ${cert.body.rules} (expected ${STAMP})`);

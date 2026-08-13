@@ -116,6 +116,13 @@ const NAME_RE = /^[A-Z0-9][A-Z0-9-]{0,15}$/;
 export function rosterValid(roster) {
   if (!Array.isArray(roster) || roster.length !== ROSTER_SLOTS) return false;
   if (!roster.every(f => f && typeof f === "object"
+    // EXACTLY these two fields. Checking only that the required ones are
+    // present let a caller POST a fighter carrying `gear: {primary:
+    // "CANNON"}`, get a 200 back, and file under the same content address
+    // as the clean roster — the extra silently stripped on the way in
+    // (caught in review). That is the worst shape this bug could take:
+    // it looks exactly like the Tier 2 future working.
+    && Object.keys(f).length === 2
     && typeof f.name === "string" && NAME_RE.test(f.name)
     && Number.isInteger(f.hp) && f.hp >= 1 && f.hp <= OP_MAX_HP)) return false;
   const names = roster.map(f => f.name);
@@ -736,7 +743,9 @@ export function restart(seed, roster = null) {
    rejected inputs never enter the record, and selection is
    presentation, not play (no roll, no log line, and every verb names
    its units explicitly), so it is deliberately absent.
-   seed + record IS the match.
+   seed + roster + record IS the match
+   (`architecture/roster_in_the_match.md`; the law was `seed + record`
+   until the roster became a certified input beside it).
 
    replayMatch() drives a record back through the same verbs — and since
    replaying re-records, a faithful replay reproduces its own input.

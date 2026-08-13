@@ -87,11 +87,18 @@ async function rulesFingerprint() {
     await replayMatch(SHOWRUNNER_GOLDEN.seed, SHOWRUNNER_GOLDEN.record);
     const twist = [fnv(twistLines.join("\n")), S.gameOver, S.rating, S.rating * RATING.pursePerPoint];
     const rosterLines = captureLines();
-    restart(ROSTER_GOLDEN.seed, ROSTER_GOLDEN.roster);
-    for (let i = 0; i < 14 && !S.gameOver; i++) await endPlayerTurn();
+    // Through replayMatch, not restart: that is the path certification
+    // takes, and stamping the neighbouring one left the roster's
+    // FORWARDING unstamped — a replayMatch that dropped its third
+    // argument moved nothing while quietly fielding the canonical three
+    // (caught in review, executed as a mutation). `faithful` rides the
+    // stamp too, so a record that stopped reproducing itself under a
+    // roster could not pass unnoticed either.
+    const played = await replayMatch(
+      ROSTER_GOLDEN.seed, ROSTER_GOLDEN.record, ROSTER_GOLDEN.roster);
     const roster = [
       fnv(rosterLines.join("\n")), S.gameOver, S.rating,
-      S.rating * RATING.pursePerPoint, rosterKey(S.roster),
+      S.rating * RATING.pursePerPoint, rosterKey(S.roster), played.faithful,
     ];
     rulesStamp = fnv([
       base.fingerprint, base.result, base.rating, base.purse,

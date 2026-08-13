@@ -27,12 +27,13 @@ only things that know about all of it.
 
 `walkable/` and `tactical3d/` meet at a door, not a shared state. Crossing
 the walkable room's north door loads tactical3d in an iframe with a seed
-the room dealt (`?seam=1&seed=…`); when the player walks out, the yard
-posts back `{seed, record, result, rating, purse, ledger, down,
-fingerprint}` and the iframe is torn down. The overworld never watches
-combat happen — and it
-does not trust what it is told: the returned seed must match the dealt
-one, malformed payloads are refused, and the witness Worker's replay of
+AND a roster the room dealt (`?seam=1&seed=…&roster=VESPER:10,…` — since
+the doctrine change, `seed + roster + record IS the match`); when the
+player walks out, the yard posts back `{seed, roster, record, result,
+rating, purse, ledger, down, fingerprint}` and the iframe is torn down.
+The overworld never watches combat happen — and it
+does not trust what it is told: the returned seed AND squad must match
+what was dealt, malformed payloads are refused, and the witness Worker's replay of
 the record settles the run (certified / disputed-and-struck /
 unreachable-but-labeled). The aftermath rides home beside the outcome
 because the run banks what a card *cost*: `ledger` is the same

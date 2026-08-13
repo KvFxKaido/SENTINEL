@@ -171,8 +171,8 @@ The dragon, named at its actual size. Not "wounds become modifiers" —
 that is one consequence. The change is:
 
 ```
-current law:   seed + record                 = the match
-proposed law:  seed + roster state + record  = the match
+the law until 2026-08-13:   seed + record                 = the match
+the law since:              seed + roster state + record  = the match
 ```
 
 **Roster state becomes part of match identity.** The mechanism is a

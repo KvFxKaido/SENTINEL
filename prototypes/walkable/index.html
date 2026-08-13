@@ -2115,16 +2115,15 @@ function syncRack() {
    the rules; the test can. */
 const FULL_STRENGTH = 10;   // pinned against the rules core's OP_MAX_HP in CI
 const FIELDED = SQUAD_ROSTER.map(m => ({ name: m.fighter.toUpperCase(), hp: FULL_STRENGTH }));
-// Authored data validated at boot, the same way the house slate and the
-// house stock are — a bad one THROWS. This is not a second copy of
-// `rosterValid` (it cannot be: no rules import) and it is not trying to
-// be: it is the room refusing to deal a squad it cannot even spell. The
-// harness holds the published result against the rules core's real
-// check, which is where the two are actually reconciled.
-if (!FIELDED.every(f => /^[A-Z0-9][A-Z0-9-]{0,15}$/.test(f.name))
-    || new Set(FIELDED.map(f => f.name)).size !== FIELDED.length) {
-  throw new Error("this room stages a squad it cannot deal — fix SQUAD_ROSTER's slugs");
-}
+// Deliberately NOT validated here. A first cut checked the name shape and
+// uniqueness at boot, which read as diligence and was the opposite: a
+// second, INCOMPLETE roster grammar (no slot count, no hp bounds, no
+// hostile-name collision) sitting where the single definition is supposed
+// to be, free to drift from the real one (caught in review). The room
+// cannot import `rosterValid`, so it does not pretend to have it: the
+// harness holds this published list against the rules core's own check,
+// and a squad this room could not deal faults at the yard's door rather
+// than being half-approved here.
 // The wire form the seam deals: NAME:hp, in fielding order.
 const rosterParam = roster => roster.map(f => `${f.name}:${f.hp}`).join(",");
 // Structural equality against what was dealt — the same distrust the
@@ -2692,7 +2691,11 @@ async function certifySeam(d) {
       body: JSON.stringify({
         seed: d.seed,
         record: d.record,
-        roster: d.roster,
+        // what the ROOM dealt, not the yard's echo of it. seamResultValid
+        // has already refused any payload whose roster is not this one,
+        // so they are equal — sending FIELDED is what keeps them equal by
+        // construction rather than by a check somebody could move.
+        roster: FIELDED,
         fingerprint: d.fingerprint,
       }),
       // a hang is unreachable too — the abort lands in the catch below, so
@@ -2712,9 +2715,27 @@ async function certifySeam(d) {
       && !!out.ledger
       && out.ledger.walked === d.ledger.walked
       && out.ledger.finished === d.ledger.finished
-      && out.ledger.lost === d.ledger.lost;
+      && out.ledger.lost === d.ledger.lost
+      // ...and the edge replayed the squad this room dealt. The
+      // certificate reports what the REPLAY fielded, so this is the one
+      // place that can catch an edge which quietly ignored the roster and
+      // certified the canonical three instead — which would look like
+      // agreement on every card where the difference happened not to
+      // change the outcome (caught in review).
+      //
+      // An edge that says NOTHING about the squad is a third case, not a
+      // failure: a Worker deployed before this input existed certifies
+      // the match honestly and simply never speaks to who fought it.
+      // Requiring the field would strike every honest card until the
+      // Worker is redeployed — and assuming agreement would be the
+      // silent half of the same mistake. So it is counted and LABELED,
+      // the same grammar an unwitnessed card already gets.
+      && (out.roster === undefined || sameRoster(out.roster, FIELDED));
+    const squadAttested = out.roster !== undefined;
     if (agrees) {
-      verdict = '<span class="fp">CERTIFIED AT THE EDGE</span>';
+      verdict = '<span class="fp">CERTIFIED AT THE EDGE</span>'
+        + (squadAttested ? ""
+          : ' · <span class="warn">SQUAD NOT ATTESTED — THIS EDGE PREDATES THE ROSTER</span>');
       cert = "certified";
       // stamped so the run can notice a rules deploy underneath it rather
       // than presenting one total across two different rule sets
