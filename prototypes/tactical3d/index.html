@@ -264,6 +264,7 @@ import {
   bindIO, restart as rulesRestart, formatEvent,
   selected, living, unitAt, solution, los, reachable, coveringTiles,
   selectUnit, cycleSelect, tryMove, tryShoot, tryFinish, spare, setOverwatch, endPlayerTurn,
+  rosterValid, rosterKey, CANON_ROSTER, OP_MAX_HP,
 } from "../tactical-core/rules.js";
 import { directorTick } from "../tactical-core/director.js";
 import {
@@ -387,6 +388,37 @@ const WITNESS = new URLSearchParams(location.search).get("witness")
 // back when the player walks out; one crossing buys exactly one card, so
 // the re-deal verbs (R / shift+R) belong to the world while this is set.
 const SEAM = new URLSearchParams(location.search).get("seam") !== null;
+
+/* ---- the fielded roster -------------------------------------------
+   The match's second certified input (`architecture/roster_in_the_match.md`).
+   The world deals it beside the seed — `?roster=VESPER:10,KOA:10,SABLE:10` —
+   and this page fields exactly that, sends exactly that to the witness,
+   and posts exactly that home. It never edits it: a yard that adjusted
+   the squad it was handed would be certifying a match nobody dealt.
+
+   Absent, the canonical three at full strength are fielded, which is
+   what this page did before the input existed — a standalone yard opened
+   from a bookmark keeps working, unchanged.
+
+   Malformed is a FAULT, not a fallback. The parse is deliberately
+   forgiving of nothing: falling back to the canonical three would field
+   a squad the world never asked for and then hand the edge a
+   certificate for it. */
+const ROSTER_PARAM = new URLSearchParams(location.search).get("roster");
+const ROSTER = (() => {
+  if (ROSTER_PARAM === null) return null;
+  const parsed = ROSTER_PARAM.split(",").map(part => {
+    // Exactly two fields, or it is not a fighter. Destructuring alone
+    // would read "VESPER:10:99" as VESPER at 10 and drop the rest on the
+    // floor — accepting a string nobody wrote and fielding a squad it
+    // does not describe.
+    const fields = part.split(":");
+    if (fields.length !== 2) return null;
+    const [name, hp] = fields;
+    return { name, hp: /^\d{1,2}$/.test(hp) ? Number(hp) : NaN };
+  });
+  return parsed.every(Boolean) && rosterValid(parsed) ? parsed : "bad";
+})();
 var lastEnd = null;   // the "end" event, held for the walk home
 // The aftermath, held for the same trip. The world's run layer banks what
 // a card COST, and cost is not in the "end" event: who walked, who was
@@ -1630,6 +1662,15 @@ function frame() {
     const d = v._obj?.userData;
     return d ? `${v.id}:${d.action}:${d.facing}:${d.frame}` : `${v.id}:none`;
   }).join(",");
+  // What this page actually fielded, in the rules core's own canonical
+  // form. Telemetry, not the player's surface — the player reads the
+  // squad off the board. It exists so a harness can assert the yard
+  // fielded what the world dealt without taking either side's word.
+  //
+  // `fielded`, not `roster`: this page has published dataset.roster since
+  // the convergence and it means the molded SHEET roster (full / slice96).
+  // Two different rosters, and the sprite one was here first.
+  canvas.dataset.fielded = rosterKey(S.roster);
 
   syncLabels();
   if (displayMode === "lcd") {
@@ -1814,6 +1855,7 @@ document.getElementById("ovfile").onclick = async () => {
       body: JSON.stringify({
         seed: S.seed.toString(16),
         record: S.record,
+        roster: S.roster,
         fingerprint: fnv(matchLines.join("\n")),
       }),
     });
@@ -1845,6 +1887,9 @@ document.getElementById("ovwalk").onclick = () => {
     purse: lastEnd.purse,
     ledger: lastLedger,
     down: lastDown,
+    // the squad this card was actually fought by, posted home so the
+    // world can check it against what it dealt rather than assume
+    roster: S.roster,
     fingerprint: fnv(matchLines.join("\n")),
     lines: matchLines.length,
   }, location.origin);
@@ -1853,7 +1898,7 @@ document.getElementById("ovwalk").onclick = () => {
 document.getElementById("ovcopy").onclick = async () => {
   // the exact wire shape POST /certify takes — the button is the bridge
   // between a match you just played and the edge attesting to it
-  const payload = JSON.stringify({ seed: S.seed.toString(16), record: S.record });
+  const payload = JSON.stringify({ seed: S.seed.toString(16), record: S.record, roster: S.roster });
   const btn = document.getElementById("ovcopy");
   try {
     await navigator.clipboard.writeText(payload);
@@ -1867,12 +1912,37 @@ document.getElementById("ovcopy").onclick = async () => {
 // ---- lifecycle --------------------------------------------------
 function restart(fresh) {
   if (fresh) curSeed = newSeed();
-  rulesRestart(curSeed);       // emits reset → mission → turn back through onEvent
+  // The roster is fixed for this page's life: the world deals it once,
+  // beside the seed, and re-dealing is the world's move (in seam mode the
+  // re-deal verbs are off entirely). A yard that could change its own
+  // squad between cards would be dealing itself a different match.
+  rulesRestart(curSeed, ROSTER);   // emits reset → mission → turn back through onEvent
 }
 
 curSeed = initialSeed();
 let yardRosterReady = false;
 try {
+  if (ROSTER === "bad") {
+    throw new Error(`unreadable ?roster=${ROSTER_PARAM} — expected NAME:hp,NAME:hp,NAME:hp `
+      + `with unique names and hp 1..${OP_MAX_HP}`);
+  }
+  // Two different questions, and only one of them is the rules core's.
+  // `rosterValid` says who may FIGHT; this page says who it can DRAW, and
+  // a name that passes the first and fails the second is a real gap —
+  // `?roster=NIX:10,…` validates, fields, and then throws inside
+  // fighterSlug on the first frame, AFTER this boot guard, so the yard
+  // dies silently and the room waits out its hand-off timer (caught in
+  // review). A body this page has no sheets for is a fault at the door,
+  // with the roster named, like every other asset fault here.
+  if (ROSTER !== null) {
+    const unstageable = ROSTER.map(f => f.name).filter(name => {
+      try { fighterSlug(name); return false; } catch { return true; }
+    });
+    if (unstageable.length) {
+      throw new Error(`this yard has no molded body for ${unstageable.join(", ")} — `
+        + `?roster= may only field fighters it can stage: ${FIGHTERS.join(", ")}`);
+    }
+  }
   configureBody(BODY_PARAM);
   canvas.dataset.body = BODY_PARAM;
   yardRosterReady = await bootYardRoster();
@@ -1887,7 +1957,7 @@ if (yardRosterReady) {
   // loaded and validated. An iframe load event is not proof of a usable yard.
   if (SEAM) {
     window.parent.postMessage(
-      { type: "sentinel-seam-ready", seed: S.seed.toString(16) },
+      { type: "sentinel-seam-ready", seed: S.seed.toString(16), roster: S.roster },
       location.origin
     );
   }

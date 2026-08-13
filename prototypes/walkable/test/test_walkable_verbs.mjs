@@ -27,7 +27,10 @@ import { openRun, openSeason, applyCard } from "../../run-core/run.js";
 // in a card's `down`. If those drift, every card silently leaves the whole
 // squad idle with no fault. Holding the two rosters against each other here
 // makes that fail in CI instead of on a player's knee (caught in review).
-import { S as RULES_S, restart as rulesRestart } from "../../tactical-core/rules.js";
+import {
+  S as RULES_S, restart as rulesRestart,
+  rosterValid, CANON_ROSTER, OP_MAX_HP,
+} from "../../tactical-core/rules.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..", "..");
@@ -296,6 +299,30 @@ try {
   check("the room stages a body for every operative the yard fields",
     JSON.stringify(ops) === JSON.stringify(staged),
     `yard ${ops.join(",")} vs room ${staged.join(",")}`);
+
+  // ---- the roster the room DEALS ------------------------------------
+  // `architecture/roster_in_the_match.md`. The room now deals WHO fights
+  // rather than both sides happening to name the same three, so this
+  // stops being a drift check and becomes the contract check: what the
+  // room deals must be a roster the rules core would field, and — while
+  // nothing has decided otherwise — the canonical three at full strength.
+  //
+  // The asymmetry is the point and it is unchanged: this file may import
+  // the rules, the room may not. The room publishes its wire form and
+  // the rules core says whether it is a roster.
+  const fielded = (await ds("fielded")) ?? "";
+  const dealt = fielded.split(",").map(part => {
+    const [name, hp] = part.split(":");
+    return { name, hp: Number(hp) };
+  });
+  check("the room publishes the squad it deals", /^[A-Z]+:\d+(,[A-Z]+:\d+){2}$/.test(fielded), fielded);
+  check("and it is a roster the rules core would field",
+    rosterValid(dealt), fielded);
+  check("the dealt squad is the canonical three at full strength",
+    JSON.stringify(dealt) === JSON.stringify(CANON_ROSTER.map(f => ({ ...f }))),
+    `${fielded} vs ${CANON_ROSTER.map(f => `${f.name}:${f.hp}`).join(",")}`);
+  check("the room's full-strength constant is the rules core's ceiling",
+    dealt.every(f => f.hp === OP_MAX_HP), `${fielded} vs ${OP_MAX_HP}`);
 
   // newest first after these three: struck KOA, counted SABLE, old
   // counted VESPER. VESPER remains in cumulative wounds and KOA is the

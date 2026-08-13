@@ -112,7 +112,9 @@ they interlock with ammo (Circuit doc §6, gated on this prototype).
 ## The witness record
 
 The input-log protocol (`sentinel_circuit_design.md` §9, roadmap step 5):
-**seed + record IS the match.** Every player verb that changes the match
+**seed + roster + record IS the match** (`architecture/roster_in_the_match.md`
+— the law was `seed + record` until the roster became a certified input).
+Every player verb that changes the match
 appends its canonical form to `S.record` at the moment its guards pass —
 `["move", id, x, y]`, `["shoot", att, def]`, `["finish", att, def]`,
 `["ow", id]`, `["spare"]`, `["end"]`. Rejected inputs never enter the
@@ -121,7 +123,7 @@ nothing, and every verb names its units explicitly, so it is
 presentation, not play. Shooting a kneeling fighter records the finish it
 reroutes to — the record captures what happened, not what was clicked.
 
-`replayMatch(seed, commands)` drives a record back through the same
+`replayMatch(seed, commands, roster)` drives a record back through the same
 verbs. Because replaying re-records, and commands the rules refuse don't
 re-record, **a faithful replay reproduces its own input** — that closure
 is the integrity check. A record that cannot reproduce itself (tampered,
@@ -168,11 +170,24 @@ the fifth rules change in a row to land with the goldens untouched. But a
 no-input playout can never play a card, so the deadbeef golden alone can
 no longer stamp the rules: `showrunner-golden.js` pins a **second golden**
 (seed 6's organic spare match with the twist spliced at the first window,
-captured fingerprint `6495eab3`), and the witness Worker's rules stamp now
-hashes both playouts — transcript *and* outcome (result, rating, purse),
-because rating is never a transcript line and card economics must not be
-able to change under an unchanged stamp. Changing card math moves the
-stamp — that is the point.
+captured fingerprint `6495eab3`), and the witness Worker's rules stamp
+hashes every pinned playout — transcript *and* outcome (result, rating,
+purse), because rating is never a transcript line and card economics must
+not be able to change under an unchanged stamp. Changing card math moves
+the stamp — that is the point.
+
+`roster-golden.js` pins a **third** for the same reason: the other two
+field the canonical three, so neither can stamp what a fielded ROSTER
+does. It is the deadbeef golden's twin — same seed, same no-input
+horizon, a substituted name and two carried wounds — and held against its
+twin it is also the doctrine in one line:
+
+| seed deadbeef, no input | transcript | lines | rating |
+|---|---|---|---|
+| canonical three | `39e8be71` | 42 | 29 |
+| the roster golden's squad | `d44833c0` | 37 | 35 |
+
+Same seed. Same (empty) record. Different match.
 
 `director.js` is the reference chooser: deterministic, reactive, no RNG.
 It reads the same visible state the player reads at each between-rounds
@@ -180,6 +195,28 @@ window and plays MERCY ODDS when a fighter is one bad beat from kneeling.
 It is a *client* of the rules — same doorway as the player-input adapter,
 refusable like any hand on the controls — not part of them. Renderers may
 use it; tests script their own records.
+
+## The fielded roster
+
+The match's second certified input, and the one thing beside the seed a
+caller may set: three operatives, in slot order, each a `{name, hp}`.
+Names ride the transcript (a substitution is a different record) and `hp`
+is where they start — `maxHp` stays `OP_MAX_HP` whatever the roster says,
+because a fighter carried in at 7 is at seven *of* ten, not a smaller
+fighter.
+
+`rosterValid()` is the boundary check and `rosterKey()` the one canonical
+form; both are exported because the room, the yard and the Worker all
+have to agree about what a squad is, and a key computed three ways is
+three keys. `restart()` **throws** on a malformed roster rather than
+falling back to the canonical three — a fallback would field a squad
+nobody asked for and then let the edge certify it. Absent, the canonical
+three at full strength are fielded, which is exactly what every match was
+fought by before this input existed: the goldens above did not move, and
+that is the proof.
+
+Slots, positions, hostiles, stats and gear are the encounter's, not the
+caller's. See `architecture/roster_in_the_match.md`.
 
 ## Rules for changing this file
 

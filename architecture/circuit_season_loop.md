@@ -159,12 +159,20 @@ at full strength, exactly as run-core's line requires.
 
 ### Tier 2 — Full season (the doctrine change)
 
+> **Landed 2026-08-13.** The mechanism argued for below is built and
+> binding: see `roster_in_the_match.md` (Status: Current), which is the
+> doc this section asked for. Two things it deliberately did NOT do, and
+> which this section should not be read as claiming: wounds still do not
+> impair (the room deals full strength — that is a design decision, not a
+> plumbing one), and the run does not yet own roster state. Both are now
+> unblocked rather than blocked.
+
 The dragon, named at its actual size. Not "wounds become modifiers" —
 that is one consequence. The change is:
 
 ```
-current law:   seed + record                 = the match
-proposed law:  seed + roster state + record  = the match
+the law until 2026-08-13:   seed + record                 = the match
+the law since:              seed + roster state + record  = the match
 ```
 
 **Roster state becomes part of match identity.** The mechanism is a

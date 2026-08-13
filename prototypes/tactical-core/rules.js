@@ -47,6 +47,7 @@ export function mulberry32(a) {
 // complexity gets justified before it gets built.
 export const S = {
   seed: 0,
+  roster: null,        // the fielded operatives, as restart() was given them
   rng: null,
   map: [],
   units: [],
@@ -81,14 +82,73 @@ const rollRange = (lo, hi) => lo + Math.floor(S.rng() * (hi - lo + 1));
 function buildMap() {
   S.map = MAP_SRC.map(row => [...row].map(c => c === "█" ? FULL : c === "▪" ? HALF : FLOOR));
 }
-function makeUnits() {
+/* ---- the fielded roster ------------------------------------------
+   The match's second certified input (`architecture/roster_in_the_match.md`).
+   A roster names WHO is fielded in each of the three operative slots and
+   what shape they are in; the slots, their positions, and everything
+   about the hostiles belong to the encounter and are not a caller's to
+   set. Absent, the canonical three at full strength are fielded, which
+   is exactly what every match was fought by before this input existed —
+   the goldens are the proof of that and they did not move.
+
+   `maxHp` stays 10 whatever the roster says: a fighter carried in at 7
+   is at seven OF ten, not a smaller fighter. That distinction is the
+   whole reason a wound can heal. */
+export const OP_MAX_HP = 10;
+export const ROSTER_SLOTS = 3;
+export const CANON_ROSTER = Object.freeze(
+  ["VESPER", "KOA", "SABLE"].map(name => Object.freeze({ name, hp: OP_MAX_HP })));
+const OP_SLOTS = [{ x: 1, y: 9 }, { x: 4, y: 9 }, { x: 7, y: 9 }];
+const HOSTILES = [
+  { id: 3, name: "SYN-1", x: 2, y: 0 },
+  { id: 4, name: "SYN-2", x: 5, y: 0 },
+  { id: 5, name: "SYN-3", x: 8, y: 0 },
+];
+
+const NAME_RE = /^[A-Z0-9][A-Z0-9-]{0,15}$/;
+
+/* The boundary check, exported because everything that can hand this
+   module a roster got it from somewhere untrustworthy — a URL the room
+   wrote, a JSON body a stranger POSTed to the Worker. Names must be
+   unique and must not collide with the hostiles: the record is the thing
+   being certified, and a transcript in which two fighters answer to one
+   name cannot say who did what. */
+export function rosterValid(roster) {
+  if (!Array.isArray(roster) || roster.length !== ROSTER_SLOTS) return false;
+  if (!roster.every(f => f && typeof f === "object"
+    // EXACTLY these two fields. Checking only that the required ones are
+    // present let a caller POST a fighter carrying `gear: {primary:
+    // "CANNON"}`, get a 200 back, and file under the same content address
+    // as the clean roster — the extra silently stripped on the way in
+    // (caught in review). That is the worst shape this bug could take:
+    // it looks exactly like the Tier 2 future working.
+    && Object.keys(f).length === 2
+    && typeof f.name === "string" && NAME_RE.test(f.name)
+    && Number.isInteger(f.hp) && f.hp >= 1 && f.hp <= OP_MAX_HP)) return false;
+  const names = roster.map(f => f.name);
+  if (new Set(names).size !== names.length) return false;
+  return !names.some(n => HOSTILES.some(h => h.name === n));
+}
+
+/* The canonical form a roster hashes from. One serializer, used by the
+   room, the yard and the Worker, so `rosterHash` means the same thing in
+   all three — a hash computed three ways is three hashes. */
+export function rosterKey(roster) {
+  return (roster ?? CANON_ROSTER).map(f => `${f.name}:${f.hp}`).join("|");
+}
+
+function makeUnits(roster) {
+  const fielded = roster ?? CANON_ROSTER;
   S.units = [
-    { id: 0, side: "op", name: "VESPER", x: 1, y: 9, hp: 10, maxHp: 10, aim: 75, mobility: 4, ap: 2, overwatch: false, alive: true },
-    { id: 1, side: "op", name: "KOA",    x: 4, y: 9, hp: 10, maxHp: 10, aim: 75, mobility: 4, ap: 2, overwatch: false, alive: true },
-    { id: 2, side: "op", name: "SABLE",  x: 7, y: 9, hp: 10, maxHp: 10, aim: 75, mobility: 4, ap: 2, overwatch: false, alive: true },
-    { id: 3, side: "ho", name: "SYN-1",  x: 2, y: 0, hp: 8,  maxHp: 8,  aim: 65, mobility: 4, ap: 2, overwatch: false, alive: true },
-    { id: 4, side: "ho", name: "SYN-2",  x: 5, y: 0, hp: 8,  maxHp: 8,  aim: 65, mobility: 4, ap: 2, overwatch: false, alive: true },
-    { id: 5, side: "ho", name: "SYN-3",  x: 8, y: 0, hp: 8,  maxHp: 8,  aim: 65, mobility: 4, ap: 2, overwatch: false, alive: true },
+    ...OP_SLOTS.map((slot, i) => ({
+      id: i, side: "op", name: fielded[i].name, x: slot.x, y: slot.y,
+      hp: fielded[i].hp, maxHp: OP_MAX_HP,
+      aim: 75, mobility: 4, ap: 2, overwatch: false, alive: true,
+    })),
+    ...HOSTILES.map(h => ({
+      id: h.id, side: "ho", name: h.name, x: h.x, y: h.y, hp: 8, maxHp: 8,
+      aim: 65, mobility: 4, ap: 2, overwatch: false, alive: true,
+    })),
   ];
   // Only hostiles carry morale. The player's operatives don't quit under
   // the player — they hold or they fall; conceding is a player verb, and
@@ -649,12 +709,26 @@ export function endPlayerTurn() {
 }
 
 // ---- lifecycle --------------------------------------------------
-export function restart(seed) {
+/* `roster` is the match's second input, and it is REFUSED rather than
+   defaulted when it is malformed: falling back to the canonical three
+   would field a squad the caller never asked for and then certify the
+   result, which is the silent fallback this stack exists to not have.
+   Callers that take a roster from outside validate it at their own
+   boundary first (rosterValid is exported for exactly that) and answer
+   for it in their own grammar — the Worker with a 400, the room with a
+   boot fault. */
+export function restart(seed, roster = null) {
+  if (roster !== null && !rosterValid(roster)) {
+    throw new Error("restart: that is not a roster this encounter can field");
+  }
   S.gen++;   // abandon any in-flight animation or AI turn
   S.seed = seed >>> 0;
   S.rng = mulberry32(S.seed);
+  // What was actually fielded, kept so a certificate can report it
+  // without the caller having to be believed about its own input.
+  S.roster = (roster ?? CANON_ROSTER).map(f => ({ name: f.name, hp: f.hp }));
   buildMap();
-  makeUnits();
+  makeUnits(roster);
   S.turn = "op"; S.selectedId = 0; S.targetMode = false; S.busy = false; S.gameOver = null; S.decision = false; S.rating = RATING.start; S.record = []; S.pendingTwist = null; S.activeTwist = null; S.roundActed = false;
   io.emit({ type: "reset" });
   io.emit({ type: "mission" });
@@ -669,7 +743,9 @@ export function restart(seed) {
    rejected inputs never enter the record, and selection is
    presentation, not play (no roll, no log line, and every verb names
    its units explicitly), so it is deliberately absent.
-   seed + record IS the match.
+   seed + roster + record IS the match
+   (`architecture/roster_in_the_match.md`; the law was `seed + record`
+   until the roster became a certified input beside it).
 
    replayMatch() drives a record back through the same verbs — and since
    replaying re-records, a faithful replay reproduces its own input.
@@ -699,9 +775,9 @@ async function applyCommand(cmd) {
   }
 }
 
-export async function replayMatch(seed, commands) {
+export async function replayMatch(seed, commands, roster = null) {
   if (!Array.isArray(commands)) commands = [];
-  restart(seed);
+  restart(seed, roster);
   for (const cmd of commands) {
     if (S.gameOver) break;   // commands past the ending are not play
     await applyCommand(cmd);
