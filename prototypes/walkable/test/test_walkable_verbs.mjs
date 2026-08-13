@@ -494,6 +494,134 @@ try {
     !/STORAGE REFUSED/.test(await panelText()) && (await ds("season")) === "1/6:1:fit",
     await panelText());
 
+  // ---- the kit table: the purse spends -------------------------------
+  // Beat 3 of season-lite. The shop is a PLACE — the surface opens when
+  // the body reaches the table and closes when it leaves — and what it
+  // sells is flair, because run-core's FLAIR_SLOTS is the whole register
+  // a lite purse may buy. Fixtures are built with run-core again, so
+  // every claim here is about the room.
+  const paidCard = {
+    seed: "b", result: "win", rating: 30, purse: 300,
+    ledger: { walked: 0, finished: 0, lost: 0 }, down: [], cert: "certified",
+    rules: "test-rules", at: "2026-08-13T00:00:00Z",
+  };
+  const paid = applyCard(openSeason("2026-08-13T00:00:00Z", TOUR), paidCard);
+  if (!paid.accepted) throw new Error(`purse fixture refused: ${paid.why}`);
+  await page.evaluate(value =>
+    localStorage.setItem("sentinel.run", JSON.stringify(value)), paid.run);
+  await boot("?body=composed");
+  const kitText = async () =>
+    (await page.textContent("#kitinfo")).replace(/\s+/g, " ").trim();
+  // Walking to the table rather than teleporting to it: the shop opening
+  // IS the arrival, and a test that set the flag directly would not be
+  // testing the thing the design is about. Waiting on the room's own
+  // published state, never on a sleep.
+  //
+  // Movement is camera-relative in a 2:1 view: W+D is true north, and A
+  // alone is the south-west diagonal that runs from the spawn straight at
+  // the table. D alone walks back out of reach.
+  const walkTo = async (keys, state) => {
+    for (const key of keys) await page.keyboard.down(key);
+    const got = await page.waitForFunction(want =>
+      document.getElementById("cv").dataset.shop === want,
+      state, { timeout: 30000 }).then(() => true, () => false);
+    for (const key of keys) await page.keyboard.up(key);
+    return got;
+  };
+
+  check("a run away from the table keeps the shop shut",
+    (await ds("shop")) === "away" && await page.$eval("#kitbox", el => el.hidden),
+    await ds("shop"));
+  check("the kit is on the run panel even with the shop shut",
+    /KIT · EVERY HOOK EMPTY/.test(await panelText()), await panelText());
+  check("an unbought rack stands there empty",
+    (await ds("rack")) === "6:0" && (await ds("worn")) === "none",
+    `${await ds("rack")} · ${await ds("worn")}`);
+  check("the purse says what was earned before anything is spent",
+    /300c EARNED/.test(await panelText()) && !/ON HAND/.test(await panelText()),
+    await panelText());
+
+  check("walking to the kit table opens the shop", await walkTo(["KeyA"], "at"));
+  check("and the box is on the panel", !(await page.$eval("#kitbox", el => el.hidden)));
+  let kPanel = await kitText();
+  check("the shop leads with what the purse can cover",
+    /300c ON HAND/.test(kPanel), kPanel);
+  check("the stock is priced, slotted and keyed",
+    /1 ASHEN HOOD · DRAPE · 240c/.test(kPanel)
+      && /3 LENGTH OF CHAIN · PATCH · 90c/.test(kPanel), kPanel);
+  check("what the purse cannot cover says so rather than going quiet",
+    /STORM CLOAK · DRAPE · 620c · TOO DEAR/.test(kPanel), kPanel);
+  check("the shop names who the next purchase dresses",
+    /DRESSING VESPER/.test(kPanel), kPanel);
+  check("the panel says how to read the rack",
+    /RACK READS VESPER · KOA · SABLE, LEFT TO RIGHT · DRAPE THEN PATCH/.test(kPanel), kPanel);
+
+  await page.keyboard.press("Digit1");
+  check("buying spends the balance and leaves the purse alone",
+    (await ds("kit")) === "60:240:1", await ds("kit"));
+  check("the bought item is on a named fighter's named hook",
+    (await ds("worn")) === "VESPER/drape/ashen-hood", await ds("worn"));
+  check("and a hook on the rack is no longer empty",
+    (await ds("rack")) === "6:1", await ds("rack"));
+  kPanel = await kitText();
+  check("the shop says what was bought and for whom",
+    /BOUGHT ASHEN HOOD FOR VESPER · 240c/.test(kPanel), kPanel);
+  check("one purchase closes the rest of the case — the decision, visible",
+    /LENGTH OF CHAIN · PATCH · 90c · TOO DEAR/.test(kPanel)
+      && /PRESSED FLOWER · PATCH · 180c · TOO DEAR/.test(kPanel), kPanel);
+  const boughtPanel = await panelText();
+  check("the run panel splits what was won from what is left",
+    /300c EARNED/.test(boughtPanel) && /240c SPENT/.test(boughtPanel)
+      && /60c ON HAND/.test(boughtPanel), boughtPanel);
+  check("the kit line names the wearer and the item",
+    /KIT · VESPER ASHEN HOOD/.test(boughtPanel), boughtPanel);
+
+  // The room gates, run-core banks — the same division the door runs on.
+  // Both refusals below are conditions applyBuy would call accepted:false,
+  // which is exactly why the SHOP has to catch them first: the module's
+  // own words appearing here would mean the surface offered something it
+  // should have refused.
+  await page.keyboard.press("Digit1");
+  kPanel = await kitText();
+  check("a second drape on one fighter is refused at the surface",
+    /VESPER ALREADY WEARS ASHEN HOOD/.test(kPanel)
+      && !/ALREADY WEARS A DRAPE/.test(kPanel), kPanel);
+  // A different refusal, and it has to be an item in a FREE slot: a
+  // second drape is refused before its price is ever consulted, which is
+  // the right order and would have made this claim about the wrong
+  // branch (caught running it).
+  await page.keyboard.press("Digit4");
+  kPanel = await kitText();
+  check("a purchase the purse cannot cover is refused at the surface",
+    /PRESSED FLOWER IS 180c AND THE PURSE HAS 60c/.test(kPanel)
+      && !/PURSE WILL NOT COVER/.test(kPanel), kPanel);
+  check("and neither refusal moved the money",
+    (await ds("kit")) === "60:240:1", await ds("kit"));
+
+  await page.keyboard.press("KeyZ");
+  kPanel = await kitText();
+  check("Z chooses who wears the next thing",
+    /DRESSING KOA/.test(kPanel), kPanel);
+  check("the hood VESPER wears is not on KOA's hooks",
+    /1 ASHEN HOOD · DRAPE · 240c · TOO DEAR/.test(kPanel), kPanel);
+
+  check("walking away from the table shuts the shop", await walkTo(["KeyD"], "away"));
+  check("and the box leaves the panel", await page.$eval("#kitbox", el => el.hidden));
+  await page.keyboard.press("Digit3");
+  check("buying across the room is refused with directions, not silence",
+    /KIT TABLE IS ACROSS THE ROOM/.test(await panelText()), await panelText());
+  check("and the refusal spent nothing", (await ds("kit")) === "60:240:1", await ds("kit"));
+  check("the kit stays on the run panel away from the table",
+    /KIT · VESPER ASHEN HOOD/.test(await panelText()), await panelText());
+
+  await boot("?body=composed");
+  check("the rack survives a reload",
+    (await ds("kit")) === "60:240:1" && (await ds("rack")) === "6:1"
+      && (await ds("worn")) === "VESPER/drape/ashen-hood",
+    `${await ds("kit")} · ${await ds("rack")}`);
+  check("a reloaded season still knows where it is on the tour",
+    (await ds("season")) === "1/3:0:fit", await ds("season"));
+
   await page.evaluate(() => localStorage.removeItem("sentinel.run"));
   await boot("?body=composed");
 

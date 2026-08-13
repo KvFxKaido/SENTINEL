@@ -285,12 +285,13 @@
   #seamcut .cutname { color: var(--amber); font-size: 22px; letter-spacing: 8px; }
   #seamcut .cutsub { color: var(--text); font-size: 11px; letter-spacing: 2px; }
 
-  #seaminfo, #runinfo { color: var(--text-dim); font-size: 10px; line-height: 1.7; }
-  #seaminfo b, #runinfo b { color: var(--amber); font-weight: normal; }
+  #seaminfo, #runinfo, #kitinfo { color: var(--text-dim); font-size: 10px; line-height: 1.7; }
+  #seaminfo b, #runinfo b, #kitinfo b { color: var(--amber); font-weight: normal; }
   #seaminfo .fp, #runinfo .fp { color: var(--cyan); }
   /* Caveats read as caveats: a run carrying struck cards, unwitnessed
      cards or a rules change must not look like a clean one at a glance. */
-  #seaminfo .warn, #runinfo .warn { color: var(--red); }
+  #seaminfo .warn, #runinfo .warn, #kitinfo .warn { color: var(--red); }
+  #kitbox[hidden] { display: none; }
 
   @media (max-width: 1015px) {
     #app {
@@ -363,6 +364,7 @@
         <tr><th><kbd>P</kbd></th><td>LCD / crunch / clean</td></tr>
         <tr><th><kbd>Shift</kbd>+<kbd>N</kbd></th><td>close the run, open a fresh one</td></tr>
         <tr><th><kbd>Shift</kbd>+<kbd>P</kbd></th><td>pass the slate entry — always legal</td></tr>
+        <tr><th>KIT TABLE</th><td id="kitkeys">stand at it — number keys buy, <kbd>Z</kbd> chooses who</td></tr>
         <tr><th>NORTH DOOR</th><td>walk it — the yard takes the feed</td></tr>
       </table>
     </section>
@@ -370,6 +372,14 @@
     <section class="box" id="runbox">
       <h2>THE RUN</h2>
       <div id="runinfo">Opening…</div>
+    </section>
+
+    <!-- The shop is a place: this box exists only while the body is
+         standing at the kit table, which is why it has no permanent
+         home on the panel. -->
+    <section class="box" id="kitbox" hidden>
+      <h2>THE KIT TABLE</h2>
+      <div id="kitinfo"></div>
     </section>
 
     <section class="box" id="yardbox">
@@ -415,8 +425,8 @@
 
 import * as THREE from "../tactical3d/vendor/three.module.js";
 import {
-  bindStore, loadRun, saveRun, applyCard, applyPass, closeRun, openSeason,
-  slateValid, summary,
+  bindStore, loadRun, saveRun, applyCard, applyPass, applyBuy, closeRun,
+  openSeason, slateValid, stockValid, kitOf, FLAIR_SLOTS, summary,
 } from "../run-core/run.js";
 
 // ---- room coordinates ---------------------------------------------
@@ -724,6 +734,23 @@ const CONSOLE_ART = [
   "SSSSSSSSSSSSS",
 ];
 
+// The kit table, against the south wall — the front office's other
+// furniture, and deliberately the opposite pole from the north door. The
+// door spends the roster; this is where the purse spends back. Legs and
+// a top: the blank rows are unpainted pixels, which buildMatter skips, so
+// the space under the table is real space rather than a solid block.
+const TABLE_ART = [
+  "FFFFFFFFFFFFF",
+  "KKKKKKKKKKKKK",
+  "EEEEEEEEEEEEE",
+  "S...........S",
+  "S...........S",
+  "G...........G",
+  "S...........S",
+  "S...........S",
+  "SS.........SS",
+];
+
 function hash01(x, y) {
   let h = (x * 374761393 + y * 668265263) | 0;
   h = Math.imul(h ^ (h >>> 13), 1274126177);
@@ -744,22 +771,43 @@ for (let z = 1; z < ROOM_H - 1; z++) {
   matterSpots.push({ kind: "wall", x: ROOM_W - 1, z, rot: Math.PI / 2 });
 }
 
+// The kit table is a PLACE, not a menu key: rule 1 as level design, the
+// same way the north door is. Its grid tile is exported below so the
+// shop's reach is measured from one number instead of two that can drift.
+//
+// It stands in the floor rather than against the south wall, where it was
+// first put for the symmetry with the north door — the camera sits over
+// the +x/+z corner, which makes south and east the NEAR walls, and a
+// 0.62-high table one tile behind a 1.51-high wall is invisible at the
+// default quarter. A shop the player cannot see is a shop that does not
+// exist, which is this whole beat's acceptance law failing on a set
+// dressing decision (caught by photographing the room).
+const TABLE_SPOT = { kind: "table", x: 4, z: 5, rot: 0 };
+
 matterSpots.push(
   { kind: "crate", x: 3, z: 3, rot: 0 },
   { kind: "crate", x: 8, z: 5, rot: Math.PI / 2 },
-  { kind: "console", x: 9, z: 2, rot: 0 }
+  { kind: "console", x: 9, z: 2, rot: 0 },
+  TABLE_SPOT
 );
 
 function artFor(spot) {
   if (spot.kind === "wall") return WALL_ART;
   if (spot.kind === "crate") return CRATE_ART;
+  if (spot.kind === "table") return TABLE_ART;
   return CONSOLE_ART;
 }
 
 function depthFor(spot) {
   if (spot.kind === "console") return 7 * PX;
+  if (spot.kind === "table") return 9 * PX;
   return artFor(spot)[0].length * PX;
 }
+
+// The tabletop's world height, derived from the art rather than typed
+// twice: the rack below stands ON it, and a table that grew a row would
+// otherwise leave the hooks floating.
+const TABLE_TOP_Y = TABLE_ART.length * PX;
 
 const voxelGeo = new THREE.BoxGeometry(1, 1, 1);
 const voxelMat = new THREE.MeshStandardMaterial({
@@ -1647,6 +1695,18 @@ function updateCipher(dt, now) {
   character.userData.sprite.rotation.y = camAz;
   canvas.dataset.position =
     `${character.position.x.toFixed(3)},${character.position.z.toFixed(3)}`;
+
+  // Arriving at the kit table is the shop opening, and leaving is it
+  // closing — the surface follows the body rather than a key. Only the
+  // CHANGE redraws: this runs every frame, and re-rendering a panel
+  // sixty times a second to say the same thing would be the room busy
+  // instead of the room honest.
+  const near = atTable();
+  if (near !== atShop) {
+    atShop = near;
+    kitNote = null;   // whatever the last visit said is over
+    renderKit();
+  }
 }
 
 function updateSquad(now) {
@@ -1806,6 +1866,25 @@ document.addEventListener("keydown", event => {
     triggerLocked("fire");
     return;
   }
+  // The kit table's two verbs. They sit BELOW the downed check on
+  // purpose: closing and passing are front-office acts a body can make
+  // from the floor, but buying is done standing at a table, by the body
+  // that is standing there.
+  if (event.code === "KeyZ") {
+    if (!atShop) {
+      runNote = '<span class="warn">THE KIT TABLE IS ACROSS THE ROOM</span>';
+      renderRun();
+      return;
+    }
+    wearer = (wearer + 1) % SQUAD_ROSTER.length;
+    kitNote = null;   // the last purchase was about somebody else
+    renderKit();
+    return;
+  }
+  if (/^Digit[1-9]$/.test(event.code)) {
+    buyItem(Number(event.code.slice(5)) - 1);
+    return;
+  }
   if (event.code === "KeyQ") {
     orbit(1);
     return;
@@ -1903,7 +1982,119 @@ if (!slateValid(HOUSE_SLATE)) {
   throw new Error("the house slate does not validate — fix the authored entries");
 }
 
+/* ---- the kit table ------------------------------------------------
+   What the purse buys, and the short list is the point. run-core's
+   FLAIR_SLOTS is the whole shop — drape and patch, the two slots the
+   Circuit's own gear table calls mechanically inert. Every other slot
+   carries verbs, and a verb is roster state the yard would have to be
+   told about, which is the doctrine change season-lite is defined by not
+   making. The room does not re-state that law; it buys through the
+   module that enforces it, and stockValid refuses this list at boot if
+   an item ever wanders out of the register.
+
+   The patch entries are the Circuit's own examples of player-authored
+   insignia (a pressed flower, a length of chain) — nobody designs what
+   they mean, play does. Validated at boot exactly like the slate: a bad
+   catalogue is a boot fault, not something to quietly skip past. */
+const HOUSE_STOCK = [
+  { id: "ashen-hood",     name: "ASHEN HOOD",      slot: "drape", cost: 240, color: "#8fae94" },
+  { id: "storm-cloak",    name: "STORM CLOAK",     slot: "drape", cost: 620, color: "#24576b" },
+  { id: "length-of-chain", name: "LENGTH OF CHAIN", slot: "patch", cost: 90,  color: "#6d8a72" },
+  { id: "pressed-flower", name: "PRESSED FLOWER",  slot: "patch", cost: 180, color: "#d99742" },
+];
+if (!stockValid(HOUSE_STOCK)) {
+  throw new Error("the house stock does not validate — fix the authored items");
+}
+// The keyboard is the shop's whole interface, and it has nine number keys.
+// Stock past that would be listed with no way to buy it — a surface
+// offering something it cannot sell. run-core's own cap is higher (it
+// does not know how a host will present a shop), so the room enforces its
+// own reach here rather than quietly truncating the list.
+if (HOUSE_STOCK.length > 9) {
+  throw new Error("the house stock is longer than this room's keyboard can reach");
+}
+// The table's reach, in world units from its tile centre. The prop
+// collider already stops a body about half a unit out, so this is
+// "standing at it" rather than "in the same room as it".
+const TABLE_REACH = 1.15;
+const TABLE_X = gx(TABLE_SPOT.x);
+const TABLE_Z = gz(TABLE_SPOT.z);
+let atShop = false;
+// Who the next purchase dresses. An index into the fielded roster, not a
+// name: the room derives operative names from sheet slugs in exactly one
+// place, and this must not become a second place they are spelled.
+let wearer = 0;
+const wearerName = () => SQUAD_ROSTER[wearer].fighter.toUpperCase();
+let kitNote = null;
+
+// The control surface names the exact keys this stock answers to, filled
+// from the stock itself: a hand-typed "1–4" is a claim that goes stale
+// the first time an item is added.
+document.getElementById("kitkeys").innerHTML =
+  `stand at it — <kbd>1</kbd>–<kbd>${HOUSE_STOCK.length}</kbd> buy, <kbd>Z</kbd> chooses who`;
+
+function atTable() {
+  if (!character) return false;
+  const dx = character.position.x - TABLE_X;
+  const dz = character.position.z - TABLE_Z;
+  return dx * dx + dz * dz <= TABLE_REACH * TABLE_REACH;
+}
+
+/* The rack: one hook per fighter per flair slot, standing on the table.
+   This is `Sentinel 2D` §8's inventory-as-physical-presence taken
+   literally — and the empty hooks are the half that matters. Absence
+   carries information: a bare peg is the room saying you never bought
+   one, in the same grammar the panel uses when it says DOWN · NOBODY OF
+   YOURS, YET.
+
+   What the room does NOT do is put the hood on the body. Drape and patch
+   become sprite layers when the gear pipeline says so; faking one by
+   tinting a composed sheet would be the renderer claiming an authored
+   pixel that does not exist, which is the one thing this room has never
+   done. The rack is what it can honestly show, and the panel names who
+   wears what. */
+const RACK_HOOKS = [];
+const hookGeo = new THREE.BoxGeometry(1, 1, 1);
+
+function buildRack() {
+  const cols = SQUAD_ROSTER.length;
+  for (const [i, member] of SQUAD_ROSTER.entries()) {
+    for (const [j, slot] of FLAIR_SLOTS.entries()) {
+      const mesh = new THREE.Mesh(hookGeo, new THREE.MeshStandardMaterial({
+        color: 0x1d2a21,
+        roughness: 0.7,
+        metalness: 0.05,
+      }));
+      mesh.castShadow = true;
+      mesh.position.set(
+        TABLE_X + (i - (cols - 1) / 2) * 0.28,
+        TABLE_TOP_Y,
+        TABLE_Z + (j - (FLAIR_SLOTS.length - 1) / 2) * 0.26
+      );
+      scene.add(mesh);
+      RACK_HOOKS.push({ who: member.fighter.toUpperCase(), slot, mesh });
+    }
+  }
+}
+buildRack();
+
+// Drawn from the run, never from a second copy of what was bought: the
+// hook shows the item's own colour, and an unbought hook is a bare peg.
+function syncRack() {
+  let filled = 0;
+  for (const hook of RACK_HOOKS) {
+    const worn = kitOf(run, hook.who)[hook.slot];
+    if (worn) filled++;
+    hook.mesh.scale.set(worn ? 0.13 : 0.035, worn ? 0.17 : 0.06, worn ? 0.13 : 0.035);
+    hook.mesh.position.y = TABLE_TOP_Y + hook.mesh.scale.y / 2;
+    hook.mesh.material.color.set(worn ? worn.color : "#1d2a21");
+  }
+  canvas.dataset.rack = `${RACK_HOOKS.length}:${filled}`;
+}
+
 const runInfo = document.getElementById("runinfo");
+const kitBox = document.getElementById("kitbox");
+const kitInfo = document.getElementById("kitinfo");
 const storageLive = (() => {
   try {
     const probe = "sentinel.run.probe";
@@ -2010,7 +2201,12 @@ function renderRun() {
   if (s.cards === 0 && s.struck === 0) {
     rows.push(`<b>RUN OPEN</b> · NO CARDS YET${doorLive ? " · the north door is live" : ""}`);
   } else {
-    rows.push(`<b>${s.cards} CARD${s.cards === 1 ? "" : "S"}</b> · ${s.record} · <b>${s.purse}c</b> BANKED`);
+    // Purse is what the season WON; the balance is what is left of it.
+    // Since there is somewhere to spend it, one number can no longer say
+    // both — and collapsing them would make a card that paid for a hood
+    // read as a card that paid for nothing.
+    rows.push(`<b>${s.cards} CARD${s.cards === 1 ? "" : "S"}</b> · ${s.record} · <b>${s.purse}c</b> EARNED`
+      + (s.spent ? ` · ${s.spent}c SPENT · <b>${s.balance}c</b> ON HAND` : ""));
     const streak = s.streak > 1 ? ` · ${s.streak} STRAIGHT` : "";
     rows.push(`BEST RATING ${s.best}${streak}${s.longest > 1 ? ` · LONGEST ${s.longest}` : ""}`);
     // The mercy ledger is the run's actual thesis: across every card, how
@@ -2080,6 +2276,18 @@ function renderRun() {
       `<span class="fp">${esc(s.drift.from)}</span> → now <span class="fp">${esc(s.drift.to)}</span>`
     );
   }
+  // ---- the rack ----------------------------------------------------
+  // The kit is a run fact, so it is on the panel whether or not the body
+  // is standing at the table — the same acceptance law the season stanza
+  // answers to. An empty rack says so out loud rather than rendering
+  // nothing: a line that disappears when there is nothing to report
+  // teaches the player that its absence means "no feature", not "no
+  // gear".
+  rows.push(s.bought.length
+    ? "KIT · " + s.kit.map(([who, worn]) =>
+      `${esc(who)} ${FLAIR_SLOTS.filter(slot => worn[slot])
+        .map(slot => `<b>${esc(worn[slot].name)}</b>`).join(" + ")}`).join(" · ")
+    : "KIT · EVERY HOOK EMPTY — NOTHING BOUGHT YET");
   rows.push(`OPENED ${run.opened.slice(0, 10)}${runWritable ? "" : " · NOT PERSISTED"}`);
   if (runCondition) rows.push(runCondition);
   if (persistFailed) {
@@ -2089,6 +2297,19 @@ function renderRun() {
     rows.push(
       `<span class="warn">THE LAST CARD DOWNED SOMEONE THIS ROOM CANNOT SHOW</span> · ` +
       unstagedDown.map(esc).join(" · ")
+    );
+  }
+  // The rack's half of the same discipline. run-core has no roster — it
+  // will dress any name a caller hands it — so a stored run can carry
+  // gear for somebody this room has no hook for. Saying which beats a KIT
+  // line whose items are on no rack in the room.
+  const unhooked = s.kit
+    .map(([who]) => who)
+    .filter(who => !RACK_HOOKS.some(hook => hook.who === who));
+  if (unhooked.length) {
+    rows.push(
+      `<span class="warn">THIS RUN DRESSES SOMEBODY THIS ROOM HAS NO HOOK FOR</span> · ` +
+      unhooked.map(esc).join(" · ")
     );
   }
   if (runNote) rows.push(runNote);
@@ -2115,6 +2336,94 @@ function renderRun() {
   // complete); this makes the third one a fact about the room rather
   // than a footrace.
   canvas.dataset.dealGate = gate ? gate.kind : "live";
+  // The purse, split the way the panel splits it, and what is on the
+  // hooks — "who/slot/id", so a harness can assert what is worn without
+  // reading the rack's geometry.
+  canvas.dataset.kit = `${s.balance}:${s.spent}:${s.bought.length}`;
+  canvas.dataset.worn = s.bought.length
+    ? s.kit.flatMap(([who, worn]) =>
+      FLAIR_SLOTS.filter(slot => worn[slot])
+        .map(slot => `${who}/${slot}/${worn[slot].id}`)).join(",")
+    : "none";
+  syncRack();
+  renderKit();
+}
+
+/* The shop surface, which exists only while the body is at the table.
+   The stock, its prices, who the next purchase dresses, and — the part
+   that makes this a decision rather than a list — what this purse can
+   actually cover right now. */
+function renderKit() {
+  const s = summary(run);
+  const who = wearerName();
+  const worn = kitOf(run, who);
+  const rows = [
+    `<b>${s.balance}c</b> ON HAND${s.spent ? ` · ${s.spent}c SPENT SO FAR` : ""}`,
+    `DRESSING <b>${esc(who)}</b> · <kbd>Z</kbd> CHOOSES WHO`,
+  ];
+  HOUSE_STOCK.forEach((item, i) => {
+    // Three states, all of them said: worn already, too dear for what is
+    // on hand, or buyable. A greyed line with no reason is the surface
+    // hiding which of those it is.
+    const state = worn[item.slot]
+      ? (worn[item.slot].id === item.id ? " · <span class=\"warn\">WORN</span>"
+        : ` · <span class="warn">${esc(who)} WEARS ${esc(worn[item.slot].name)}</span>`)
+      : item.cost > s.balance ? ' · <span class="warn">TOO DEAR</span>' : "";
+    rows.push(`<kbd>${i + 1}</kbd> ${esc(item.name)} · ${esc(item.slot.toUpperCase())}`
+      + ` · ${item.cost}c${state}`);
+  });
+  rows.push(`RACK READS ${SQUAD_ROSTER.map(m => esc(m.fighter.toUpperCase())).join(" · ")}`
+    + `, LEFT TO RIGHT · ${FLAIR_SLOTS.map(sl => esc(sl.toUpperCase())).join(" THEN ")}`);
+  if (kitNote) rows.push(kitNote);
+  kitInfo.innerHTML = rows.join("<br>");
+  kitBox.hidden = !atShop;
+  canvas.dataset.shop = atShop ? "at" : "away";
+}
+
+/* Buying. The room gates, run-core banks — the same division the door
+   already runs on: applyBuy's refusals are accepted:false because THIS
+   is where the shop is supposed to know what it may offer. The two
+   conditions below are checked here for that reason, and the module's
+   own answer is still surfaced if one ever gets past them.
+
+   No settling gate, deliberately. Closing and passing both refuse while
+   a card is in flight because both would move something the settlement
+   is about to move; a purchase spends money that is already banked and
+   touches neither the slate nor the card, so there is nothing a landing
+   card could invalidate. Inventing the gate anyway would be the room
+   claiming a conflict that does not exist. */
+function buyItem(index) {
+  const item = HOUSE_STOCK[index];
+  if (!item) return;
+  if (!atShop) {
+    runNote = '<span class="warn">THE KIT TABLE IS ACROSS THE ROOM — STAND AT IT TO BUY</span>';
+    renderRun();
+    return;
+  }
+  const who = wearerName();
+  const worn = kitOf(run, who)[item.slot];
+  if (worn) {
+    kitNote = `<span class="warn">${esc(who)} ALREADY WEARS ${esc(worn.name)} — ONE ${esc(item.slot.toUpperCase())} EACH</span>`;
+    renderKit();
+    return;
+  }
+  const balance = summary(run).balance;
+  if (item.cost > balance) {
+    kitNote = `<span class="warn">${esc(item.name)} IS ${item.cost}c AND THE PURSE HAS ${balance}c</span>`;
+    renderKit();
+    return;
+  }
+  const out = applyBuy(run, item, who, new Date().toISOString());
+  if (!out.accepted) {
+    kitNote = `<span class="warn">${esc(out.why.toUpperCase())}</span>`;
+    renderKit();
+    return;
+  }
+  run = out.run;
+  if (runWritable) persistFailed = !saveRun(run);
+  kitNote = `BOUGHT <b>${esc(item.name)}</b> FOR ${esc(who)} · ${item.cost}c`;
+  runNote = `${esc(who)} TOOK <b>${esc(item.name)}</b> OFF THE TABLE — ${item.cost}c OF THE PURSE`;
+  renderRun();
 }
 
 // Bank a returned card and redraw. One place writes the run, so the

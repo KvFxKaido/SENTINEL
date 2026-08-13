@@ -13,8 +13,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  RUN_V, RUN_KEY, CLOSED_KEY, ORPHAN_KEY, WOUND_CLOCK,
+  RUN_V, RUN_KEY, CLOSED_KEY, ORPHAN_KEY, WOUND_CLOCK, FLAIR_SLOTS,
   bindStore, openRun, openSeason, slateValid, applyCard, applyPass,
+  applyBuy, itemValid, stockValid, kitOf,
   cardValid, fitness, loadRun, saveRun, closeRun, readClosed, summary,
 } from "./run.js";
 
@@ -46,6 +47,26 @@ function slate(over = {}) {
     ],
     ...over,
   };
+}
+
+// A thing a purse may buy: flair, in one of the two slots that carry no
+// verbs. Colour rides along because a bought thing has to keep looking
+// like itself after the shop restocks.
+function item(over = {}) {
+  return {
+    id: "ashen-hood",
+    name: "ASHEN HOOD",
+    slot: "drape",
+    cost: 300,
+    color: "#7da888",
+    ...over,
+  };
+}
+
+// A run with money in it, so the shop tests are about the shop rather
+// than about being broke.
+function funded(run, purse = 1000) {
+  return applyCard(run, card({ purse, rating: 62 })).run;
 }
 
 // A certified win, three hostiles yielded and walked, nobody of ours lost.
@@ -781,6 +802,358 @@ test("pass indices climb — a duplicated pass cannot balance its way in", () =>
   dup.season.passed[1] = { ...dup.season.passed[0] };
   memoryStore({ [RUN_KEY]: JSON.stringify(dup) });
   assert.equal(loadRun(AT).how, "orphaned");
+});
+
+// ---- the purse spends ----------------------------------------------
+
+test("a fresh run has spent nothing and wears nothing", () => {
+  const r = openRun(AT);
+  assert.equal(r.spent, 0);
+  assert.deepEqual(r.bought, []);
+  assert.deepEqual(kitOf(r, "VESPER"), {}, "every hook starts empty, and an empty hook is information");
+});
+
+test("buying spends the balance and leaves the purse alone", () => {
+  // The distinction the whole field exists for: purse is what the season
+  // WON, spent is what left. A run that decremented purse could no longer
+  // say what it earned, and every card that paid for a hood would read as
+  // a card that paid for nothing.
+  const run = funded(openRun(AT), 1000);
+  const { run: after, accepted, why } = applyBuy(run, item(), "VESPER", AT);
+  assert.equal(accepted, true, why ?? "");
+  assert.equal(after.purse, 1000, "the purse still says what the season won");
+  assert.equal(after.spent, 300);
+  assert.equal(summary(after).balance, 700);
+  assert.equal(after.bought.length, 1);
+  assert.equal(after.bought[0].who, "VESPER");
+  assert.equal(after.bought[0].name, "ASHEN HOOD");
+});
+
+test("the purse will not cover it — and the refusal is a caller bug", () => {
+  // accepted:false on purpose: the room prices the stock and knows the
+  // balance, so a purchase that arrives here unaffordable means the shop
+  // offered something it should have refused at the surface. Same
+  // contract as a card dealt to an unfit roster.
+  const run = funded(openRun(AT), 200);
+  const { run: after, accepted, why } = applyBuy(run, item({ cost: 300 }), "VESPER", AT);
+  assert.equal(accepted, false);
+  assert.match(why, /purse will not cover/);
+  assert.equal(after.spent, 0, "a refused purchase spends nothing");
+  assert.deepEqual(after.bought, []);
+});
+
+test("the balance is what is left, not what was won — twice over", () => {
+  let run = funded(openRun(AT), 500);
+  run = applyBuy(run, item({ cost: 300 }), "VESPER", AT).run;
+  const second = applyBuy(run, item({ id: "chain", name: "LENGTH OF CHAIN", slot: "patch", cost: 300 }), "VESPER", AT);
+  assert.equal(second.accepted, false, "500 earned, 300 gone — the second 300 is not there");
+  assert.equal(summary(run).balance, 200);
+});
+
+test("a slot is bought once per fighter — one hook each", () => {
+  let run = funded(openRun(AT), 2000);
+  run = applyBuy(run, item(), "VESPER", AT).run;
+  const again = applyBuy(run, item({ id: "storm-cloak", name: "STORM CLOAK" }), "VESPER", AT);
+  assert.equal(again.accepted, false);
+  assert.match(again.why, /already wears a drape/);
+  // ...but the other slot, and the other fighters, are untouched
+  assert.equal(applyBuy(run, item({ id: "chain", name: "CHAIN", slot: "patch" }), "VESPER", AT).accepted, true);
+  assert.equal(applyBuy(run, item(), "KOA", AT).accepted, true);
+});
+
+test("a verb-carrying slot is not for sale — the tier boundary, enforced", () => {
+  // This is the line season-lite is DEFINED by not crossing. head, torso,
+  // legs, primary and sidearm carry verbs; a verb is roster state, and
+  // roster state reaching the yard is the doctrine change. So the refusal
+  // lives at the boundary rather than in a comment about what the shop
+  // ought to stock.
+  assert.deepEqual([...FLAIR_SLOTS], ["drape", "patch"]);
+  const run = funded(openRun(AT), 5000);
+  for (const slot of ["head", "torso", "legs", "primary", "sidearm", "", null]) {
+    assert.equal(itemValid(item({ slot })), false, `${slot} is not a flair slot`);
+    const out = applyBuy(run, item({ slot }), "VESPER", AT);
+    assert.equal(out.accepted, false, `${slot} was bought, and it must not be`);
+    assert.equal(out.run.spent, 0);
+  }
+});
+
+test("an item that is not an item is refused at the boundary", () => {
+  assert.equal(itemValid(item()), true);
+  for (const bad of [
+    item({ id: "__proto__" }),
+    item({ id: "" }),
+    item({ name: "" }),
+    item({ name: "A".repeat(25) }),
+    item({ cost: -1 }),
+    item({ cost: 1.5 }),
+    item({ cost: 999999 }),
+    item({ color: "7da888" }),      // a colour is a colour, not nearly one
+    item({ color: "#7DA888" }),     // one spelling, so a stored kit cannot have two
+    item({ color: "red" }),
+    null,
+    "ashen-hood",
+  ]) {
+    assert.equal(itemValid(bad), false, JSON.stringify(bad));
+  }
+});
+
+test("a shop's stock is validated whole, ids and all", () => {
+  const stock = [item(), item({ id: "chain", name: "CHAIN", slot: "patch", cost: 120 })];
+  assert.equal(stockValid(stock), true);
+  assert.equal(stockValid([]), false, "an empty case is not a shop");
+  assert.equal(stockValid([item(), item({ name: "OTHER HOOD" })]), false,
+    "two different items under one id makes a purchase record ambiguous");
+  assert.equal(stockValid([item(), item({ id: "rig", slot: "torso" })]), false);
+  assert.equal(stockValid({ 0: item() }), false);
+});
+
+test("a purchase needs a name and a when", () => {
+  const run = funded(openRun(AT), 1000);
+  assert.equal(applyBuy(run, item(), "", AT).accepted, false);
+  assert.equal(applyBuy(run, item(), "__proto__", AT).accepted, false,
+    "the one name that is an accessor, refused where every key here is minted");
+  assert.equal(applyBuy(run, item(), "VESPER", "").accepted, false);
+  assert.equal(applyBuy(run, item(), "VESPER", null).accepted, false);
+});
+
+test("buying moves no slate — the books still balance", () => {
+  // A purchase touches neither the position nor the clocks, which is why
+  // it needs no settling gate: there is nothing a card in flight could
+  // invalidate. The arithmetic sane() enforces on restore says so.
+  let run = openSeason(AT, slate());
+  run = funded(run, 1000);
+  const before = run.season.pos;
+  run = applyBuy(run, item(), "VESPER", AT).run;
+  assert.equal(run.season.pos, before, "the tour did not move because you bought a hood");
+  assert.equal(run.cards + run.season.passed.length, run.season.pos);
+  memoryStore({ [RUN_KEY]: JSON.stringify(run) });
+  assert.equal(loadRun(AT).how, "restored");
+});
+
+test("a purchase is stamped with where on the tour it happened", () => {
+  // Trophies have provenance (Circuit §6): the same hood bought after the
+  // Cold Court is a different object from one bought in week one, and the
+  // purchase record is the only place that can live.
+  let run = funded(openSeason(AT, slate()), 2000);
+  run = applyPass(run, AT).run;
+  run = applyBuy(run, item(), "VESPER", AT).run;
+  assert.deepEqual(run.bought[0].slate,
+    { idx: 2, venue: "LATTICE FLOOR 9", host: "lattice", sanction: null });
+});
+
+test("a plain run's purchase carries no stamp — no slate to answer to", () => {
+  const run = applyBuy(funded(openRun(AT), 1000), item(), "VESPER", AT).run;
+  assert.equal(run.bought[0].slate, undefined);
+  const grafted = JSON.parse(JSON.stringify(run));
+  grafted.bought[0].slate = { idx: 0, venue: "KESTREL YARD", host: "steel-syndicate", sanction: null };
+  memoryStore({ [RUN_KEY]: JSON.stringify(grafted) });
+  assert.equal(loadRun(AT).how, "orphaned");
+});
+
+test("applyBuy never mutates the run it was given", () => {
+  const before = funded(openRun(AT), 1000);
+  const snapshot = JSON.stringify(before);
+  const { run: after } = applyBuy(before, item(), "VESPER", AT);
+  assert.equal(JSON.stringify(before), snapshot, "the input run was modified in place");
+  assert.equal(before.spent, 0);
+  assert.equal(after.spent, 300);
+});
+
+test("the kit is derived from the ledger, never stored beside it", () => {
+  let run = funded(openRun(AT), 2000);
+  run = applyBuy(run, item(), "VESPER", AT).run;
+  run = applyBuy(run, item({ id: "chain", name: "LENGTH OF CHAIN", slot: "patch", cost: 120 }), "VESPER", AT).run;
+  run = applyBuy(run, item({ id: "storm-cloak", name: "STORM CLOAK", cost: 400 }), "KOA", AT).run;
+
+  assert.deepEqual(Object.keys(kitOf(run, "VESPER")).sort(), ["drape", "patch"]);
+  assert.equal(kitOf(run, "KOA").drape.name, "STORM CLOAK");
+  assert.deepEqual(kitOf(run, "SABLE"), {});
+
+  const s = summary(run);
+  assert.equal(s.spent, 820);
+  assert.equal(s.balance, 1180);
+  assert.deepEqual(s.kit.map(([who]) => who), ["KOA", "VESPER"], "a stable order the surface does not invent");
+  assert.equal(s.kit[1][1].drape.name, "ASHEN HOOD");
+});
+
+test("a run that wears what it never bought does not restore", () => {
+  const good = applyBuy(funded(openRun(AT), 1000), item(), "VESPER", AT).run;
+  memoryStore({ [RUN_KEY]: JSON.stringify(good) });
+  assert.equal(loadRun(AT).how, "restored", "the honest rack must still restore");
+
+  const freeHood = JSON.parse(JSON.stringify(good));
+  freeHood.spent = 0;                       // a hood on the rack that cost nothing
+
+  const overspent = JSON.parse(JSON.stringify(good));
+  overspent.spent = 5000;                   // more gone than was ever earned
+  overspent.bought[0].cost = 5000;          // books balanced, purse impossible
+
+  const twoHoods = JSON.parse(JSON.stringify(good));
+  twoHoods.bought.push({ ...twoHoods.bought[0], id: "storm-cloak" });
+  twoHoods.spent = 600;                     // balanced, and still two drapes on one body
+
+  const soldAVerb = JSON.parse(JSON.stringify(good));
+  soldAVerb.bought[0].slot = "torso";       // a verb nobody could have bought
+
+  for (const bad of [freeHood, overspent, twoHoods, soldAVerb]) {
+    memoryStore({ [RUN_KEY]: JSON.stringify(bad) });
+    assert.equal(loadRun(AT).how, "orphaned", JSON.stringify(bad.bought).slice(0, 110));
+  }
+});
+
+test("a stored purchase cannot forge the tour it was bought on", () => {
+  let good = funded(openSeason(AT, slate()), 2000);
+  good = applyPass(good, AT).run;
+  good = applyBuy(good, item(), "VESPER", AT).run;
+  good = applyBuy(good, item({ id: "chain", name: "CHAIN", slot: "patch", cost: 120 }), "VESPER", AT).run;
+  memoryStore({ [RUN_KEY]: JSON.stringify(good) });
+  assert.equal(loadRun(AT).how, "restored");
+
+  const forged = JSON.parse(JSON.stringify(good));
+  forged.bought[0].slate.venue = "FORGED HALL";
+
+  const offSlate = JSON.parse(JSON.stringify(good));
+  offSlate.bought[0].slate.idx = 31;
+
+  const regressed = JSON.parse(JSON.stringify(good));
+  regressed.bought[1].slate = { idx: 0, venue: "KESTREL YARD", host: "steel-syndicate", sanction: null };
+
+  for (const bad of [forged, offSlate, regressed]) {
+    memoryStore({ [RUN_KEY]: JSON.stringify(bad) });
+    assert.equal(loadRun(AT).how, "orphaned", JSON.stringify(bad.bought[0].slate));
+  }
+});
+
+test("a slate finished mid-run leaves later purchases unstamped, and that is terminal", () => {
+  // Once the tour is complete there is no entry to stamp with, so a
+  // purchase carries none — and nothing stamped may follow it, because
+  // the position never goes back.
+  let run = funded(openSeason(AT, slate()), 3000);
+  for (let i = 0; i < 3; i++) run = applyPass(run, AT).run;
+  assert.equal(summary(run).season.complete, true);
+  run = applyBuy(run, item(), "VESPER", AT).run;
+  assert.equal(run.bought[0].slate, undefined, "nothing left on the tour to stamp it with");
+  memoryStore({ [RUN_KEY]: JSON.stringify(run) });
+  assert.equal(loadRun(AT).how, "restored");
+
+  const resurrected = JSON.parse(JSON.stringify(run));
+  resurrected.bought.push({
+    ...resurrected.bought[0], id: "chain", slot: "patch", cost: 0,
+    slate: { idx: 0, venue: "KESTREL YARD", host: "steel-syndicate", sanction: null },
+  });
+  memoryStore({ [RUN_KEY]: JSON.stringify(resurrected) });
+  assert.equal(loadRun(AT).how, "orphaned", "the tour cannot un-complete itself");
+});
+
+test("a purse nobody won does not restore — and now it would have bought things", () => {
+  // The exact probe from beat 3's review: a hand-edited fresh season with
+  // a fat purse restored, reported the balance, and applyBuy accepted a
+  // hood out of it. `recent` is the run's own receipt, so while nothing
+  // has been evicted every total that is a sum or a count must BE it.
+  const honest = applyBuy(funded(openSeason(AT, slate()), 1000), item(), "VESPER", AT).run;
+  memoryStore({ [RUN_KEY]: JSON.stringify(honest) });
+  assert.equal(loadRun(AT).how, "restored", "the honest run must still restore");
+
+  const mintedFresh = openSeason(AT, slate());
+  mintedFresh.purse = 10000;
+
+  const forgeries = [mintedFresh];
+  for (const [field, value] of [
+    ["purse", 4321], ["cards", 2], ["wins", 0], ["struck", 3], ["unwitnessed", 1],
+  ]) {
+    const bad = JSON.parse(JSON.stringify(honest));
+    bad[field] = value;
+    forgeries.push(bad);
+  }
+  const forgedMercy = JSON.parse(JSON.stringify(honest));
+  forgedMercy.mercy = { walked: 99, finished: 0 };
+  forgeries.push(forgedMercy);
+
+  for (const bad of forgeries) {
+    memoryStore({ [RUN_KEY]: JSON.stringify(bad) });
+    assert.equal(loadRun(AT).how, "orphaned",
+      `${bad.cards} cards / ${bad.purse}c / mercy ${bad.mercy.walked}`);
+  }
+});
+
+test("a run whose history has scrolled off still restores — on the bound", () => {
+  // The counterpart, and the more important half: `recent` caps at 12, so
+  // past that the receipts are gone BY DESIGN and only the bound survives
+  // (a card can pay at most MAX_PURSE). Orphaning a long honest run would
+  // be a far worse bug than the forgery above.
+  let run = openRun(AT);
+  for (let i = 0; i < 15; i++) run = applyCard(run, card()).run;
+  assert.equal(run.cards, 15);
+  assert.equal(run.recent.length, 12, "the receipts have scrolled off");
+  memoryStore({ [RUN_KEY]: JSON.stringify(run) });
+  assert.equal(loadRun(AT).how, "restored");
+
+  const overRich = JSON.parse(JSON.stringify(run));
+  overRich.purse = 15 * 10000 + 1;   // past what 15 cards could ever have paid
+  memoryStore({ [RUN_KEY]: JSON.stringify(overRich) });
+  assert.equal(loadRun(AT).how, "orphaned");
+});
+
+test("a purchase cannot be stamped where the season has not been", () => {
+  // Both caught in review, beat 3. applyBuy stamps the CURRENT position
+  // and the position only climbs, so a stamp in the future is impossible —
+  // and an unstamped purchase means the tour was over, which is terminal.
+  let good = funded(openSeason(AT, slate()), 2000);
+  good = applyBuy(good, item(), "VESPER", AT).run;
+  memoryStore({ [RUN_KEY]: JSON.stringify(good) });
+  assert.equal(loadRun(AT).how, "restored");
+
+  const fromTheFuture = JSON.parse(JSON.stringify(good));
+  fromTheFuture.bought[0].slate = {
+    idx: 2, venue: "LATTICE FLOOR 9", host: "lattice", sanction: null,
+  };
+
+  const noTourYet = JSON.parse(JSON.stringify(good));
+  delete noTourYet.bought[0].slate;   // unstamped, on a slate with entries left
+
+  for (const bad of [fromTheFuture, noTourYet]) {
+    memoryStore({ [RUN_KEY]: JSON.stringify(bad) });
+    assert.equal(loadRun(AT).how, "orphaned", JSON.stringify(bad.bought[0].slate ?? null));
+  }
+});
+
+test("a card cannot be stamped where the season has not been either", () => {
+  const good = applyCard(openSeason(AT, slate()), card()).run;
+  const fromTheFuture = JSON.parse(JSON.stringify(good));
+  fromTheFuture.recent[0].slate = {
+    idx: 3, venue: "THE DRAIN", host: "ghost-networks", sanction: null,
+  };
+  memoryStore({ [RUN_KEY]: JSON.stringify(fromTheFuture) });
+  assert.equal(loadRun(AT).how, "orphaned");
+});
+
+test("a stored record cannot smuggle a field this module never writes", () => {
+  // A purchase carrying `verb` is Tier 2 roster state sitting inside a
+  // Tier 1 run — shaped like flair, and not flair (caught in review).
+  const good = applyBuy(funded(openRun(AT), 1000), item(), "VESPER", AT).run;
+  const armed = JSON.parse(JSON.stringify(good));
+  armed.bought[0].verb = "dash";
+
+  const richCard = JSON.parse(JSON.stringify(good));
+  richCard.recent[0].roster = ["VESPER", "KOA"];
+
+  for (const bad of [armed, richCard]) {
+    memoryStore({ [RUN_KEY]: JSON.stringify(bad) });
+    assert.equal(loadRun(AT).how, "orphaned");
+  }
+});
+
+test("closing archives the rack whole, and the fresh run wears nothing", () => {
+  const box = memoryStore();
+  let run = applyBuy(funded(openSeason(AT, slate()), 1000), item(), "VESPER", AT).run;
+  const { run: fresh, archived } = closeRun(run, AT);
+  assert.equal(archived, true);
+  const closed = readClosed();
+  assert.equal(closed.spent, 300);
+  assert.equal(closed.bought[0].name, "ASHEN HOOD");
+  assert.equal(fresh.spent, 0);
+  assert.deepEqual(fresh.bought, [], "the kit belongs to the run that bought it");
+  assert.ok(box[CLOSED_KEY].includes("ASHEN HOOD"));
 });
 
 test("summary carries the season's numbers, and null for a plain run", () => {
