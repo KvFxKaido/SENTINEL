@@ -283,10 +283,22 @@ check(refiled.body.id === filed.body.id && refiled.body.existing === true &&
       countAfterSecond === countAfterFirst,
   `refiling is state-idempotent: same id, original filed_at kept, count stays ${countAfterSecond}`);
 
-const listing = (await getJson("/matches")).body;
-const mine = listing.matches.find(m => m.id === filed.body.id);
-check(!!mine && mine.rating === local.rating && mine.result === local.result,
-  `archive lists the match with its metadata: rating=${mine?.rating} result=${mine?.result}`);
+// KV's LIST is eventually consistent, unlike the direct key read below:
+// against the simulated namespace a freshly filed match is listed
+// immediately, and against production it took ~4s (caught running this
+// against the live edge after a deploy). Polling the listing is the
+// honest shape — the claim is "it gets listed", not "it is listed within
+// one round trip", and asserting the latter would make this red at
+// random on the real archive.
+let mine = null;
+for (let i = 0; i < 15 && !mine; i++) {
+  const listing = (await getJson("/matches")).body;
+  mine = listing.matches.find(m => m.id === filed.body.id) ?? null;
+  if (!mine) await new Promise(r => setTimeout(r, 1000));
+}
+check(!!mine && mine.rating === local.rating && mine.result === local.result
+      && mine.rosterHash === cert.body.rosterHash,
+  `archive lists the match with its metadata: rating=${mine?.rating} result=${mine?.result} roster=${mine?.rosterHash}`);
 
 const fetched = (await getJson(`/matches/${filed.body.id}`)).body;
 check(JSON.stringify(fetched.record) === JSON.stringify(local.record) &&
