@@ -78,6 +78,25 @@ seasonal crosses the seam — the yard is dealt exactly what it was always
 dealt. A stored plain run stays plain; a stored season keeps its own
 slate even if the house slate has since changed.
 
+And since the kit table (2026-08-13) the purse **spends**. A prop against
+the south wall — the opposite pole from the north door — sells flair, and
+only flair: run-core's `FLAIR_SLOTS` is drape and patch, the two slots the
+Circuit's gear table calls mechanically inert, so the shop cannot stock a
+verb even by accident. Standing at the table opens it (`1`–`4` buy, `Z`
+chooses who wears it); walking away closes it. Purchases are permanent,
+one slot per fighter, and each one is stamped with where on the tour it
+happened — unless the tour is already over, when there is nothing left to
+stamp it with. Purse stays what the season *won* and the balance is what is
+left of it, because one number cannot honestly say both. The rack on the
+table is the physical half — one hook per fighter per slot, in the
+panel's stated order — and the empty hooks are the point: absence carries
+information. What the room does **not** do is put the hood on the body;
+drape and patch become sprite layers when the gear pipeline says so, and
+tinting a composed sheet to fake one would be the renderer claiming a
+pixel nobody authored. Nothing bought crosses the seam — the round-trip
+harness deals a card from a dressed room and asserts the yard's URL is
+byte-identical to the bare room's.
+
 Since the convergence (2026-08-01) the same **body** crosses too. Both
 surfaces load the molded pack sheets from `assets/sprites/<fighter>/`, so
 a fighter does not change species at the door — which is also why the

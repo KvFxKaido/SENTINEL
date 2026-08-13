@@ -65,6 +65,41 @@
    passed. Same reasoning as the rules stamp sitting below the struck
    return: what the edge disputed does not get to move the season.
 
+   ---- The purse spends (season-lite) --------------------------------
+
+   Purse stopped being a scoreboard the moment there was somewhere to
+   spend it. A run now carries what it has BOUGHT, and the only thing
+   it is allowed to buy is flair.
+
+   That is not a content decision, it is the tier boundary, and this
+   module is where it stops being a promise. `sentinel_circuit_design.md`
+   splits gear by slot: head, torso, legs, primary and sidearm carry
+   VERBS; drape and patch carry none, by law, because "the two most
+   socially loud slots being mechanically silent makes cosmetic power
+   creep impossible by architecture instead of by discipline". A verb
+   is roster state the yard would have to be told about, and roster
+   state crossing the door is the doctrine change season-lite exists
+   NOT to make. So FLAIR_SLOTS is the whole shop, and an item declaring
+   any other slot is refused at this boundary — the same refusal a
+   malformed card gets, for a much bigger reason.
+
+   Nothing bought crosses the seam either. The yard is dealt a seed and
+   nothing else; a fighter in a new hood fights precisely the card they
+   would have fought naked, and the witness certifies exactly what it
+   certified yesterday.
+
+   Purse is kept as TOTAL EARNED and spending is tracked beside it, so
+   the balance is derived rather than stored. A run that decremented
+   purse could not tell you what it had won — the season's headline
+   number would quietly become "what you have left", and every card that
+   paid for a hood would look like a card that never paid at all.
+
+   A purchase is permanent and a slot is bought once per fighter. There
+   is no resale, because the point of the register is history: "the
+   squad you dress is the squad you protect", and gear you can liquidate
+   for the purse back is inventory, not history. An empty hook is
+   information too — it says you never bought one.
+
    ---- What counts ---------------------------------------------------
 
    Inherited verbatim from the session ledger this replaces, because
@@ -88,11 +123,13 @@
    ARCHIVE instead of CAREER.
    ============================================================ */
 
-// 2: the season joined the schema (slate, clocks, passes). A stored v1
-// run takes the orphan path below — moved aside and said so, exactly the
-// situation that path was built and tested for. Hydrating a v1 run with
-// an empty season in place would be a silent migration wearing a default.
-export const RUN_V = 2;
+// 2: the season joined the schema (slate, clocks, passes).
+// 3: the purse joined it (spent, bought). A stored run of any older
+// version takes the orphan path below — moved aside and said so, exactly
+// the situation that path was built and tested for. Hydrating a v2 run
+// with an empty kit in place would be a silent migration wearing a
+// default, same as it was one version ago.
+export const RUN_V = 3;
 // The live key is deliberately NOT versioned. It used to be
 // `sentinel.run.v${RUN_V}`, which made the orphan path below unreachable
 // in the only situation it exists for: bumping RUN_V to 2 would point
@@ -123,12 +160,28 @@ const RECENT = 12;         // cards kept in full on the run; older ones are tota
 const MAX_SLATE = 32;      // entries per season slate — a tour, not a calendar
 const MAX_VENUE = 24;      // a venue name is a sign, not a paragraph
 const MAX_CLOCK = 16;      // sanity bound for a stored clock, not the tuning
+const MAX_LABEL = 24;      // an item's name is a label on a hook, not a paragraph
+const MAX_STOCK = 12;      // items a shop may offer at once — a case, not a catalogue
+const MAX_BOUGHT = 24;     // purchases per run — a rack, not a warehouse
 
 // How many slate positions a down fighter recovers for. This is the
 // number the season doc says wants the lite prototype rather than the
 // doc — tune it here, in one place, when play says so (open question 2:
 // recovery economics).
 export const WOUND_CLOCK = 2;
+
+/* The entire shop, and the reason it is short. `sentinel_circuit_design.md`
+   sorts gear slots by whether they carry VERBS: head (sensing), torso
+   (defense, sponsor rigs), legs (movement), primary (ammo) and sidearm
+   all do; drape and patch are "mechanically inert by law". A verb is
+   roster state, and roster state reaching the yard is the doctrine change
+   this tier is defined by not making — so these two are what a purse may
+   buy, and every other slot is a Tier 2 item wearing a lite item's shape.
+
+   Frozen because it is law rather than configuration: a caller that could
+   push "torso" onto this array could buy a verb, which is the one thing
+   the boundary below exists to refuse. */
+export const FLAIR_SLOTS = Object.freeze(["drape", "patch"]);
 
 // ---- storage binding ---------------------------------------------
 // Inert by default, exactly like the rules core's io: this module is
@@ -162,6 +215,8 @@ export function openRun(at) {
     drift: null,        // { from, to, at } once the stamp changes mid-run
     recent: [],         // newest first, capped at RECENT
     season: null,       // a slate, a position, clocks — or null: a plain run
+    spent: 0,           // of the purse, on flair. purse stays TOTAL EARNED
+    bought: [],         // the rack, in the order it filled
   };
 }
 
@@ -267,6 +322,18 @@ const stampValid = st =>
   st !== null && typeof st === "object"
   && intIn(st.idx, 0, MAX_SLATE - 1)
   && entryValid(st);
+
+/* A stored record must carry EXACTLY the fields this module writes. The
+   field checks above say the required ones are right; this says nothing
+   else rode along. It matters most on a purchase: one that restored
+   carrying `verb: "dash"` would be Tier 2 roster state sitting inside a
+   Tier 1 run, which is the boundary this whole register exists to hold
+   (caught in review). Cards get the same treatment for the same reason —
+   storage is one editable blob, not two. */
+const CARD_KEYS = ["seed", "result", "rating", "purse", "cert",
+  "walked", "finished", "down", "at", "slate"];
+const BOUGHT_KEYS = ["id", "name", "slot", "color", "who", "cost", "at", "slate"];
+const onlyKeys = (obj, allowed) => Object.keys(obj).every(k => allowed.includes(k));
 
 // Framing equality against the authored entry. Restore uses this to
 // enforce what the reducers wrote: every stamp and every pass carries
@@ -470,6 +537,116 @@ export function applyPass(run, at) {
   return { run: next, accepted: true, why: null };
 }
 
+/* ---- the shop -----------------------------------------------------
+   Authored data again, validated at the same boundary and for the same
+   reason as the slate: the run has to survive a catalogue it did not
+   write. `color` rides along because a bought thing has to keep looking
+   like itself — the shop restocks, the run does not, and a hood that
+   changed colour when the house catalogue changed would be the surface
+   rewriting history to match the present. Same rule as the slate a
+   restored season keeps: what you bought is what you own. */
+export function itemValid(item) {
+  if (!item || typeof item !== "object") return false;
+  if (!isName(item.id)) return false;
+  if (typeof item.name !== "string" || item.name.length < 1 || item.name.length > MAX_LABEL) return false;
+  // The law, enforced rather than asserted: any slot that carries verbs is
+  // Tier 2 roster state, and this module does not sell roster state.
+  if (!FLAIR_SLOTS.includes(item.slot)) return false;
+  if (!intIn(item.cost, 0, MAX_PURSE)) return false;
+  if (typeof item.color !== "string" || !/^#[0-9a-f]{6}$/.test(item.color)) return false;
+  return true;
+}
+
+/* A shop's whole stock, for a surface that wants to validate at boot the
+   way the room validates its slate. Ids must be unique: two different
+   items under one id makes a purchase record ambiguous about what was
+   actually bought. */
+export function stockValid(stock) {
+  if (!Array.isArray(stock)) return false;
+  if (stock.length < 1 || stock.length > MAX_STOCK) return false;
+  if (!stock.every(itemValid)) return false;
+  return new Set(stock.map(i => i.id)).size === stock.length;
+}
+
+/* What a fighter is wearing, derived from the purchase ledger rather than
+   stored beside it. One array is the record AND the kit; two would be two
+   things that can disagree, and the disagreement would be invisible
+   (a rack showing a hood the ledger never bought). */
+export function kitOf(run, who) {
+  const worn = {};
+  if (!run || !Array.isArray(run.bought)) return worn;
+  for (const b of run.bought) if (b.who === who) worn[b.slot] = b;
+  return worn;
+}
+
+/* ---- buying -------------------------------------------------------
+   The third verb, and the only one that touches neither the slate nor
+   the card. That is worth saying out loud: a purchase cannot be
+   invalidated by a card still settling at the edge, because it spends
+   money that is already banked and moves nothing a settlement will
+   move. Closing refuses mid-settlement and passing refuses
+   mid-settlement; buying does not need to, and the room should not
+   invent a gate this module does not have.
+
+   Returns {run, accepted, why} — no `counted`, same as applyPass: there
+   is no edge verdict to count. Both refusals are accepted:false because
+   the SURFACE is the gate. The room prices the stock, knows the balance,
+   and knows what each fighter already wears; a purchase that arrives
+   here unaffordable or into a filled slot means the shop offered
+   something it should have refused, which is a caller bug in exactly the
+   sense the two-negatives contract means. */
+export function applyBuy(run, item, who, at) {
+  if (!run || run.v !== RUN_V) {
+    return { run, accepted: false, why: "run is not this schema version" };
+  }
+  if (!itemValid(item)) {
+    return { run, accepted: false, why: "that is not a thing a purse may buy" };
+  }
+  // Not checked against a roster, because this module has no roster and
+  // inventing one would be it deciding who exists. The room holds the
+  // squad; what this can check is that the name is a name — the same
+  // check every other dictionary key here is minted through, `__proto__`
+  // included.
+  if (!isName(who)) {
+    return { run, accepted: false, why: "that is not a fighter this run can dress" };
+  }
+  if (typeof at !== "string" || !at) {
+    return { run, accepted: false, why: "a purchase needs to know when it happened" };
+  }
+  if (run.bought.length >= MAX_BOUGHT) {
+    return { run, accepted: false, why: "the rack is full" };
+  }
+  if (kitOf(run, who)[item.slot]) {
+    return { run, accepted: false, why: `${who} already wears a ${item.slot}` };
+  }
+  if (item.cost > run.purse - run.spent) {
+    return { run, accepted: false, why: "the purse will not cover it" };
+  }
+
+  const next = { ...run, bought: run.bought.slice() };
+  const record = {
+    id: item.id,
+    name: item.name,
+    slot: item.slot,
+    color: item.color,
+    who,
+    cost: item.cost,
+    at,
+  };
+  // Where on the tour it was bought, from the run's OWN slate — the same
+  // stamp a card carries, for the same reason. Trophies have provenance
+  // in grades (Circuit §6): a hood bought after the Cold Court is a
+  // different object from the same hood bought in week one, and the only
+  // place that fact can live is the record of the purchase.
+  if (next.season) {
+    const e = slateEntry(next.season);
+    if (e) record.slate = { idx: next.season.pos, venue: e.venue, host: e.host, sanction: e.sanction };
+  }
+  next.bought = [...next.bought, record];
+  next.spent += item.cost;
+  return { run: next, accepted: true, why: null };
+}
+
 /* ---- reading a stored run ----------------------------------------
    Three outcomes, all of them named, none of them silent:
 
@@ -535,14 +712,73 @@ function sane(r) {
   if (!Array.isArray(r.recent) || r.recent.length > RECENT) return false;
   if (!r.recent.every(c =>
     c && typeof c === "object"
+    && onlyKeys(c, CARD_KEYS)
     && typeof c.seed === "string"
     && (c.result === "win" || c.result === "loss")
     && intIn(c.rating, 0, MAX_RATING)
     && intIn(c.purse, 0, MAX_PURSE)
     && ["certified", "unwitnessed", "struck"].includes(c.cert)
+    // bounded because the mercy ledger is re-derived from them below —
+    // a card carrying a string here would make that sum garbage
+    && intIn(c.walked, 0, MAX_SIDE) && intIn(c.finished, 0, MAX_SIDE)
     && Array.isArray(c.down) && c.down.every(isName)
     && (c.slate === undefined || stampValid(c.slate))
   )) return false;
+  /* The totals are not free-floating either, and since there is now
+     somewhere to SPEND them, a forged purse is forged money — a
+     hand-edited fresh run with `purse: 10000` used to restore and buy a
+     hood with it (caught in review, beat 3).
+
+     `recent` is the run's own receipt for everything it claims. Every
+     applyCard pushes exactly one entry, banked or struck, so `cards +
+     struck === recent.length` is precisely "nothing has scrolled off" —
+     and while that holds, every total that is a sum or a count must BE
+     that sum or count.
+
+     Not `recent.length < RECENT`, which was the first cut: a run of
+     exactly RECENT cards has evicted nothing either, and testing the
+     buffer's fullness instead of its completeness dropped that run into
+     the loose branch — where a hand-edited purse restored and became
+     spendable balance, the exact hole this check exists to close (caught
+     by BOTH review bots, independently).
+
+     Once events really have scrolled off, the receipts for them are gone
+     by design and the totals cannot be re-derived. What is still visible
+     is a FLOOR, and each vanished card can have paid at most MAX_PURSE —
+     which also means inflating `cards` to buy headroom for a forged purse
+     buys exactly MAX_PURSE per claimed card, not a free pass. A run that
+     claims a hundred cards can claim the purse of a hundred cards; that
+     is the honest limit of what a 12-entry receipt can prove, and this
+     says so rather than pretending otherwise.
+
+     `best`, `streak` and `longest` are order-derived rather than summed
+     and stay on their existing bounds — they can be lied about, but a lie
+     there buys nothing. */
+  const banked = r.recent.filter(c => c.cert !== "struck");
+  const sum = (list, of) => list.reduce((n, c) => n + of(c), 0);
+  const wins = banked.filter(c => c.result === "win").length;
+  const unwitnessed = banked.filter(c => c.cert === "unwitnessed").length;
+  if (r.cards + r.struck === r.recent.length) {
+    if (banked.length !== r.cards) return false;
+    if (wins !== r.wins) return false;
+    if (unwitnessed !== r.unwitnessed) return false;
+    if (sum(banked, c => c.purse) !== r.purse) return false;
+    // The mercy ledger is the run's actual thesis, so it gets the same
+    // treatment: a forged rate buys nothing, but it is a lie about who
+    // you have been, which is worse than a lie about money.
+    if (sum(banked, c => c.walked) !== r.mercy.walked) return false;
+    if (sum(banked, c => c.finished) !== r.mercy.finished) return false;
+  } else {
+    // The only way an event can be missing is the buffer being full.
+    if (r.cards + r.struck <= RECENT || r.recent.length !== RECENT) return false;
+    const gone = r.cards - banked.length;
+    if (gone < 0) return false;
+    if (r.purse > sum(banked, c => c.purse) + gone * MAX_PURSE) return false;
+    if (r.wins < wins || r.unwitnessed < unwitnessed) return false;
+    if (r.struck < r.recent.length - banked.length) return false;
+    if (r.mercy.walked < sum(banked, c => c.walked)) return false;
+    if (r.mercy.finished < sum(banked, c => c.finished)) return false;
+  }
   // The season, when there is one, all the way in — same reasoning as the
   // collections above: every field here reaches the room's surface or
   // gates its door.
@@ -571,8 +807,15 @@ function sane(r) {
     // stamped by applyCard, so a season card with no stamp, a stamp off
     // the real slate, or framing the slate never said is storage talking,
     // not this module.
+    // ...including WHEN: a stamp records the position the card was fought
+    // at, and the position only ever climbs, so a record stamped at an
+    // entry the season has not reached yet is not something this module
+    // could have written (caught in review, beat 3). A banked card stamps
+    // below the current position and a struck one stamps at it, so the
+    // bound is `<= pos` for both.
     if (!r.recent.every(c => c.slate
       && intIn(c.slate.idx, 0, entries.length - 1)
+      && c.slate.idx <= s.pos
       && sameFraming(c.slate, entries[c.slate.idx]))) return false;
     if (!s.clocks || typeof s.clocks !== "object" || Array.isArray(s.clocks)) return false;
     if (!Object.keys(s.clocks).every(isName)) return false;
@@ -587,6 +830,62 @@ function sane(r) {
     // And a plain run's cards carry no stamp at all — a stamp with no
     // slate to answer to is unfalsifiable, so it does not restore.
     if (!r.recent.every(c => c.slate === undefined)) return false;
+  }
+  // The rack, all the way in, same as everything else that reaches a
+  // surface. A stored purchase is the one record here that can move
+  // MONEY on restore, so its books are checked rather than trusted.
+  if (!Number.isInteger(r.spent) || r.spent < 0) return false;
+  if (!Array.isArray(r.bought) || r.bought.length > MAX_BOUGHT) return false;
+  // itemValid covers id, name, slot, cost and colour — including the slot
+  // law, so a stored purchase of a TORSO rig orphans the run rather than
+  // restoring a verb nobody could have bought.
+  if (!r.bought.every(b => b && typeof b === "object"
+    && onlyKeys(b, BOUGHT_KEYS)
+    && itemValid(b)
+    && isName(b.who)
+    && typeof b.at === "string" && b.at.length > 0)) return false;
+  // A slot is bought once per fighter, so a run wearing two drapes on one
+  // body was not written by applyBuy — and the derived kit would silently
+  // pick one of them and drop the other, which is money on the record
+  // with nothing on the rack to show for it.
+  const hooks = r.bought.map(b => `${b.who} ${b.slot}`);
+  if (new Set(hooks).size !== hooks.length) return false;
+  // The purse's own arithmetic, the same way the slate's position is
+  // checked against cards+passes: `spent` IS the sum of the rack, and a
+  // run whose books do not balance is storage talking. And you cannot
+  // have spent what you never earned.
+  if (r.bought.reduce((n, b) => n + b.cost, 0) !== r.spent) return false;
+  if (r.spent > r.purse) return false;
+  if (r.season !== null) {
+    const entries = r.season.slate.entries;
+    // A purchase is stamped when there was an entry to stamp it with, so
+    // an unstamped one means the tour was already complete — which is
+    // terminal, and therefore nothing stamped may follow it, and the
+    // slate must still be complete NOW. Where a stamp exists it is bound
+    // to the authored slate exactly as a card's is, it never points past
+    // where the season has got to, and the indices never regress, because
+    // the position never does.
+    let last = -1;
+    let ended = false;
+    for (const b of r.bought) {
+      if (b.slate === undefined) { ended = true; continue; }
+      if (ended) return false;
+      if (!stampValid(b.slate)) return false;
+      if (b.slate.idx > entries.length - 1) return false;
+      if (b.slate.idx > r.season.pos) return false;
+      if (!sameFraming(b.slate, entries[b.slate.idx])) return false;
+      if (b.slate.idx < last) return false;
+      last = b.slate.idx;
+    }
+    // An unstamped purchase can only exist on a tour that is over, and a
+    // tour that is over stays over (caught in review, beat 3: one on a
+    // half-finished slate restored fine, claiming a purchase applyBuy
+    // could not have made).
+    if (ended && r.season.pos !== entries.length) return false;
+  } else {
+    // Same as a plain run's cards: a stamp with no slate to answer to is
+    // unfalsifiable, so it does not restore.
+    if (!r.bought.every(b => b.slate === undefined)) return false;
   }
   if (r.rules !== null && typeof r.rules !== "string") return false;
   if (r.drift !== null && (typeof r.drift !== "object"
@@ -644,10 +943,27 @@ export function summary(run) {
     .filter(([, n]) => n > 0)
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   const f = fitness(run);
+  // The rack, grouped by who wears it and sorted so the surface renders a
+  // stable order without inventing one. A Map, not an object literal:
+  // isName already refuses "__proto__", and this keeps the derivation from
+  // depending on that being true twice.
+  const byWho = new Map();
+  for (const b of run.bought) {
+    if (!byWho.has(b.who)) byWho.set(b.who, {});
+    byWho.get(b.who)[b.slot] = b;
+  }
+  const kit = [...byWho.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   return {
     cards: run.cards,
     record: `${run.wins}–${losses}`,
     purse: run.purse,
+    spent: run.spent,
+    // What a purse can actually be spent on right now. Derived, never
+    // stored: purse stays total earned, so the season can still say what
+    // it won after the money is gone.
+    balance: run.purse - run.spent,
+    bought: run.bought,
+    kit,
     best: run.best,
     streak: run.streak,
     longest: run.longest,

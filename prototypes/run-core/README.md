@@ -105,6 +105,75 @@ closing stays the player's verb, and it archives the season whole; the
 fresh run that opens is a plain one. A new season is opened, not
 inherited.
 
+## The purse spends (season-lite)
+
+Purse stopped being a scoreboard the moment there was somewhere to spend
+it. A run carries what it has **bought**, and the only thing it can buy
+is flair.
+
+**That is the tier boundary, and this is where it stops being a
+promise.** `sentinel_circuit_design.md` sorts gear slots by whether they
+carry *verbs*: head (sensing), torso (defense, where sponsor rigs
+mount), legs (movement), primary (ammo) and sidearm all do — drape and
+patch are "mechanically inert by law", because "the two most socially
+loud slots being mechanically silent makes cosmetic power creep
+impossible by architecture instead of by discipline". A verb is roster
+state the yard would have to be told about, and roster state crossing
+the door is the doctrine change season-lite is defined by *not* making.
+
+So `FLAIR_SLOTS` is the whole shop, and an item declaring any other slot
+is refused at this boundary — the same refusal a malformed card gets,
+for a much larger reason. A stored purchase of a torso rig orphans the
+run rather than restoring a verb nobody could have bought.
+
+**Purse stays total earned.** Spending is tracked beside it and the
+balance is derived, because a run that decremented purse could no longer
+say what it *won* — the season's headline number would quietly become
+"what you have left", and every card that paid for a hood would read as
+a card that paid for nothing.
+
+**A purchase is permanent, and a slot is bought once per fighter.**
+There is no resale: the point of the register is history — *the squad you
+dress is the squad you protect* — and gear you can liquidate back into
+the purse is inventory, not history. An empty hook is information too. It
+says you never bought one.
+
+**A purchase moves no slate.** Only cards and passes move the position,
+so a purchase needs no settling gate: closing and passing both refuse
+while a card is in flight because both would move something the
+settlement is about to move, and a purchase spends money that is already
+banked. It is stamped with where on the tour it happened, the same way a
+card is — trophies have provenance, and the same hood bought after the
+Cold Court is a different object from one bought in week one. The one
+exception is a tour that is already **over**: there is no entry left to
+stamp with, so the purchase carries none, and that absence is terminal —
+nothing stamped may follow it, and restore checks that the slate really
+is complete.
+
+**The books balance here too.** `spent` *is* the sum of the rack, and
+never more than the purse; two drapes on one fighter, a free hood, a
+purchase stamped off the authored slate, or one stamped at a position
+the season has not reached all orphan on restore. A stored purchase
+must also carry *exactly* the fields this module writes — one that
+arrived with a `verb` on it would be Tier 2 roster state sitting inside
+a Tier 1 run.
+
+**And the purse itself is checked, now that it buys things.** `recent`
+is the run's own receipt, and every card pushes exactly one entry, so
+`cards + struck === recent.length` is precisely *nothing has scrolled
+off* — while that holds, every total that is a sum or a count must *be*
+that sum or count: cards, wins, struck, unwitnessed, purse, and the mercy
+ledger. A hand-edited fresh run with `purse: 10000` used to restore and
+buy a hood with it.
+
+Not "the buffer is not full", which was the first cut and is a different
+claim: a run of exactly 12 cards has evicted nothing either, and testing
+fullness dropped it into the loose branch one card above where the hole
+was closed. Once entries really have scrolled off, what is left is a
+**floor** — the visible receipts, plus at most `MAX_PURSE` for each card
+that vanished. A run claiming a hundred cards can claim a hundred cards'
+purse; that is the honest limit of what a twelve-entry receipt proves.
+
 ## What counts
 
 Inherited verbatim from the session ledger this replaced — the policy was
@@ -223,7 +292,7 @@ forgetting at the end of it.
 ## Shape of the interface
 
 ```
-RUN_V, RUN_KEY, CLOSED_KEY, ORPHAN_KEY, WOUND_CLOCK
+RUN_V, RUN_KEY, CLOSED_KEY, ORPHAN_KEY, WOUND_CLOCK, FLAIR_SLOTS
 
 bindStore({read, write, remove})   host supplies storage; inert default
 openRun(at)                        a fresh run — `at` is injected, never read
@@ -234,6 +303,12 @@ slateValid(slate)                  the boundary check for authored slates
 applyCard(run, card)               → {run, accepted, counted, why}; pure
 applyPass(run, at)                 → {run, accepted, why}; decline the current
                                      entry — advance the slate and every clock
+applyBuy(run, item, who, at)       → {run, accepted, why}; spend the balance on
+                                     flair, permanently, one slot per fighter
+itemValid(item) / stockValid(…)    the boundary checks for authored stock —
+                                     where FLAIR_SLOTS stops being a promise
+kitOf(run, who)                    what one fighter wears, derived from the
+                                     purchase ledger rather than stored twice
 cardValid(card)                    the boundary check, exported for callers
 fitness(run)                       → {fit, clocks}; may the deal happen — the
                                      door and the surface get the same answer
@@ -250,11 +325,19 @@ summary(run)                       every number the surface renders
 pass is the run's own act; nothing about it can be disputed, so the
 two-negatives distinction has nothing to distinguish.
 
-`RUN_V` is 2: the season joined the schema. A stored v1 run takes the
-orphan path below — moved aside and said so, which is the exact
-situation that path was built and tested for. Hydrating a v1 run with an
-empty season in place would have been a silent migration wearing a
-default.
+`applyBuy` returns no `counted` either, for the same reason: a purchase
+is the run's own act and the edge never sees it. Both of its refusals are
+`accepted:false` because the **surface** is the gate — the shop prices
+the stock, knows the balance, and knows what each fighter already wears,
+so an unaffordable purchase arriving here means the room offered
+something it should have refused.
+
+`RUN_V` is 3: the season joined the schema at 2, the purse at 3. A stored
+run of any older version takes the orphan path below — moved aside and
+said so, which is the exact situation that path was built and tested for.
+Hydrating a v2 run with an empty kit in place would have been a silent
+migration wearing a default, the same as it would have been one version
+ago.
 
 `saveRun`'s return value is not decoration — the room raises a standing
 warning when a write fails after the probe passed, because a panel

@@ -23,6 +23,10 @@ import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+// Fixtures are built with the module the room consumes, so a seeded run
+// is a run this schema actually produces rather than a hand-typed blob
+// that happens to restore.
+import { openSeason, applyCard } from "../../run-core/run.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..", "..");
@@ -333,6 +337,77 @@ try {
   check("the unwritable page says the run is not persisted",
     /NOT PERSISTED/.test(stuckPanel), stuckPanel);
   await page.evaluate(() => localStorage.removeItem("sentinel.test.dropOrphan"));
+
+  // ---- nothing bought crosses the door -------------------------------
+  // Beat 3 of season-lite. The purse spends in the room, on flair, and
+  // the whole tier boundary rests on that purchase being invisible to
+  // the yard: `seed + record IS the match`, and a fighter in a new hood
+  // has to fight precisely the card they would have fought naked.
+  //
+  // Executed rather than argued. ?deal=6 pins the seed, so a crossing
+  // from a DRESSED room must produce the byte-identical iframe URL the
+  // bare room produced at the top of this file — same seed, same body,
+  // nothing appended. This suite is the only place both surfaces are
+  // alive at once, which makes it the only place that claim can be run.
+  const SHOP_TOUR = {
+    id: "purse-tour",
+    entries: [
+      { venue: "KESTREL YARD", host: "steel-syndicate", sanction: "steel-syndicate" },
+      { venue: "THE COLD COURT", host: "covenant", sanction: "covenant" },
+    ],
+  };
+  const funded = applyCard(openSeason("2026-08-13T00:00:00Z", SHOP_TOUR), {
+    seed: "a", result: "win", rating: 30, purse: 300,
+    ledger: { walked: 0, finished: 0, lost: 0 }, down: [], cert: "certified",
+    rules: "test-rules", at: "2026-08-13T00:00:00Z",
+  });
+  if (!funded.accepted) throw new Error(`purse fixture refused: ${funded.why}`);
+  await page.evaluate(value => {
+    localStorage.clear();
+    localStorage.setItem("sentinel.run", JSON.stringify(value));
+  }, funded.run);
+  await page.goto(ROOM_URL);
+  await page.waitForFunction(() =>
+    ["ready", "error"].includes(document.getElementById("cv").dataset.sprites),
+    null, { timeout: 20000 });
+
+  // The shop is a place: walk to it, never a key from across the room.
+  // Waiting on the room's own published state, never on a sleep. A is the
+  // south-west diagonal in this camera-relative 2:1 view, which runs from
+  // the spawn straight at the table — the same reason the door walk takes
+  // W+D rather than W alone.
+  await page.keyboard.down("KeyA");
+  const reached = await page.waitForFunction(() =>
+    document.getElementById("cv").dataset.shop === "at",
+    null, { timeout: 30000 }).then(() => true, () => false);
+  await page.keyboard.up("KeyA");
+  check("the body reaches the kit table", reached, await page.evaluate(() =>
+    document.getElementById("cv").dataset.position));
+  await page.keyboard.press("Digit3");
+  const dressed = await page.evaluate(() => document.getElementById("cv").dataset.worn);
+  check("the purse buys flair in the room",
+    dressed === "VESPER/patch/length-of-chain", dressed);
+
+  await page.keyboard.down("KeyW");
+  await page.keyboard.down("KeyD");
+  const dealtDressed = await page.waitForFunction(() =>
+    !!document.getElementById("seamframe"),
+    null, { timeout: 30000 }).then(() => true, () => false);
+  await page.keyboard.up("KeyW");
+  await page.keyboard.up("KeyD");
+  check("a dressed squad still gets a card dealt", dealtDressed);
+  if (dealtDressed) {
+    const dressedSrc = await page.getAttribute("#seamframe", "src");
+    check("the dressed room deals the yard exactly what the bare room dealt",
+      dressedSrc === seamSrc, `${dressedSrc} vs ${seamSrc}`);
+    // ...and the framing on the cut still comes from the run's OWN slate,
+    // which is the beat-2 half of the same sentence: what crosses the
+    // seam is a seed, and everything else is the room talking.
+    const dressedCut = (await page.textContent("#seamcut")).replace(/\s+/g, " ").trim();
+    check("the cut is framed by the restored run's own slate",
+      /THE COLD COURT/.test(dressedCut) && /SANCTIONED BY COVENANT/.test(dressedCut),
+      dressedCut);
+  }
 
   // ---- the seam carries the OTHER body too ---------------------------
   // A seam that always forwarded render96 would pass everything above, and
