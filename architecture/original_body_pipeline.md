@@ -360,6 +360,44 @@ this one: a re-roll that made the walk cleaner could easily spend the
 thing the designer actually liked. The run is the strip with a re-roll
 banked against it (~4 gens, above). The walk has none, on purpose.
 
+**MEASURED (2026-08-14, `scripts/gait_check.py`): the run's defect is one
+number, and it is a TEMPLATE property rather than a bad roll.** The body
+turns partway through its own cycle. Torso width — the widest span of the
+upper 45% of the body — is narrow in profile and wide facing camera, so a
+strip whose torso width steps mid-cycle is a body that rotated:
+
+```
+cipher run right   13 13 13 13  16 16 16  13    <- steps to 16 for frames 4-6
+cipher walk right  12 12 12 12  12 13 13  12    <- never moves more than 1px
+```
+
+Across the whole render roster: **idle 20/20 hold within 1px, walk 4/4
+hold, run 2/20**. Every fighter, both profile facings, the same shape of
+failure — so this is what the run template rolls, not a fighter who got
+unlucky. The 1px tolerance is not from animation theory: it is the
+measured behaviour of every strip that already reads right.
+
+Three criteria were proposed alongside it and **rejected by measurement**,
+recorded so they are not re-derived:
+
+- *silhouette AREA varies ≤ 5–8%* — the walk varies 15% and reads fine.
+  Area conflates torso rotation with leg spread; it fires on both strips
+  and separates neither.
+- *planted foot within ±1px of the ground row* — the pipeline had already
+  ruled: `render_canvas96.py` says "Locomotion frames dip below it; that
+  is the gait." Idle sits at 57, walk dips 1, run dips 2, dash rises 1. A
+  difference of degree in something declared normal.
+- *require 1–2px of vertical travel* — every strip in the roster is
+  perfectly flat, the good ones included. Mandating bounce would legislate
+  a fix for a problem that exists only at run cadence.
+
+The check is deliberately **not** wired into CI: 18 of 20 run strips fail
+it today, and gating a known, recorded, deliberately-unfixed state would
+paint the build red for no new information. It is the re-roll's acceptance
+gate — run it before, run it after, and the difference is the argument,
+which is what keeps the next attempt from being judged by eye like the
+last one.
+
 **Room staging (decided 2026-08-08):** the room admits the slice
 through a declared-verb body source — `?body=render96` routes the
 player's sheets to `assets/original/cipher_render/sheets96/`
