@@ -350,6 +350,16 @@ for 70ms, so a unit crosses a tile in a fourteenth of a second, and a
 walk cycle carried at that pace would be the renderer lying about the
 gait. The room is the only surface with a *choice* of gait to make.
 
+**And the note that matters most for whoever polishes this next
+(designer, same walk): the WALK strip is goofy too — and at walking
+pace it reads as CHARACTER rather than as error.** Something about the
+slowness makes it feel like the body's own gait instead of a bad
+animation. So the two strips are not the same problem wearing different
+speeds, and "smooth out the goofiness" is the wrong instruction for
+this one: a re-roll that made the walk cleaner could easily spend the
+thing the designer actually liked. The run is the strip with a re-roll
+banked against it (~4 gens, above). The walk has none, on purpose.
+
 **Room staging (decided 2026-08-08):** the room admits the slice
 through a declared-verb body source — `?body=render96` routes the
 player's sheets to `assets/original/cipher_render/sheets96/`
