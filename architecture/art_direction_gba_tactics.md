@@ -483,7 +483,9 @@ respect. SRW J's structure wearing SENTINEL's color.
   pack-format-vs-body-law) were decided by the staged walk-off; see the
   body law's successor section. The full pack adds five more verbs
   (walk / dash / hurt / death / heal), molded by the same pipeline —
-  **wired into the walkable room 2026-08-01**: hold-Shift walk, a dash
+  **wired into the walkable room 2026-08-01**: a walk/run pair on the
+  shift modifier — the walk is the default gait since 2026-08-14, the run
+  is what Shift holds (see the body pipeline's SETTLED note) — a dash
   that displaces through the same collision and door machinery as
   walking, a heal channel (cyan spill only — the effect is authored in
   the sheet), a hurt flinch, and a death that holds its last frame until
