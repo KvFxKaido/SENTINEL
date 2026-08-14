@@ -250,8 +250,10 @@ jobs:
 
   # The witness Worker against a local wrangler dev (simulated KV): goldens
   # from the edge, certification refusals, and the archive — including the
-  # >100-entry bulk that forces /matches to walk KV cursors. The live
-  # deployment is verified manually with the same harness minus the bulk.
+  # >100-entry bulk that forces /matches to walk KV cursors, which is the
+  # one section that would flood a real ledger and so never runs against
+  # one. This is the PR gate; deploy-witness below is the master half, and
+  # it re-runs this same harness against the live edge after deploying.
   witness-worker:
     runs-on: ubuntu-latest
     env:
@@ -285,3 +287,90 @@ jobs:
         if: failure()
         working-directory: workers/witness
         run: cat wrangler.log || true
+
+  # Deploy the witness Worker, on master only, after the suites that can
+  # actually falsify it have passed.
+  #
+  # This exists because CI already TESTS AGAINST PRODUCTION: yard-harness
+  # walks the seam against the live edge, not a local one. So a Worker
+  # lagging behind master does not merely delay a deploy — it makes CI
+  # dishonest in both directions, and the roster doctrine (PR #123) was
+  # the proof: it stayed green only because the room tolerates an edge
+  # that predates an input. Without that tolerance the PR would have been
+  # unmergeable until somebody hand-deployed, with CI red for a reason
+  # unrelated to the change.
+  #
+  # Inert until CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID exist as
+  # repo secrets: with no token this job says so and passes, rather than
+  # painting every master push red for a setup step nobody has done yet.
+  # The token wants exactly two scopes — Workers Scripts:Edit and Workers
+  # KV Storage:Edit — on the one account. The account id is a secret here
+  # only because this repo is public; it is not sensitive.
+  deploy-witness:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: [tactical-rules, run-rules, witness-worker]
+    env:
+      WRANGLER_SEND_METRICS: "false"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WITNESS_URL: https://sentinel-witness.ishawnd.workers.dev
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # the change check below needs the previous commit
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      # The Worker BUNDLES the rules core, so a rules change is a worker
+      # change even when workers/ is untouched. When the range cannot be
+      # read (a force push, a first push, a shallow fetch) this deploys
+      # rather than guessing: a redundant deploy is idempotent, a skipped
+      # one leaves the edge behind master and CI testing against a lie.
+      - name: Did the Worker or the rules it bundles change?
+        id: scope
+        run: |
+          BEFORE="${{ github.event.before }}"
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            echo "::notice::no readable diff range — deploying rather than guessing"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only "$BEFORE" "${{ github.sha }}" \
+               | grep -qE '^(workers/witness/|prototypes/tactical-core/)'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::neither the Worker nor the rules core changed — nothing to deploy"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Is there a token to deploy with?
+        id: creds
+        if: steps.scope.outputs.changed == 'true'
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::notice::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID not set — skipping the deploy. The edge stays where it is; deploy by hand with 'npx wrangler deploy' in workers/witness."
+            echo "have=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "have=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy
+        if: steps.creds.outputs.have == 'true'
+        working-directory: workers/witness
+        run: npx wrangler@4 deploy
+
+      # Deploy-then-assert, never deploy-and-hope. The same harness the
+      # local job runs, pointed at the real edge: goldens, the rules
+      # stamp, every refusal, the roster, and the archive. It skips its
+      # own bulk-pagination section against a live URL by design, and its
+      # filings are content-addressed off a deterministic match — so
+      # re-running it refiles the same two ids instead of growing the
+      # ledger.
+      - name: Verify the deployment
+        if: steps.creds.outputs.have == 'true'
+        working-directory: workers/witness
+        run: node witness_check.mjs "$WITNESS_URL"

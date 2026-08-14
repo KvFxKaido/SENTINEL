@@ -188,10 +188,36 @@ cd workers/witness
 pnpm dlx wrangler dev --port 8787     # local
 pnpm dlx wrangler deploy              # to Cloudflare
 node witness_check.mjs [base-url]     # goldens + played-match certification
-                                      # + refusals + concurrency burst
+                                      # + refusals + roster + archive + burst
 ```
 
-The whole bundle — game rules included — is ~5.6 KiB gzipped.
+The whole bundle — game rules included — is ~10.6 KiB gzipped.
+
+**CI deploys this on every master push that touches the Worker or the
+rules core it bundles**, gated on the suites that can falsify it and
+verified against the live URL afterwards — deploy-then-assert, never
+deploy-and-hope. That job exists because CI already *tests against
+production*: the yard harness walks the seam against the live edge, so an
+edge lagging behind master makes CI dishonest in both directions rather
+than merely out of date.
+
+It is inert without `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`
+repo secrets — it says so and passes, rather than painting master red for
+a setup step nobody has done. The token wants exactly two scopes: Workers
+Scripts:Edit and Workers KV Storage:Edit.
+
+Running `witness_check.mjs` against the live edge **files matches into the
+real archive**, and that is fine on purpose: filing is content-addressed
+off a deterministic auto-played match, so re-running it refiles the same
+two ids instead of growing the ledger. It also skips its own
+bulk-pagination section against any non-localhost URL, which is the one
+part that would flood a real archive.
+
+One live-only caveat, learned deploying: KV's `list` is **eventually
+consistent** where a direct key read is not, so a freshly filed match can
+fetch back in full while not yet appearing in `GET /matches` (~4s
+observed). The archive-listing check polls for that rather than asserting
+it within one round trip.
 
 ## Scope
 
