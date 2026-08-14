@@ -410,6 +410,25 @@ try {
   check("the purse buys flair in the room",
     dressed === "VESPER/patch/length-of-chain", dressed);
 
+  // Back to the spawn before walking the door, and not for tidiness.
+  // The walk to the table stops WHEREVER the reach check happens to fire,
+  // which is a frame-timing question — so the body's x after shopping is
+  // not a fact this suite knows. W+D is true north, holding x, and the
+  // door only deals to a body inside its span: a shop stop half a unit
+  // too far west never reaches it. That was luck passing, not a claim, and
+  // it ran out in CI the moment the default gait got slower and moved
+  // where the walk ends (caught in CI on the gait PR). The purchase is in
+  // localStorage, so a reload keeps the dressed squad and puts the body
+  // somewhere this suite can actually reason about.
+  await page.goto(ROOM_URL);
+  await page.waitForFunction(() =>
+    ["ready", "error"].includes(document.getElementById("cv").dataset.sprites),
+    null, { timeout: 20000 });
+  check("the purchase survives the walk back to the door",
+    (await page.evaluate(() => document.getElementById("cv").dataset.worn))
+      === "VESPER/patch/length-of-chain",
+    await page.evaluate(() => document.getElementById("cv").dataset.worn));
+
   await page.keyboard.down("KeyW");
   await page.keyboard.down("KeyD");
   const dealtDressed = await page.waitForFunction(() =>
