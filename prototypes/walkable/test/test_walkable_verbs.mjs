@@ -652,12 +652,16 @@ try {
   await page.evaluate(() => localStorage.removeItem("sentinel.run"));
   await boot("?body=composed");
 
-  // walk: hold shift + move (steady states)
+  // the two gaits, and which one a BARE press gets. The default is the
+  // walk since 2026-08-14: both sheets were always authored, the run
+  // just reads goofy at 1× (the cosmetic nit PR #118 recorded), and
+  // swapping which one is default costs nothing where re-rolling the
+  // strip costs generations.
   await page.keyboard.down("Shift");
   await page.keyboard.down("KeyW");
-  check("shift+move walks", await waitAction("walk"));
+  check("shift+move runs", await waitAction("run"));
   await page.keyboard.up("Shift");
-  check("release shift runs", await waitAction("run"));
+  check("release shift walks", await waitAction("walk"));
   await page.keyboard.up("KeyW");
   check("release key idles", await waitAction("idle"));
 
@@ -694,7 +698,7 @@ try {
   // a stance is a standing pose: no aim-walk sheets exist, so moving must
   // take the body OUT of it rather than play a stance over a moving body
   await page.keyboard.down("KeyW");
-  check("moving cancels a held stance", await waitAction("run"));
+  check("moving cancels a held stance", await waitAction("walk"));
   await page.keyboard.up("KeyW");
   check("stopping returns to the still-held stance", await waitAction("kneel"));
   await page.keyboard.up("KeyC");
@@ -765,7 +769,7 @@ try {
   await page.waitForTimeout(300);
   check("verbs don't reach the floor", (await ds("action")) === "death");
   await page.keyboard.down("KeyS");
-  check("movement rises", await waitAction("run"));
+  check("movement rises", await waitAction("walk"));
   await page.keyboard.up("KeyS");
 
   // ---- one missing render-squad sheet faults the room-wide gate -----
@@ -812,7 +816,7 @@ try {
   gen("full");
   await boot("?body=composed");
   await page.keyboard.down("KeyW");
-  check("running before the fall", await waitAction("run"));
+  check("moving before the fall", await waitAction("walk"));
   await page.keyboard.press("KeyX");
   check("goes down while a key is held", await waitAction("death"));
   await page.waitForTimeout(1500);   // death plays through; W never released
@@ -823,7 +827,7 @@ try {
   check("auto-repeat does not revive", (await ds("action")) === "death");
   await page.keyboard.up("KeyW");
   await page.keyboard.down("KeyW");  // the fresh press
-  check("a fresh press rises", await waitAction("run"));
+  check("a fresh press rises", await waitAction("walk"));
   await page.keyboard.up("KeyW");
 
   // ---- the whole-generated body: ?body=render96 ---------------------
@@ -901,11 +905,13 @@ try {
   check("render squad idle advances through its pinned cadence",
     squadFrames.size > 1, `saw frames ${[...squadFrames].join(",")}`);
 
-  // run owns a declared sheet: the input and staged verb stay aligned,
-  // and no absence is noted on the moving state
+  // the moving verb owns a declared sheet: the input and staged verb
+  // stay aligned, and no absence is noted on the moving state. A bare
+  // press is the WALK now; the run is still declared and still reachable
+  // on shift, which the gait check above executes.
   await page.keyboard.down("KeyW");
-  check("slice moves as run", await waitAction("run"));
-  check("run resolves to its own sheet", (await ds("verb")) === "run");
+  check("slice moves as walk", await waitAction("walk"));
+  check("walk resolves to its own sheet", (await ds("verb")) === "walk");
   check("a declared moving verb carries no absence note", (await ds("note")) === "");
   await page.keyboard.up("KeyW");
   check("slice idles", await waitAction("idle"));
@@ -1059,9 +1065,9 @@ try {
       && heldSecond?.verb === "death" && heldSecond?.frame === "8",
     `${JSON.stringify(heldFirst)} -> ${JSON.stringify(heldSecond)}`);
   await page.keyboard.down("KeyS");
-  const roseFromDeath = await waitAction("run");
+  const roseFromDeath = await waitAction("walk");
   check("a fresh move press rises the render96 body",
-    heldFirst !== null && roseFromDeath && (await ds("verb")) === "run");
+    heldFirst !== null && roseFromDeath && (await ds("verb")) === "walk");
   await page.keyboard.up("KeyS");
   await waitAction("idle");
 
@@ -1194,7 +1200,7 @@ try {
     check("bare heal is refused by name on the probe",
       bareRefusal && (await ds("refused")) === "heal", await ds("refused"));
     await page.keyboard.down("KeyW");
-    check("moving on from the probe refusal", await waitAction("run"));
+    check("moving on from the probe refusal", await waitAction("walk"));
     check("the probe refusal clears on the next action", (await ds("refused")) === "");
     await page.keyboard.up("KeyW");
   } finally {

@@ -31,8 +31,8 @@ means this page does not run from `file://`.
 
 | Input | Action |
 |-------|--------|
-| `WASD` / arrows | run, camera-relative |
-| `Shift` + move | walk † |
+| `WASD` / arrows | walk, camera-relative |
+| `Shift` + move | run |
 | `L` | dash, current facing |
 | `H` | heal channel |
 | `G` | hurt flinch |
@@ -50,6 +50,19 @@ line of sight and contains no melee concept at all, and the yard's own
 verb table never registered an attack. They were art with nothing behind
 them, so the body that ships has no blade and the keys that swung it are
 retired rather than left bound to nothing.
+
+The **walk is the default gait** (2026-08-14) and `Shift` holds the run.
+It was the other way round until the designer walked the room and said
+the run cycle reads goofy at 1× — a nit on the record since the yard's
+pre-merge walk-through, priced there at a ~4-generation re-roll. Swapping
+which cycle a bare press gets cost none. Both strips were always authored
+and both still play, and the **speed travels with the verb**: a walk
+cycle carried at run pace would be the renderer lying about the gait.
+
+The yard keeps the run, and not by omission — `tactical-core` exposes
+each path step for 70ms, so a unit crosses a tile in a fourteenth of a
+second and a walk cycle there would skate. This room is the only surface
+with a gait to choose.
 
 `R` and `C` are **stances**: held, not triggered, and standing-only.
 There are no aim-walk or crouch-walk sheets, so moving takes the body

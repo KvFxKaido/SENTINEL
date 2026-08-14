@@ -339,6 +339,17 @@ are template rolls, so a facing that bothers the eye is a ~4-gen
 re-roll against the same acceptance machinery, keeper-judged like
 everything else in the squad record.
 
+**SETTLED (2026-08-14, designer, on a second walk): the default gait in
+the room is the WALK, and the re-roll is not owed.** Nothing was
+regenerated and nothing was retired — both strips were always authored,
+both still play, and only which one a bare move press gets has changed
+(`Shift` holds the run). Zero generations against ~4, for a nit that was
+only ever about which cycle the eye lands on by default. The yard keeps
+the run, and not as an oversight: `tactical-core` exposes each path step
+for 70ms, so a unit crosses a tile in a fourteenth of a second, and a
+walk cycle carried at that pace would be the renderer lying about the
+gait. The room is the only surface with a *choice* of gait to make.
+
 **Room staging (decided 2026-08-08):** the room admits the slice
 through a declared-verb body source — `?body=render96` routes the
 player's sheets to `assets/original/cipher_render/sheets96/`

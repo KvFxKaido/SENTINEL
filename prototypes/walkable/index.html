@@ -351,8 +351,8 @@
     <section class="box">
       <h2>CONTROL SURFACE</h2>
       <table class="controls" id="control-surface">
-        <tr><th><kbd>WASD</kbd> / <kbd>↑↓←→</kbd></th><td>run, camera-relative</td></tr>
-        <tr><th><kbd>Shift</kbd> + move</th><td>walk</td></tr>
+        <tr><th><kbd>WASD</kbd> / <kbd>↑↓←→</kbd></th><td>walk, camera-relative</td></tr>
+        <tr><th><kbd>Shift</kbd> + move</th><td>run</td></tr>
         <tr><th><kbd>L</kbd></th><td>dash, current facing</td></tr>
         <tr><th><kbd>H</kbd></th><td>heal channel</td></tr>
         <tr><th><kbd>G</kbd></th><td>hurt flinch</td></tr>
@@ -1371,8 +1371,17 @@ const previousPosition = new THREE.Vector3();
 // carry no bloom — see the FIRE branch in updateCipher.
 const FIRE_SPILL = [0, 3.4, 2.2, 1.1, 0];
 
-const MOVE_SPEED = 3.0;   // run — the default gait, as before
-const WALK_SPEED = 1.35;  // Shift held: the deliberate pace
+// The default gait is the WALK (2026-08-14). Both sheets were always
+// authored and both still play; only which one a bare move press gets
+// changed. The run cycle reads goofy at 1× — the one cosmetic nit the
+// pre-merge walk-through recorded (PR #118) — and swapping the default
+// costs nothing, where re-rolling the strip costs generations.
+//
+// Speed travels WITH the verb, deliberately. A walk cycle carried across
+// the room at run pace is the renderer lying about the gait, which is the
+// same class of thing as staging a stance the sheets do not have.
+const WALK_SPEED = 1.35;  // the default: the deliberate pace
+const MOVE_SPEED = 3.0;   // Shift held: the run, still here, still authored
 const DASH_SPEED = 7.0;   // burst, spent over the dash sheet's frames
 
 // One non-loop verb owns the body at a time — attacks, dash, hurt, heal,
@@ -1570,7 +1579,7 @@ function refuseDeal(gate) {
   dropCut(1600);
 }
 
-function wantsWalk() {
+function wantsRun() {
   return held.has("ShiftLeft") || held.has("ShiftRight");
 }
 
@@ -1601,7 +1610,7 @@ function updateMovement(dt) {
     .copy(cameraRight).multiplyScalar(inputX)
     .addScaledVector(cameraForward, inputY);
   if (moveVector.lengthSq() > 1) moveVector.normalize();
-  moveVector.multiplyScalar((wantsWalk() ? WALK_SPEED : MOVE_SPEED) * dt);
+  moveVector.multiplyScalar((wantsRun() ? MOVE_SPEED : WALK_SPEED) * dt);
 
   return stepBody(moveVector.x, moveVector.z);
 }
@@ -1618,7 +1627,7 @@ function updateCipher(dt, now) {
   if (!locked && !downed) moving = updateMovement(dt);
 
   const stance = moving ? null : heldStance();
-  let action = moving ? (wantsWalk() ? "walk" : "run") : (stance ?? "idle");
+  let action = moving ? (wantsRun() ? "run" : "walk") : (stance ?? "idle");
   let frame = 0;
   const facing = screenFacing();
 
