@@ -83,21 +83,41 @@ already specified as **player-authored insignia**: "nobody designs them, play
 makes them mean something." The sentence above is that section, restated by the
 designer from memory two months later. It was always the target.
 
-**The provenance mechanism exists and is half-applied.**
+**The provenance mechanism exists, is half-applied, and points at nothing.**
 `HistoryEntry` (`sentinel-agent/src/state/schemas/campaign.py:81`) carries
 `event_id: str | None` plus typed sub-records — `mission`, `hinge`,
 `faction_shift`. Of those:
 
+- `mission=` (`manager.py:888`) and `hinge=` (`manager.py:1730`) are populated
+- `faction_shift=` is not passed on any **live recording path** — the three
+  `FACTION_SHIFT` call sites (`manager.py:711`, `1485`, `1622`) send a
+  formatted string and leave the typed field `None`. The seed importer
+  (`sentinel-agent/scripts/import_cipher.py:161`) does construct one, which
+  makes this a runtime inconsistency rather than an unused field.
 - `event_id` is populated in exactly one place, `manager.py:714`, under the
   comment `# Provenance: links to MCP event`
-- `mission=` (`manager.py:888`) and `hinge=` (`manager.py:1730`) are populated
-- `faction_shift=` is **never** passed — the typed field exists and the call
-  site sends only a formatted string
 
-So the pattern is in the codebase, named, and used inconsistently. This is a
-much cheaper starting point than the append-only log
-(`munder_difflin_notes.md`) it was previously framed as needing: **finish the
-pattern first, and find out whether the log is still necessary afterwards.**
+**And that pointer already dangles.** `_process_pending_events()` marks each
+event processed and then calls `clear_processed()`, which is
+`self.events = [e for e in self.events if not e.processed]`
+(`schemas/campaign.py:229`) — the payload is *deleted by design* moments after
+the id is recorded. There is no lookup-by-id anywhere, and memvid keeps the id
+only inside a prose `cause`. So the one field in this codebase actually
+commented "Provenance" points at something that no longer exists (caught in
+review).
+
+This reverses the first draft's conclusion, which said to finish the pattern
+and decide about the append-only log afterwards. **A durable event record is a
+prerequisite, not a follow-up.** `event_id` is not a provenance mechanism until
+its target survives, and every pointer minted before then is another dangling
+reference. It also means the append-only structured log
+(`munder_difflin_notes.md`, open item) is now justified by a consumer that
+exists rather than by analogy to another project: without it, the sentence at
+the top of this doc cannot be delivered at all.
+
+The first draft made exactly the error this doc warns about. It verified that
+the pointer existed and was populated, and never checked whether the pointee
+survived — the untested boundary, one layer in.
 
 **The item side already stamps.** `run-core`'s purchase record carries
 `{id, name, slot, color, who, cost, at}` plus the slate stamp
@@ -134,8 +154,15 @@ content type below gets the same treatment.
 |---|---|---|---|
 | place | `world/places/<id>.json` | `placeValid` | the room / overworld |
 | person | `world/people/<id>.json` | `personValid` | schedules, encounters |
-| thing | `world/things/<id>.json` | `itemValid` (exists) | kit, shops, drops |
+| thing | `world/things/<id>.json` | `thingValid` (new) | kit, shops, drops |
 | offer | `world/offers/<id>.json` | `offerValid` | encounters |
+
+`run-core`'s `itemValid` is **not** this validator and should not be stretched
+into one: it checks a flair item's fixed shape (`id`, `name`, `slot`, `cost`,
+`color`) and enforces the Tier 1 slot law, which is a narrower job than
+describing an arbitrary world thing. A world thing that happens to be wearable
+should *reduce* to a flair item at the boundary where the run banks it, and be
+refused by that same check if it cannot (caught in review).
 
 An **offer** is the unit that produces the sentence. Not a quest — a quest
 authors an outcome. An offer authors a *condition*: who, where, what they want,
@@ -177,18 +204,27 @@ that does not.
 
 ## 6. What This Asks Of The Engine
 
-Small, and mostly finishing:
+Ordered, because the first draft had the order backwards and the dependency is
+real:
 
-1. **Populate `faction_shift=`** at its call site. One argument. Closes the
-   inconsistency and makes the pattern uniform.
-2. **Give things an `origin`** — an `event_id`, and where one exists, a match id
-   from the witness archive. A hood that knows the night is a hood that can be
-   asked about it.
-3. **Make the origin legible** — one line in the room, one line on the card.
+1. **A durable target, first.** Provenance needs something that survives.
+   Either the append-only structured log, or — cheaper — stop deleting: retain
+   processed events, or copy the payload into history before `clear_processed()`
+   runs. Nothing below works without this, and every `event_id` written before
+   it is a dangling pointer.
+2. **Populate the typed sub-records at the sites that know the answer.** Not at
+   the MCP logging site: `log_faction_event` also carries `mission`, `contact`
+   and `negotiate` events, and its payload has neither `from_standing` nor
+   `to_standing`, so constructing a `FactionShiftRecord` there would fabricate
+   standings or mislabel non-shifts. The right sites are `shift_faction()` and
+   the cascade path, where `before` and `after` are both in scope. General
+   faction events want their own record type rather than being forced into a
+   shift shape (caught in review).
+3. **Give things an `origin`** — an event id, once (1) makes ids resolvable, and
+   where one exists a match id from the witness archive. A hood that knows the
+   night is a hood that can be asked about it.
+4. **Make the origin legible** — one line in the room, one line on the card.
    Where a match id exists, a link that replays it.
-4. **Then** ask whether the append-only structured log is needed. It probably is,
-   for resumability. But it should be justified by a consumer that exists, not
-   by analogy to another project's architecture.
 
 ## 7. What Not To Build
 
