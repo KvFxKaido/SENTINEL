@@ -1294,6 +1294,19 @@ function syncSquadPostures() {
 // body ("this room has no body for X") instead of a sheet-missing fault
 // three steps later. The harness pins this against the dirs that exist.
 const STAGEABLE_BODIES = ["vesper", "koa", "sable", "syn"];
+/* An authored facing, as a world direction. Derived from `screenFacing`
+   rather than guessed: it projects a world vector onto the camera basis
+   and picks the dominant axis, so at the default quarter — forward
+   (-x,-z), right (+x,-z) — these are the four directions that read as
+   each sheet. Orbiting the camera changes which sheet a person shows,
+   which is correct: the body is fixed in the world and the camera is
+   what moved. */
+const FACING_WORLD = {
+  down: [1, 0, 1],
+  up: [-1, 0, -1],
+  right: [1, 0, -1],
+  left: [-1, 0, 1],
+};
 const PEOPLE_ROOT = "../../world/people";
 const FACTION_ROOT = "../../sentinel-campaign/src/sentinel_campaign/data/factions";
 const PERSON_NAME = /^[A-Z][A-Z0-9-]{0,15}$/;
@@ -1361,12 +1374,15 @@ function buildPeople() {
     body.userData.name = person.name;
     body.userData.phase = index + SQUAD_ROSTER.length;
     body.userData.action = "idle";
-    // A person looks at whoever walks up, which for a static body means
-    // the authored facing, projected through the camera the same way
-    // every other body here is.
-    body.userData.worldFacing = new THREE.Vector3(
-      -position[0], 0, 0.6 - position[2]
-    ).normalize();
+    // The AUTHORED facing, projected through the camera the same way
+    // every other body here is. Not the squad's rule: they point at the
+    // spawn because they are set dressing and any direction would do,
+    // where a person's facing is a thing somebody decided — a Broker
+    // turned toward his own table says something a position heuristic
+    // cannot. The first cut copied the squad's formula and left the
+    // authored field dead while a comment claimed otherwise (caught by
+    // both review bots).
+    body.userData.worldFacing = new THREE.Vector3(...FACING_WORLD[person.facing]).normalize();
     entry.body = body;
     peopleBodies.push(body);
   }
@@ -1855,6 +1871,7 @@ function updateSquad(now) {
   const bodies = squadBodies.concat(peopleBodies);
   if (!bodies.length) return;
   const shown = [];
+  const peopleShown = [];
   for (const body of bodies) {
     const action = body.userData.action;
     const facing = screenFacing(body.userData.worldFacing);
@@ -1878,9 +1895,14 @@ function updateSquad(now) {
     // since the convergence would quietly change an existing claim.
     if (squadBodies.includes(body)) {
       shown.push(`${body.userData.fighter}:${action}:${facing}:${frame}`);
+    } else {
+      peopleShown.push(`${body.userData.name}:${action}:${facing}:${frame}`);
     }
   }
   canvas.dataset.squadSprites = shown.join(",");
+  // People publish their own, which is what makes an authored facing a
+  // checkable fact rather than a field somebody hopes is read.
+  canvas.dataset.peopleSprites = peopleShown.join(",");
 }
 
 document.addEventListener("keydown", event => {

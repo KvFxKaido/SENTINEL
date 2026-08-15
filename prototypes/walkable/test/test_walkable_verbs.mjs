@@ -720,6 +720,7 @@ try {
     ["a body this room cannot draw", { ...good, body: "godzilla" }, /not a person this room can stage/i],
     ["a person standing outside the room", { ...good, at: { x: 99, z: 4 } }, /not a person this room can stage/i],
     ["a file that disagrees with the index", { ...good, id: "someone-else" }, /the index and the file disagree/i],
+    ["a facing that is not one of the four", { ...good, facing: "diagonal" }, /not a person this room can stage/i],
   ]) {
     await servePerson(doctored);
     await boot("?body=composed");
@@ -735,6 +736,30 @@ try {
   await boot("?body=composed");
   check("the real person file still stages after the refusals",
     (await ds("people")) === "vance:steel_syndicate:Broker", await ds("people"));
+
+  // ---- the authored facing is a fact, not a field ------------------
+  // It was validated, authored, and then ignored: worldFacing was copied
+  // from the squad's point-at-spawn rule, so every facing value rendered
+  // identically and a comment claimed otherwise (caught by both review
+  // bots). Asserted by CHANGING it and watching the staged sheet move,
+  // because a field nothing reads passes any test that only reads it.
+  await page.waitForFunction(() => !!document.getElementById("cv").dataset.peopleSprites,
+    null, { timeout: 5000 });
+  const facingOf = async () =>
+    ((await ds("peopleSprites")) ?? "").split(",")
+      .find(e => e.startsWith("VANCE:"))?.split(":")[2];
+  check("the authored facing reaches the sheet", (await facingOf()) === "down", await facingOf());
+
+  for (const facing of ["up", "left", "right"]) {
+    await servePerson({ ...good, facing });
+    await boot("?body=composed");
+    await page.waitForFunction(() => !!document.getElementById("cv").dataset.peopleSprites,
+      null, { timeout: 5000 });
+    check(`facing "${facing}" stages the ${facing} sheet`,
+      (await facingOf()) === facing, await facingOf());
+    await page.unroute(/world\/people\/vance\.json$/);
+  }
+  await boot("?body=composed");
 
   await page.evaluate(() => localStorage.removeItem("sentinel.run"));
   await boot("?body=composed");
