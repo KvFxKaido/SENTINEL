@@ -13,6 +13,14 @@
 //
 // Run:  cd prototypes/walkable/test
 //       npm install && npx playwright install chromium
+//
+// A door walk holds Shift. That is traversal, not a claim about gaits: the
+// verbs harness owns the gait claims, and this needs the body at a
+// threshold. It matters because `dt` is clamped at 0.05 in the room's frame
+// loop and headless rAF runs ~5fps, so a body covers 0.25x its speed per
+// REAL second. The walk becoming the default (PR #125) took the door walk
+// from ~5.7s to ~12.6s against a 30s timeout, and that margin is what went
+// red on a loaded runner (caught in CI on PR #127).
 //       node test_walkable_verbs.mjs
 import { chromium } from "playwright";
 import { spawn, spawnSync } from "node:child_process";
@@ -398,6 +406,8 @@ try {
 
   // the door enforces what the panel says: unfit means no deal, said as
   // a cut rather than a dead trigger — and no seam frame ever exists
+  // Shift = run. Traversal, not a gait claim — see the header.
+  await page.keyboard.down("Shift");
   await page.keyboard.down("KeyW");
   await page.keyboard.down("KeyD");
   const gated = await page.waitForFunction(() =>
@@ -405,6 +415,7 @@ try {
     null, { timeout: 30000 }).then(() => true, () => false);
   await page.keyboard.up("KeyW");
   await page.keyboard.up("KeyD");
+  await page.keyboard.up("Shift");
   check("an unfit roster gates the door", gated);
   check("a gated door never opens the seam", !(await page.$("#seamframe")));
   // the walked refusal and the door's PUBLISHED answer are the same
@@ -435,6 +446,8 @@ try {
 
   // a complete slate gates the door with its own sentence
   await page.evaluate(() => { document.getElementById("cv").dataset.seam = "reset"; });
+  // Shift = run. Traversal, not a gait claim — see the header.
+  await page.keyboard.down("Shift");
   await page.keyboard.down("KeyW");
   await page.keyboard.down("KeyD");
   const gatedComplete = await page.waitForFunction(() =>
@@ -442,6 +455,7 @@ try {
     null, { timeout: 30000 }).then(() => true, () => false);
   await page.keyboard.up("KeyW");
   await page.keyboard.up("KeyD");
+  await page.keyboard.up("Shift");
   check("a complete slate gates the door", gatedComplete);
   const completeCut = (await page.textContent("#seamcut")).replace(/\s+/g, " ").trim();
   check("and the cut says the slate is complete",

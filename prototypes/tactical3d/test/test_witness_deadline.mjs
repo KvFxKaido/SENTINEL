@@ -11,6 +11,14 @@
 // hanging — never fulfilled, never aborted by the test — so the only thing
 // that can settle the session is WITNESS_MS firing inside the page.
 //
+//
+// A door walk holds Shift. That is traversal, not a claim about gaits: the
+// verbs harness owns the gait claims, and this needs the body at a
+// threshold. It matters because `dt` is clamped at 0.05 in the room's frame
+// loop and headless rAF runs ~5fps, so a body covers 0.25x its speed per
+// REAL second. The walk becoming the default (PR #125) took the door walk
+// from ~5.7s to ~12.6s against a 30s timeout, and that margin is what went
+// red on a loaded runner (caught in CI on PR #127).
 // Run:  cd prototypes/tactical3d/test && node test_witness_deadline.mjs
 import { chromium } from "playwright";
 import { spawn, spawnSync } from "node:child_process";
@@ -94,12 +102,15 @@ try {
     ["ready", "error"].includes(document.getElementById("cv").dataset.sprites),
     null, { timeout: 20000 });
 
+  // Shift = run. Traversal, not a gait claim — see the header.
+  await page.keyboard.down("Shift");
   await page.keyboard.down("KeyW");
   await page.keyboard.down("KeyD");
   const opened = await page.waitForFunction(() => !!document.getElementById("seamframe"),
     null, { timeout: 30000 }).then(() => true, () => false);
   await page.keyboard.up("KeyW");
   await page.keyboard.up("KeyD");
+  await page.keyboard.up("Shift");
   check("the door deals a card", opened);
   if (!opened) throw new Error("the door never dealt");
 

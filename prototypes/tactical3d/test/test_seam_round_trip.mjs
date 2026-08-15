@@ -17,6 +17,14 @@
 // verdict that must NEVER appear is STRUCK — the edge replaying the record
 // and disagreeing means the match we just played does not reproduce.
 //
+//
+// A door walk holds Shift. That is traversal, not a claim about gaits: the
+// verbs harness owns the gait claims, and this needs the body at a
+// threshold. It matters because `dt` is clamped at 0.05 in the room's frame
+// loop and headless rAF runs ~5fps, so a body covers 0.25x its speed per
+// REAL second. The walk becoming the default (PR #125) took the door walk
+// from ~5.7s to ~12.6s against a 30s timeout, and that margin is what went
+// red on a loaded runner (caught in CI on PR #127).
 // Run:  cd prototypes/tactical3d/test && node test_seam_round_trip.mjs
 import { chromium } from "playwright";
 import { spawn, spawnSync } from "node:child_process";
@@ -111,12 +119,15 @@ try {
   // W is camera-FORWARD, which is diagonal in this 2:1 view — held alone it
   // slides the body off the door span and pins it on the west wall. W+D is
   // true north, and the door only deals a card to a body inside its span.
+  // Shift = run. Traversal, not a gait claim — see the header.
+  await page.keyboard.down("Shift");
   await page.keyboard.down("KeyW");
   await page.keyboard.down("KeyD");
   const opened = await page.waitForFunction(() => !!document.getElementById("seamframe"),
     null, { timeout: 30000 }).then(() => true, () => false);
   await page.keyboard.up("KeyW");
   await page.keyboard.up("KeyD");
+  await page.keyboard.up("Shift");
   check("walking the north door opens the seam", opened);
   if (!opened) throw new Error("the door never dealt");
 
@@ -429,6 +440,8 @@ try {
       === "VESPER/patch/length-of-chain",
     await page.evaluate(() => document.getElementById("cv").dataset.worn));
 
+  // Shift = run. Traversal, not a gait claim — see the header.
+  await page.keyboard.down("Shift");
   await page.keyboard.down("KeyW");
   await page.keyboard.down("KeyD");
   const dealtDressed = await page.waitForFunction(() =>
@@ -436,6 +449,7 @@ try {
     null, { timeout: 30000 }).then(() => true, () => false);
   await page.keyboard.up("KeyW");
   await page.keyboard.up("KeyD");
+  await page.keyboard.up("Shift");
   check("a dressed squad still gets a card dealt", dealtDressed);
   if (dealtDressed) {
     const dressedSrc = await page.getAttribute("#seamframe", "src");
@@ -501,12 +515,15 @@ try {
     await page.waitForFunction(() =>
       ["ready", "error"].includes(document.getElementById("cv").dataset.sprites),
       null, { timeout: 20000 });
+    // Shift = run. Traversal, not a gait claim — see the header.
+    await page.keyboard.down("Shift");
     await page.keyboard.down("KeyW");
     await page.keyboard.down("KeyD");
     const reopened = await page.waitForFunction(() => !!document.getElementById("seamframe"),
       null, { timeout: 30000 }).then(() => true, () => false);
     await page.keyboard.up("KeyW");
     await page.keyboard.up("KeyD");
+    await page.keyboard.up("Shift");
     if (reopened) {
       await stubCert(DEALT);
       await postHome(await (await page.$("#seamframe")).contentFrame());
@@ -535,12 +552,15 @@ try {
     await page.waitForFunction(() =>
       ["ready", "error"].includes(document.getElementById("cv").dataset.sprites),
       null, { timeout: 20000 });
+    // Shift = run. Traversal, not a gait claim — see the header.
+    await page.keyboard.down("Shift");
     await page.keyboard.down("KeyW");
     await page.keyboard.down("KeyD");
     const thirdDeal = await page.waitForFunction(() => !!document.getElementById("seamframe"),
       null, { timeout: 30000 }).then(() => true, () => false);
     await page.keyboard.up("KeyW");
     await page.keyboard.up("KeyD");
+    await page.keyboard.up("Shift");
     if (thirdDeal) {
       await stubCert(undefined);
       await postHome(await (await page.$("#seamframe")).contentFrame());
@@ -565,6 +585,8 @@ try {
   await page.waitForFunction(() =>
     ["ready", "error"].includes(document.getElementById("cv").dataset.sprites),
     null, { timeout: 20000 });
+  // Shift = run. Traversal, not a gait claim — see the header.
+  await page.keyboard.down("Shift");
   await page.keyboard.down("KeyW");
   await page.keyboard.down("KeyD");
   const composedOpened = await page.waitForFunction(() =>
@@ -572,6 +594,7 @@ try {
     null, { timeout: 30000 }).then(() => true, () => false);
   await page.keyboard.up("KeyW");
   await page.keyboard.up("KeyD");
+  await page.keyboard.up("Shift");
   check("the composed room's door still deals", composedOpened);
   if (composedOpened) {
     const composedSrc = await page.getAttribute("#seamframe", "src");
