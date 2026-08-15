@@ -60,19 +60,32 @@ which decouples production from consumption and buys replay for free. Per-agent
 `cursor.json` prevents reprocessing; handled messages are archived to
 `inbox/.done/` for audit rather than deleted.
 
-**Gap this exposes in SENTINEL:** `event_bus.py` is in-memory pub/sub. It is
-reactive but not durable, not replayable, and leaves no audit trail — a
-subscriber that wasn't listening simply misses the event, and nothing on disk
-records that the event happened. That is a quiet violation of design philosophy
-rule #1: shared state must be visible. If a faction shifted and no consumer was
-attached, nothing shows it did.
+**Gap this exposes in SENTINEL — stated narrowly, because the obvious version
+of the claim is false.** State transitions *are* persisted: `apply_faction_shift`
+calls `log_history()`, which appends a `HistoryEntry` and calls
+`save_campaign()` before the event is ever emitted
+(`sentinel-agent/src/state/manager.py:1483`). `EventBus` additionally retains
+its last 100 events (`event_bus.py:139-140`) with a `get_history()` accessor.
+So a faction shift with no subscriber attached is *not* lost, and the audit
+trail is not empty.
 
-An append-only campaign event log would:
+What is actually missing is narrower:
 
-- make every state transition auditable after the fact,
-- give the TUI replay on reattach instead of "you had to be there,"
-- plausibly become the thing memvid / `/timeline` indexes, instead of
-  maintaining a parallel structure over the same history.
+- **The event payload is richer than what persists.** `FACTION_CHANGED` carries
+  structured `before`/`after`, `cascades`, `campaign_id`, and `session`; the
+  `HistoryEntry` that reaches disk carries a formatted summary *string*. A
+  consumer reconstructing history from the campaign file has to parse prose to
+  recover what the event already had in fields.
+- **Replay does not survive restart.** `EventBus._history` is in-process and
+  capped at 100. Reattaching after a restart cannot recover events, and there is
+  no per-consumer cursor, so a subscriber cannot resume from where it left off —
+  only from "now."
+
+An append-only, structured campaign event log would close both: full payloads on
+disk, resumable by cursor across restarts, and plausibly the thing memvid /
+`/timeline` indexes instead of a parallel structure over the same history. That
+is a real gap, but it is a gap in *fidelity and resumability*, not in whether
+anything is recorded at all.
 
 This is the highest-value idea in the repo for us.
 
@@ -89,15 +102,19 @@ a reply (pure `inform`/`done` are terminal)."* That single line is what stops
 agent ping-pong. The hop cap catches whatever slips past it and escalates rather
 than looping.
 
-**Two places this maps:**
+**Where this maps for us: NPC ↔ player ↔ faction interactions.** A typed
+vocabulary with an explicit "does this demand a response" bit is a better model
+of social pressure than free-form exchange, and it composes with social energy —
+an unanswered obligation becomes a legible cost rather than an implicit one.
 
-- **NPC ↔ player ↔ faction interactions.** A typed vocabulary with an explicit
-  "does this demand a response" bit is a better model of social pressure than
-  free-form exchange, and it composes with social energy: an unanswered
-  obligation is a legible cost.
-- **`/council`.** It currently consults multiple CLIs with no loop guard and no
-  notion of which responses obligate a follow-up. The hop cap is cheap
-  insurance.
+**Where it explicitly does *not* map: our multi-agent skills.** `/council` is a
+one-shot fan-out — consult Gemini, consult Codex, synthesize — with no
+agent-to-agent messaging and no follow-up round
+(`.claude/skills/council/SKILL.md`). There is no cycle for a hop cap or a
+reply-obligation flag to guard, and adding one would be defending against a
+failure mode we do not have. The guard becomes relevant only if a council flow
+ever feeds one consultant's output back to another; until then this is a note
+about NPC modelling, not about tooling.
 
 ### 4. Memory posture — including the part they haven't solved
 
