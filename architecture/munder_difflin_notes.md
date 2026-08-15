@@ -4,9 +4,16 @@
 UI state visibility; not binding. Decided items, if any, are marked inline with
 their decision date.
 **Source:** [`chaitanyagiri/munder-difflin`](https://github.com/chaitanyagiri/munder-difflin)
-(MIT source; bundled pixel art non-commercial), read at commit-of-record
-2026-08-14. Design docs `HIVE.md`, `SPEC.md`, `DESIGN.md` in the repo root.
-Marketing site + blog at `munderdiffl.in`.
+(MIT source; bundled pixel art non-commercial), read 2026-08-15 at
+[`516f3dd`](https://github.com/chaitanyagiri/munder-difflin/tree/516f3ddad2a0c9d63399a36177d92ddf52e7cf62)
+(`516f3ddad2a0c9d63399a36177d92ddf52e7cf62`, then `main` HEAD). Everything
+summarized here comes from four files at that tree —
+[`README.md`](https://github.com/chaitanyagiri/munder-difflin/blob/516f3ddad2a0c9d63399a36177d92ddf52e7cf62/README.md),
+[`HIVE.md`](https://github.com/chaitanyagiri/munder-difflin/blob/516f3ddad2a0c9d63399a36177d92ddf52e7cf62/HIVE.md),
+[`SPEC.md`](https://github.com/chaitanyagiri/munder-difflin/blob/516f3ddad2a0c9d63399a36177d92ddf52e7cf62/SPEC.md),
+[`DESIGN.md`](https://github.com/chaitanyagiri/munder-difflin/blob/516f3ddad2a0c9d63399a36177d92ddf52e7cf62/DESIGN.md).
+The `munderdiffl.in` site and blog were *not* read (egress-blocked from the
+authoring environment); no claim here rests on them.
 **Related:** `AGENT_ARCHITECTURE.md` (our agent + state layer),
 `art_direction_gba_tactics.md` (state-visibility-as-pixels),
 `sentinel-agent/src/state/event_bus.py` (our pub/sub)
@@ -61,13 +68,13 @@ which decouples production from consumption and buys replay for free. Per-agent
 `inbox/.done/` for audit rather than deleted.
 
 **Gap this exposes in SENTINEL — stated narrowly, because the obvious version
-of the claim is false.** State transitions *are* persisted: `apply_faction_shift`
-calls `log_history()`, which appends a `HistoryEntry` and calls
-`save_campaign()` before the event is ever emitted
-(`sentinel-agent/src/state/manager.py:1483`). `EventBus` additionally retains
-its last 100 events (`event_bus.py:139-140`) with a `get_history()` accessor.
-So a faction shift with no subscriber attached is *not* lost, and the audit
-trail is not empty.
+of the claim is false.** State transitions *are* persisted: `shift_faction()`
+(`sentinel-agent/src/state/manager.py:1452`) calls `log_history()` at line 1484,
+which appends a `HistoryEntry` and calls `save_campaign()` — all of it before
+the event is emitted at line 1521. `EventBus` additionally retains its last 100
+events (`event_bus.py:139-140`) with a `get_history()` accessor
+(`event_bus.py:212`). So a faction shift with no subscriber attached is *not*
+lost, and the audit trail is not empty.
 
 What is actually missing is narrower:
 
