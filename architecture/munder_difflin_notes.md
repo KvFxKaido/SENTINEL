@@ -83,6 +83,19 @@ What is actually missing is narrower:
   `HistoryEntry` that reaches disk carries a formatted summary *string*. A
   consumer reconstructing history from the campaign file has to parse prose to
   recover what the event already had in fields.
+
+  One qualification, because "richer than what persists" reads as *nothing*
+  structured survives and something does: the same `shift_faction()` also calls
+  `MemvidAdapter.save_faction_shift()`
+  (`sentinel-agent/src/state/memvid_adapter.py:341`), which writes
+  `{faction, from_standing, to_standing, cause, session, timestamp}` as JSON.
+  So structured history does reach disk — but into the **optional** semantic
+  index, packed into a frame's `text` field, on a best-effort write that logs
+  and swallows its own exception, with no cursor. A consumer cannot depend on
+  it, query it as an event log, or resume from it. That does not close the gap;
+  it locates it, and it strengthens the open item below: an append-only
+  structured log would be *generalizing* something the codebase already does
+  narrowly, not introducing a foreign idea.
 - **Replay does not survive restart.** `EventBus._history` is in-process and
   capped at 100. Reattaching after a restart cannot recover events, and there is
   no per-consumer cursor, so a subscriber cannot resume from where it left off —
