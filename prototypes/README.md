@@ -101,6 +101,20 @@ pixel nobody authored. Nothing bought crosses the seam — the round-trip
 harness deals a card from a dressed room and asserts the yard's URL is
 byte-identical to the bare room's.
 
+And since the people layer (2026-08-15) the room has **someone in it**.
+`world/people/<id>.json` declares a person: a name, a place to stand, a
+body to wear, and — the part that makes it a seam rather than more set
+dressing — a **faction and an archetype the campaign already authors**.
+The archetype is resolved out of
+`sentinel-campaign/.../factions/<faction>.json` at boot, not copied, so
+editing the Syndicate's Broker edits who keeps the kit table. A person
+claiming a role the faction does not have is a boot fault naming the
+roles it does have; so is an unknown faction, an undrawable body, or a
+file that disagrees with the index. VANCE keeps the table, and the shop
+says so in the campaign's own words. This is
+`architecture/unauthored_history.md`'s first seam: the campaign had NPCs
+with no bodies and the room had bodies with no people.
+
 Since the convergence (2026-08-01) the same **body** crosses too. Both
 surfaces load the molded pack sheets from `assets/sprites/<fighter>/`, so
 a fighter does not change species at the door — which is also why the

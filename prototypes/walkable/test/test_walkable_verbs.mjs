@@ -663,6 +663,79 @@ try {
   check("a reloaded season still knows where it is on the tour",
     (await ds("season")) === "1/3:0:fit", await ds("season"));
 
+  // ---- the people layer: NPCs with bodies ---------------------------
+  // The seam `unauthored_history.md` names. The squad are bodies with no
+  // people; a PERSON is authored world data with campaign identity, and
+  // the join is that the archetype RESOLVES out of the campaign's own
+  // faction file rather than being copied into the person. These claims
+  // are about that resolution — that it happens, that it reaches the
+  // surface, and that it FAILS LOUDLY when the campaign has never heard
+  // of the role being claimed.
+  const factionFile = JSON.parse(fs.readFileSync(path.join(
+    ROOT, "sentinel-campaign/src/sentinel_campaign/data/factions/steel_syndicate.json"), "utf8"));
+  const broker = factionFile.archetypes.find(a => a.role === "Broker");
+  if (!broker) throw new Error("the Broker archetype vanished from the campaign data");
+
+  check("the room stages a person",
+    (await ds("people")) === "vance:steel_syndicate:Broker", await ds("people"));
+
+  // the asymmetry, same as the fielded roster: the room DECLARES which
+  // bodies it can draw, and only this file can check that against disk
+  const stageable = ((await ds("stageable")) ?? "").split(",").filter(Boolean);
+  const onDisk = fs.readdirSync(path.join(ROOT, "assets/original/squad_render/sheets96"))
+    .filter(d => fs.statSync(path.join(ROOT, "assets/original/squad_render/sheets96", d)).isDirectory())
+    .filter(d => !d.endsWith(".harness-backup"))   // this suite's own live backups
+    .sort();
+  check("every body the room declares stageable exists on disk",
+    stageable.length > 0 && stageable.every(b => onDisk.includes(b)),
+    `declared ${stageable.join(",")} vs on disk ${onDisk.join(",")}`);
+
+  // the join, executed: the description on the shop panel is the
+  // campaign's own words for that archetype, not a string in the room
+  await walkTo(["KeyA"], "at");
+  const keeperPanel = await kitText();
+  check("the table names who keeps it, with faction and role",
+    /VANCE KEEPS THIS TABLE · STEEL SYNDICATE BROKER/.test(keeperPanel), keeperPanel);
+  check("and the role's description comes from the campaign file",
+    keeperPanel.includes(broker.description), `looking for: ${broker.description}`);
+  await walkTo(["KeyD"], "away");
+
+  // ---- the boundary refuses, loudly --------------------------------
+  // Authored world data is not a trusted input. Each of these serves a
+  // doctored person file in place of the real one and expects a BOOT
+  // FAULT naming the problem — never a room that quietly stages fewer
+  // people, which is the silent fallback this gate exists to prevent.
+  const servePerson = body => page.route(/world\/people\/vance\.json$/, route =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) }));
+  const good = {
+    id: "vance", name: "VANCE", faction: "steel_syndicate", archetype: "Broker",
+    body: "syn", at: { x: 4, z: 4 }, facing: "down", keeps: "kit-table",
+  };
+  const faultText = async () =>
+    (await page.textContent("#asset-gate")).replace(/\s+/g, " ").trim();
+
+  for (const [label, doctored, wanted] of [
+    ["a role the faction does not have", { ...good, archetype: "Cardinal" }, /no such role/i],
+    ["a faction the campaign does not have", { ...good, faction: "hanseatic_league" }, /campaign does not have/i],
+    ["a body this room cannot draw", { ...good, body: "godzilla" }, /not a person this room can stage/i],
+    ["a person standing outside the room", { ...good, at: { x: 99, z: 4 } }, /not a person this room can stage/i],
+    ["a file that disagrees with the index", { ...good, id: "someone-else" }, /the index and the file disagree/i],
+  ]) {
+    await servePerson(doctored);
+    await boot("?body=composed");
+    const fault = await faultText();
+    check(`${label} faults the room`, (await ds("sprites")) === "error", await ds("sprites"));
+    check(`...and the fault says why (${label})`, wanted.test(fault), fault.slice(-160));
+    check(`...and no people are staged behind it (${label})`,
+      !(await ds("people")), (await ds("people")) ?? "(none)");
+    await page.unroute(/world\/people\/vance\.json$/);
+  }
+
+  // ...and the honest file still boots, so the gate discriminates
+  await boot("?body=composed");
+  check("the real person file still stages after the refusals",
+    (await ds("people")) === "vance:steel_syndicate:Broker", await ds("people"));
+
   await page.evaluate(() => localStorage.removeItem("sentinel.run"));
   await boot("?body=composed");
 
