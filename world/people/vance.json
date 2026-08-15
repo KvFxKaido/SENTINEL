@@ -1,0 +1,11 @@
+{
+  "_comment": "A person is an INSTANCE of a faction archetype, never a bespoke character. The campaign authors Brokers; this file says which Broker is standing in COURT 01, where, and in whose body. That is the join: change steel_syndicate.json's Broker and this person changes with it, because the room resolves the archetype at boot rather than copying it.",
+  "id": "vance",
+  "name": "VANCE",
+  "faction": "steel_syndicate",
+  "archetype": "Broker",
+  "body": "syn",
+  "at": { "x": 4, "z": 4 },
+  "facing": "down",
+  "keeps": "kit-table"
+}

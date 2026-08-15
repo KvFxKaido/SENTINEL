@@ -1267,6 +1267,134 @@ function syncSquadPostures() {
   publishSquadPostures();
 }
 
+/* ---- the people layer --------------------------------------------
+   The seam `unauthored_history.md` names: the campaign has NPCs with no
+   bodies, and this room has bodies with no people. The squad above are
+   bodies — set dressing whose only state is a posture. A PERSON is
+   authored world data with campaign identity, loaded through a
+   validating boundary, and staged.
+
+   A person is an INSTANCE OF AN ARCHETYPE, never a bespoke character.
+   The campaign authors Brokers and Enforcers with wants, fears and a
+   speech register; a person file says which one is standing here, where,
+   and in whose body. The archetype is RESOLVED from the faction file at
+   boot rather than copied into the person, so editing
+   `steel_syndicate.json` edits who is standing at the kit table. That
+   resolution failing is a fault, not a shrug — an unknown archetype
+   means the room is staging somebody the campaign has never heard of.
+
+   Authored data, so: validated at this boundary, refused rather than
+   defaulted, faulting at boot. Same rule as the house slate and the
+   house stock. Declared in an index rather than discovered, because
+   static hosting has no directory listing and a declared thing that
+   fails to load must fault rather than quietly shorten the list. */
+// Bodies this room can draw for somebody who is not the player: the
+// render squad's tracked sheet dirs. DECLARED, not discovered — the same
+// rule the sheet manifests follow, and it buys a fault that names the
+// body ("this room has no body for X") instead of a sheet-missing fault
+// three steps later. The harness pins this against the dirs that exist.
+const STAGEABLE_BODIES = ["vesper", "koa", "sable", "syn"];
+/* An authored facing, as a world direction. Derived from `screenFacing`
+   rather than guessed: it projects a world vector onto the camera basis
+   and picks the dominant axis, so at the default quarter — forward
+   (-x,-z), right (+x,-z) — these are the four directions that read as
+   each sheet. Orbiting the camera changes which sheet a person shows,
+   which is correct: the body is fixed in the world and the camera is
+   what moved. */
+const FACING_WORLD = {
+  down: [1, 0, 1],
+  up: [-1, 0, -1],
+  right: [1, 0, -1],
+  left: [-1, 0, 1],
+};
+const PEOPLE_ROOT = "../../world/people";
+const FACTION_ROOT = "../../sentinel-campaign/src/sentinel_campaign/data/factions";
+const PERSON_NAME = /^[A-Z][A-Z0-9-]{0,15}$/;
+const people = [];          // { person, archetype, body }
+const peopleBodies = [];
+
+// The shape check. `archetype` is deliberately NOT checked here — it is
+// checked against the faction's own list once that file is in hand,
+// because "is this a role the Syndicate has" is a question only the
+// campaign data can answer.
+function personValid(p) {
+  return !!p && typeof p === "object"
+    && typeof p.id === "string" && /^[a-z][a-z0-9-]{0,23}$/.test(p.id)
+    && typeof p.name === "string" && PERSON_NAME.test(p.name)
+    && typeof p.faction === "string" && /^[a-z][a-z0-9_]{0,23}$/.test(p.faction)
+    && typeof p.archetype === "string" && p.archetype.length > 0
+    && typeof p.body === "string" && STAGEABLE_BODIES.includes(p.body)
+    && !!p.at && Number.isInteger(p.at.x) && Number.isInteger(p.at.z)
+    && p.at.x >= 0 && p.at.x < ROOM_W && p.at.z >= 0 && p.at.z < ROOM_H
+    && FACINGS.includes(p.facing)
+    && (p.keeps === undefined || typeof p.keeps === "string");
+}
+
+async function loadPeople() {
+  const index = await fetch(`${PEOPLE_ROOT}/index.json`).then(r => {
+    if (!r.ok) throw new Error(`world/people/index.json did not load (${r.status})`);
+    return r.json();
+  });
+  if (!Array.isArray(index.people)) {
+    throw new Error("world/people/index.json must declare a people array");
+  }
+  const factions = new Map();
+  for (const id of index.people) {
+    const person = await fetch(`${PEOPLE_ROOT}/${id}.json`).then(r => {
+      if (!r.ok) throw new Error(`world/people/${id}.json is declared and did not load (${r.status})`);
+      return r.json();
+    });
+    if (!personValid(person)) {
+      throw new Error(`world/people/${id}.json is not a person this room can stage`);
+    }
+    if (person.id !== id) {
+      throw new Error(`world/people/${id}.json calls itself "${person.id}" — the index and the file disagree`);
+    }
+    if (!factions.has(person.faction)) {
+      factions.set(person.faction, await fetch(`${FACTION_ROOT}/${person.faction}.json`).then(r => {
+        if (!r.ok) throw new Error(`${person.name} claims faction "${person.faction}", which the campaign does not have`);
+        return r.json();
+      }));
+    }
+    const faction = factions.get(person.faction);
+    const archetype = (faction.archetypes ?? []).find(a => a.role === person.archetype);
+    if (!archetype) {
+      throw new Error(`${person.name} is a "${person.archetype}" and ${faction.name} has no such role — `
+        + `it has: ${(faction.archetypes ?? []).map(a => a.role).join(", ")}`);
+    }
+    people.push({ person, archetype, faction });
+  }
+}
+
+function buildPeople() {
+  for (const [index, entry] of people.entries()) {
+    const { person } = entry;
+    const position = [gx(person.at.x), 0.002, gz(person.at.z)];
+    const body = buildBody(person.body, position);
+    body.userData.name = person.name;
+    body.userData.phase = index + SQUAD_ROSTER.length;
+    body.userData.action = "idle";
+    // The AUTHORED facing, projected through the camera the same way
+    // every other body here is. Not the squad's rule: they point at the
+    // spawn because they are set dressing and any direction would do,
+    // where a person's facing is a thing somebody decided — a Broker
+    // turned toward his own table says something a position heuristic
+    // cannot. The first cut copied the squad's formula and left the
+    // authored field dead while a comment claimed otherwise (caught by
+    // both review bots).
+    body.userData.worldFacing = new THREE.Vector3(...FACING_WORLD[person.facing]).normalize();
+    entry.body = body;
+    peopleBodies.push(body);
+  }
+  canvas.dataset.people = people
+    .map(({ person }) => `${person.id}:${person.faction}:${person.archetype}`)
+    .join(",");
+  // Published for the same reason the fielded roster is: this list is
+  // declared here and the sheets live on disk, and nothing at runtime can
+  // tell whether the two still agree. The harness holds them together.
+  canvas.dataset.stageable = STAGEABLE_BODIES.join(",");
+}
+
 function buildSquad() {
   for (const [index, member] of SQUAD_ROSTER.entries()) {
     const body = buildBody(member.fighter, member.position);
@@ -1283,6 +1411,15 @@ function buildSquad() {
 }
 
 async function bootBodies() {
+  // The people load first: their bodies join the all-or-nothing sheet
+  // set below, and a person who does not validate must fault before a
+  // single sheet is fetched rather than halfway through staging.
+  try {
+    await loadPeople();
+  } catch (error) {
+    showAssetFault(error);
+    return;
+  }
   if (!SOURCE) {
     showAssetFault(new Error(
       `unknown body source "?body=${BODY_PARAM}" — this room stages: `
@@ -1305,6 +1442,13 @@ async function bootBodies() {
     ...SQUAD_ROSTER.flatMap(({ fighter }) =>
       SQUAD_ACTIONS.flatMap(action =>
         FACINGS.map(facing => ({ fighter, action, facing }))
+      )
+    ),
+    // The people stand in the same all-or-nothing set: a person the room
+    // declares and cannot draw is a fault, not an absence.
+    ...people.flatMap(({ person }) =>
+      SQUAD_ACTIONS.flatMap(action =>
+        FACINGS.map(facing => ({ fighter: person.body, action, facing }))
       )
     ),
   ];
@@ -1345,6 +1489,7 @@ async function bootBodies() {
   }
   buildCipher();
   buildSquad();
+  buildPeople();
   assetGate.className = "";
   assetGate.setAttribute("aria-hidden", "true");
   bodyStateEl.textContent = `${SOURCE.label} / READY`;
@@ -1719,9 +1864,15 @@ function updateCipher(dt, now) {
 }
 
 function updateSquad(now) {
-  if (!squadBodies.length) return;
+  // People ride the squad's loop rather than growing a second one: a
+  // person standing in the room is, to the renderer, exactly a staged
+  // body with a posture. What makes them a person is the data behind
+  // them, not a different animation path.
+  const bodies = squadBodies.concat(peopleBodies);
+  if (!bodies.length) return;
   const shown = [];
-  for (const body of squadBodies) {
+  const peopleShown = [];
+  for (const body of bodies) {
     const action = body.userData.action;
     const facing = screenFacing(body.userData.worldFacing);
     const frames = framesOf(body.userData.fighter, action, facing);
@@ -1738,9 +1889,20 @@ function updateSquad(now) {
     body.userData.facing = facing;
     body.userData.frame = frame;
     body.userData.sprite.rotation.y = camAz;
-    shown.push(`${body.userData.fighter}:${action}:${facing}:${frame}`);
+    // squadSprites stays the SQUAD's telemetry and nothing else. People
+    // ride the same animation loop but are not the fielded roster, and
+    // folding them into a dataset that has meant "the three who fight"
+    // since the convergence would quietly change an existing claim.
+    if (squadBodies.includes(body)) {
+      shown.push(`${body.userData.fighter}:${action}:${facing}:${frame}`);
+    } else {
+      peopleShown.push(`${body.userData.name}:${action}:${facing}:${frame}`);
+    }
   }
   canvas.dataset.squadSprites = shown.join(",");
+  // People publish their own, which is what makes an authored facing a
+  // checkable fact rather than a field somebody hopes is read.
+  canvas.dataset.peopleSprites = peopleShown.join(",");
 }
 
 document.addEventListener("keydown", event => {
@@ -2411,10 +2573,22 @@ function renderKit() {
   const s = summary(run);
   const who = wearerName();
   const worn = kitOf(run, who);
-  const rows = [
+  const rows = [];
+  // Who you are buying FROM. The table used to sell with nobody behind
+  // it — stock was an authored literal and the transaction had no other
+  // party. The keeper is a person the campaign knows the type of, and
+  // the line below is the join made visible: the role and its
+  // description come out of the faction file, not out of this page.
+  const keeper = people.find(({ person }) => person.keeps === "kit-table");
+  if (keeper) {
+    rows.push(`<b>${esc(keeper.person.name)}</b> KEEPS THIS TABLE · `
+      + `${esc(keeper.faction.name.toUpperCase())} ${esc(keeper.person.archetype.toUpperCase())}`);
+    rows.push(`<span class="fp">${esc(keeper.archetype.description)}</span>`);
+  }
+  rows.push(
     `<b>${s.balance}c</b> ON HAND${s.spent ? ` · ${s.spent}c SPENT SO FAR` : ""}`,
     `DRESSING <b>${esc(who)}</b> · <kbd>Z</kbd> CHOOSES WHO`,
-  ];
+  );
   HOUSE_STOCK.forEach((item, i) => {
     // Three states, all of them said: worn already, too dear for what is
     // on hand, or buyable. A greyed line with no reason is the surface
