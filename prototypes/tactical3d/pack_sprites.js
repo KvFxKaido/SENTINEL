@@ -8,7 +8,19 @@ export const BODY_PX = 1.10 / 32;
 export const QUAD_W = FRAME_W * BODY_PX;
 export const QUAD_H = FRAME_H * BODY_PX;
 
-export const FIGHTERS = Object.freeze(["cipher", "vesper", "koa", "sable", "syn"]);
+// Tactical identity and authored canvas are different contracts. NIX is the
+// first run-owned substitute and deliberately borrows SYN's tracked canvas in
+// this prototype; naming that loan here makes it stageable without pretending
+// original NIX art exists or falling back after a missing-sheet request.
+const FIGHTER_CANVAS = Object.freeze({
+  cipher: "cipher",
+  vesper: "vesper",
+  koa: "koa",
+  sable: "sable",
+  syn: "syn",
+  nix: "syn",
+});
+export const FIGHTERS = Object.freeze(Object.keys(FIGHTER_CANVAS));
 export const FACINGS = Object.freeze(["down", "up", "left", "right"]);
 
 // Frame counts deliberately do not live here. Every loaded sheet proves its
@@ -53,6 +65,12 @@ export function fighterSlug(name) {
   return slug;
 }
 
+export function fighterCanvas(fighter) {
+  const canvas = FIGHTER_CANVAS[fighter];
+  if (!canvas) throw new Error(`no molded fighter registered for ${fighter}`);
+  return canvas;
+}
+
 export function sheetKey(fighter, action, facing) {
   return `${fighter}:${action}:${facing}`;
 }
@@ -74,17 +92,18 @@ const SHEET_BUST = `?v=${Date.now()}`;
 export function sheetUrl(fighter, action, facing) {
   const spec = SHEETS[action];
   if (!spec) throw new Error(`no molded verb registered for ${action}`);
+  const canvas = fighterCanvas(fighter);
   // The squad-combat phase armed every fighter on the render path
   // (2026-08-10), so render96 is the whole board's body: Cipher from his
   // flat render sheets, the squad and SYN from the squad re-frame. The
   // composed pipeline survives whole-roster behind ?body=composed.
   if (configuredBody === "render96") {
-    if (fighter === "cipher") {
+    if (canvas === "cipher") {
       return `../../assets/original/cipher_render/sheets96/${spec.stem}_${facing}.png${SHEET_BUST}`;
     }
-    return `../../assets/original/squad_render/sheets96/${fighter}/${spec.stem}_${facing}.png${SHEET_BUST}`;
+    return `../../assets/original/squad_render/sheets96/${canvas}/${spec.stem}_${facing}.png${SHEET_BUST}`;
   }
-  return `../../assets/sprites/composed/${fighter}/${spec.folder}/${spec.stem}_${facing}.png${SHEET_BUST}`;
+  return `../../assets/sprites/composed/${canvas}/${spec.folder}/${spec.stem}_${facing}.png${SHEET_BUST}`;
 }
 
 // Cadence follows the staged BODY: every render fighter shares the room's

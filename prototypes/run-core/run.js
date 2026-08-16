@@ -21,9 +21,10 @@
    cannot check, and the room's own verdict ("EDGE DISPUTES THE FEED —
    STRUCK") starts firing on honest play.
 
-   So v1 persists purse, the mercy ledger, and who went down — and the
-   next card is still fought by the canonical three at full strength.
-   Wounds are a RECORD, not a modifier.
+   So the run persists purse, the mercy ledger, and who went down — and
+   the next card is still fought at full strength. The run may now choose
+   WHICH three owned people cross the door, but wounds remain a RECORD,
+   not a modifier.
 
    Making them a modifier is a real and wanted fork, and it is a
    doctrine change rather than a feature: `restart(seed, roster)`,
@@ -49,15 +50,13 @@
    new input to tamper with just because the season wants context.
 
    Wounds become CLOCKS, counted in slate positions — and passing is
-   always legal. A fighter who went down is recovering; while any
-   clock runs the roster is unfit and the deal is gated. What advances
-   a clock is the SLATE, not the card: passing an entry advances the
-   slate and every clock by one, at the entry's own cost (the purse
-   not won, the framing on the record of the card you declined).
-   Passing must stay legal precisely because clocks gate the deal —
-   a clock counted in cards dealt would gate the only mechanism that
-   heals it, and the season would deadlock (caught by both review
-   bots on the season doc's first draft).
+   always legal. A recovering fighter makes a LINEUP unfit only while
+   fielded; benching them is now a real front-office choice. What
+   advances a clock is the SLATE, not the card: passing or banking an
+   entry advances every clock by one. Passing must stay legal because
+   a run without a fit replacement still needs a way to heal rather
+   than deadlock (caught by both review bots on the season doc's first
+   draft).
 
    Only BANKED cards advance the slate. A struck card is not a card:
    it moves no money, no mercy, no wounds — and no slate. The entry
@@ -124,12 +123,14 @@
    ============================================================ */
 
 // 2: the season joined the schema (slate, clocks, passes).
-// 3: the purse joined it (spent, bought). A stored run of any older
+// 3: the purse joined it (spent, bought).
+// 4: the faction door joined it (owned people, origins, lineup).
+// A stored run of any older
 // version takes the orphan path below — moved aside and said so, exactly
 // the situation that path was built and tested for. Hydrating a v2 run
 // with an empty kit in place would be a silent migration wearing a
 // default, same as it was one version ago.
-export const RUN_V = 3;
+export const RUN_V = 4;
 // The live key is deliberately NOT versioned. It used to be
 // `sentinel.run.v${RUN_V}`, which made the orphan path below unreachable
 // in the only situation it exists for: bumping RUN_V to 2 would point
@@ -163,6 +164,16 @@ const MAX_CLOCK = 16;      // sanity bound for a stored clock, not the tuning
 const MAX_LABEL = 24;      // an item's name is a label on a hook, not a paragraph
 const MAX_STOCK = 12;      // items a shop may offer at once — a case, not a catalogue
 const MAX_BOUGHT = 24;     // purchases per run — a rack, not a warehouse
+const MAX_ROSTER = 4;      // this slice proves one real bench behind three slots
+const MAX_PERSON_ID = 24;  // stable authored ids stay diffable and URL-safe
+const MAX_REASON = 160;    // one authored sentence about why this person is here
+
+// The certified match still fields exactly three. This copy belongs to the
+// run boundary and is pinned against tactical-core's ROSTER_SLOTS in the seam
+// harness; importing the rules here would erase the wall this module exists
+// to keep.
+export const LINEUP_SLOTS = 3;
+export const FULL_STRENGTH = 10;
 
 // How many slate positions a down fighter recovers for. This is the
 // number the season doc says wants the lite prototype rather than the
@@ -193,11 +204,147 @@ const store = {
 };
 export function bindStore(next) { Object.assign(store, next); }
 
+/* ---- the owned roster ---------------------------------------------
+   The yard knows tactical names. The run knows people.
+
+   A person id is the durable key future pairwise history will point at;
+   `name` is only the alias dealt to a particular match. `origin` is copied
+   into the run when that person enters it, so a later content edit cannot
+   rewrite why they were here. `body` is presentation metadata: the room
+   needs it to stage an owned person, while the certified snapshot below
+   deliberately strips it back to exactly {name, hp}.
+
+   The default is the prototype's authored Court 01 crew. A host may provide
+   another roster seed to openRun/openSeason/loadRun; it must pass the same
+   boundary. NIX's SYN canvas is an explicit body loan until original art
+   exists, not an asset fallback — the identity and the loan are both stored. */
+const DEFAULT_ROSTER = Object.freeze({
+  people: Object.freeze([
+    Object.freeze({
+      id: "vesper", name: "VESPER", body: "vesper",
+      origin: Object.freeze({
+        source: "kestrel-founding-lineup", faction: null,
+        reason: "Opened Court 01 with the house.",
+      }),
+    }),
+    Object.freeze({
+      id: "koa", name: "KOA", body: "koa",
+      origin: Object.freeze({
+        source: "kestrel-founding-lineup", faction: null,
+        reason: "Opened Court 01 with the house.",
+      }),
+    }),
+    Object.freeze({
+      id: "sable", name: "SABLE", body: "sable",
+      origin: Object.freeze({
+        source: "kestrel-founding-lineup", faction: null,
+        reason: "Opened Court 01 with the house.",
+      }),
+    }),
+    Object.freeze({
+      id: "nix", name: "NIX", body: "syn",
+      origin: Object.freeze({
+        source: "ember-winter-entry", faction: "ember_colonies",
+        reason: "The north valley entered a defender because winter was bad.",
+      }),
+    }),
+  ]),
+  lineup: Object.freeze(["vesper", "koa", "sable"]),
+});
+
+const PERSON_ID = /^[a-z][a-z0-9-]{0,23}$/;
+const BODY_ID = /^[a-z][a-z0-9-]{0,23}$/;
+const FACTION_ID = /^[a-z][a-z0-9_]{0,23}$/;
+const TACTICAL_NAME = /^[A-Z0-9][A-Z0-9-]{0,15}$/;
+const PERSON_KEYS = ["id", "name", "body", "origin"];
+const ORIGIN_KEYS = ["source", "faction", "reason"];
+const ROSTER_KEYS = ["people", "lineup"];
+
+const exactKeys = (obj, keys) =>
+  Object.keys(obj).length === keys.length && Object.keys(obj).every(k => keys.includes(k));
+
+const isPersonId = id =>
+  typeof id === "string" && id.length <= MAX_PERSON_ID && PERSON_ID.test(id);
+
+function personValid(person) {
+  if (!person || typeof person !== "object" || Array.isArray(person)) return false;
+  if (!exactKeys(person, PERSON_KEYS)) return false;
+  if (!isPersonId(person.id)) return false;
+  if (typeof person.name !== "string" || !TACTICAL_NAME.test(person.name)) return false;
+  if (typeof person.body !== "string" || !BODY_ID.test(person.body)) return false;
+  const origin = person.origin;
+  return !!origin && typeof origin === "object" && !Array.isArray(origin)
+    && exactKeys(origin, ORIGIN_KEYS)
+    && typeof origin.source === "string" && PERSON_ID.test(origin.source)
+    && (origin.faction === null
+      || (typeof origin.faction === "string" && FACTION_ID.test(origin.faction)))
+    && typeof origin.reason === "string"
+    && origin.reason.length > 0 && origin.reason.length <= MAX_REASON;
+}
+
+export function rosterValid(roster) {
+  if (!roster || typeof roster !== "object" || Array.isArray(roster)) return false;
+  if (!exactKeys(roster, ROSTER_KEYS)) return false;
+  if (!Array.isArray(roster.people) || roster.people.length !== MAX_ROSTER) return false;
+  if (!roster.people.every(personValid)) return false;
+  const ids = roster.people.map(person => person.id);
+  const names = roster.people.map(person => person.name);
+  if (new Set(ids).size !== ids.length || new Set(names).size !== names.length) return false;
+  return Array.isArray(roster.lineup)
+    && roster.lineup.length === LINEUP_SLOTS
+    && roster.lineup.every(id => typeof id === "string" && ids.includes(id))
+    && new Set(roster.lineup).size === roster.lineup.length;
+}
+
+function copyRoster(roster) {
+  return {
+    people: roster.people.map(person => ({
+      id: person.id,
+      name: person.name,
+      body: person.body,
+      origin: {
+        source: person.origin.source,
+        faction: person.origin.faction,
+        reason: person.origin.reason,
+      },
+    })),
+    lineup: roster.lineup.slice(),
+  };
+}
+
+export function personOf(run, id) {
+  return run?.roster?.people?.find(person => person.id === id) ?? null;
+}
+
+export function fieldedRoster(run) {
+  if (!run || !rosterValid(run.roster)) return null;
+  return run.roster.lineup.map(id => {
+    const person = personOf(run, id);
+    return { name: person.name, hp: FULL_STRENGTH };
+  });
+}
+
+export function setLineup(run, lineup) {
+  if (!run || run.v !== RUN_V) {
+    return { run, accepted: false, why: "run is not this schema version" };
+  }
+  const candidate = { people: run.roster.people, lineup };
+  if (!rosterValid(candidate)) {
+    return { run, accepted: false, why: "a lineup is three different people this run owns" };
+  }
+  return {
+    run: { ...run, roster: { people: run.roster.people, lineup: lineup.slice() } },
+    accepted: true,
+    why: null,
+  };
+}
+
 /* ---- shape -------------------------------------------------------
    `at` is always injected. Nothing here reads the clock, for the same
    reason the rules core does not: a module that consults the clock
    cannot be tested for what it does at a given moment, only observed. */
-export function openRun(at) {
+export function openRun(at, roster = DEFAULT_ROSTER) {
+  if (!rosterValid(roster)) return null;
   return {
     v: RUN_V,
     opened: at,
@@ -208,7 +355,7 @@ export function openRun(at) {
     streak: 0,          // consecutive wins, current
     longest: 0,         // longest win streak this run
     mercy: { walked: 0, finished: 0 },
-    wounds: {},         // NAME -> times that operative went down
+    wounds: {},         // stable person id -> times that person went down
     struck: 0,          // cards the edge disputed — banked by nobody
     unwitnessed: 0,     // cards counted without certification
     rules: null,        // the rules stamp this run's numbers were earned under
@@ -217,6 +364,7 @@ export function openRun(at) {
     season: null,       // a slate, a position, clocks — or null: a plain run
     spent: 0,           // of the purse, on flair. purse stays TOTAL EARNED
     bought: [],         // the rack, in the order it filled
+    roster: copyRoster(roster), // people + authored origins + current lineup ids
   };
 }
 
@@ -251,9 +399,10 @@ export function slateValid(slate) {
    three facts an entry is allowed to carry, not whatever else rode in on
    the author's object. After this, the slate never changes — the season
    moves through it; it does not edit it. */
-export function openSeason(at, slate) {
+export function openSeason(at, slate, roster = DEFAULT_ROSTER) {
   if (!slateValid(slate)) return null;
-  const run = openRun(at);
+  const run = openRun(at, roster);
+  if (run === null) return null;
   run.season = {
     slate: {
       id: slate.id,
@@ -261,7 +410,7 @@ export function openSeason(at, slate) {
     },
     pos: 0,        // the current entry; entries.length means the slate is complete
     passed: [],    // declined entries, each on the record with its framing
-    clocks: {},    // NAME -> slate positions until that fighter is fit
+    clocks: {},    // stable person id -> slate positions until that person is fit
   };
   return run;
 }
@@ -287,10 +436,10 @@ const copySeason = s => s === null ? null : {
    clock, and sane() treats a stored zero as the junk it would be. */
 function advance(season) {
   season.pos += 1;
-  for (const name of Object.keys(season.clocks)) {
-    const left = season.clocks[name] - 1;
-    if (left > 0) season.clocks[name] = left;
-    else delete season.clocks[name];
+  for (const id of Object.keys(season.clocks)) {
+    const left = season.clocks[id] - 1;
+    if (left > 0) season.clocks[id] = left;
+    else delete season.clocks[id];
   }
 }
 
@@ -301,15 +450,15 @@ export function fitness(run) {
     ? Object.entries(run.season.clocks)
         .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     : [];
-  return { fit: clocks.length === 0, clocks };
+  const fielded = new Set(run?.roster?.lineup ?? []);
+  const fieldedClocks = clocks.filter(([id]) => fielded.has(id));
+  return { fit: fieldedClocks.length === 0, clocks, fieldedClocks };
 }
 
-// "__proto__" is refused by name: it is not a key, it is an accessor on
-// Object.prototype. Assigning wounds["__proto__"] or clocks["__proto__"]
-// invokes the inherited setter, records nothing, and fitness() would
-// call an unfit roster fit — the deal gate walked around by a fighter's
-// name (caught in review). Every dictionary key in this module is minted
-// through this check, so the refusal happens once, at the boundary.
+// "__proto__" is refused at the name-based wire too: it is an accessor on
+// Object.prototype, not a tactical name. The durable ledgers below are keyed
+// by stricter person ids, but refusing the hostile spelling at every authored
+// or wire boundary keeps it from becoming somebody else's unsafe key.
 const isName = s =>
   typeof s === "string" && s.length > 0 && s.length <= MAX_NAME
   && s !== "__proto__";
@@ -401,6 +550,13 @@ export function applyCard(run, card) {
   if (!cardValid(card)) {
     return { run, accepted: false, counted: false, why: "card is not a shape a run can bank" };
   }
+  const dealt = fieldedRoster(run) ?? [];
+  const idByDealtName = new Map(dealt.map((person, i) =>
+    [person.name, run.roster.lineup[i]]));
+  if (card.down.some(name => !idByDealtName.has(name))) {
+    return { run, accepted: false, counted: false, why: "the card names someone this run did not field" };
+  }
+  const downIds = card.down.map(name => idByDealtName.get(name));
 
   // Season gates, both of them accepted:false on purpose. The room gates
   // the deal at the door — a card arriving here while the slate is done
@@ -436,6 +592,9 @@ export function applyCard(run, card) {
     down: card.down.slice(),
     at: card.at,
   };
+  // `recent[].down` preserves the tactical names exactly as the card crossed
+  // the yard wire. Only the durable wound and recovery ledgers translate that
+  // receipt through the fielded lineup to stable person ids.
   // The framing comes from the run's OWN slate, never from the payload.
   // A struck card is stamped too — it was fought at this entry, and the
   // run's record should say where — but only a banked card will move the
@@ -479,8 +638,8 @@ export function applyCard(run, card) {
   next.best = Math.max(next.best, card.rating);
   next.mercy.walked += card.ledger.walked;
   next.mercy.finished += card.ledger.finished;
-  for (const name of card.down) {
-    next.wounds[name] = (next.wounds[name] ?? 0) + 1;
+  for (const id of downIds) {
+    next.wounds[id] = (next.wounds[id] ?? 0) + 1;
   }
   if (card.cert === "unwitnessed") next.unwitnessed += 1;
   if (card.result === "win") {
@@ -491,13 +650,13 @@ export function applyCard(run, card) {
     next.streak = 0;
   }
 
-  // A banked card moves the season: the slate advances (a no-op for the
-  // clocks — the fitness gate above means none were running), and THEN
-  // the card's own dead start their clocks, so a fresh wound counts its
-  // recovery from the position after the card that caused it.
+  // A banked card moves the season: the slate advances and every existing
+  // clock ticks. A recovering BENCHED person can therefore heal while a fit
+  // lineup fights. THEN the card's own dead start their clocks, so a fresh
+  // wound counts recovery from the position after the card that caused it.
   if (next.season) {
     advance(next.season);
-    for (const name of card.down) next.season.clocks[name] = WOUND_CLOCK;
+    for (const id of downIds) next.season.clocks[id] = WOUND_CLOCK;
   }
   return { run: next, accepted: true, counted: true, why: null };
 }
@@ -602,12 +761,11 @@ export function applyBuy(run, item, who, at) {
   if (!itemValid(item)) {
     return { run, accepted: false, why: "that is not a thing a purse may buy" };
   }
-  // Not checked against a roster, because this module has no roster and
-  // inventing one would be it deciding who exists. The room holds the
-  // squad; what this can check is that the name is a name — the same
-  // check every other dictionary key here is minted through, `__proto__`
-  // included.
-  if (!isName(who)) {
+  // A purchase belongs to an owned person. The ledger still carries the
+  // tactical name because flair predates stable ids; checking it against the
+  // owned roster prevents the room from dressing a name with no person behind
+  // it while leaving the wire and old rack surface unchanged.
+  if (!isName(who) || !run.roster.people.some(person => person.name === who)) {
     return { run, accepted: false, why: "that is not a fighter this run can dress" };
   }
   if (typeof at !== "string" || !at) {
@@ -655,10 +813,12 @@ export function applyBuy(run, item, who, at) {
      orphaned — something stored that this schema cannot read. It is
                 MOVED, not dropped, and the caller is told so it can
                 say so on the surface. */
-export function loadRun(at) {
+export function loadRun(at, roster = DEFAULT_ROSTER) {
+  const fresh = openRun(at, roster);
+  if (fresh === null) return { run: null, how: "invalid-roster" };
   let raw;
   try { raw = store.read(RUN_KEY); } catch { raw = null; }
-  if (raw === null || raw === undefined) return { run: openRun(at), how: "fresh" };
+  if (raw === null || raw === undefined) return { run: fresh, how: "fresh" };
 
   let parsed = null;
   try { parsed = JSON.parse(raw); } catch { parsed = null; }
@@ -683,10 +843,10 @@ export function loadRun(at) {
     // The unreadable run keeps the live slot — it is the only copy, and
     // the slot is not this page's to spend. The fresh run plays in
     // memory, and the caller is told to write nothing.
-    return { run: openRun(at), how: "unpreserved" };
+    return { run: fresh, how: "unpreserved" };
   }
   try { store.remove(RUN_KEY); } catch { /* the orphan copy is already safe */ }
-  return { run: openRun(at), how: "orphaned" };
+  return { run: fresh, how: "orphaned" };
 }
 
 // Structural check on a restored run. Storage is editable by hand and
@@ -701,13 +861,17 @@ function sane(r) {
   const ints = ["cards", "wins", "purse", "best", "streak", "longest", "struck", "unwitnessed"];
   if (!ints.every(k => Number.isInteger(r[k]) && r[k] >= 0)) return false;
   if (typeof r.opened !== "string") return false;
+  if (!rosterValid(r.roster)) return false;
+  const ownedIds = new Set(r.roster.people.map(person => person.id));
+  const ownedNames = new Set(r.roster.people.map(person => person.name));
   // non-negative, not merely integral: a hand-edited {walked:-1} restored
   // fine and rendered a -100% mercy rate, which is the made-up number this
   // module refuses to print elsewhere (caught in review)
   if (!r.mercy || !intIn(r.mercy.walked, 0, Number.MAX_SAFE_INTEGER)
       || !intIn(r.mercy.finished, 0, Number.MAX_SAFE_INTEGER)) return false;
   if (!r.wounds || typeof r.wounds !== "object" || Array.isArray(r.wounds)) return false;
-  if (!Object.keys(r.wounds).every(isName)) return false;
+  if (!Object.keys(r.wounds).every(isPersonId)) return false;
+  if (!Object.keys(r.wounds).every(id => ownedIds.has(id))) return false;
   if (!Object.values(r.wounds).every(n => Number.isInteger(n) && n >= 0)) return false;
   if (!Array.isArray(r.recent) || r.recent.length > RECENT) return false;
   if (!r.recent.every(c =>
@@ -721,7 +885,9 @@ function sane(r) {
     // bounded because the mercy ledger is re-derived from them below —
     // a card carrying a string here would make that sum garbage
     && intIn(c.walked, 0, MAX_SIDE) && intIn(c.finished, 0, MAX_SIDE)
-    && Array.isArray(c.down) && c.down.every(isName)
+    // Receipts retain the tactical names carried by the card; unlike the
+    // durable wound and clock ledgers, they are a record of the yard wire.
+    && Array.isArray(c.down) && c.down.every(name => isName(name) && ownedNames.has(name))
     && (c.slate === undefined || stampValid(c.slate))
   )) return false;
   /* The totals are not free-floating either, and since there is now
@@ -818,7 +984,8 @@ function sane(r) {
       && c.slate.idx <= s.pos
       && sameFraming(c.slate, entries[c.slate.idx]))) return false;
     if (!s.clocks || typeof s.clocks !== "object" || Array.isArray(s.clocks)) return false;
-    if (!Object.keys(s.clocks).every(isName)) return false;
+    if (!Object.keys(s.clocks).every(isPersonId)) return false;
+    if (!Object.keys(s.clocks).every(id => ownedIds.has(id))) return false;
     // 1, not 0: advance() drops a cleared clock, so a stored zero was
     // written by something other than this module
     if (!Object.values(s.clocks).every(n => intIn(n, 1, MAX_CLOCK))) return false;
@@ -842,7 +1009,7 @@ function sane(r) {
   if (!r.bought.every(b => b && typeof b === "object"
     && onlyKeys(b, BOUGHT_KEYS)
     && itemValid(b)
-    && isName(b.who)
+    && isName(b.who) && ownedNames.has(b.who)
     && typeof b.at === "string" && b.at.length > 0)) return false;
   // A slot is bought once per fighter, so a run wearing two drapes on one
   // body was not written by applyBuy — and the derived kit would silently
@@ -923,7 +1090,7 @@ export function closeRun(run, at) {
   // refused: the run stays open and live, and the caller is told why.
   // A player who cannot archive is better off with the run they have.
   if (!archived) return { run, archived: false, closed: false };
-  const fresh = openRun(at);
+  const fresh = openRun(at, run.roster);
   return { run: fresh, archived: true, closed: true, saved: saveRun(fresh) };
 }
 
@@ -953,6 +1120,13 @@ export function summary(run) {
     byWho.get(b.who)[b.slot] = b;
   }
   const kit = [...byWho.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  const lineupIds = new Set(run.roster.lineup);
+  const people = run.roster.people.map(person => ({
+    id: person.id,
+    name: person.name,
+    body: person.body,
+    origin: { ...person.origin },
+  }));
   return {
     cards: run.cards,
     record: `${run.wins}–${losses}`,
@@ -980,6 +1154,11 @@ export function summary(run) {
     struck: run.struck,
     unwitnessed: run.unwitnessed,
     drift: run.drift,
+    roster: {
+      people,
+      lineup: run.roster.lineup.map(id => people.find(person => person.id === id)),
+      bench: people.filter(person => !lineupIds.has(person.id)),
+    },
     // The season's numbers, or null for a plain run. `next` is the
     // current entry's framing — what the door's card display shows —
     // and null once the slate is complete. The room renders these and
@@ -994,6 +1173,7 @@ export function summary(run) {
       next: slateEntry(run.season),
       fit: f.fit,
       clocks: f.clocks,
+      fieldedClocks: f.fieldedClocks,
     },
   };
 }

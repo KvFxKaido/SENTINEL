@@ -1,0 +1,46 @@
+{
+  "_comment": "The room loads this authored crew through run-core's roster boundary. Person ids are durable outside the yard; names are the tactical aliases dealt to it. NIX deliberately borrows the tracked SYN canvas until original art exists — an explicit loan, never a missing-asset fallback.",
+  "people": [
+    {
+      "id": "vesper",
+      "name": "VESPER",
+      "body": "vesper",
+      "origin": {
+        "source": "kestrel-founding-lineup",
+        "faction": null,
+        "reason": "Opened Court 01 with the house."
+      }
+    },
+    {
+      "id": "koa",
+      "name": "KOA",
+      "body": "koa",
+      "origin": {
+        "source": "kestrel-founding-lineup",
+        "faction": null,
+        "reason": "Opened Court 01 with the house."
+      }
+    },
+    {
+      "id": "sable",
+      "name": "SABLE",
+      "body": "sable",
+      "origin": {
+        "source": "kestrel-founding-lineup",
+        "faction": null,
+        "reason": "Opened Court 01 with the house."
+      }
+    },
+    {
+      "id": "nix",
+      "name": "NIX",
+      "body": "syn",
+      "origin": {
+        "source": "ember-winter-entry",
+        "faction": "ember_colonies",
+        "reason": "The north valley entered a defender because winter was bad."
+      }
+    }
+  ],
+  "lineup": ["vesper", "koa", "sable"]
+}

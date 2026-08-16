@@ -1,12 +1,12 @@
 # Walkable World Prototype
 
-One room, one walking character, three squadmates — and one door that is
+One room, one walking character, four owned people — and one door that is
 somewhere else's problem. This is a pure three.js renderer toy: no game
 rules and no `tactical-core` import. Its only network call is asking the
 witness to certify what the yard reports back through the seam (below).
 
-Cipher walks inside a voxel-extruded Kestrel interior while VESPER, KOA and
-SABLE stand as non-colliding set dressing. The room reuses `tactical3d/`'s
+Cipher walks inside a voxel-extruded Kestrel interior while VESPER, KOA,
+SABLE, and the benched NIX stand as non-colliding bodies. The room reuses `tactical3d/`'s
 terrain density, Y-billboard, quarter-turn camera, lighting discipline, blob
 shadow, and LCD display pass so the audition is against the same visual
 machinery rather than a friendly mock.
@@ -43,6 +43,8 @@ means this page does not run from `file://`.
 | `Q` / `E` | orbit the room 90° |
 | `P` | cycle LCD / crunch / clean |
 | `Shift` + `N` | close the run, open a fresh one |
+| `Shift` + `P` | pass the current slate entry |
+| `B` | rotate the bench before the next deal |
 
 `J` and `K` swung the pack's sword until 2026-08-02 and are gone. No rule
 ever consulted them: `tactical-core` models overwatch, shot, cover and
@@ -81,6 +83,16 @@ flight belongs to the run that dealt it, and closing mid-settlement used
 to archive the run *without* its final card and then bank that card onto
 the fresh one.
 
+The run owns a four-person roster loaded from
+`world/recruitment/court-01.json`: stable person ids, tactical names, bodies,
+and authored origins. Exactly three ids are fielded. `B` rotates the one-person
+bench and the panel shows the selected tactical names before commitment, plus
+the benched person's source and reason for entering. The north door receives
+only the existing certified `{name, hp}` × 3 snapshot. NIX is the first faction
+entrance — an Ember Colonies defender sent because winter was bad — and
+explicitly borrows SYN's tracked canvas until original art exists. That loan is
+authored data and a registered yard mapping, never a missing-asset fallback.
+
 The north doorway is **live**: walking through it is the seam — and the
 dash moves through the same collision and door machinery, so dashing the
 doorway deals the card too. On the full roster, walking back out of a
@@ -93,7 +105,7 @@ Crossing the north door hands the feed to `tactical3d/` in a fullscreen
 iframe with a seed this room dealt (`?seam=1&seed=…`). The yard plays
 exactly one card — its own re-deal verbs are disabled in seam mode — and
 when you take **WALK BACK OUT** on the post-match overlay, it posts
-`{seed, record, result, rating, purse, ledger, down, fingerprint}` home
+`{seed, roster, record, result, rating, purse, ledger, down, fingerprint}` home
 and the frame is torn down. You return standing just inside the walls;
 walking the door again deals a fresh card.
 
@@ -103,7 +115,7 @@ cost, and cost is not in the yard's `end` event. The counts are the same
 three the witness certificate carries, so the edge checks them; the names
 are the yard's own word and must at least agree with its own count.
 
-The three room bodies show only looping `IDLE` or `KNEEL`. The newest entry
+The four owned room bodies show only looping `IDLE` or `KNEEL`. The newest entry
 in `run.recent` whose certificate is not `struck` owns the visible aftermath:
 an operative kneels if and only if that entry names them in `down`. A fresh
 run, or one containing only struck cards, leaves everybody idle. `run.wounds`
@@ -191,10 +203,11 @@ pixel, because on a body in a long coat the height loss alone read as a
 shorter man rather than a crouching one.
 
 The room gate is stated, never guessed at, and it is ONE tier: Cipher needs
-all ten verbs and four facings (40 sheets); VESPER, KOA and SABLE need only
-`IDLE` and `KNEEL` in four facings (24 more). Loading the squad's other
-eight verbs here would spend the north seam's seven-second boot budget on
-poses the room never plays. All 64 required sheets load and the panel reads
+all ten verbs and four facings (40 sheets); VESPER, KOA, SABLE, and the SYN
+canvas loaned to NIX need only `IDLE` and `KNEEL` in four facings (32 more).
+Loading the squad's other eight verbs here would spend the north seam's
+seven-second boot budget on poses the room never plays. All 72 unique required
+sheets load and the panel reads
 **COMPOSED / READY**, or the room faults.
 
 - every required sheet loads → **COMPOSED / READY**;

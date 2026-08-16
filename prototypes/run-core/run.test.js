@@ -12,14 +12,20 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import {
   RUN_V, RUN_KEY, CLOSED_KEY, ORPHAN_KEY, WOUND_CLOCK, FLAIR_SLOTS,
+  LINEUP_SLOTS, FULL_STRENGTH,
   bindStore, openRun, openSeason, slateValid, applyCard, applyPass,
   applyBuy, itemValid, stockValid, kitOf,
-  cardValid, fitness, loadRun, saveRun, closeRun, readClosed, summary,
+  cardValid, rosterValid, personOf, fieldedRoster, setLineup,
+  fitness, loadRun, saveRun, closeRun, readClosed, summary,
 } from "./run.js";
 
 const AT = "2026-08-04T12:00:00.000Z";
+const authoredCourt = JSON.parse(fs.readFileSync(
+  new URL("../../world/recruitment/court-01.json", import.meta.url), "utf8"));
+const COURT_ROSTER = { people: authoredCourt.people, lineup: authoredCourt.lineup };
 
 // A store that is a plain object, so a test can look at exactly what was
 // written rather than at what the module says it wrote.
@@ -97,6 +103,76 @@ test("a fresh run is empty, versioned, and stamped with when it opened", () => {
   assert.deepEqual(r.wounds, {});
   assert.deepEqual(r.recent, []);
   assert.equal(r.season, null, "a plain run has no slate — a season is opened, not implied");
+});
+
+test("a fresh run owns four stable people, their origins, and a three-person lineup", () => {
+  const r = openRun(AT);
+  assert.deepEqual(r.roster, COURT_ROSTER,
+    "run-core's default and the room's authored Court 01 file must not drift");
+  assert.equal(r.roster.people.length, 4);
+  assert.equal(r.roster.lineup.length, LINEUP_SLOTS);
+  assert.deepEqual(r.roster.lineup, ["vesper", "koa", "sable"]);
+  assert.equal(personOf(r, "nix").name, "NIX");
+  assert.deepEqual(personOf(r, "nix").origin, {
+    source: "ember-winter-entry",
+    faction: "ember_colonies",
+    reason: "The north valley entered a defender because winter was bad.",
+  });
+  assert.deepEqual(fieldedRoster(r), [
+    { name: "VESPER", hp: FULL_STRENGTH },
+    { name: "KOA", hp: FULL_STRENGTH },
+    { name: "SABLE", hp: FULL_STRENGTH },
+  ], "stable ids and origins stop at the door; the yard still gets exactly name and hp");
+});
+
+test("an authored roster is exact, unique, larger than the fielded three, and source-complete", () => {
+  const good = openRun(AT).roster;
+  assert.equal(rosterValid(good), true);
+  const cases = [
+    { ...good, people: good.people.slice(0, 3) },
+    { ...good, lineup: ["vesper", "koa"] },
+    { ...good, lineup: ["vesper", "vesper", "sable"] },
+    { ...good, lineup: ["vesper", "koa", "nobody"] },
+    { ...good, extra: true },
+    { ...good, people: good.people.map((person, i) => i ? person : { ...person, id: "koa" }) },
+    { ...good, people: good.people.map((person, i) => i ? person : { ...person, name: "KOA" }) },
+    { ...good, people: good.people.map((person, i) => i ? person : {
+      ...person, origin: { ...person.origin, reason: "" },
+    }) },
+    { ...good, people: good.people.map((person, i) => i ? person : {
+      ...person, origin: { ...person.origin, account: "trust me" },
+    }) },
+  ];
+  for (const bad of cases) assert.equal(rosterValid(bad), false);
+  assert.equal(openRun(AT, cases[0]), null, "bad authored content opens no half-run");
+  assert.equal(openSeason(AT, slate(), cases[0]), null,
+    "bad authored content opens no half-season either");
+});
+
+test("an invalid authored roster does not consume or orphan a stored run", () => {
+  const stored = JSON.stringify(openRun(AT));
+  const box = memoryStore({ [RUN_KEY]: stored });
+  const bad = { ...COURT_ROSTER, lineup: ["vesper", "koa", "stranger"] };
+  const loaded = loadRun(AT, bad);
+  assert.deepEqual(loaded, { run: null, how: "invalid-roster" });
+  assert.equal(box[RUN_KEY], stored);
+  assert.equal(box[ORPHAN_KEY], undefined);
+});
+
+test("lineup choice is immutable, id-based, and changes only the certified roster snapshot", () => {
+  const before = openRun(AT);
+  const out = setLineup(before, ["vesper", "nix", "sable"]);
+  assert.equal(out.accepted, true);
+  assert.deepEqual(before.roster.lineup, ["vesper", "koa", "sable"]);
+  assert.deepEqual(out.run.roster.lineup, ["vesper", "nix", "sable"]);
+  assert.deepEqual(fieldedRoster(out.run), [
+    { name: "VESPER", hp: 10 },
+    { name: "NIX", hp: 10 },
+    { name: "SABLE", hp: 10 },
+  ]);
+  assert.equal(Object.keys(fieldedRoster(out.run)[1]).length, 2);
+  assert.equal(setLineup(before, ["vesper", "vesper", "nix"]).accepted, false);
+  assert.equal(setLineup(before, ["vesper", "nix", "stranger"]).accepted, false);
 });
 
 // ---- the reducer ---------------------------------------------------
@@ -180,11 +256,28 @@ test("the mercy ledger accumulates across cards", () => {
   assert.deepEqual(run.mercy, { walked: 4, finished: 2 });
 });
 
-test("wounds accumulate per operative, by name", () => {
+test("wounds accumulate per person, by stable id", () => {
   let run = openRun(AT);
   run = applyCard(run, card({ result: "loss", ledger: { walked: 0, finished: 0, lost: 2 }, down: ["VESPER", "KOA"] })).run;
   run = applyCard(run, card({ result: "loss", ledger: { walked: 0, finished: 0, lost: 1 }, down: ["VESPER"] })).run;
-  assert.deepEqual(run.wounds, { VESPER: 2, KOA: 1 });
+  assert.deepEqual(run.wounds, { vesper: 2, koa: 1 });
+});
+
+test("a yard name is only the wire alias for a wound banked under the person id", () => {
+  const futureAlias = {
+    people: COURT_ROSTER.people.map(person =>
+      person.id === "vesper" ? { ...person, name: "WRAITH" } : person),
+    lineup: COURT_ROSTER.lineup.slice(),
+  };
+  const out = applyCard(openSeason(AT, slate(), futureAlias), card({
+    result: "loss",
+    ledger: { walked: 0, finished: 0, lost: 1 },
+    down: ["WRAITH"],
+  }));
+  assert.equal(out.accepted, true);
+  assert.deepEqual(out.run.wounds, { vesper: 1 }, "the durable wound key is not the current alias");
+  assert.deepEqual(out.run.season.clocks, { vesper: WOUND_CLOCK });
+  assert.deepEqual(out.run.recent[0].down, ["WRAITH"], "the receipt preserves the name on the wire");
 });
 
 test("the recent list is newest first and bounded", () => {
@@ -351,7 +444,7 @@ test("a hand-edited run that is structurally wrong is orphaned", () => {
     { ...openRun(AT), mercy: { walked: -1, finished: 2 } },
     { ...openRun(AT), mercy: { walked: 1, finished: -2 } },
     { ...openRun(AT), wounds: ["VESPER"] },
-    { ...openRun(AT), wounds: { VESPER: "many" } },
+    { ...openRun(AT), wounds: { vesper: "many" } },
     { ...openRun(AT), recent: null },
     { ...openRun(AT), opened: 12345 },
     { ...openRun(AT), rules: 7 },
@@ -378,6 +471,8 @@ test("the check goes inside the collections, not just around them", () => {
     { ...good, recent: [null] },
     { ...good, recent: new Array(13).fill(good.recent[0]) },
     { ...good, wounds: { ["X".repeat(40)]: 1 } },
+    { ...good, wounds: { KOA: 1 } },
+    { ...good, wounds: { stranger: 1 } },
   ]) {
     memoryStore({ [RUN_KEY]: JSON.stringify(bad) });
     assert.equal(loadRun(AT).how, "orphaned", `restored junk: ${JSON.stringify(bad).slice(0, 90)}`);
@@ -476,7 +571,7 @@ test("summary derives the record, the mercy rate and the wounded list", () => {
   assert.equal(s.walked, 3);
   assert.equal(s.finished, 1);
   assert.equal(s.mercyRate, 3 / 4);
-  assert.deepEqual(s.wounded, [["SABLE", 2], ["VESPER", 1]], "most wounded first");
+  assert.deepEqual(s.wounded, [["sable", 2], ["vesper", 1]], "most wounded first, keyed by id");
 });
 
 test("the mercy rate is null before anyone has yielded, never a made-up zero", () => {
@@ -560,7 +655,7 @@ test("a pass banks the entry it declined and advances the slate", () => {
 test("wounds are clocks: a down fighter gates the deal", () => {
   const hurt = applyCard(openSeason(AT, slate()),
     card({ ledger: { walked: 2, finished: 0, lost: 1 }, down: ["VESPER"] })).run;
-  assert.deepEqual(hurt.season.clocks, { VESPER: WOUND_CLOCK });
+  assert.deepEqual(hurt.season.clocks, { vesper: WOUND_CLOCK });
   assert.equal(fitness(hurt).fit, false);
   const snapshot = JSON.stringify(hurt);
   const { run, accepted, counted, why } = applyCard(hurt, card());
@@ -585,6 +680,34 @@ test("passing is always legal, and passing is what heals — the deadlock law", 
   assert.equal(fitness(run).fit, true);
   assert.deepEqual(run.season.clocks, {}, "a cleared clock is dropped, not stored at zero");
   assert.equal(applyCard(run, card()).counted, true, "and the deal is legal again");
+});
+
+test("benching a recovering person makes a fit lineup, and fighting advances their clock", () => {
+  let run = applyCard(openSeason(AT, slate()),
+    card({ ledger: { walked: 2, finished: 0, lost: 1 }, down: ["KOA"] })).run;
+  assert.equal(fitness(run).fit, false);
+
+  const changed = setLineup(run, ["vesper", "nix", "sable"]);
+  assert.equal(changed.accepted, true);
+  run = changed.run;
+  assert.equal(fitness(run).fit, true, "the clock belongs to KOA, not to an abstract squad slot");
+  assert.deepEqual(fitness(run).clocks, [["koa", WOUND_CLOCK]], "the benched wound still exists");
+  assert.deepEqual(fitness(run).fieldedClocks, []);
+
+  const fought = applyCard(run, card({ seed: "f00d" }));
+  assert.equal(fought.accepted, true);
+  assert.equal(fought.counted, true);
+  assert.deepEqual(fought.run.season.clocks, { koa: WOUND_CLOCK - 1 },
+    "the slate moved, so the benched recovery clock moved too");
+});
+
+test("a returned card cannot claim somebody outside the lineup went down", () => {
+  const run = setLineup(openRun(AT), ["vesper", "nix", "sable"]).run;
+  const out = applyCard(run,
+    card({ ledger: { walked: 2, finished: 0, lost: 1 }, down: ["KOA"] }));
+  assert.equal(out.accepted, false);
+  assert.equal(out.counted, false);
+  assert.match(out.why, /did not field/);
 });
 
 test("a struck card does not advance the slate", () => {
@@ -667,9 +790,11 @@ test("a hand-edited season that is structurally wrong is orphaned", () => {
     // pos 3 with one card and no passes: the books do not balance
     { ...good, season: { ...s, pos: 3 } },
     // a stored zero clock was written by somebody else — advance() drops them
-    { ...good, season: { ...s, clocks: { KOA: 0 } } },
-    { ...good, season: { ...s, clocks: { KOA: -2 } } },
-    { ...good, season: { ...s, clocks: { KOA: "soon" } } },
+    { ...good, season: { ...s, clocks: { koa: 0 } } },
+    { ...good, season: { ...s, clocks: { koa: -2 } } },
+    { ...good, season: { ...s, clocks: { koa: "soon" } } },
+    { ...good, season: { ...s, clocks: { KOA: WOUND_CLOCK } } },
+    { ...good, season: { ...s, clocks: { stranger: WOUND_CLOCK } } },
     { ...good, season: { ...s, passed: [{ idx: 0, venue: "V", host: null, sanction: null }] } },
     noSeasonKey,
     { ...good, recent: [{ ...good.recent[0], slate: { idx: -1, venue: "V", host: null, sanction: null } }] },
@@ -727,10 +852,9 @@ test("a store that silently drops the orphan write cannot fake a set-aside", () 
 });
 
 test("__proto__ is not a fighter name — the deal gate cannot be walked around", () => {
-  // clocks["__proto__"] = WOUND_CLOCK invokes the inherited accessor and
-  // records nothing: Object.keys never sees the clock, fitness() calls
-  // the roster fit, and the wound gates no deal. Refused at the
-  // boundary, where every dictionary key in this module is minted.
+  // Durable ledgers now use the stricter person id, but the yard wire still
+  // arrives as tactical names. Refuse the hostile spelling at that boundary
+  // before any caller can treat it as an object key.
   const down = { ledger: { walked: 0, finished: 0, lost: 1 }, down: ["__proto__"] };
   assert.equal(cardValid(card(down)), false);
   const { accepted } = applyCard(openSeason(AT, slate()), card(down));
@@ -742,8 +866,8 @@ test("a stored run that smuggles __proto__ in is orphaned, not restored", () => 
     card({ ledger: { walked: 0, finished: 0, lost: 1 }, down: ["KOA"] })).run;
   const blob = JSON.stringify(good);
   for (const bad of [
-    blob.replace(`"clocks":{"KOA":${WOUND_CLOCK}}`, `"clocks":{"__proto__":${WOUND_CLOCK}}`),
-    blob.replace('"wounds":{"KOA":1}', '"wounds":{"__proto__":1}'),
+    blob.replace(`"clocks":{"koa":${WOUND_CLOCK}}`, `"clocks":{"__proto__":${WOUND_CLOCK}}`),
+    blob.replace('"wounds":{"koa":1}', '"wounds":{"__proto__":1}'),
   ]) {
     assert.notEqual(bad, blob, "the replacement must have found its target");
     memoryStore({ [RUN_KEY]: bad });
@@ -912,6 +1036,8 @@ test("a purchase needs a name and a when", () => {
   assert.equal(applyBuy(run, item(), "", AT).accepted, false);
   assert.equal(applyBuy(run, item(), "__proto__", AT).accepted, false,
     "the one name that is an accessor, refused where every key here is minted");
+  assert.equal(applyBuy(run, item(), "STRANGER", AT).accepted, false,
+    "a valid tactical name with no owned person behind it has no hook");
   assert.equal(applyBuy(run, item(), "VESPER", "").accepted, false);
   assert.equal(applyBuy(run, item(), "VESPER", null).accepted, false);
 });
@@ -1193,6 +1319,6 @@ test("summary carries the season's numbers, and null for a plain run", () => {
   assert.equal(s.complete, false);
   assert.equal(s.passes, 0);
   assert.equal(s.fit, false);
-  assert.deepEqual(s.clocks, [["VESPER", WOUND_CLOCK]]);
+  assert.deepEqual(s.clocks, [["vesper", WOUND_CLOCK]]);
   assert.deepEqual(s.next, { venue: "THE COLD COURT", host: null, sanction: "covenant" });
 });

@@ -34,7 +34,7 @@ import { fileURLToPath } from "node:url";
 // Fixtures are built with the module the room consumes, so a seeded run
 // is a run this schema actually produces rather than a hand-typed blob
 // that happens to restore.
-import { openSeason, applyCard } from "../../run-core/run.js";
+import { openSeason, applyCard, setLineup } from "../../run-core/run.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..", "..");
@@ -116,6 +116,16 @@ try {
   check("a fresh room opens on the house slate, fit and at stop one",
     (await seasonOf(page)) === "0/6:0:fit", await seasonOf(page));
 
+  // Step 1's actual decision, before commitment: rotate NIX off the bench.
+  // This crossing therefore proves the authored substitute all the way through
+  // the room, yard, returned payload, and witness request — not merely as a
+  // valid rules-core fixture.
+  await page.keyboard.press("KeyB");
+  check("the room chooses a substituted lineup before the deal",
+    (await page.evaluate(() => document.getElementById("cv").dataset.fielded))
+      === "KOA:10,SABLE:10,NIX:10"
+      && (await page.evaluate(() => document.getElementById("cv").dataset.bench)) === "vesper");
+
   // W is camera-FORWARD, which is diagonal in this 2:1 view — held alone it
   // slides the body off the door span and pins it on the west wall. W+D is
   // true north, and the door only deals a card to a body inside its span.
@@ -141,7 +151,7 @@ try {
   // chain — dealt, fielded, posted home, certified — in one crossing.
   const dealtRoster = new URL(seamSrc, page.url()).searchParams.get("roster");
   check("the world deals the squad beside the seed",
-    dealtRoster === "VESPER:10,KOA:10,SABLE:10", dealtRoster);
+    dealtRoster === "KOA:10,SABLE:10,NIX:10", dealtRoster);
   // ---- the venue crosses as a lens ----------------------------------
   // A season deals its entry's venue name beside the certified inputs.
   // Declared inert on both ends: the yard dresses for it and the
@@ -153,7 +163,7 @@ try {
     dealtVenue === "KESTREL YARD", String(dealtVenue));
   const cutFielding = (await page.textContent("#seamcut")).replace(/\s+/g, " ").trim();
   check("the cut card says who is fighting",
-    /FIELDING VESPER · KOA · SABLE/.test(cutFielding), cutFielding);
+    /FIELDING KOA · SABLE · NIX/.test(cutFielding), cutFielding);
   // the cut card carries the current entry's framing — the run's own
   // slate talking, since nothing seasonal crosses the seam itself
   const cut = (await page.textContent("#seamcut")).replace(/\s+/g, " ").trim();
@@ -165,7 +175,8 @@ try {
     ["ready", "error"].includes(document.getElementById("cv").dataset.sprites),
     null, { timeout: 20000 });
   // The room holds the cut until the yard proves it booted, and the yard now
-  // has 140 sheets to load before it can say so. If that ever outgrows
+  // has 168 logical sheets to load before it can say so (NIX's keys resolve
+  // to the declared SYN canvas loan). If that ever outgrows
   // SEAM_BOOT_MS the room aborts the hand-off and this check is what says so.
   check("the yard boots inside the seam",
     (await frame.evaluate(() => document.getElementById("cv").dataset.sprites)) === "ready");
@@ -179,7 +190,7 @@ try {
   const yardFielded = await frame.evaluate(() =>
     document.getElementById("cv").dataset.fielded);
   check("the yard fields exactly the squad the world dealt",
-    yardFielded === "VESPER:10|KOA:10|SABLE:10", yardFielded);
+    yardFielded === "KOA:10|SABLE:10|NIX:10", yardFielded);
   // loading, not telemetry: the render idle is 4 frames where composed is 8
   const renderIdles = await frame.evaluate(() =>
     document.getElementById("cv").dataset.idleFrames ?? "");
@@ -263,7 +274,7 @@ try {
   // the second input, on the surface: the card the room settles names the
   // squad that fought it, not only the seed that dealt it
   check("the settled card names the squad that fought it",
-    /FIELDED VESPER 10\/10 · KOA 10\/10 · SABLE 10\/10/.test(verdict), verdict);
+    /FIELDED KOA 10\/10 · SABLE 10\/10 · NIX 10\/10/.test(verdict), verdict);
 
   // ---- the run outlives the tab -------------------------------------
   // The whole point of the run layer. dataset.run is the surface's own
@@ -413,10 +424,12 @@ try {
     rules: "test-rules", at: "2026-08-13T00:00:00Z",
   });
   if (!funded.accepted) throw new Error(`purse fixture refused: ${funded.why}`);
+  const substituted = setLineup(funded.run, ["koa", "sable", "nix"]);
+  if (!substituted.accepted) throw new Error(`lineup fixture refused: ${substituted.why}`);
   await page.evaluate(value => {
     localStorage.clear();
     localStorage.setItem("sentinel.run", JSON.stringify(value));
-  }, funded.run);
+  }, substituted.run);
   await page.goto(ROOM_URL);
   await page.waitForFunction(() =>
     ["ready", "error"].includes(document.getElementById("cv").dataset.sprites),
@@ -495,7 +508,8 @@ try {
     // answer is the only way to produce the disagreement on demand. The
     // seam result is posted from INSIDE the frame because the room
     // refuses any message that is not its own iframe's.
-    const DEALT = [{ name: "VESPER", hp: 10 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 }];
+    const DEALT = [{ name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 }, { name: "NIX", hp: 10 }];
+    const CANONICAL = [{ name: "VESPER", hp: 10 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 }];
     const stubCert = certRoster => page.route(/\/certify$/, route => route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -505,15 +519,15 @@ try {
         rosterHash: "stub", fingerprint: "abc123", lines: 1, transcript: [],
       }),
     }));
-    const postHome = frameHandle => frameHandle.evaluate(() => {
+    const postHome = (frameHandle, roster = DEALT) => frameHandle.evaluate(roster => {
       window.parent.postMessage({
         type: "sentinel-seam-result",
         seed: "6", record: [["end"]], result: "loss", rating: 7, purse: 70,
         ledger: { walked: 0, finished: 0, lost: 0 }, down: [],
-        roster: [{ name: "VESPER", hp: 10 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 }],
+        roster,
         fingerprint: "abc123", lines: 1,
       }, location.origin);
-    });
+    }, roster);
     const settledVerdict = async () => {
       await page.waitForFunction(
         () => /CERTIFIED|UNCERTIFIED|STRUCK|REFUSED/.test(
@@ -523,7 +537,7 @@ try {
     };
 
     const dressedFrame = await (await page.$("#seamframe")).contentFrame();
-    await stubCert([{ name: "VESPER", hp: 10 }, { name: "NIX", hp: 10 }, { name: "SABLE", hp: 10 }]);
+    await stubCert(CANONICAL);
     await postHome(dressedFrame);
     const wrongSquadVerdict = await settledVerdict();
     check("an edge certifying a squad the room did not deal is disputed",
@@ -583,7 +597,7 @@ try {
     await page.keyboard.up("Shift");
     if (thirdDeal) {
       await stubCert(undefined);
-      await postHome(await (await page.$("#seamframe")).contentFrame());
+      await postHome(await (await page.$("#seamframe")).contentFrame(), CANONICAL);
       const silentVerdict = await settledVerdict();
       check("an edge that predates the roster counts, and says it did not attest the squad",
         /CERTIFIED/.test(silentVerdict) && /SQUAD NOT ATTESTED/.test(silentVerdict)

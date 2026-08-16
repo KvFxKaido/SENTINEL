@@ -13,7 +13,7 @@
 // ever needing to know where a body is on screen — the one thing a
 // headless test cannot see.
 //
-// Real molded sheets for all five fighters are backed up before the run
+// Real molded canvases for all five bodies are backed up before the run
 // and restored after, including when setup itself fails; a backup
 // stranded by a hard-killed run is reinstated on the next start.
 //
@@ -95,6 +95,7 @@ packSprites.configureBody?.("render96");
 const cipherRenderUrl = packSprites.sheetUrl("cipher", "idle", "down");
 const koaRenderUrl = packSprites.sheetUrl("koa", "fire", "down");
 const synRenderUrl = packSprites.sheetUrl("syn", "death", "left");
+const nixRenderUrl = packSprites.sheetUrl("nix", "idle", "down");
 // URLs end in the per-load cache buster (the room's stale-sheet lesson,
 // paid for here by CI), so the assertions pin the path and the buster's
 // shape rather than an exact string.
@@ -109,6 +110,11 @@ check("render96 routes the squad to their render sheets",
 check("render96 routes SYN to his render sheets",
   synRenderUrl.startsWith("../../assets/original/squad_render/sheets96/syn/death_left.png?v="),
   synRenderUrl);
+check("NIX's declared prototype body loan routes to the tracked SYN canvas",
+  packSprites.fighterSlug("NIX") === "nix"
+    && packSprites.fighterCanvas("nix") === "syn"
+    && nixRenderUrl.startsWith("../../assets/original/squad_render/sheets96/syn/idle_down.png?v="),
+  nixRenderUrl);
 
 packSprites.configureBody?.("composed");
 const cipherComposedUrl = packSprites.sheetUrl("cipher", "idle", "down");
@@ -345,16 +351,16 @@ try {
   // ---- a roster this yard cannot STAGE faults at the door -----------
   // Two different questions, and only one is the rules core's:
   // `rosterValid` says who may FIGHT, this page says who it can DRAW.
-  // `?roster=NIX:10,…` passes the first and fails the second — it used to
+  // `?roster=RUNE:10,…` passes the first and fails the second — it
   // validate, field, and then throw inside fighterSlug on the first
   // frame, AFTER the boot guard, so the yard died silently and a room
   // waiting on the hand-off sat there until its own timer gave up
   // (caught in review). A body with no sheets is a fault, named.
-  await boot("&roster=NIX:10,KOA:10,SABLE:10");
+  await boot("&roster=RUNE:10,KOA:10,SABLE:10");
   check("a roster this yard cannot stage faults", (await ds("sprites")) === "error", await ds("sprites"));
   const rosterFault = await page.textContent("#asset-detail").catch(() => "");
   check("the roster fault names who it cannot draw, and who it can",
-    /NIX/.test(rosterFault) && /vesper/.test(rosterFault), rosterFault);
+    /RUNE/.test(rosterFault) && /vesper/.test(rosterFault) && /nix/.test(rosterFault), rosterFault);
   check("no bodies are drawn behind the roster fault",
     !((await ds("units")) ?? "").includes(":idle:"), (await ds("units")) ?? "");
   // ...and a roster it CAN stage boots exactly as the default does
@@ -362,6 +368,11 @@ try {
   check("a stageable roster boots", (await ds("sprites")) === "ready", await ds("sprites"));
   check("and the yard fields exactly it",
     (await ds("fielded")) === "VESPER:10|KOA:7|SABLE:10", await ds("fielded"));
+  await boot("&roster=VESPER:10,NIX:10,SABLE:10");
+  check("the authored substitute is stageable through its declared body loan",
+    (await ds("sprites")) === "ready"
+      && (await ds("fielded")) === "VESPER:10|NIX:10|SABLE:10",
+    `${await ds("sprites")} · ${await ds("fielded")}`);
   await boot();
 
   // ---- a missing verb faults; it never falls back to the old grids ---

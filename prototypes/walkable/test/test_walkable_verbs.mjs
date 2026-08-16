@@ -6,7 +6,7 @@
 // be slower than a 4-frame flinch, so sleep-then-read checks lie —
 // that lesson is why the watcher exists (caught building this harness).
 //
-// Real composed sheets for Cipher and the three fielded operatives, plus
+// Real composed sheets for Cipher and the owned crew's canvases, plus
 // every tracked render96 destination, are backed up before the run and
 // restored after — including when setup itself fails, and a
 // backup stranded by a hard-killed run is reinstated on the next start.
@@ -287,15 +287,15 @@ try {
   check("BODY cell says COMPOSED / READY",
     (await page.textContent("#body-state")) === "COMPOSED / READY");
   await page.waitForFunction(() =>
-    (document.getElementById("cv").dataset.squadSprites ?? "").split(",").length === 3);
+    (document.getElementById("cv").dataset.squadSprites ?? "").split(",").length === 4);
   const freshSquad = await ds("squad");
   const freshSprites = await ds("squadSprites");
-  check("the three fielded operatives render in the room",
-    (freshSprites ?? "").split(",").length === 3
-      && ["vesper", "koa", "sable"].every(name => freshSprites.includes(`${name}:`)),
+  check("all four owned people render in the room, including the bench",
+    (freshSprites ?? "").split(",").length === 4
+      && ["vesper", "koa", "sable", "nix"].every(name => freshSprites.includes(`${name}:`)),
     freshSprites);
-  check("a fresh run leaves the whole squad idle",
-    freshSquad === "vesper:idle,koa:idle,sable:idle", freshSquad);
+  check("a fresh run leaves the whole owned roster idle",
+    freshSquad === "vesper:idle,koa:idle,sable:idle,nix:idle", freshSquad);
 
   // The room stages a body for every operative the yard fields, matched by
   // the slug/name relationship the room actually uses at runtime
@@ -305,7 +305,7 @@ try {
   const staged = (freshSquad ?? "").split(",")
     .map(entry => entry.split(":")[0].toUpperCase()).sort();
   check("the room stages a body for every operative the yard fields",
-    JSON.stringify(ops) === JSON.stringify(staged),
+    ops.every(name => staged.includes(name)),
     `yard ${ops.join(",")} vs room ${staged.join(",")}`);
 
   // ---- the roster the room DEALS ------------------------------------
@@ -332,6 +332,38 @@ try {
   check("the room's full-strength constant is the rules core's ceiling",
     dealt.every(f => f.hp === OP_MAX_HP), `${fielded} vs ${OP_MAX_HP}`);
 
+  const freshPanel = (await page.textContent("#runinfo")).replace(/\s+/g, " ").trim();
+  check("the run publishes stable people, a lineup, and the bench",
+    (await ds("lineup")) === "vesper,koa,sable"
+      && (await ds("bench")) === "nix"
+      && /nix:NIX:ember-winter-entry/.test(await ds("owned")),
+    `${await ds("owned")} · ${await ds("lineup")} · ${await ds("bench")}`);
+  check("the visible bench names NIX's authored faction entrance and reason",
+    /BENCH · NIX · EMBER COLONIES/.test(freshPanel)
+      && /north valley entered a defender because winter was bad/i.test(freshPanel),
+    freshPanel);
+
+  await page.keyboard.press("KeyB");
+  const substituted = (await ds("fielded")).split(",").map(part => {
+    const [name, hp] = part.split(":");
+    return { name, hp: Number(hp) };
+  });
+  check("B makes a real lineup decision by stable id",
+    (await ds("bench")) === "vesper" && (await ds("lineup")) === "koa,sable,nix",
+    `${await ds("lineup")} · bench ${await ds("bench")}`);
+  check("the substitute reaches the same exact three-entry yard contract",
+    rosterValid(substituted)
+      && substituted.map(person => person.name).join(",") === "KOA,SABLE,NIX"
+      && substituted.every(person => Object.keys(person).length === 2),
+    await ds("fielded"));
+  // Return the live room to its authored opening lineup; later fixtures also
+  // overwrite storage, but this proves the rotation is a closed decision.
+  await page.keyboard.press("KeyB");
+  await page.keyboard.press("KeyB");
+  await page.keyboard.press("KeyB");
+  check("the bench rotation returns to the authored opening lineup",
+    (await ds("fielded")) === "VESPER:10,KOA:10,SABLE:10", await ds("fielded"));
+
   // newest first after these three: struck KOA, counted SABLE, old
   // counted VESPER. VESPER remains in cumulative wounds and KOA is the
   // newest visual aftermath, but only SABLE belongs on a knee.
@@ -346,12 +378,12 @@ try {
   await page.waitForFunction(() => !!document.getElementById("cv").dataset.squadSprites);
   const aftermathSquad = await ds("squad");
   check("squad posture follows the last counted card",
-    aftermathSquad === "vesper:idle,koa:idle,sable:kneel", aftermathSquad);
+    aftermathSquad === "vesper:idle,koa:idle,sable:kneel,nix:idle", aftermathSquad);
   // The discrimination, stated as the claim rather than as a string: VESPER
   // went down on an EARLIER counted card, so she is in the cumulative tally
   // the panel shows and is NOT on a knee in the room. Order-independent on
-  // purpose — summary() sorts wounded by count then name, which is run-core's
-  // presentation choice and not something this suite should pin from here.
+  // purpose — summary() sorts wounded by count then stable id, which is
+  // run-core's telemetry choice and not something this suite should pin here.
   const aftermathPanel = (await page.textContent("#runinfo")).replace(/\s+/g, " ").trim();
   const woundLine = (aftermathPanel.match(/DOWN · ([^\n]*?)(?:RECENT|OPENED|$)/) ?? [])[1] ?? "";
   check("an old wound is in the panel and NOT on the body",
@@ -365,7 +397,7 @@ try {
   await boot("?body=composed");
   const struckSquad = await ds("squad");
   check("a run with only struck cards leaves the whole squad idle",
-    struckSquad === "vesper:idle,koa:idle,sable:idle", struckSquad);
+    struckSquad === "vesper:idle,koa:idle,sable:idle,nix:idle", struckSquad);
 
   // ---- the front office: the room surfaces the season ----------------
   // Beat 2 of season-lite. The slate, the position, the next entry's
@@ -428,6 +460,23 @@ try {
     /THE DEAL IS GATED/.test(gateCut) && /SABLE 2/.test(gateCut)
       && /SHIFT\+P/.test(gateCut), gateCut);
 
+  await page.keyboard.press("KeyB");
+  await page.keyboard.press("KeyB");
+  await page.keyboard.press("KeyB");
+  sPanel = await panelText();
+  check("benching the recovering person makes the substituted lineup fit",
+    (await ds("season")) === "1/3:0:fit"
+      && (await ds("bench")) === "sable"
+      && (await ds("fielded")) === "VESPER:10,KOA:10,NIX:10",
+    `${await ds("season")} · ${await ds("fielded")} · bench ${await ds("bench")}`);
+  check("the benched recovery stays visible without claiming the deal is gated",
+    /RECOVERING · SABLE 2 STOPS/.test(sPanel) && !/ROSTER UNFIT/.test(sPanel), sPanel);
+  await page.keyboard.press("KeyB");
+  check("rotating back to the authored lineup restores the honest wound gate",
+    (await ds("season")) === "1/3:0:unfit"
+      && (await ds("fielded")) === "VESPER:10,KOA:10,SABLE:10",
+    `${await ds("season")} · ${await ds("fielded")}`);
+
   // the pass verb: always legal, ticks the clocks, banks the entry
   await pass();
   check("a pass advances the slate and ticks the clock",
@@ -489,6 +538,116 @@ try {
   await pass();
   check("a plain run has nothing to pass and says so",
     /NOTHING TO PASS/.test(await panelText()), await panelText());
+
+  // A plain run deliberately leaves the door live while a card settles:
+  // nothing positional rides the card, so two may bank in either order.
+  // Hold card A at the edge, deal card B, then let A land while B owns the
+  // live seam. A's settlement must not erase B's fielded snapshot (caught
+  // in review on PR #135).
+  await page.evaluate(value =>
+    localStorage.setItem("sentinel.run", JSON.stringify(value)),
+    openRun("2026-08-16T00:00:00Z"));
+  let heldCertify = null;
+  let certifyRequests = 0;
+  const certifyReply = route => {
+    const asked = JSON.parse(route.request().postData() ?? "{}");
+    return {
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        certified: true, rules: "stub-rules", result: "win", rating: 7, purse: 70,
+        ledger: { walked: 0, finished: 0, lost: 0 }, roster: asked.roster,
+        rosterHash: "stub", fingerprint: asked.fingerprint, lines: 1, transcript: [],
+      }),
+    };
+  };
+  await page.route(/\/certify$/, route => {
+    certifyRequests++;
+    if (certifyRequests === 1) {
+      heldCertify = route;   // card A stays at ASKING THE EDGE…
+      return;
+    }
+    return route.fulfill(certifyReply(route));
+  });
+  await boot("?body=composed&deal=6");
+
+  const walkPlainDoor = async () => {
+    await page.keyboard.down("Shift");
+    await page.keyboard.down("KeyW");
+    await page.keyboard.down("KeyD");
+    const opened = await page.waitForFunction(() => !!document.getElementById("seamframe"),
+      null, { timeout: 30000 }).then(() => true, () => false);
+    await page.keyboard.up("KeyW");
+    await page.keyboard.up("KeyD");
+    await page.keyboard.up("Shift");
+    if (!opened) return null;
+    await page.waitForFunction(() =>
+      document.getElementById("seamframe")?.contentWindow.location.pathname
+        .endsWith("/prototypes/tactical3d/index.html"),
+    null, { timeout: 12000 });
+    return (await page.$("#seamframe")).contentFrame();
+  };
+  const plainRoster = (await ds("fielded")).split(",").map(person => {
+    const [name, hp] = person.split(":");
+    return { name, hp: Number(hp) };
+  });
+  const postPlainCard = (frame, fingerprint) => frame.evaluate(value => {
+    window.parent.postMessage({
+      type: "sentinel-seam-result",
+      seed: "6", record: [["end"]], result: "win", rating: 7, purse: 70,
+      ledger: { walked: 0, finished: 0, lost: 0 }, down: [],
+      roster: value.roster, fingerprint: value.fingerprint, lines: 1,
+    }, window.parent.location.origin);
+  }, { roster: plainRoster, fingerprint });
+
+  const frameA = await walkPlainDoor();
+  check("a plain run deals card A", frameA !== null);
+  if (!frameA) throw new Error("the plain door never dealt card A");
+  const cardAAsked = page.waitForRequest(/\/certify$/, { timeout: 10000 })
+    .then(() => true, () => false);
+  await postPlainCard(frameA, "plain-a");
+  const aHeld = await page.waitForFunction(() =>
+    document.getElementById("cv").dataset.settling === "1",
+  null, { timeout: 10000 }).then(() => true, () => false);
+  const aAsked = await cardAAsked;
+  check("card A waits at the edge", aHeld && aAsked && heldCertify !== null,
+    `${await ds("settling")} settling · ${certifyRequests} requests`);
+  if (!heldCertify) throw new Error("card A never asked the stubbed edge");
+
+  const frameB = await walkPlainDoor();
+  check("the plain door deals card B before A settles", frameB !== null,
+    `${await ds("dealGate")} · ${await ds("settling")} settling`);
+  if (!frameB) throw new Error("the plain door did not deal card B mid-settlement");
+
+  await heldCertify.fulfill(certifyReply(heldCertify));
+  const aLandedInsideB = await page.waitForFunction(() => {
+    const cv = document.getElementById("cv");
+    return cv.dataset.settling === "0"
+      && !!document.getElementById("seamframe")
+      && (cv.dataset.seam === "open" || cv.dataset.seam === "live");
+  }, null, { timeout: 10000 }).then(() => true, () => false);
+  check("card A lands while card B owns the seam", aLandedInsideB,
+    `${await ds("seam")} · ${await ds("settling")} settling`);
+
+  await postPlainCard(frameB, "plain-b");
+  const bFinished = await page.waitForFunction(() => {
+    const cv = document.getElementById("cv");
+    return cv.dataset.settling === "0"
+      && (cv.dataset.seam === "closed" || cv.dataset.seam === "aborted");
+  }, null, { timeout: 10000 }).then(() => true, () => false);
+  const plainRaceRun = await ds("run");
+  check("the first settlement cannot dispute the next honest plain card",
+    bFinished && (await ds("seam")) === "closed"
+      && /^2:2–0:140:0:0:0$/.test(plainRaceRun)
+      && certifyRequests === 2,
+    `${await ds("seam")} · ${plainRaceRun} · ${certifyRequests} requests`);
+  const plainRacePanel = (await page.textContent("#seaminfo")).replace(/\s+/g, " ").trim();
+  check("and the panel says the second card banked",
+    /CERTIFIED AT THE EDGE/.test(plainRacePanel)
+      && /BANKED TO THE RUN · 2 CARDS/.test(plainRacePanel)
+      && !/DISPUTES|STRUCK|REFUSED/.test(plainRacePanel),
+    plainRacePanel);
+  await page.unroute(/\/certify$/);
 
   // and a FRESH room opens on the house slate — the front office is the
   // default surface, not an opt-in
@@ -576,7 +735,7 @@ try {
   check("the kit is on the run panel even with the shop shut",
     /KIT · EVERY HOOK EMPTY/.test(await panelText()), await panelText());
   check("an unbought rack stands there empty",
-    (await ds("rack")) === "6:0" && (await ds("worn")) === "none",
+    (await ds("rack")) === "8:0" && (await ds("worn")) === "none",
     `${await ds("rack")} · ${await ds("worn")}`);
   check("the purse says what was earned before anything is spent",
     /300c EARNED/.test(await panelText()) && !/ON HAND/.test(await panelText()),
@@ -595,7 +754,7 @@ try {
   check("the shop names who the next purchase dresses",
     /DRESSING VESPER/.test(kPanel), kPanel);
   check("the panel says how to read the rack",
-    /RACK READS VESPER · KOA · SABLE, LEFT TO RIGHT · DRAPE THEN PATCH/.test(kPanel), kPanel);
+    /RACK READS VESPER · KOA · SABLE · NIX, LEFT TO RIGHT · DRAPE THEN PATCH/.test(kPanel), kPanel);
 
   await page.keyboard.press("Digit1");
   check("buying spends the balance and leaves the purse alone",
@@ -603,7 +762,7 @@ try {
   check("the bought item is on a named fighter's named hook",
     (await ds("worn")) === "VESPER/drape/ashen-hood", await ds("worn"));
   check("and a hook on the rack is no longer empty",
-    (await ds("rack")) === "6:1", await ds("rack"));
+    (await ds("rack")) === "8:1", await ds("rack"));
   kPanel = await kitText();
   check("the shop says what was bought and for whom",
     /BOUGHT ASHEN HOOD FOR VESPER · 240c/.test(kPanel), kPanel);
@@ -657,7 +816,7 @@ try {
 
   await boot("?body=composed");
   check("the rack survives a reload",
-    (await ds("kit")) === "60:240:1" && (await ds("rack")) === "6:1"
+    (await ds("kit")) === "60:240:1" && (await ds("rack")) === "8:1"
       && (await ds("worn")) === "VESPER/drape/ashen-hood",
     `${await ds("kit")} · ${await ds("rack")}`);
   check("a reloaded season still knows where it is on the tour",
@@ -1047,9 +1206,9 @@ try {
   check("BODY cell names the full render roster",
     (await page.textContent("#body-state")) === "RENDER 96 / FULL ROSTER / READY");
   await page.waitForFunction(() =>
-    (document.getElementById("cv").dataset.squadSprites ?? "").split(",").length === 3);
+    (document.getElementById("cv").dataset.squadSprites ?? "").split(",").length === 4);
   check("the render squad stands beside the render body",
-    ((await ds("squadSprites")) ?? "").split(",").length === 3);
+    ((await ds("squadSprites")) ?? "").split(",").length === 4);
 
   // Execute the pin through the public dataset too: the render squad's idle
   // must actually advance, not merely declare an fps map it never consults.

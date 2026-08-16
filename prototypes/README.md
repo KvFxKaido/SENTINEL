@@ -55,14 +55,17 @@ session ledger became a **run** (2026-08-04): purse, the mercy ledger, and
 who went down now outlive the tab, in `localStorage`, under
 [`run-core/`](run-core/).
 
-The run banks what a card **cost**. It does not change what a card **is** —
-the next card is still fought by the canonical three at full strength.
-That used to be forced: `seed + record IS the match` was what let the
+The run banks what a card **cost**. It now also owns four stable people,
+their authored recruitment origins, and the three-person lineup chosen from
+them; the selected three still fight at full strength. That used to be
+forced to the canonical trio: `seed + record IS the match` was what let the
 witness certify anything at all. Since the doctrine change
 (`architecture/roster_in_the_match.md`, 2026-08-13) the law is **seed +
 roster + record**, the squad crosses the door as a certified input, and
-carrying a wound into the next card is a design decision rather than an
-impossibility. The room still deals full strength today.
+since the faction door (2026-08-16) the run may substitute its authored
+fourth person before the deal. Stable ids and origins remain in the room;
+the yard still receives only `{name, hp}` times three. Carrying a wound into
+the next card remains a design decision rather than an impossibility.
 
 Nothing is silently migrated or dropped: a stored run this schema cannot
 read is *moved aside*, a fresh one opens, and the panel says so. A room
