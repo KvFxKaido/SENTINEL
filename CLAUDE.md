@@ -237,10 +237,12 @@ not argued in prose.
 
 This project has access to multiple AI agents. **Use them proactively** — don't wait to be asked.
 
-> **Staleness note (2026-07):** the Gemini CLI is retired; Google's replacement
-> is Antigravity (`agy`). `/portrait` has been re-plumbed onto `agy`; the Gemini
-> halves of `/council`, `/deploy`, and `/security` have not and will fail until
-> they get the same treatment. The Codex halves still work.
+> **Staleness note (2026-08):** the Gemini CLI is retired; Google's replacement
+> is Antigravity (`agy`). `/portrait` and `/council` have been re-plumbed onto
+> `agy`; council's Gemini seat can also view image files granted via
+> `--add-dir` (verified 2026-08-16). The Gemini halves of `/deploy` and
+> `/security` have not been re-plumbed and will fail until they get the same
+> treatment. The Codex halves still work.
 
 ### `/council` — Get External Perspectives
 Consults Gemini and Codex for design feedback. Use when:

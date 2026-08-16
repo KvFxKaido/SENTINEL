@@ -21,7 +21,7 @@ Invoke external AI consultants for design feedback on SENTINEL.
 
 | Model | Strength | Best For |
 |-------|----------|----------|
-| **Gemini** | Big-picture thinking, design patterns | Architecture, conceptual clarity |
+| **Gemini** (via `agy`) | Big-picture thinking, design patterns, visual/spatial reasoning | Architecture, conceptual clarity, screenshot and sprite critique |
 | **Codex** | Technical depth, implementation focus | Code quality, practical constraints |
 
 ## How to Run
@@ -37,9 +37,12 @@ C:\dev\SENTINEL\SENTINEL_PROJECT_BRIEF.md
 
 ### Step 2: Consult Gemini
 
-Run non-interactively with the user's question + context:
+The Gemini CLI is retired; Gemini is consulted through the Antigravity CLI
+(`agy`), same as `/portrait`. Run non-interactively with the user's
+question + context:
+
 ```bash
-gemini "You are reviewing SENTINEL, a tactical TTRPG with an AI Game Master.
+agy -p "You are reviewing SENTINEL, a tactical TTRPG with an AI Game Master.
 
 <context>
 [Insert project brief or relevant code]
@@ -49,8 +52,59 @@ gemini "You are reviewing SENTINEL, a tactical TTRPG with an AI Game Master.
 [User's design question]
 </question>
 
-Provide focused feedback on design patterns, architecture, or the specific question asked. Be concise."
+Provide focused feedback on design patterns, architecture, or the specific question asked. Be concise. Do not edit any files." --model gemini-3.7-flash-high
 ```
+
+Invocation notes (inherited from `/portrait`, learned the hard way):
+
+- **The prompt goes immediately after `-p`; every flag comes after the
+  prompt.** Flags placed before `-p` get treated as the topic.
+- **Model choice matters here, unlike `/portrait`.** For generation the CLI
+  model only orchestrates `generate_image`; for consultation and critique
+  the CLI model IS the reviewer. Use `gemini-3.7-flash-high` (check
+  `agy models` for what's current).
+- **Never pass `--dangerously-skip-permissions` here.** That flag is
+  `/portrait`'s, which must write image files. Council is read-only by
+  role, and design-philosophy rule 2 says capability is granted by
+  consent, not convenience — "do not edit" in the prompt is prose, not a
+  boundary. Text consults need no permission flags at all; visual
+  critique uses `--mode plan` (read-only enforced by the harness). Both
+  verified working non-interactively without the dangerous flag
+  (2026-08-16, caught by both review bots).
+- Use a 3-minute timeout (180000ms).
+
+### Step 2b: Visual critique (screenshots, sprites, UI)
+
+Gemini's spatial reasoning is the reason it holds this seat. `agy` has no
+image flag, but the agent can **view image files it can reach** — grant the
+directory with `--add-dir` and tell it to view the file (verified
+2026-08-16: it read text and colors out of a probe PNG accurately).
+
+```bash
+agy -p "You are reviewing visual assets for SENTINEL, a tactical game with a
+CRT-broadcast aesthetic. View the image file(s) named [FILES] in the
+workspace directory, then answer:
+
+<question>
+[e.g. Does this walk cycle read as deliberate movement or as jank at a
+glance? Is anything on this card unreadable at arm's length on a phone?]
+</question>
+
+Give a perceptual read, not a pixel measurement. Do not write or run
+scripts; view the images directly. Do not edit any files." --add-dir "[DIR_CONTAINING_IMAGES]" --mode plan --model gemini-3.7-flash-high
+```
+
+`--mode plan` is what makes the read-only role enforced rather than
+requested: the agent can view what `--add-dir` exposes but cannot write
+to it, which matters precisely because audition captures and screenshots
+live inside the repository.
+
+Aim it at **gestalt questions the deterministic checks cannot see** —
+"does this read", "is this legible", "can a player find X on this screen".
+Frame-to-frame mechanics (displacement, seams, anchoring) stay with the
+pipeline's own pixel checks, which measure better than any eyeball. The
+harness audition captures (`prototypes/walkable/test/audition-*/`) are
+ready-made inputs.
 
 ### Step 3: Consult Codex
 
@@ -92,3 +146,5 @@ Then:
 - Include relevant code snippets, not entire files
 - The consultants don't have project context — you must provide it
 - Use when genuinely uncertain, not for validation
+- A consultant's report is a claim, not a record — premise-check any
+  factual assertion about the tree before building scope on it
