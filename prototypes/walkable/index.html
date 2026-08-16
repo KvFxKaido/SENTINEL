@@ -3016,6 +3016,7 @@ function seamResultValid(d) {
 }
 
 function endSeam(result) {
+  const dealt = seamFielded;
   clearTimeout(seamBootTimer);
   seamOpen = false;
   seamReady = false;
@@ -3061,7 +3062,11 @@ function endSeam(result) {
   // the surface disagreeing with the threshold for as long as the
   // witness takes (caught by both review bots).
   renderRun();
-  certifySeam(result);
+  certifySeam(result, dealt);
+  // Certification now owns this card's lineup by value. The active seam
+  // no longer owns the snapshot once the result is consumed, so release it
+  // here and keep seam state inside the seam lifecycle.
+  seamFielded = null;
 
   showCut("FEED RETURNED", "THE RECORD CAME BACK WITH YOU");
   dropCut(900);
@@ -3072,8 +3077,7 @@ function endSeam(result) {
 // rules, and the room compares the certificate against what the yard
 // claimed. No witness reachable = the room takes the yard's word and the
 // panel SAYS so — an unverified truth labeled beats a silent one.
-async function certifySeam(d) {
-  const dealt = seamFielded;
+async function certifySeam(d, dealt) {
   let verdict;
   let cert;
   let rules = null;
@@ -3163,7 +3167,9 @@ async function certifySeam(d) {
     rules,
     at: new Date().toISOString(),
   });
-  seamFielded = null;
+  // Do not clear seam state from this async settlement. A plain run may
+  // already have its next card in the yard, and clearing seamFielded here
+  // erases that card's honest roster (caught in review on PR #135).
 
   const totEl = document.getElementById("seamtotals");
   if (totEl) {

@@ -539,6 +539,116 @@ try {
   check("a plain run has nothing to pass and says so",
     /NOTHING TO PASS/.test(await panelText()), await panelText());
 
+  // A plain run deliberately leaves the door live while a card settles:
+  // nothing positional rides the card, so two may bank in either order.
+  // Hold card A at the edge, deal card B, then let A land while B owns the
+  // live seam. A's settlement must not erase B's fielded snapshot (caught
+  // in review on PR #135).
+  await page.evaluate(value =>
+    localStorage.setItem("sentinel.run", JSON.stringify(value)),
+    openRun("2026-08-16T00:00:00Z"));
+  let heldCertify = null;
+  let certifyRequests = 0;
+  const certifyReply = route => {
+    const asked = JSON.parse(route.request().postData() ?? "{}");
+    return {
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        certified: true, rules: "stub-rules", result: "win", rating: 7, purse: 70,
+        ledger: { walked: 0, finished: 0, lost: 0 }, roster: asked.roster,
+        rosterHash: "stub", fingerprint: asked.fingerprint, lines: 1, transcript: [],
+      }),
+    };
+  };
+  await page.route(/\/certify$/, route => {
+    certifyRequests++;
+    if (certifyRequests === 1) {
+      heldCertify = route;   // card A stays at ASKING THE EDGE…
+      return;
+    }
+    return route.fulfill(certifyReply(route));
+  });
+  await boot("?body=composed&deal=6");
+
+  const walkPlainDoor = async () => {
+    await page.keyboard.down("Shift");
+    await page.keyboard.down("KeyW");
+    await page.keyboard.down("KeyD");
+    const opened = await page.waitForFunction(() => !!document.getElementById("seamframe"),
+      null, { timeout: 30000 }).then(() => true, () => false);
+    await page.keyboard.up("KeyW");
+    await page.keyboard.up("KeyD");
+    await page.keyboard.up("Shift");
+    if (!opened) return null;
+    await page.waitForFunction(() =>
+      document.getElementById("seamframe")?.contentWindow.location.pathname
+        .endsWith("/prototypes/tactical3d/index.html"),
+    null, { timeout: 12000 });
+    return (await page.$("#seamframe")).contentFrame();
+  };
+  const plainRoster = (await ds("fielded")).split(",").map(person => {
+    const [name, hp] = person.split(":");
+    return { name, hp: Number(hp) };
+  });
+  const postPlainCard = (frame, fingerprint) => frame.evaluate(value => {
+    window.parent.postMessage({
+      type: "sentinel-seam-result",
+      seed: "6", record: [["end"]], result: "win", rating: 7, purse: 70,
+      ledger: { walked: 0, finished: 0, lost: 0 }, down: [],
+      roster: value.roster, fingerprint: value.fingerprint, lines: 1,
+    }, window.parent.location.origin);
+  }, { roster: plainRoster, fingerprint });
+
+  const frameA = await walkPlainDoor();
+  check("a plain run deals card A", frameA !== null);
+  if (!frameA) throw new Error("the plain door never dealt card A");
+  const cardAAsked = page.waitForRequest(/\/certify$/, { timeout: 10000 })
+    .then(() => true, () => false);
+  await postPlainCard(frameA, "plain-a");
+  const aHeld = await page.waitForFunction(() =>
+    document.getElementById("cv").dataset.settling === "1",
+  null, { timeout: 10000 }).then(() => true, () => false);
+  const aAsked = await cardAAsked;
+  check("card A waits at the edge", aHeld && aAsked && heldCertify !== null,
+    `${await ds("settling")} settling · ${certifyRequests} requests`);
+  if (!heldCertify) throw new Error("card A never asked the stubbed edge");
+
+  const frameB = await walkPlainDoor();
+  check("the plain door deals card B before A settles", frameB !== null,
+    `${await ds("dealGate")} · ${await ds("settling")} settling`);
+  if (!frameB) throw new Error("the plain door did not deal card B mid-settlement");
+
+  await heldCertify.fulfill(certifyReply(heldCertify));
+  const aLandedInsideB = await page.waitForFunction(() => {
+    const cv = document.getElementById("cv");
+    return cv.dataset.settling === "0"
+      && !!document.getElementById("seamframe")
+      && (cv.dataset.seam === "open" || cv.dataset.seam === "live");
+  }, null, { timeout: 10000 }).then(() => true, () => false);
+  check("card A lands while card B owns the seam", aLandedInsideB,
+    `${await ds("seam")} · ${await ds("settling")} settling`);
+
+  await postPlainCard(frameB, "plain-b");
+  const bFinished = await page.waitForFunction(() => {
+    const cv = document.getElementById("cv");
+    return cv.dataset.settling === "0"
+      && (cv.dataset.seam === "closed" || cv.dataset.seam === "aborted");
+  }, null, { timeout: 10000 }).then(() => true, () => false);
+  const plainRaceRun = await ds("run");
+  check("the first settlement cannot dispute the next honest plain card",
+    bFinished && (await ds("seam")) === "closed"
+      && /^2:2–0:140:0:0:0$/.test(plainRaceRun)
+      && certifyRequests === 2,
+    `${await ds("seam")} · ${plainRaceRun} · ${certifyRequests} requests`);
+  const plainRacePanel = (await page.textContent("#seaminfo")).replace(/\s+/g, " ").trim();
+  check("and the panel says the second card banked",
+    /CERTIFIED AT THE EDGE/.test(plainRacePanel)
+      && /BANKED TO THE RUN · 2 CARDS/.test(plainRacePanel)
+      && !/DISPUTES|STRUCK|REFUSED/.test(plainRacePanel),
+    plainRacePanel);
+  await page.unroute(/\/certify$/);
+
   // and a FRESH room opens on the house slate — the front office is the
   // default surface, not an opt-in
   await page.evaluate(() => localStorage.removeItem("sentinel.run"));
