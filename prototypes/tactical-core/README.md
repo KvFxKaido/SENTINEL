@@ -43,6 +43,8 @@ restart(seed)         deal an encounter
                       → emits reset, mission, turn
 
 tryMove, tryShoot, setOverwatch, selectUnit, cycleSelect, endPlayerTurn
+tryDrag, dragReachable, downAt
+                      extraction verb, its exact preview, and fallen bodies
 tryFinish, spare      the two halves of the yield decision (see below)
 playTwist, twistWindow, TWISTS
                       the house's verb, its legality window, and the deck
@@ -56,7 +58,7 @@ replayMatch(seed, commands)
 ```
 
 The rules never call the renderer. They emit events — `fire`, `shot`, `down`,
-`overwatch-set`, `overwatch-trigger`, `turn`, `select`, `reset`, `end`,
+`drag`, `overwatch-set`, `overwatch-trigger`, `turn`, `select`, `reset`, `end`,
 `yield`, `yield-decision`, `finish`, `spared`, `twist-announce`,
 `twist-resolve` — and the host decides what a shot looks and sounds like. `formatEvent` takes a `wrap(text, class)` so the
 browser gets coloured HTML and the test gets plain text from the same code
@@ -103,6 +105,12 @@ your people safe" is the design's named loop, and that line is it. Yields
 pay, finishes pay more, sparing costs — mercy is priced in purse, and what
 it buys lives in systems this module doesn't know about.
 
+DRAG pays +2 once per fallen operative per match. Pulling somebody through
+fire is a modest crowd beat; carrying the same body back and forth is not a
+rating faucet. The paid body ids live in encounter state and restart with the
+match, so replay reaches the same total without asking a caller what already
+scored.
+
 Rating survives the golden transcripts by the same discipline as morale,
 plus one more trick: rating changes are events but **never log lines**, so
 the meter moves underneath the pre-meter transcripts without disturbing a
@@ -116,7 +124,8 @@ The input-log protocol (`sentinel_circuit_design.md` §9, roadmap step 5):
 — the law was `seed + record` until the roster became a certified input).
 Every player verb that changes the match
 appends its canonical form to `S.record` at the moment its guards pass —
-`["move", id, x, y]`, `["shoot", att, def]`, `["finish", att, def]`,
+`["move", id, x, y]`, `["drag", actor, body, x, y]`,
+`["shoot", att, def]`, `["finish", att, def]`,
 `["ow", id]`, `["spare"]`, `["end"]`. Rejected inputs never enter the
 record, and selection is deliberately absent: it rolls nothing, logs
 nothing, and every verb names its units explicitly, so it is
@@ -132,14 +141,32 @@ nothing downstream certifies it. The dispatcher also refuses grammar the
 renderers can never produce (moving hostiles, friendly fire), so a
 renderer bug that recorded one fails closed at replay.
 
-`workers/witness/` inherits all of this as `POST /certify`: play a match
-anywhere, and the edge will attest that the record is a valid match under
-the running rules and what its one replay says happened. (That is
+`workers/witness/` runs this replay after its own wire grammar admits a
+record: play a match anywhere, and the edge can attest that the record is a
+valid match under the running rules and what its one replay says happened. (That is
 validation, not provenance — *who* played it is a claim certification
 cannot check yet, and belongs to campaign wiring.)
 
 Recording draws nothing from the RNG and emits nothing — the fourth rules
 change in a row to land with the golden transcripts untouched.
+
+## Extraction
+
+DRAG is the first explicit two-person utility verb
+(`what_we_owe_each_other.md` §4): `["drag", actorId, bodyId, x, y]`. The
+actor must be a living operative with both AP, the named beneficiary must be
+an adjacent down operative, and the destination must fit inside half the
+actor's mobility, rounded down. It spends the whole activation at any
+distance. The body follows one tile behind along the actor's resolved path,
+and overwatch checks every step exactly as it does for an ordinary move.
+Nothing heals or revives; only position changes.
+
+The `drag` event prints the named act and the body's movement on the feed.
+`drag-golden.js` pins the organic seed-1 loss where SABLE pulls KOA one tile
+under SYN-3's reaction fire: 30 lines, rating 41, fingerprint `e9e0a018`.
+That golden also pins final positions because a readable sentence without a
+moved body would not be the verb it claims to record. The older no-drag
+goldens remain byte-identical.
 
 ## Showrunner twists
 
@@ -170,8 +197,8 @@ the fifth rules change in a row to land with the goldens untouched. But a
 no-input playout can never play a card, so the deadbeef golden alone can
 no longer stamp the rules: `showrunner-golden.js` pins a **second golden**
 (seed 6's organic spare match with the twist spliced at the first window,
-captured fingerprint `6495eab3`), and the witness Worker's rules stamp
-hashes every pinned playout — transcript *and* outcome (result, rating,
+captured fingerprint `6495eab3`), and the witness Worker folds that golden
+into its rules stamp — transcript *and* outcome (result, rating,
 purse), because rating is never a transcript line and card economics must
 not be able to change under an unchanged stamp. Changing card math moves
 the stamp — that is the point.

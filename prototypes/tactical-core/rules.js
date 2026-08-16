@@ -58,6 +58,7 @@ export const S = {
   gameOver: null,      // null | "win" | "loss"
   decision: false,     // every living hostile has yielded — match holds for spare/finish
   rating: 50,          // crowd meter, 0–100 — pays out at match end (sentinel_circuit_design.md §5)
+  draggedBodies: [],   // op body ids already paid for extraction — one rescue is a moment, shuttling is not
   record: [],          // the witness record — every committed command, in order
   pendingTwist: null,  // house card announced this round; goes live next round
   activeTwist: null,   // house card in effect for the rest of the match
@@ -160,6 +161,7 @@ function makeUnits(roster) {
 export const inBounds = (x, y) => x >= 0 && x < W && y >= 0 && y < H;
 export const passable = (x, y) => inBounds(x, y) && S.map[y][x] === FLOOR;
 export const unitAt = (x, y) => S.units.find(u => u.alive && u.x === x && u.y === y);
+export const downAt = (x, y) => S.units.find(u => !u.alive && u.hp === 0 && u.x === x && u.y === y);
 export const living = side => S.units.filter(u => u.alive && u.side === side);
 export const selected = () => S.units.find(u => u.id === S.selectedId && u.alive);
 
@@ -261,6 +263,7 @@ export const RATING = {
   overwatch: -2,       // the player's turtle verb; the AI's overwatch is not your meter
   stalledAp: -1,       // per unspent AP at end of turn — stalling isn't content
   down: 3,             // anyone. the crowd did not come for chess
+  drag: 2,             // once per body. pulling somebody through fire is content; a shuttle loop is not
   yield: 2, finish: 4, spare: -2,                    // mercy costs purse
   pursePerPoint: 10,   // credits per rating point at match end
 };
@@ -431,16 +434,31 @@ async function overwatchCheck(mover) {
   }
 }
 
-async function animateMove(u, path) {
+async function animateMove(u, path, body = null, resolveDrag = null) {
   const g = S.gen;
-  for (const [x, y] of path) {
+  for (let i = 0; i < path.length; i++) {
+    const [x, y] = path[i];
+    const behind = [u.x, u.y];
     u.x = x; u.y = y;
+    // A dragged body follows the same resolved path one tile behind the
+    // actor. Every place it enters is therefore a place the actor just
+    // legally occupied; there is no second pathfinder with a second
+    // opinion about the command.
+    if (body) { body.x = behind[0]; body.y = behind[1]; }
     io.changed();
     await io.sleep(70);
     if (g !== S.gen) return;
+    // On the last shared step the position is already true before the
+    // reaction shot: KOA got clear even if SABLE falls at the new tile.
+    // An interrupted longer drag resolves after the shot at the place it
+    // actually stopped. One event, and it never overclaims the board.
+    if (resolveDrag && i === path.length - 1) resolveDrag(true);
     await overwatchCheck(u);
     // a mover who yields under overwatch fire stops in their tracks
-    if (g !== S.gen || !u.alive || u.yielded || S.gameOver || S.decision) break;
+    if (g !== S.gen || !u.alive || u.yielded || S.gameOver || S.decision) {
+      if (g === S.gen && resolveDrag) resolveDrag(false);
+      break;
+    }
   }
 }
 
@@ -500,6 +518,65 @@ export async function tryMove(u, x, y) {
   S.busy = false;
   io.changed();
   autoAdvance();
+}
+
+// One explicit two-person verb (`what_we_owe_each_other.md` §4). The
+// body is named, not inferred from where an ordinary move happened to
+// start, and the actor must still own the whole activation. Half
+// mobility is the tempo cost; overwatch below is the safety cost.
+function dragReady(actor, body) {
+  return !S.decision && !S.gameOver && !S.busy && S.turn === "op"
+    && S.units.includes(actor) && S.units.includes(body)
+    && actor.alive && actor.side === "op" && actor.ap === 2
+    && !body.alive && body.hp === 0 && body.side === "op"
+    && Math.abs(actor.x - body.x) + Math.abs(actor.y - body.y) === 1;
+}
+
+// Export the exact range predicate the renderer previews. A second
+// client-side version of adjacency or half mobility would let the board
+// promise a drag the record then refused.
+export function dragReachable(actor, body) {
+  if (!dragReady(actor, body)) return null;
+  return reachable(actor, Math.floor(actor.mobility / 2));
+}
+
+export async function tryDrag(actor, body, x, y) {
+  if (!Number.isInteger(x) || !Number.isInteger(y)) return false;
+  const range = dragReachable(actor, body);
+  if (!range) return false;
+  const c = range.cost.get(x + "," + y);
+  if (c === undefined || c === 0) return false;
+  const path = pathTo(range.parent, x, y);
+  const actorFrom = [actor.x, actor.y];
+  const bodyFrom = [body.x, body.y];
+  const bodyTarget = path.length === 1 ? actorFrom : path[path.length - 2];
+
+  S.record.push(["drag", actor.id, body.id, x, y]);
+  S.roundActed = true;
+  S.busy = true;
+  actor.ap = 0;          // whatever the distance, this is the activation
+  S.targetMode = false;
+  if (!S.draggedBodies.includes(body.id)) {
+    S.draggedBodies.push(body.id);
+    addRating(RATING.drag);
+  }
+  let resolved = false;
+  const resolveDrag = reached => {
+    if (resolved) return;
+    resolved = true;
+    io.emit({
+      type: "drag", actor, body, reached,
+      from: { actor: actorFrom, body: bodyFrom },
+      target: { actor: [x, y], body: [...bodyTarget] },
+      to: { actor: [actor.x, actor.y], body: [body.x, body.y] },
+      path: path.map(step => [...step]),
+    });
+  };
+  await animateMove(actor, path, body, resolveDrag);   // reaction fire resolves after every shared step
+  S.busy = false;
+  io.changed();
+  autoAdvance();
+  return true;
 }
 
 export async function tryShoot(att, def) {
@@ -729,7 +806,7 @@ export function restart(seed, roster = null) {
   S.roster = (roster ?? CANON_ROSTER).map(f => ({ name: f.name, hp: f.hp }));
   buildMap();
   makeUnits(roster);
-  S.turn = "op"; S.selectedId = 0; S.targetMode = false; S.busy = false; S.gameOver = null; S.decision = false; S.rating = RATING.start; S.record = []; S.pendingTwist = null; S.activeTwist = null; S.roundActed = false;
+  S.turn = "op"; S.selectedId = 0; S.targetMode = false; S.busy = false; S.gameOver = null; S.decision = false; S.rating = RATING.start; S.draggedBodies = []; S.record = []; S.pendingTwist = null; S.activeTwist = null; S.roundActed = false;
   io.emit({ type: "reset" });
   io.emit({ type: "mission" });
   io.emit({ type: "turn", side: "op" });
@@ -738,7 +815,7 @@ export function restart(seed, roster = null) {
 
 /* ---- the witness record -----------------------------------------
    Circuit roadmap step 5: a played match, as data. Every verb that
-   changes the match — the player's six, and the house's one — appends
+   changes the match — the player's seven, and the house's one — appends
    its canonical form to S.record at the moment its guards pass;
    rejected inputs never enter the record, and selection is
    presentation, not play (no roll, no log line, and every verb names
@@ -761,11 +838,13 @@ export function restart(seed, roster = null) {
 
 async function applyCommand(cmd) {
   if (!Array.isArray(cmd)) return;
-  const [verb, a, b, c] = cmd;
+  const [verb, a, b, c, d] = cmd;
   const op = id => S.units.find(u => u.id === id && u.side === "op" && u.alive);
+  const body = id => S.units.find(u => u.id === id && u.side === "op" && !u.alive && u.hp === 0);
   const ho = id => S.units.find(u => u.id === id && u.side === "ho");
   switch (verb) {
     case "move":   { const u = op(a); if (u) await tryMove(u, b, c); break; }
+    case "drag":   { const u = op(a), t = body(b); if (u && t) await tryDrag(u, t, c, d); break; }
     case "shoot":  { const u = op(a), t = ho(b); if (u && t && t.alive) await tryShoot(u, t); break; }
     case "finish": { const u = op(a), t = ho(b); if (u && t) await tryFinish(u, t); break; }
     case "ow":     { const u = op(a); if (u) setOverwatch(u); break; }
@@ -808,6 +887,12 @@ export function formatEvent(ev, wrap = t => t) {
         : `${n(ev.att)} ${ev.label}misses ${n(ev.def)} (${ev.pct}%, rolled ${ev.roll})`;
     case "down":
       return `${n(ev.unit)} is ${wrap("down", ev.unit.side === "op" ? "ho" : "hit")}.`;
+    case "drag":
+      return ev.reached
+        ? `${n(ev.actor)} ${wrap("DRAGS", "sys")} ${n(ev.body)} ${wrap("CLEAR", "sys")} — ` +
+          `(${ev.from.body.join(",")}) → (${ev.to.body.join(",")})`
+        : `${n(ev.actor)}'S ${wrap("DRAG", "sys")} OF ${n(ev.body)} ${wrap("STOPS", "hit")} — ` +
+          `(${ev.from.body.join(",")}) → (${ev.to.body.join(",")})`;
     case "overwatch-set":
       return `${n(ev.unit)} sets ${wrap("overwatch", "sys")}`;
     case "overwatch-trigger":

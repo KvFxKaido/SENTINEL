@@ -73,7 +73,7 @@ Not spectacle. Two specific things:
 
 | Input | Action |
 |-------|--------|
-| click | select operative / move / shoot hostile / finish a yielded hostile |
+| click | select operative / move / shoot hostile / finish a yielded hostile / select an adjacent down operative then a drag destination |
 | `Tab` | cycle to next operative with AP |
 | `F` | toggle shoot mode (hit % over every hostile) |
 | `Y` | overwatch (ends unit's activation) |
@@ -187,7 +187,8 @@ its checks and pins the panel at `settling…` for the full test timeout.
   picking would send a click on a visible chest to the tile behind it.
   Everything else falls to the floor `InstancedMesh`, whose `instanceId`
   *is* the tile index — no screen-to-grid maths, and a click on a wall
-  still resolves to the tile beneath it, matching 2D behaviour.
+  still resolves to the tile beneath it, matching 2D behaviour. Down
+  operatives remain pickable for DRAG; hostile corpses remain scenery.
 - **`draw()` kept its name.** Every call site from the 2D version still calls
   `draw()`; it now just sets a dirty flag that the frame loop reconciles.
   That is the immediate-mode → retained-mode shift, isolated to one function.
@@ -201,6 +202,9 @@ its checks and pins the panel at `settling…` for the full test timeout.
   the exact bug the convergence exists to kill. Facing is chosen
   camera-relative, so a quarter turn re-faces every body instead of
   pointing them the wrong way.
+- **A dragged body stays in DEATH.** The rules advance its position through
+  the same 70ms path steps as its actor, so the retained scene already slides
+  the fallen quad. There is no carry state and no renderer-side revival.
 - **Picking reads the sheet's alpha at the current frame.** Mesh
   raycasting ignores `alphaTest`, so without a mask the whole quad —
   3.30 × 2.75 world units, mostly empty — would be clickable. The mask
