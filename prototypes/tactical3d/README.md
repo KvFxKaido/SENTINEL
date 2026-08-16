@@ -11,7 +11,12 @@ python -m http.server -d prototypes 8080
 ```
 
 It will not run from `file://` — see [Why it needs a server](#why-it-needs-a-server).
-Append `?seed=deadbeef` to pin a specific encounter.
+Append `?seed=deadbeef` to pin a specific encounter. Append
+`&venue=THE COLD COURT` to stage it somewhere from `world/venues.json` —
+light, weather and the card's venue lines change; the match does not,
+and `test/test_yard_venue.mjs` replays one seed at two venues to hold
+that line. A venue the atlas lacks gets the house look and says so on
+the feed; without the param the yard is its own ground, unchanged.
 
 ## What this port is
 

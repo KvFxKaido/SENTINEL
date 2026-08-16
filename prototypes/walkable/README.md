@@ -134,6 +134,17 @@ Query params: `?deal=6` pins the seed the door deals (the same
 pin-a-board move as tactical3d's `?seed=`); `?witness=http://localhost:8787`
 passes through to the yard and is used for certification here.
 
+On a season the door also deals the current entry's venue name
+(`&venue=…`) — renderer flavor the yard dresses for out of
+`world/venues.json`, never a certified input (the seam section of
+`prototypes/README.md` owns the law). The room checks at boot that every
+venue the HOUSE slate stages exists in that atlas, so an authoring typo
+faults in the front office instead of surfacing as "UNRECORDED GROUND"
+mid-crossing; stored seasons are deliberately not gated — a save never
+bricks over a look. The room also keeps its own air now: dust hanging in
+the sodium key, authored beside the light it hangs in, cosmetic and
+room-owned (`dataset.air`).
+
 ## Room body assets
 
 The local sheets are regenerable artifacts and are intentionally untracked.

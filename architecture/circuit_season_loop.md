@@ -148,6 +148,17 @@ inside a card:
   room asking, which is most of its dramatic job.
 - **The slate advances.** Cards carry their faction framing; the run
   banks them; the season has a shape.
+- **The venue reaches the eye** *(built 2026-08-16)*. Each slate entry's
+  venue is a look the yard dresses for — light, weather, the card's own
+  presence list — authored in `world/venues.json` and dealt through the
+  door by name. Tier 1 by construction, the FLAIR_SLOTS move applied to
+  place: the venue is a declared-inert lens the certificate has no field
+  for, and the harness replays one seed at two venues to prove the
+  record cannot see the weather. The §3 promise that a card's meaning is
+  composed from the factions touching it now has a visible half —
+  Covenant ground is cold and sanctioned out loud, the Drain is green
+  murk nobody signs. Venue **rulesets** (rule variants with their own
+  goldens) remain Tier 2, unbuilt, exactly as §3 parks them.
 
 One deliberate exclusion, and the reason the tier boundary is honest:
 **"who" is already rules-level.** Lineup names live in `makeUnits` and

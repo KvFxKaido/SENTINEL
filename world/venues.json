@@ -1,0 +1,77 @@
+{
+  "_comment": "The venue atlas — every place the slate can stage a card, and what that place does to the EYE. Keyed by the slate's own venue strings (run-core's entryValid already owns that identity; a second id would be a second name for the same fact). Everything in here is a LENS: light tints the stage, air drifts through it, and the card text says where you are — none of it reaches the rules, the record, or the certificate, and the harness proves a replay cannot see it. KESTREL YARD's light values are the yard's own pre-atlas constants, so the house look IS the look that always existed. A venue with count 0 air is an authored stillness, not a missing decision.",
+  "venues": {
+    "KESTREL YARD": {
+      "title": "KESTREL YARD — LATTICE RELAY STATION",
+      "framing": "A Lattice contract, turned card: the Syndicate crew knew you were coming, and the book opened an hour ago.",
+      "sanction": "UNSANCTIONED CARD",
+      "present": [
+        ["WITNESS RECORDER", "tripod on the north wall — this card is recorded, and the record is the match"],
+        ["SYNDICATE ODDSMAKER", "book open, even money"],
+        ["LATTICE STATION CHIEF", "wants the relay back; hosts under protest"]
+      ],
+      "light": { "ambient": "#8fb8a0", "hemiSky": "#9fd8c0", "hemiGround": "#0a1410", "sun": "#dff0e2" },
+      "air": { "count": 70, "color": "#c9b284", "size": 1.6, "fall": 0.10, "drift": 0.22, "sway": 0.30, "opacity": 0.35 }
+    },
+    "THE COLD COURT": {
+      "title": "THE COLD COURT — COVENANT SANCTUARY GROUND",
+      "framing": "The Covenant sanctions this card and holds the line it draws: what their rules forbid tonight is forbidden to everyone, including the house.",
+      "sanction": "COVENANT-SANCTIONED CARD",
+      "present": [
+        ["OATH CLERK", "reads the sanction aloud before the first move, and again if anyone forgets"],
+        ["COVENANT WARDEN", "unarmed on principle, and nobody tests the principle"],
+        ["WITNESS RECORDER", "tripod in the cold — the record is the match"]
+      ],
+      "light": { "ambient": "#7fa2cc", "hemiSky": "#9cc4ec", "hemiGround": "#0a1020", "sun": "#d4e6fc" },
+      "air": { "count": 220, "color": "#e8f2f8", "size": 2.0, "fall": 0.55, "drift": 0.12, "sway": 0.45, "opacity": 0.6 }
+    },
+    "LATTICE FLOOR 9": {
+      "title": "LATTICE FLOOR 9 — PRIORITY FREIGHT DECK",
+      "framing": "The Lattice keeps the lights on and the lights are on you: this card runs on their floor, their power, and their schedule, and the freight resumes the moment it ends.",
+      "sanction": "LATTICE-SANCTIONED CARD",
+      "present": [
+        ["FLOOR SUPERVISOR", "has the freight manifest and a deadline; you are the delay"],
+        ["LATTICE LINESMAN", "watching the cabling, not the fight"],
+        ["SYNDICATE ODDSMAKER", "book open, visiting under a freight pass"]
+      ],
+      "light": { "ambient": "#84b8b0", "hemiSky": "#a4e0d8", "hemiGround": "#081414", "sun": "#dcfcf4" },
+      "air": { "count": 40, "color": "#cfe0da", "size": 1.2, "fall": 0.02, "drift": 0.55, "sway": 0.15, "opacity": 0.25 }
+    },
+    "THE DRAIN": {
+      "title": "THE DRAIN — THE PIPE NOBODY MAPS",
+      "framing": "Nobody signs the Drain. The card exists because everyone here says it doesn't, and half the colors in the crowd are borrowed.",
+      "sanction": "UNSANCTIONED — NOBODY SIGNS THE DRAIN",
+      "present": [
+        ["A FIXER, PROBABLY", "took the book an hour ago; was never here"],
+        ["FACES YOU ALMOST KNOW", "false colors are legal tender below the waterline"],
+        ["WITNESS RECORDER, UNINVITED", "found a dry ledge anyway; the record does not need permission"]
+      ],
+      "light": { "ambient": "#6ca878", "hemiSky": "#78b484", "hemiGround": "#081408", "sun": "#b8e4a8" },
+      "air": { "count": 160, "color": "#a8c496", "size": 1.8, "fall": 0.05, "drift": 0.08, "sway": 0.60, "opacity": 0.45 }
+    },
+    "TERMINAL WEST": {
+      "title": "TERMINAL WEST — WANDERER DEPOT, WIND OFF THE FLATS",
+      "framing": "Wanderer ground under a Covenant sanction: the road hosts, the line holds, and everything you do here travels to the next town ahead of you.",
+      "sanction": "COVENANT-SANCTIONED · WANDERER GROUND",
+      "present": [
+        ["CARAVAN QUARTERMASTER", "hosting between departures; the yard is a yard again at dawn"],
+        ["OATH CLERK", "the sanction rode in with the caravan"],
+        ["NEWS RIDER", "leaves at close, and the story leaves with them"]
+      ],
+      "light": { "ambient": "#c4a06c", "hemiSky": "#e0b880", "hemiGround": "#181006", "sun": "#fcdca0" },
+      "air": { "count": 190, "color": "#d8c090", "size": 1.6, "fall": 0.06, "drift": 1.10, "sway": 0.50, "opacity": 0.4 }
+    },
+    "THE ARCHIVE PIT": {
+      "title": "THE ARCHIVE PIT — WITNESS READING FLOOR",
+      "framing": "The Witnesses sanction almost nothing. They sanctioned this: a card fought on the reading floor, because some records are made better than they are told.",
+      "sanction": "WITNESS-SANCTIONED CARD",
+      "present": [
+        ["THREE RECORDERS", "one for each angle; disagreement between them is itself recorded"],
+        ["THE READER", "asks nothing, writes constantly"],
+        ["SYNDICATE ODDSMAKER", "book open, voice low, deeply uncomfortable"]
+      ],
+      "light": { "ambient": "#b4b0a4", "hemiSky": "#d0ccbc", "hemiGround": "#141412", "sun": "#f8f4e4" },
+      "air": { "count": 90, "color": "#d8d4c4", "size": 2.2, "fall": 0.16, "drift": 0.05, "sway": 0.70, "opacity": 0.5 }
+    }
+  }
+}

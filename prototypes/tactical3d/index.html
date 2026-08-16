@@ -342,24 +342,18 @@ function clearTracers() {
 }
 
 /* ---- match framing (Circuit roadmap step 3) ----------------------
-   The pre-match card and the post-match record. The card is data
-   (MATCH), hand-authored for the one venue that exists — when the
-   campaign layer starts dealing cards, it replaces this object, not
-   this code. Content contract from sentinel_circuit_design.md: stakes,
-   venue, host, the presence list (who could read you — exposure is a
-   decision, never a lottery), the insignia line, the tale of the tape.
-   Tone: institution, not satire — a recorder on a tripod and an
-   oddsmaker with a ledger, not a hype man. */
+   The pre-match card and the post-match record. The card used to be
+   hand-authored whole "for the one venue that exists — when the campaign
+   layer starts dealing cards, it replaces this object, not this code."
+   The venue half of that promise is now kept: title, framing, sanction
+   and the presence list live in world/venues.json and arrive with the
+   dealt venue (the house entry carries the original Kestrel lines
+   verbatim). What stays here is what no venue changes — the rules of
+   the card, the colors line, the sponsor. Content contract from
+   sentinel_circuit_design.md; tone: institution, not satire — a
+   recorder on a tripod and an oddsmaker with a ledger, not a hype man. */
 
 const MATCH = {
-  venue: "KESTREL YARD — LATTICE RELAY STATION",
-  framing: "A Lattice contract, turned card: the Syndicate crew knew you were coming, and the book opened an hour ago.",
-  sanction: "UNSANCTIONED CARD",
-  present: [
-    ["WITNESS RECORDER", "tripod on the north wall — this card is recorded, and the record is the match"],
-    ["SYNDICATE ODDSMAKER", "book open, even money"],
-    ["LATTICE STATION CHIEF", "wants the relay back; hosts under protest"],
-  ],
   rules: "No referee. Yields are honored by custom, and a finish is legal on this card. The house holds one card of its own — twists announce on the feed a round before they land. What you do next is watched.",
   colors: "COLORS: none declared — eleven factions read an empty patch eleven ways.",
   sponsor: "none — open purse",   // sponsorship is leverage, and leverage is the campaign layer's
@@ -419,6 +413,109 @@ const ROSTER = (() => {
   });
   return parsed.every(Boolean) && rosterValid(parsed) ? parsed : "bad";
 })();
+
+/* ---- the venue lens (world/venues.json) ---------------------------
+   The match's one deliberately INERT input. The world deals a venue name
+   beside the seed (`?venue=THE COLD COURT`) and this page dresses for
+   it — light color, air, the card's venue lines — and nothing else.
+   The venue never reaches the rules, the record, or the certificate:
+   `seed + roster + record` stays the whole match, and the harness proves
+   a replay cannot see the weather (test_yard_venue.mjs).
+
+   Inertness cuts the other way too, and it is the asymmetry with
+   ?roster= worth reading twice: a malformed roster is a FAULT because
+   fielding a guessed squad would certify a match nobody dealt — but a
+   venue this atlas has never heard of must NOT refuse the card, because
+   refusing would make the look load-bearing. An unrecorded venue gets
+   the house look and SAYS SO, on the feed and in the dataset. Honest
+   and awkward over pleasant and misleading; a fault here would be worse
+   than awkward, it would be a lens deciding whether the match exists.
+
+   The atlas itself is authored data and gets the usual discipline: a
+   missing or malformed atlas is a boot fault naming the venue and the
+   reason, exactly like a person file the room cannot stage. */
+const VENUE_PARAM = new URLSearchParams(location.search).get("venue");
+const HOUSE_VENUE = "KESTREL YARD";
+var VENUE = null;   // { name, look, standing: "house" | "staged" | "unrecorded" }
+
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+const venueOnlyKeys = (obj, allowed) =>
+  obj && typeof obj === "object" && Object.keys(obj).every(k => allowed.includes(k));
+// Returns the first complaint, or null for a sound look. One reason per
+// throw beats a boolean: "false" from authored data is a treasure hunt.
+function venueLookFault(look) {
+  if (!venueOnlyKeys(look, ["title", "framing", "sanction", "present", "light", "air"])) {
+    return "carries keys this page does not consume";
+  }
+  for (const key of ["title", "framing", "sanction"]) {
+    const s = look[key];
+    if (typeof s !== "string" || s.length < 1 || s.length > 300) return `${key} is not a line`;
+  }
+  if (!Array.isArray(look.present) || look.present.length < 1 || look.present.length > 4
+    || !look.present.every(p => Array.isArray(p) && p.length === 2
+      && p.every(s => typeof s === "string" && s.length >= 1 && s.length <= 200))) {
+    return "present is not a list of [who, what] pairs";
+  }
+  if (!venueOnlyKeys(look.light, ["ambient", "hemiSky", "hemiGround", "sun"])
+    || !["ambient", "hemiSky", "hemiGround", "sun"].every(k => HEX_COLOR.test(look.light[k]))) {
+    return "light is not four hex colors";
+  }
+  const a = look.air;
+  if (!venueOnlyKeys(a, ["count", "color", "size", "fall", "drift", "sway", "opacity"])) {
+    return "air carries keys this page does not consume";
+  }
+  const inRange = (v, lo, hi) => typeof v === "number" && Number.isFinite(v) && v >= lo && v <= hi;
+  if (!Number.isInteger(a.count) || a.count < 0 || a.count > 400) return "air.count is not 0..400";
+  if (!HEX_COLOR.test(a.color)) return "air.color is not a hex color";
+  if (!inRange(a.size, 0.5, 6)) return "air.size is not 0.5..6";
+  if (!inRange(a.fall, 0, 2)) return "air.fall is not 0..2";
+  if (!inRange(a.drift, -2, 2)) return "air.drift is not -2..2";
+  if (!inRange(a.sway, 0, 2)) return "air.sway is not 0..2";
+  if (!inRange(a.opacity, 0, 1)) return "air.opacity is not 0..1";
+  return null;
+}
+
+async function loadVenue() {
+  const atlas = await fetch("../../world/venues.json").then(r => {
+    if (!r.ok) throw new Error(`world/venues.json did not load (${r.status})`);
+    return r.json();
+  });
+  if (!atlas.venues || typeof atlas.venues !== "object") {
+    throw new Error("world/venues.json must declare a venues object");
+  }
+  for (const [name, look] of Object.entries(atlas.venues)) {
+    const fault = venueLookFault(look);
+    if (fault) throw new Error(`world/venues.json: "${name}" ${fault}`);
+  }
+  if (!(HOUSE_VENUE in atlas.venues)) {
+    throw new Error(`world/venues.json has no "${HOUSE_VENUE}" — the house look is load-bearing`);
+  }
+  if (VENUE_PARAM !== null && !(VENUE_PARAM in atlas.venues)) {
+    // The look falls back to the house; the CARD does not. The card is a
+    // claim about who is present and who sanctioned what, and the atlas
+    // knows none of that for this ground — printing Kestrel's people
+    // under a stranger's name would be the card inventing witnesses. It
+    // says exactly what it knows: the name, and that the light is a loan.
+    VENUE = {
+      name: VENUE_PARAM, look: atlas.venues[HOUSE_VENUE], standing: "unrecorded",
+      card: {
+        title: VENUE_PARAM,
+        framing: "The atlas has nothing on this ground. The house look stands in — believe the name, not the light.",
+        sanction: "UNRECORDED GROUND",
+        present: [["NOBODY ON RECORD", "no presence list exists for this venue — assume you are read"]],
+      },
+    };
+  } else {
+    const name = VENUE_PARAM ?? HOUSE_VENUE;
+    const look = atlas.venues[name];
+    VENUE = {
+      name, look, standing: VENUE_PARAM === null ? "house" : "staged",
+      card: { title: look.title, framing: look.framing, sanction: look.sanction, present: look.present },
+    };
+  }
+  canvas.dataset.venue = `${VENUE.name}:${VENUE.standing}`;
+}
+
 var lastEnd = null;   // the "end" event, held for the walk home
 // The aftermath, held for the same trip. The world's run layer banks what
 // a card COST, and cost is not in the "end" event: who walked, who was
@@ -469,11 +566,11 @@ function showCard() {
   cardOpen = true;
   cardEl.innerHTML = `
     <div class="sheet">
-      <div class="chead"><span class="tag">THE CARD · ${MATCH.sanction}</span><span class="sub">seed ${S.seed.toString(16)}</span></div>
-      <div class="chead"><h1>${MATCH.venue}</h1></div>
-      <div class="sub">${MATCH.framing}${SEAM ? " You walked in off the interior floor, and the book saw the door open." : ""}</div>
+      <div class="chead"><span class="tag">THE CARD · ${VENUE.card.sanction}</span><span class="sub">seed ${S.seed.toString(16)}</span></div>
+      <div class="chead"><h1>${VENUE.card.title}</h1></div>
+      <div class="sub">${VENUE.card.framing}${SEAM ? " You walked in off the interior floor, and the book saw the door open." : ""}</div>
       <div class="ccell"><div class="clabel">PRESENT — WHO CAN READ YOU</div>
-        <div class="cbody">${MATCH.present.map(([who, what]) => `<b>${who}</b> <span class="dim">— ${what}</span>`).join("<br>")}</div>
+        <div class="cbody">${VENUE.card.present.map(([who, what]) => `<b>${who}</b> <span class="dim">— ${what}</span>`).join("<br>")}</div>
       </div>
       <div class="cgrid">
         <div class="ccell op-side"><div class="clabel">YOUR CREW</div><div id="cardops"></div></div>
@@ -563,7 +660,25 @@ function onEvent(ev) {
       showSolution(null, null);
       document.getElementById("overlay").classList.remove("show");
       hideTwistcast();   // a fresh match never opens under a stale broadcast
+      // the air is per-CARD: same seed, same weather, its own rng stream
+      buildAir(VENUE.look.air, S.seed);
       showCard();
+      // Renderer-owned log lines — logged during the reset event, so
+      // they land ABOVE the mission line, and never in matchLines: the
+      // transcript is certified text and the venue may not put a byte in
+      // it. (The mission line still says KESTREL YARD on every ground —
+      // it lives in rules.js inside the fingerprint, so rewording it is
+      // a rules deployment with new goldens, not a lens's business.
+      // Until that PR, the staging line below is the log's honest word
+      // on where you are.)
+      if (VENUE.standing === "staged") {
+        log(wrapHTML(`— STAGED AT ${VENUE.look.title} —`, "sys"));
+      }
+      // reset just wiped the log, so the loan is declared per-card too —
+      // an unrecorded venue is never quietly dressed as the house
+      if (VENUE.standing === "unrecorded") {
+        log(wrapHTML(`VENUE "${VENUE.name}" IS NOT IN THE ATLAS — THE HOUSE LOOK STANDS IN`, "dim"));
+      }
       break;
     case "fire":
       sfx.fire();
@@ -824,9 +939,15 @@ function placeCamera() {
 placeCamera();
 
 // Ambient is kept deliberately low: shadows are what make the directional
-// cover rule legible, and a bright fill washes them out entirely.
-scene.add(new THREE.AmbientLight(0x8fb8a0, 0.5));
-scene.add(new THREE.HemisphereLight(0x9fd8c0, 0x0a1410, 0.35));
+// cover rule legible, and a bright fill washes them out entirely. The
+// COLORS come from the venue atlas at boot (world/venues.json — the house
+// entry carries these exact values); the INTENSITIES are this file's and
+// no venue touches them, because shadow legibility is a rules-readability
+// decision, not a mood.
+const ambient = new THREE.AmbientLight(0x8fb8a0, 0.5);
+scene.add(ambient);
+const hemi = new THREE.HemisphereLight(0x9fd8c0, 0x0a1410, 0.35);
+scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xdff0e2, 2.4);
 sun.position.set(7, 7.5, 5);           // low enough to throw a readable shadow
 sun.castShadow = true;
@@ -837,6 +958,88 @@ sun.shadow.camera.near = 1;  sun.shadow.camera.far = 30;
 sun.shadow.camera.updateProjectionMatrix();
 sun.shadow.bias = -0.0015;
 scene.add(sun);
+
+// ---- the venue on the stage ------------------------------------
+// Colors only: the atlas may not touch an intensity, because shadow
+// legibility is how the cover rule stays readable (see the lights above).
+function applyVenueLook(look) {
+  ambient.color.set(look.light.ambient);
+  hemi.color.set(look.light.hemiSky);
+  hemi.groundColor.set(look.light.hemiGround);
+  sun.color.set(look.light.sun);
+}
+
+/* ---- the air ------------------------------------------------------
+   Weather on the broadcast. The stage floats in a void by decision
+   (product vision: diorama-in-void), and under this orthographic camera
+   the air box's projection covers most of the frame — so motes read as
+   weather drifting through the SHOT, over stage and void alike. The
+   void stays black behind them; nothing outside the broadcast exists,
+   but the broadcast itself has weather in front of the lens.
+
+   Seeded from the CARD's seed with its own xorshift so the same card
+   replays under the same weather — a provenance echo, not a mechanic.
+   It must never touch the rules module's rng: the two streams sharing a
+   generator would let a lens move a die roll, which is exactly what
+   test_yard_venue.mjs replays two venues to rule out. Point size is in
+   render-target pixels (no attenuation under an orthographic camera), so
+   on the 350×222 LCD pass a size-2 mote is a fat honest pixel; the
+   non-lcd debug modes render them finer and that is fine — the LCD is
+   the product surface. */
+const AIR_X = 8.5, AIR_Y = 6.5, AIR_Z = 6.5;   // the lit box, camera-agnostic
+var airPoints = null, airSpec = null, airPhase = null;
+function airRng(seed) {
+  let s = ((seed ^ 0x9e3779b9) >>> 0) || 1;
+  return () => {
+    s ^= s << 13; s >>>= 0;
+    s ^= s >>> 17;
+    s ^= s << 5; s >>>= 0;
+    return s / 0x100000000;
+  };
+}
+function buildAir(spec, seed) {
+  if (airPoints) {
+    scene.remove(airPoints);
+    airPoints.geometry.dispose();
+    airPoints.material.dispose();
+    airPoints = null;
+  }
+  airSpec = spec;
+  if (spec.count === 0) return;   // an authored stillness — see the atlas comment
+  const rng = airRng(seed);
+  const pos = new Float32Array(spec.count * 3);
+  airPhase = new Float32Array(spec.count);
+  for (let i = 0; i < spec.count; i++) {
+    pos[i * 3 + 0] = (rng() * 2 - 1) * AIR_X;
+    pos[i * 3 + 1] = rng() * AIR_Y;
+    pos[i * 3 + 2] = (rng() * 2 - 1) * AIR_Z;
+    airPhase[i] = rng() * Math.PI * 2;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  airPoints = new THREE.Points(geo, new THREE.PointsMaterial({
+    color: spec.color, size: spec.size, sizeAttenuation: false,
+    transparent: true, opacity: spec.opacity, depthWrite: false,
+  }));
+  airPoints.frustumCulled = false;
+  scene.add(airPoints);
+}
+function stepAir(dt, t) {
+  if (!airPoints) return;
+  const pos = airPoints.geometry.attributes.position.array;
+  for (let i = 0; i < airSpec.count; i++) {
+    const j = i * 3;
+    pos[j + 0] += (airSpec.drift + Math.sin(t * 0.7 + airPhase[i]) * airSpec.sway) * dt;
+    pos[j + 1] -= airSpec.fall * dt;
+    // wrap, never respawn: a mote leaving one face of the box enters the
+    // opposite face, so density is constant and nothing pops mid-frame
+    if (pos[j + 0] > AIR_X) pos[j + 0] -= AIR_X * 2;
+    if (pos[j + 0] < -AIR_X) pos[j + 0] += AIR_X * 2;
+    if (pos[j + 1] < 0) pos[j + 1] += AIR_Y;
+    if (pos[j + 1] > AIR_Y) pos[j + 1] -= AIR_Y;
+  }
+  airPoints.geometry.attributes.position.needsUpdate = true;
+}
 
 // A solid slab under the tiles so the 0.02 seams read as grid lines on a
 // deck rather than as gaps punched through to the void.
@@ -1614,6 +1817,9 @@ function frame() {
   requestAnimationFrame(frame);
   timer.update();
   const t = timer.getElapsed();
+  // clamped like any dt fed to cosmetic motion: a background tab waking
+  // from minutes of throttle should not teleport the weather
+  stepAir(Math.min(timer.getDelta(), 0.1), t);
 
   // camera easing toward the 90° snap target
   if (Math.abs(camAzTarget - camAz) > 1e-4) {
@@ -1945,6 +2151,13 @@ try {
   }
   configureBody(BODY_PARAM);
   canvas.dataset.body = BODY_PARAM;
+  // The atlas rides the same fault path as the sheets: authored data
+  // that fails to load or validate stops the boot and says why. Note the
+  // split — a BAD ATLAS faults (the author broke the world), an unknown
+  // VENUE NAME does not (the lens must never decide whether the match
+  // exists; see loadVenue).
+  await loadVenue();
+  applyVenueLook(VENUE.look);
   yardRosterReady = await bootYardRoster();
 } catch (error) {
   showAssetFault([error]);

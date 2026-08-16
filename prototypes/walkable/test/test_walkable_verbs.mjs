@@ -737,6 +737,54 @@ try {
   check("the real person file still stages after the refusals",
     (await ds("people")) === "vance:steel_syndicate:Broker", await ds("people"));
 
+  // ---- the venue atlas is gated at the AUTHORING end ----------------
+  // The room deals venue names through the door (the yard dresses for
+  // them), so a house-slate entry naming a venue the atlas lacks must
+  // fault HERE at boot — a typo caught in the front office, not
+  // "UNRECORDED GROUND" discovered on the far side of a crossing.
+  // Stored seasons are deliberately not gated (a save never bricks over
+  // a look); that half lives in the yard's own venue suite.
+  await page.route(/world\/venues\.json$/, route => route.fulfill({
+    status: 200, contentType: "application/json",
+    body: JSON.stringify({ venues: { "SOMEWHERE ELSE": {} } }),
+  }));
+  await boot("?body=composed");
+  check("a house-slate venue missing from the atlas faults the room",
+    (await ds("sprites")) === "error", await ds("sprites"));
+  const atlasFault = await faultText();
+  check("...and the fault names the missing venues and the atlas's own list",
+    /KESTREL YARD/.test(atlasFault) && /SOMEWHERE ELSE/.test(atlasFault), atlasFault.slice(-200));
+  await page.unroute(/world\/venues\.json$/);
+  await boot("?body=composed");
+  check("the real atlas still boots after the refusal",
+    (await ds("sprites")) === "ready", await ds("sprites"));
+
+  // ---- the air is live, and visibly so ------------------------------
+  // dataset.air says the motes exist; the pixel pair says a player can
+  // SEE them move (telemetry alone is how the kit table shipped
+  // invisible). Sampled in an off-center crop away from the spawn so
+  // the body's idle animation cannot be what changed, and separated by
+  // RENDERED FRAMES rather than wall clock — this harness does not
+  // sleep, and headless rAF pacing is not this test's business.
+  check("the room air is live", (await ds("air")) === "live", await ds("air"));
+  const airCrop = async () => {
+    const box = await page.locator("#cv").boundingBox();
+    return page.screenshot({ clip: {
+      x: box.x + box.width * 0.08, y: box.y + box.height * 0.10,
+      width: box.width * 0.26, height: box.height * 0.30,
+    } });
+  };
+  const framesPass = n => page.evaluate(n => new Promise(res => {
+    let k = 0;
+    const step = () => (++k >= n ? res() : requestAnimationFrame(step));
+    requestAnimationFrame(step);
+  }), n);
+  const airA = await airCrop();
+  await framesPass(14);
+  const airB = await airCrop();
+  check("the dust visibly drifts between rendered frames",
+    !airA.equals(airB), `${airA.length} vs ${airB.length} bytes`);
+
   // ---- the authored facing is a fact, not a field ------------------
   // It was validated, authored, and then ignored: worldFacing was copied
   // from the squad's point-at-spawn rule, so every facing value rendered
