@@ -382,8 +382,8 @@ try {
   // The discrimination, stated as the claim rather than as a string: VESPER
   // went down on an EARLIER counted card, so she is in the cumulative tally
   // the panel shows and is NOT on a knee in the room. Order-independent on
-  // purpose — summary() sorts wounded by count then name, which is run-core's
-  // presentation choice and not something this suite should pin from here.
+  // purpose — summary() sorts wounded by count then stable id, which is
+  // run-core's telemetry choice and not something this suite should pin here.
   const aftermathPanel = (await page.textContent("#runinfo")).replace(/\s+/g, " ").trim();
   const woundLine = (aftermathPanel.match(/DOWN · ([^\n]*?)(?:RECENT|OPENED|$)/) ?? [])[1] ?? "";
   check("an old wound is in the panel and NOT on the body",

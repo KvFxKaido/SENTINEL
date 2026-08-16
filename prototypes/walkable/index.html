@@ -428,7 +428,7 @@ import * as THREE from "../tactical3d/vendor/three.module.js";
 import {
   bindStore, loadRun, saveRun, applyCard, applyPass, applyBuy, closeRun,
   openSeason, slateValid, stockValid, rosterValid, fieldedRoster, setLineup,
-  kitOf, FLAIR_SLOTS, FULL_STRENGTH, summary,
+  personOf, kitOf, FLAIR_SLOTS, FULL_STRENGTH, summary,
 } from "../run-core/run.js";
 
 // The faction door is authored content, not a roster literal buried in this
@@ -1832,7 +1832,7 @@ function dealGate() {
       kind: "unfit",
       name: "THE DEAL IS GATED",
       sub: "ROSTER UNFIT · "
-        + s.fieldedClocks.map(([name, left]) => `${esc(name)} ${left}`).join(" · ")
+        + s.fieldedClocks.map(([id, left]) => `${esc(personOf(run, id).name)} ${left}`).join(" · ")
         + " · PASS TO MOVE ON (SHIFT+P)",
     };
   }
@@ -2626,7 +2626,10 @@ function renderRun() {
       (s.mercyRate === null ? "" : ` · <b>${pct(s.mercyRate)}</b> HONORED`)
     );
     rows.push(s.wounded.length
-      ? `DOWN · ${s.wounded.map(([n, c]) => `${esc(n)}${c > 1 ? ` ×${c}` : ""}`).join(" · ")}`
+      ? `DOWN · ${s.wounded.map(([id, count]) => {
+          const name = personOf(run, id).name;
+          return `${esc(name)}${count > 1 ? ` ×${count}` : ""}`;
+        }).join(" · ")}`
       : `DOWN · NOBODY OF YOURS, YET`);
     // The card log, newest first — the one view that shows shape rather
     // than totals. Struck cards appear here and NOWHERE in the numbers
@@ -2663,14 +2666,14 @@ function renderRun() {
         (n.sanction ? `SANCTIONED BY ${esc(n.sanction.toUpperCase())}` : "UNSANCTIONED"));
     }
     if (se.clocks.length) {
-      rows.push("RECOVERING · " + se.clocks.map(([name, left]) =>
-        `${esc(name)} ${left} STOP${left === 1 ? "" : "S"}`).join(" · "));
+      rows.push("RECOVERING · " + se.clocks.map(([id, left]) =>
+        `${esc(personOf(run, id).name)} ${left} STOP${left === 1 ? "" : "S"}`).join(" · "));
     }
     if (!se.fit) {
       rows.push(
         '<span class="warn">ROSTER UNFIT — THE DEAL IS GATED</span> · ' +
-        se.fieldedClocks.map(([name, left]) =>
-          `${esc(name)} ${left} STOP${left === 1 ? "" : "S"}`).join(" · ") +
+        se.fieldedClocks.map(([id, left]) =>
+          `${esc(personOf(run, id).name)} ${left} STOP${left === 1 ? "" : "S"}`).join(" · ") +
         " · PASS TO MOVE ON (SHIFT+P)");
     }
     if (se.passes) {

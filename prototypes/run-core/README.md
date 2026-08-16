@@ -76,6 +76,10 @@ not a change to the yard's roster grammar. Court 01's authored entrance lives
 in `world/recruitment/court-01.json`; NIX enters through the Ember Colonies and
 borrows SYN's tracked canvas explicitly until original art exists.
 
+Inside the run, durable wounds and recovery clocks key on the stable person id.
+`recent[].down` deliberately keeps the tactical names the card carried across
+the yard wire: it is a receipt, not another durable identity ledger.
+
 ## The slate (season-lite)
 
 A run opened on a **slate** is a season (`architecture/

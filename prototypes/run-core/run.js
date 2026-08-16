@@ -263,10 +263,13 @@ const ROSTER_KEYS = ["people", "lineup"];
 const exactKeys = (obj, keys) =>
   Object.keys(obj).length === keys.length && Object.keys(obj).every(k => keys.includes(k));
 
+const isPersonId = id =>
+  typeof id === "string" && id.length <= MAX_PERSON_ID && PERSON_ID.test(id);
+
 function personValid(person) {
   if (!person || typeof person !== "object" || Array.isArray(person)) return false;
   if (!exactKeys(person, PERSON_KEYS)) return false;
-  if (typeof person.id !== "string" || person.id.length > MAX_PERSON_ID || !PERSON_ID.test(person.id)) return false;
+  if (!isPersonId(person.id)) return false;
   if (typeof person.name !== "string" || !TACTICAL_NAME.test(person.name)) return false;
   if (typeof person.body !== "string" || !BODY_ID.test(person.body)) return false;
   const origin = person.origin;
@@ -352,7 +355,7 @@ export function openRun(at, roster = DEFAULT_ROSTER) {
     streak: 0,          // consecutive wins, current
     longest: 0,         // longest win streak this run
     mercy: { walked: 0, finished: 0 },
-    wounds: {},         // tactical NAME -> times that owned person went down
+    wounds: {},         // stable person id -> times that person went down
     struck: 0,          // cards the edge disputed — banked by nobody
     unwitnessed: 0,     // cards counted without certification
     rules: null,        // the rules stamp this run's numbers were earned under
@@ -407,7 +410,7 @@ export function openSeason(at, slate, roster = DEFAULT_ROSTER) {
     },
     pos: 0,        // the current entry; entries.length means the slate is complete
     passed: [],    // declined entries, each on the record with its framing
-    clocks: {},    // tactical NAME -> slate positions until that person is fit
+    clocks: {},    // stable person id -> slate positions until that person is fit
   };
   return run;
 }
@@ -433,10 +436,10 @@ const copySeason = s => s === null ? null : {
    clock, and sane() treats a stored zero as the junk it would be. */
 function advance(season) {
   season.pos += 1;
-  for (const name of Object.keys(season.clocks)) {
-    const left = season.clocks[name] - 1;
-    if (left > 0) season.clocks[name] = left;
-    else delete season.clocks[name];
+  for (const id of Object.keys(season.clocks)) {
+    const left = season.clocks[id] - 1;
+    if (left > 0) season.clocks[id] = left;
+    else delete season.clocks[id];
   }
 }
 
@@ -447,17 +450,15 @@ export function fitness(run) {
     ? Object.entries(run.season.clocks)
         .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     : [];
-  const fielded = new Set((fieldedRoster(run) ?? []).map(person => person.name));
-  const fieldedClocks = clocks.filter(([name]) => fielded.has(name));
+  const fielded = new Set(run?.roster?.lineup ?? []);
+  const fieldedClocks = clocks.filter(([id]) => fielded.has(id));
   return { fit: fieldedClocks.length === 0, clocks, fieldedClocks };
 }
 
-// "__proto__" is refused by name: it is not a key, it is an accessor on
-// Object.prototype. Assigning wounds["__proto__"] or clocks["__proto__"]
-// invokes the inherited setter, records nothing, and fitness() would
-// call an unfit roster fit — the deal gate walked around by a fighter's
-// name (caught in review). Every dictionary key in this module is minted
-// through this check, so the refusal happens once, at the boundary.
+// "__proto__" is refused at the name-based wire too: it is an accessor on
+// Object.prototype, not a tactical name. The durable ledgers below are keyed
+// by stricter person ids, but refusing the hostile spelling at every authored
+// or wire boundary keeps it from becoming somebody else's unsafe key.
 const isName = s =>
   typeof s === "string" && s.length > 0 && s.length <= MAX_NAME
   && s !== "__proto__";
@@ -549,10 +550,13 @@ export function applyCard(run, card) {
   if (!cardValid(card)) {
     return { run, accepted: false, counted: false, why: "card is not a shape a run can bank" };
   }
-  const dealtNames = new Set((fieldedRoster(run) ?? []).map(person => person.name));
-  if (card.down.some(name => !dealtNames.has(name))) {
+  const dealt = fieldedRoster(run) ?? [];
+  const idByDealtName = new Map(dealt.map((person, i) =>
+    [person.name, run.roster.lineup[i]]));
+  if (card.down.some(name => !idByDealtName.has(name))) {
     return { run, accepted: false, counted: false, why: "the card names someone this run did not field" };
   }
+  const downIds = card.down.map(name => idByDealtName.get(name));
 
   // Season gates, both of them accepted:false on purpose. The room gates
   // the deal at the door — a card arriving here while the slate is done
@@ -588,6 +592,9 @@ export function applyCard(run, card) {
     down: card.down.slice(),
     at: card.at,
   };
+  // `recent[].down` preserves the tactical names exactly as the card crossed
+  // the yard wire. Only the durable wound and recovery ledgers translate that
+  // receipt through the fielded lineup to stable person ids.
   // The framing comes from the run's OWN slate, never from the payload.
   // A struck card is stamped too — it was fought at this entry, and the
   // run's record should say where — but only a banked card will move the
@@ -631,8 +638,8 @@ export function applyCard(run, card) {
   next.best = Math.max(next.best, card.rating);
   next.mercy.walked += card.ledger.walked;
   next.mercy.finished += card.ledger.finished;
-  for (const name of card.down) {
-    next.wounds[name] = (next.wounds[name] ?? 0) + 1;
+  for (const id of downIds) {
+    next.wounds[id] = (next.wounds[id] ?? 0) + 1;
   }
   if (card.cert === "unwitnessed") next.unwitnessed += 1;
   if (card.result === "win") {
@@ -649,7 +656,7 @@ export function applyCard(run, card) {
   // wound counts recovery from the position after the card that caused it.
   if (next.season) {
     advance(next.season);
-    for (const name of card.down) next.season.clocks[name] = WOUND_CLOCK;
+    for (const id of downIds) next.season.clocks[id] = WOUND_CLOCK;
   }
   return { run: next, accepted: true, counted: true, why: null };
 }
@@ -855,6 +862,7 @@ function sane(r) {
   if (!ints.every(k => Number.isInteger(r[k]) && r[k] >= 0)) return false;
   if (typeof r.opened !== "string") return false;
   if (!rosterValid(r.roster)) return false;
+  const ownedIds = new Set(r.roster.people.map(person => person.id));
   const ownedNames = new Set(r.roster.people.map(person => person.name));
   // non-negative, not merely integral: a hand-edited {walked:-1} restored
   // fine and rendered a -100% mercy rate, which is the made-up number this
@@ -862,8 +870,8 @@ function sane(r) {
   if (!r.mercy || !intIn(r.mercy.walked, 0, Number.MAX_SAFE_INTEGER)
       || !intIn(r.mercy.finished, 0, Number.MAX_SAFE_INTEGER)) return false;
   if (!r.wounds || typeof r.wounds !== "object" || Array.isArray(r.wounds)) return false;
-  if (!Object.keys(r.wounds).every(isName)) return false;
-  if (!Object.keys(r.wounds).every(name => ownedNames.has(name))) return false;
+  if (!Object.keys(r.wounds).every(isPersonId)) return false;
+  if (!Object.keys(r.wounds).every(id => ownedIds.has(id))) return false;
   if (!Object.values(r.wounds).every(n => Number.isInteger(n) && n >= 0)) return false;
   if (!Array.isArray(r.recent) || r.recent.length > RECENT) return false;
   if (!r.recent.every(c =>
@@ -877,6 +885,8 @@ function sane(r) {
     // bounded because the mercy ledger is re-derived from them below —
     // a card carrying a string here would make that sum garbage
     && intIn(c.walked, 0, MAX_SIDE) && intIn(c.finished, 0, MAX_SIDE)
+    // Receipts retain the tactical names carried by the card; unlike the
+    // durable wound and clock ledgers, they are a record of the yard wire.
     && Array.isArray(c.down) && c.down.every(name => isName(name) && ownedNames.has(name))
     && (c.slate === undefined || stampValid(c.slate))
   )) return false;
@@ -974,8 +984,8 @@ function sane(r) {
       && c.slate.idx <= s.pos
       && sameFraming(c.slate, entries[c.slate.idx]))) return false;
     if (!s.clocks || typeof s.clocks !== "object" || Array.isArray(s.clocks)) return false;
-    if (!Object.keys(s.clocks).every(isName)) return false;
-    if (!Object.keys(s.clocks).every(name => ownedNames.has(name))) return false;
+    if (!Object.keys(s.clocks).every(isPersonId)) return false;
+    if (!Object.keys(s.clocks).every(id => ownedIds.has(id))) return false;
     // 1, not 0: advance() drops a cleared clock, so a stored zero was
     // written by something other than this module
     if (!Object.values(s.clocks).every(n => intIn(n, 1, MAX_CLOCK))) return false;
