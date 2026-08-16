@@ -56,11 +56,25 @@ The third bullet landed with one deliberate correction: the roster is
 the stamp instead gained a golden that exercises roster handling.
 
 So the line above is now a *choice* rather than a constraint. This module
-still persists purse, the mercy ledger and who went down, and the room
-still deals the canonical three at full strength — whether a wound is
-carried into the next card is a design decision that belongs to the
-designer, and it is a one-line change in the room rather than a doctrine
-change in the stack.
+still persists purse, the mercy ledger and who went down. Since the
+faction-door slice (2026-08-16), it also owns four stable people and the
+three-person lineup selected from them. The room still deals every selected
+fighter at full strength — whether a wound changes starting hp remains a
+separate design decision rather than something lineup choice smuggles in.
+
+## The faction door
+
+The run owns `roster.people` and `roster.lineup`. Each person carries a stable
+lowercase id, a tactical name, an authored body id, and an origin with a stable
+source, optional faction, and the reason they entered. The lineup is exactly
+three unique person ids from that owned four-person crew.
+
+Stable identity stops at the door. `fieldedRoster(run)` reduces the lineup to
+exactly `{name, hp}` × 3, with no ids, origins, bodies, gear, or relationship
+state riding along. `setLineup` is therefore run state with a certified output,
+not a change to the yard's roster grammar. Court 01's authored entrance lives
+in `world/recruitment/court-01.json`; NIX enters through the Ember Colonies and
+borrows SYN's tracked canvas explicitly until original art exists.
 
 ## The slate (season-lite)
 
@@ -81,16 +95,15 @@ passes are still not in it and never were.)
 
 **Wounds are clocks, counted in slate positions — and passing is always
 legal.** A fighter who went down recovers for `WOUND_CLOCK` positions;
-while any clock runs, the roster is unfit and the deal is gated. A card
+while a *fielded* fighter's clock runs, the lineup is unfit and the deal is gated. A card
 arriving anyway is refused `accepted:false`: the room gates the door, so
 a card dealt to an unfit roster is a caller bug — the same contract as a
 malformed payload, and the same seam-harness claim covers it. What
-advances a clock is the *slate*: passing advances the position and every
-clock by one, at the entry's own cost — the purse not won, the framing
-of the card you declined sitting on the record. Passing must stay legal
-precisely because clocks gate the deal; a clock counted in cards dealt
-would gate the only mechanism that heals it, and the season would
-deadlock (caught by both review bots on the season doc's first draft).
+advances a clock is the *slate*: passing or banking a card advances the
+position and every existing clock by one. A recovering person may be benched
+while a fit lineup fights; passing stays legal because a run without a fit
+replacement still needs a way to heal rather than deadlock (caught by both
+review bots on the season doc's first draft).
 `WOUND_CLOCK` is 2 today and lives in one place — the season doc's open
 question 2 says that number wants this prototype, not the doc.
 
@@ -298,14 +311,19 @@ forgetting at the end of it.
 ## Shape of the interface
 
 ```
-RUN_V, RUN_KEY, CLOSED_KEY, ORPHAN_KEY, WOUND_CLOCK, FLAIR_SLOTS
+RUN_V, RUN_KEY, CLOSED_KEY, ORPHAN_KEY, WOUND_CLOCK, FLAIR_SLOTS,
+LINEUP_SLOTS, FULL_STRENGTH
 
 bindStore({read, write, remove})   host supplies storage; inert default
-openRun(at)                        a fresh run — `at` is injected, never read
-openSeason(at, slate)              a run opened on a slate — a season; null
+openRun(at, roster?)               a fresh run — `at` is injected, never read
+openSeason(at, slate, roster?)     a run opened on a slate — a season; null
                                      rather than half a season if the slate
-                                     is not a slate
+                                     or authored roster is invalid
 slateValid(slate)                  the boundary check for authored slates
+rosterValid(roster)                four stable people, origins, three owned ids
+personOf(run, id)                  the owned person behind a stable id
+fieldedRoster(run)                 exactly `{name, hp}` ×3 for the certified seam
+setLineup(run, ids)                → {run, accepted, why}; pure lineup choice
 applyCard(run, card)               → {run, accepted, counted, why}; pure
 applyPass(run, at)                 → {run, accepted, why}; decline the current
                                      entry — advance the slate and every clock
@@ -316,10 +334,10 @@ itemValid(item) / stockValid(…)    the boundary checks for authored stock —
 kitOf(run, who)                    what one fighter wears, derived from the
                                      purchase ledger rather than stored twice
 cardValid(card)                    the boundary check, exported for callers
-fitness(run)                       → {fit, clocks}; may the deal happen — the
+fitness(run)                       → {fit, clocks, fieldedClocks}; may the deal happen — the
                                      door and the surface get the same answer
-loadRun(at)                        → {run, how: fresh|restored|orphaned|
-                                     unpreserved}
+loadRun(at, roster?)               → {run, how: fresh|restored|orphaned|
+                                     unpreserved|invalid-roster}
 saveRun(run)                       → false if storage refused, never throws
 closeRun(run, at)                  → {run, archived, closed, saved}; refuses
                                      to close what it could not archive
@@ -338,12 +356,12 @@ the stock, knows the balance, and knows what each fighter already wears,
 so an unaffordable purchase arriving here means the room offered
 something it should have refused.
 
-`RUN_V` is 3: the season joined the schema at 2, the purse at 3. A stored
+`RUN_V` is 4: the season joined the schema at 2, the purse at 3, and the
+owned roster plus lineup at 4. A stored
 run of any older version takes the orphan path below — moved aside and
 said so, which is the exact situation that path was built and tested for.
-Hydrating a v2 run with an empty kit in place would have been a silent
-migration wearing a default, the same as it would have been one version
-ago.
+Hydrating a v3 run with a made-up roster would be a silent migration wearing
+a default, so the older payload is set aside instead.
 
 `saveRun`'s return value is not decoration — the room raises a standing
 warning when a write fails after the probe passed, because a panel

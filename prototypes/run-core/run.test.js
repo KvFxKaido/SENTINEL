@@ -12,14 +12,20 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import {
   RUN_V, RUN_KEY, CLOSED_KEY, ORPHAN_KEY, WOUND_CLOCK, FLAIR_SLOTS,
+  LINEUP_SLOTS, FULL_STRENGTH,
   bindStore, openRun, openSeason, slateValid, applyCard, applyPass,
   applyBuy, itemValid, stockValid, kitOf,
-  cardValid, fitness, loadRun, saveRun, closeRun, readClosed, summary,
+  cardValid, rosterValid, personOf, fieldedRoster, setLineup,
+  fitness, loadRun, saveRun, closeRun, readClosed, summary,
 } from "./run.js";
 
 const AT = "2026-08-04T12:00:00.000Z";
+const authoredCourt = JSON.parse(fs.readFileSync(
+  new URL("../../world/recruitment/court-01.json", import.meta.url), "utf8"));
+const COURT_ROSTER = { people: authoredCourt.people, lineup: authoredCourt.lineup };
 
 // A store that is a plain object, so a test can look at exactly what was
 // written rather than at what the module says it wrote.
@@ -97,6 +103,76 @@ test("a fresh run is empty, versioned, and stamped with when it opened", () => {
   assert.deepEqual(r.wounds, {});
   assert.deepEqual(r.recent, []);
   assert.equal(r.season, null, "a plain run has no slate — a season is opened, not implied");
+});
+
+test("a fresh run owns four stable people, their origins, and a three-person lineup", () => {
+  const r = openRun(AT);
+  assert.deepEqual(r.roster, COURT_ROSTER,
+    "run-core's default and the room's authored Court 01 file must not drift");
+  assert.equal(r.roster.people.length, 4);
+  assert.equal(r.roster.lineup.length, LINEUP_SLOTS);
+  assert.deepEqual(r.roster.lineup, ["vesper", "koa", "sable"]);
+  assert.equal(personOf(r, "nix").name, "NIX");
+  assert.deepEqual(personOf(r, "nix").origin, {
+    source: "ember-winter-entry",
+    faction: "ember_colonies",
+    reason: "The north valley entered a defender because winter was bad.",
+  });
+  assert.deepEqual(fieldedRoster(r), [
+    { name: "VESPER", hp: FULL_STRENGTH },
+    { name: "KOA", hp: FULL_STRENGTH },
+    { name: "SABLE", hp: FULL_STRENGTH },
+  ], "stable ids and origins stop at the door; the yard still gets exactly name and hp");
+});
+
+test("an authored roster is exact, unique, larger than the fielded three, and source-complete", () => {
+  const good = openRun(AT).roster;
+  assert.equal(rosterValid(good), true);
+  const cases = [
+    { ...good, people: good.people.slice(0, 3) },
+    { ...good, lineup: ["vesper", "koa"] },
+    { ...good, lineup: ["vesper", "vesper", "sable"] },
+    { ...good, lineup: ["vesper", "koa", "nobody"] },
+    { ...good, extra: true },
+    { ...good, people: good.people.map((person, i) => i ? person : { ...person, id: "koa" }) },
+    { ...good, people: good.people.map((person, i) => i ? person : { ...person, name: "KOA" }) },
+    { ...good, people: good.people.map((person, i) => i ? person : {
+      ...person, origin: { ...person.origin, reason: "" },
+    }) },
+    { ...good, people: good.people.map((person, i) => i ? person : {
+      ...person, origin: { ...person.origin, account: "trust me" },
+    }) },
+  ];
+  for (const bad of cases) assert.equal(rosterValid(bad), false);
+  assert.equal(openRun(AT, cases[0]), null, "bad authored content opens no half-run");
+  assert.equal(openSeason(AT, slate(), cases[0]), null,
+    "bad authored content opens no half-season either");
+});
+
+test("an invalid authored roster does not consume or orphan a stored run", () => {
+  const stored = JSON.stringify(openRun(AT));
+  const box = memoryStore({ [RUN_KEY]: stored });
+  const bad = { ...COURT_ROSTER, lineup: ["vesper", "koa", "stranger"] };
+  const loaded = loadRun(AT, bad);
+  assert.deepEqual(loaded, { run: null, how: "invalid-roster" });
+  assert.equal(box[RUN_KEY], stored);
+  assert.equal(box[ORPHAN_KEY], undefined);
+});
+
+test("lineup choice is immutable, id-based, and changes only the certified roster snapshot", () => {
+  const before = openRun(AT);
+  const out = setLineup(before, ["vesper", "nix", "sable"]);
+  assert.equal(out.accepted, true);
+  assert.deepEqual(before.roster.lineup, ["vesper", "koa", "sable"]);
+  assert.deepEqual(out.run.roster.lineup, ["vesper", "nix", "sable"]);
+  assert.deepEqual(fieldedRoster(out.run), [
+    { name: "VESPER", hp: 10 },
+    { name: "NIX", hp: 10 },
+    { name: "SABLE", hp: 10 },
+  ]);
+  assert.equal(Object.keys(fieldedRoster(out.run)[1]).length, 2);
+  assert.equal(setLineup(before, ["vesper", "vesper", "nix"]).accepted, false);
+  assert.equal(setLineup(before, ["vesper", "nix", "stranger"]).accepted, false);
 });
 
 // ---- the reducer ---------------------------------------------------
@@ -587,6 +663,34 @@ test("passing is always legal, and passing is what heals — the deadlock law", 
   assert.equal(applyCard(run, card()).counted, true, "and the deal is legal again");
 });
 
+test("benching a recovering person makes a fit lineup, and fighting advances their clock", () => {
+  let run = applyCard(openSeason(AT, slate()),
+    card({ ledger: { walked: 2, finished: 0, lost: 1 }, down: ["KOA"] })).run;
+  assert.equal(fitness(run).fit, false);
+
+  const changed = setLineup(run, ["vesper", "nix", "sable"]);
+  assert.equal(changed.accepted, true);
+  run = changed.run;
+  assert.equal(fitness(run).fit, true, "the clock belongs to KOA, not to an abstract squad slot");
+  assert.deepEqual(fitness(run).clocks, [["KOA", WOUND_CLOCK]], "the benched wound still exists");
+  assert.deepEqual(fitness(run).fieldedClocks, []);
+
+  const fought = applyCard(run, card({ seed: "f00d" }));
+  assert.equal(fought.accepted, true);
+  assert.equal(fought.counted, true);
+  assert.deepEqual(fought.run.season.clocks, { KOA: WOUND_CLOCK - 1 },
+    "the slate moved, so the benched recovery clock moved too");
+});
+
+test("a returned card cannot claim somebody outside the lineup went down", () => {
+  const run = setLineup(openRun(AT), ["vesper", "nix", "sable"]).run;
+  const out = applyCard(run,
+    card({ ledger: { walked: 2, finished: 0, lost: 1 }, down: ["KOA"] }));
+  assert.equal(out.accepted, false);
+  assert.equal(out.counted, false);
+  assert.match(out.why, /did not field/);
+});
+
 test("a struck card does not advance the slate", () => {
   const { run: after, counted } = applyCard(openSeason(AT, slate()),
     card({ cert: "struck", ledger: { walked: 0, finished: 0, lost: 1 }, down: ["KOA"] }));
@@ -912,6 +1016,8 @@ test("a purchase needs a name and a when", () => {
   assert.equal(applyBuy(run, item(), "", AT).accepted, false);
   assert.equal(applyBuy(run, item(), "__proto__", AT).accepted, false,
     "the one name that is an accessor, refused where every key here is minted");
+  assert.equal(applyBuy(run, item(), "STRANGER", AT).accepted, false,
+    "a valid tactical name with no owned person behind it has no hook");
   assert.equal(applyBuy(run, item(), "VESPER", "").accepted, false);
   assert.equal(applyBuy(run, item(), "VESPER", null).accepted, false);
 });

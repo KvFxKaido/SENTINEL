@@ -18,6 +18,13 @@ and `test/test_yard_venue.mjs` replays one seed at two venues to hold
 that line. A venue the atlas lacks gets the house look and says so on
 the feed; without the param the yard is its own ground, unchanged.
 
+The world may also deal an exact three-person snapshot with
+`&roster=VESPER:10,KOA:10,SABLE:10`. The yard accepts only the existing
+`{name, hp}` contract and never sees run-owned ids, origins, or the bench.
+NIX is stageable as a tactical identity and explicitly borrows SYN's tracked
+canvas in this prototype; that mapping is registered in `pack_sprites.js`,
+not chosen as a fallback after an asset fails.
+
 ## What this port is
 
 A renderer swap, not a rewrite. The 2D prototype split cleanly in half: a

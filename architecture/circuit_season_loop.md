@@ -166,17 +166,18 @@ ride the record; fielding a substitute changes what the edge replays.
 There is no lite version of benching-with-substitution that doesn't
 either lie to the renderer or break the certificate. So in lite, wounds
 gate the *deal*, never the *lineup*. Who fights is the canonical squad
-at full strength, exactly as run-core's line requires.
+at full strength, exactly as run-core's line required at this tier. The
+run-owned lineup landed later, under Tier 2 below.
 
 ### Tier 2 — Full season (the doctrine change)
 
 > **Landed 2026-08-13.** The mechanism argued for below is built and
 > binding: see `roster_in_the_match.md` (Status: Current), which is the
-> doc this section asked for. Two things it deliberately did NOT do, and
-> which this section should not be read as claiming: wounds still do not
-> impair (the room deals full strength — that is a design decision, not a
-> plumbing one), and the run does not yet own roster state. Both are now
-> unblocked rather than blocked.
+> doc this section asked for. It deliberately did not make wounds impair.
+> **Amended 2026-08-16:** the run now owns four stable people, authored
+> origins, and a three-person lineup; basic substitution and bench recovery
+> are built. Starting hp remains full strength — still a design decision,
+> not a plumbing default.
 
 The dragon, named at its actual size. Not "wounds become modifiers" —
 that is one consequence. The change is:
@@ -217,9 +218,10 @@ actually fought. The archive stays honest by construction, the same way
 designed and gated — gear slots carrying verbs and geometry, primary
 ammo and the sidearm floor, sponsor rigs as leverage physically mounted
 on a torso, lineup choice against a known opponent as the tale of the
-tape, wounded fighters fielded impaired or benched for real. None of
-those need individual holes punched through determinism; they are all
-just roster state, snapshotted and certified.
+tape, and wounded fighters fielded impaired. Basic substitution and
+bench recovery are awake; the opponent-informed and impairment layers
+are not. None of those need individual holes punched through determinism;
+they are all just roster state, snapshotted and certified.
 
 ## 5. What Not to Take from Madden
 

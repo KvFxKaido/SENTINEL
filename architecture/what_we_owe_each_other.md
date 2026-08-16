@@ -348,6 +348,12 @@ ids, authored recruitment origins, and a visible lineup decision. Do not add
 relationships yet. This is where the eleven factions enter the season as
 people rather than jerseys.
 
+> **Landed 2026-08-16.** `run-core` schema v4 owns four people and a lineup of
+> three stable ids. Court 01 loads its authored entrances from
+> `world/recruitment/court-01.json`; NIX enters through the Ember Colonies, and
+> the room exposes the one-person bench before reducing the choice to the
+> unchanged certified `{name, hp}` snapshot. No relationship state was added.
+
 ### 2. The record vocabulary
 
 Add one explicit two-person utility verb with a real cost, deterministic

@@ -2,7 +2,7 @@
 
 > **Version:** 1.0
 > **Date:** August 13, 2026
-> **Status:** Current (2026-08-13) — binding; changing it takes a PR that says so
+> **Status:** Current (2026-08-16) — binding; amended when the run-owned roster landed
 > **Supersedes:** the determinism law stated in `prototypes/tactical-core/README.md`,
 > `prototypes/run-core/README.md` and `workers/witness/README.md` as
 > *seed + record IS the match*. Those docs are amended, not archived.
@@ -203,20 +203,21 @@ That is correct: their banked numbers were earned under different rules.
 Named plainly, because a doctrine PR that quietly smuggled a balance
 change would be exactly the thing this repo argues against:
 
-- **Wounds still do not impair.** The room deals the canonical three at
+- **Wounds still do not impair.** The room deals the selected three at
   full strength. The plumbing carries `hp` end to end and the goldens
   exercise it, but whether a fighter who went down last card is carried
   in at 7 is a *design* decision — it interacts with the season doc's
   open questions 2 (recovery economics) and 4 (death vs downed), and it
   belongs to the designer, not to the PR that made it possible. It is now
   a one-line change in the room.
-- **The run does not own roster state yet.** Season-lite's wound clocks
-  live in `run-core` and gate the *deal*; the lineup lives in the room.
-  The season doc's "the run owns mutable roster state" is the next step,
-  and it is now unblocked rather than blocked.
-- **No benching.** A roster is exactly three fielded operatives. Fielding
-  two is a real want (Circuit §6) and needs slot handling the encounter
-  does not have.
+- **The run owns the roster now (landed 2026-08-16).** Four people carry
+  stable ids and authored recruitment origins; the lineup is three ids owned
+  by that run. The room reduces them to this doc's exact `{name, hp}` snapshot,
+  so ids and origins remain outside the yard.
+- **One-person benching exists; variable squad size does not.** The run may
+  substitute its fourth person for any fielded person, including benching a
+  recovering fighter. A match still fields exactly three operatives. Fielding
+  two is a separate want (Circuit §6) and still needs encounter slot handling.
 - **No gear, no verbs.** Circuit §6's registers stay asleep. They wake as
   more roster state, in a snapshot that is already certified.
 
@@ -225,8 +226,9 @@ change would be exactly the thing this repo argues against:
 Everything §6 of the Circuit doc designed and gated, and everything Tier 2
 of the season doc promised: gear slots carrying verbs and geometry,
 primary ammo and the sidearm floor, sponsor rigs mounted on a torso,
-lineup choice against a known opponent as the tale of the tape, wounded
-fighters fielded impaired or benched for real.
+lineup choice against a known opponent as the tale of the tape, and wounded
+fighters fielded impaired. Basic full-strength substitution and bench recovery
+are already awake; opponent-informed composition is not.
 
 None of those need individual holes punched through determinism any more.
 They are all just roster state, snapshotted and certified — which is the

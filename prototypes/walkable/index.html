@@ -364,6 +364,7 @@
         <tr><th><kbd>P</kbd></th><td>LCD / crunch / clean</td></tr>
         <tr><th><kbd>Shift</kbd>+<kbd>N</kbd></th><td>close the run, open a fresh one</td></tr>
         <tr><th><kbd>Shift</kbd>+<kbd>P</kbd></th><td>pass the slate entry — always legal</td></tr>
+        <tr><th><kbd>B</kbd></th><td>rotate the bench before the next deal</td></tr>
         <tr><th>KIT TABLE</th><td id="kitkeys">stand at it — number keys buy, <kbd>Z</kbd> chooses who</td></tr>
         <tr><th>NORTH DOOR</th><td>walk it — the yard takes the feed</td></tr>
       </table>
@@ -409,7 +410,7 @@
    SENTINEL walkable-world toy — pure renderer, plus one door.
 
    Still no tactical-core import, no rules. The room is exactly one room
-   and one walking body, with three squadmates as set dressing — but the
+   and one walking body, with four run-owned people in the room — but the
    north door is now real: crossing it
    hands the feed to tactical3d in an iframe (the seam, below) and takes
    an outcome back. Combat is a place this file sends the player, never
@@ -426,8 +427,29 @@
 import * as THREE from "../tactical3d/vendor/three.module.js";
 import {
   bindStore, loadRun, saveRun, applyCard, applyPass, applyBuy, closeRun,
-  openSeason, slateValid, stockValid, kitOf, FLAIR_SLOTS, summary,
+  openSeason, slateValid, stockValid, rosterValid, fieldedRoster, setLineup,
+  kitOf, FLAIR_SLOTS, FULL_STRENGTH, summary,
 } from "../run-core/run.js";
+
+// The faction door is authored content, not a roster literal buried in this
+// renderer. Module evaluation waits for the one file the room needs; a bad or
+// missing file is held as a boot fault below, never replaced with the canonical
+// three. `_comment` belongs to the authored file, not the stored run shape, so
+// only the two fields run-core owns cross its exact boundary.
+let HOUSE_ROSTER = null;
+let rosterLoadError = null;
+try {
+  const authored = await fetch("../../world/recruitment/court-01.json").then(r => {
+    if (!r.ok) throw new Error(`world/recruitment/court-01.json did not load (${r.status})`);
+    return r.json();
+  });
+  HOUSE_ROSTER = { people: authored.people, lineup: authored.lineup };
+  if (!rosterValid(HOUSE_ROSTER)) {
+    throw new Error("world/recruitment/court-01.json is not a four-person roster with three fielded ids");
+  }
+} catch (error) {
+  rosterLoadError = error;
+}
 
 // ---- room coordinates ---------------------------------------------
 const ROOM_W = 12;
@@ -1119,21 +1141,22 @@ const SQUAD_FPS = { idle: 4, kneel: 2 };
 // the squad's own regeneration, named by faults that involve its sheets —
 // the player's regen cannot rebuild a squad sheet
 const SQUAD_REGEN = "re-run squad_render_sheets.py, then squad_canvas96.py";
-// ONE identifier per squadmate, not two. The slug picks the sheet folder;
-// the operative name the yard reports in a card's `down` is that slug
-// upper-cased. Carrying both by hand meant the uppercase half could drift
-// from tactical-core's op names (rules.js) while everything still loaded,
-// and a card would quietly leave the whole squad idle forever — a silent
-// fallback with no fault, in a room built to refuse those (caught in
-// review). The room still cannot import the rules; the harness holds the
-// two rosters against each other so drift fails in CI instead of on a
-// player's knee, and syncSquadPostures says so if a card ever names
-// somebody this room has no body for.
-const SQUAD_ROSTER = [
-  { fighter: "vesper", position: [gx(2), 0.002, gz(2)] },
-  { fighter: "koa", position: [gx(9), 0.002, gz(4)] },
-  { fighter: "sable", position: [gx(2), 0.002, gz(6)] },
+// The room stages the RUN'S people, not a second roster literal. Tactical
+// names and bodies are deliberately different fields: NIX is a durable person
+// and tactical alias while borrowing the tracked SYN canvas for this prototype.
+// That debt is explicit in the authored recruitment file and survives in the
+// run; it is never inferred from a failed asset lookup.
+const SQUAD_POSITIONS = [
+  [gx(2), 0.002, gz(2)],
+  [gx(9), 0.002, gz(4)],
+  [gx(2), 0.002, gz(6)],
+  [gx(9), 0.002, gz(7)],
 ];
+const squadRoster = () => run.roster.people.map((person, index) => ({
+  person,
+  fighter: person.body,
+  position: SQUAD_POSITIONS[index],
+}));
 // Set dressing does not enter collision. Bolting circular squad obstacles
 // onto this clamp-and-prop scheme can wedge Cipher; walking through a
 // squadmate is the explicit v1 cost.
@@ -1200,7 +1223,8 @@ function showAssetFault(error) {
         <code>walkoff_render_sheets.py</code>, then
         <code>render_canvas96.py</code> for Cipher; run
         <code>squad_render_sheets.py</code>, then
-        <code>squad_canvas96.py</code> for Vesper / Koa / Sable. Those
+        <code>squad_canvas96.py</code> for Vesper / Koa / Sable / SYN (the
+        canvas Nix explicitly borrows). Those
         pipelines start from tracked or CDN sources and need no licensed
         pack.<br>
         Only <code>?body=composed</code> uses the pack pipeline, for Cipher
@@ -1280,7 +1304,7 @@ function buildCipher() {
 function publishSquadPostures() {
   if (!squadBodies.length) return;
   canvas.dataset.squad = squadBodies
-    .map(body => `${body.userData.fighter}:${body.userData.action}`)
+    .map(body => `${body.userData.personId}:${body.userData.action}`)
     .join(",");
 }
 
@@ -1352,6 +1376,7 @@ const FACTION_ROOT = "../../sentinel-campaign/src/sentinel_campaign/data/faction
 const PERSON_NAME = /^[A-Z][A-Z0-9-]{0,15}$/;
 const people = [];          // { person, archetype, body }
 const peopleBodies = [];
+const recruitmentFactions = new Map();
 
 // The shape check. `archetype` is deliberately NOT checked here — it is
 // checked against the faction's own list once that file is in hand,
@@ -1406,6 +1431,30 @@ async function loadPeople() {
   }
 }
 
+// Origins are not decorative strings. Every faction id stored on an owned
+// person has to resolve to the campaign's authored faction, and the room keeps
+// its real display name for the lineup surface. A body loan is checked here as
+// a room capability: run-core owns the person shape; this renderer owns what it
+// can draw.
+async function loadRecruitmentFactions() {
+  for (const person of run.roster.people) {
+    if (!STAGEABLE_BODIES.includes(person.body)) {
+      throw new Error(`${person.name} owns body "${person.body}", which this room cannot stage — `
+        + `it stages: ${STAGEABLE_BODIES.join(", ")}`);
+    }
+    const factionId = person.origin.faction;
+    if (factionId === null || recruitmentFactions.has(factionId)) continue;
+    const faction = await fetch(`${FACTION_ROOT}/${factionId}.json`).then(r => {
+      if (!r.ok) throw new Error(`${person.name} entered through faction "${factionId}", which the campaign does not have`);
+      return r.json();
+    });
+    if (faction.id !== factionId || typeof faction.name !== "string" || !faction.name) {
+      throw new Error(`${factionId}.json does not identify the recruitment source it was loaded as`);
+    }
+    recruitmentFactions.set(factionId, faction);
+  }
+}
+
 /* ---- the venue atlas, checked at the door's end of the deal --------
    The slate deals each entry's venue name through the seam and the YARD
    dresses for it (world/venues.json) — this room never reads a look, so
@@ -1443,7 +1492,7 @@ function buildPeople() {
     const position = [gx(person.at.x), 0.002, gz(person.at.z)];
     const body = buildBody(person.body, position);
     body.userData.name = person.name;
-    body.userData.phase = index + SQUAD_ROSTER.length;
+    body.userData.phase = index + run.roster.people.length;
     body.userData.action = "idle";
     // The AUTHORED facing, projected through the camera the same way
     // every other body here is. Not the squad's rule: they point at the
@@ -1467,9 +1516,10 @@ function buildPeople() {
 }
 
 function buildSquad() {
-  for (const [index, member] of SQUAD_ROSTER.entries()) {
+  for (const [index, member] of squadRoster().entries()) {
     const body = buildBody(member.fighter, member.position);
-    body.userData.name = member.fighter.toUpperCase();
+    body.userData.personId = member.person.id;
+    body.userData.name = member.person.name;
     body.userData.phase = index;
     // Static bodies look into the room. Their authored facing still has to
     // be projected through each camera quarter-turn, exactly as Cipher's is.
@@ -1486,7 +1536,9 @@ async function bootBodies() {
   // set below, and a person who does not validate must fault before a
   // single sheet is fetched rather than halfway through staging.
   try {
+    if (rosterLoadError) throw rosterLoadError;
     await loadPeople();
+    await loadRecruitmentFactions();
     await checkVenueAtlas();
   } catch (error) {
     showAssetFault(error);
@@ -1511,7 +1563,7 @@ async function bootBodies() {
     ...SOURCE.verbs.flatMap(action =>
       FACINGS.map(facing => ({ fighter: PLAYER, action, facing }))
     ),
-    ...SQUAD_ROSTER.flatMap(({ fighter }) =>
+    ...squadRoster().flatMap(({ fighter }) =>
       SQUAD_ACTIONS.flatMap(action =>
         FACINGS.map(facing => ({ fighter, action, facing }))
       )
@@ -1524,9 +1576,12 @@ async function bootBodies() {
       )
     ),
   ];
+  const uniqueRequests = [...new Map(requests.map(request => [
+    `${request.fighter}:${request.action}:${request.facing}`, request,
+  ])).values()];
   const missing = [];
   try {
-    await Promise.all(requests.map(({ fighter, action, facing }) =>
+    await Promise.all(uniqueRequests.map(({ fighter, action, facing }) =>
       // Absence and rejection stay different verdicts: loadAsync rejects
       // a missing file with an event, never an Error, so the Error class
       // still marks our own validation refusing a real file — that one
@@ -1554,7 +1609,7 @@ async function bootBodies() {
     ];
     showAssetFault(new Error(
       `${BODY_PARAM} roster incomplete: ${missing.length} of `
-      + `${requests.length} sheets missing (first: ${missing[0]}) `
+      + `${uniqueRequests.length} sheets missing (first: ${missing[0]}) `
       + `— ${fixes.join(" · ")}`
     ));
     return;
@@ -1568,6 +1623,7 @@ async function bootBodies() {
   canvas.dataset.sprites = "ready";
   canvas.dataset.roster = BODY_PARAM;
   canvas.dataset.ready = "1";
+  renderRun();
 }
 
 // ---- movement and animation --------------------------------------
@@ -1776,7 +1832,7 @@ function dealGate() {
       kind: "unfit",
       name: "THE DEAL IS GATED",
       sub: "ROSTER UNFIT · "
-        + s.clocks.map(([name, left]) => `${esc(name)} ${left}`).join(" · ")
+        + s.fieldedClocks.map(([name, left]) => `${esc(name)} ${left}`).join(" · ")
         + " · PASS TO MOVE ON (SHIFT+P)",
     };
   }
@@ -1948,8 +2004,8 @@ function updateSquad(now) {
     const action = body.userData.action;
     const facing = screenFacing(body.userData.worldFacing);
     const frames = framesOf(body.userData.fighter, action, facing);
-    // Offset per body, or all three breathe on the same frame forever and
-    // read as one puppet drawn three times. Derived from the roster index,
+    // Offset per body, or the owned crew breathes on the same frame forever
+    // and reads as one puppet drawn four times. Derived from the roster index,
     // never from a clock or a random: the room has to draw the same thing
     // twice for the harness to be able to assert on it at all.
     const fps = SQUAD_FPS[action] ?? SHEETS[action].fps;
@@ -1961,12 +2017,10 @@ function updateSquad(now) {
     body.userData.facing = facing;
     body.userData.frame = frame;
     body.userData.sprite.rotation.y = camAz;
-    // squadSprites stays the SQUAD's telemetry and nothing else. People
-    // ride the same animation loop but are not the fielded roster, and
-    // folding them into a dataset that has meant "the three who fight"
-    // since the convergence would quietly change an existing claim.
+    // squadSprites stays the OWNED ROSTER's telemetry and nothing else.
+    // World NPCs ride the same animation loop but do not belong to the run.
     if (squadBodies.includes(body)) {
-      shown.push(`${body.userData.fighter}:${action}:${facing}:${frame}`);
+      shown.push(`${body.userData.personId}:${action}:${facing}:${frame}`);
     } else {
       peopleShown.push(`${body.userData.name}:${action}:${facing}:${frame}`);
     }
@@ -1978,6 +2032,7 @@ function updateSquad(now) {
 }
 
 document.addEventListener("keydown", event => {
+  if (!run) return;
   // while the yard holds the feed, the room takes no input — except that
   // before the yard has proven it booted, the room still owns the
   // keyboard, and ESC is the manual way back out of a dead hand-off.
@@ -1998,6 +2053,7 @@ document.addEventListener("keydown", event => {
       return;
     }
     const gone = summary(run);
+    const closingRoster = run.roster;
     const at = new Date().toISOString();
     const out = runWritable
       ? closeRun(run, at)
@@ -2015,7 +2071,7 @@ document.addEventListener("keydown", event => {
     // plain run and persistFailed says the screen is ahead of storage —
     // the machinery that already covers a failed save covers this one.
     if (out.closed) {
-      run = openSeason(at, HOUSE_SLATE);
+      run = openSeason(at, HOUSE_SLATE, closingRoster);
       if (runWritable) persistFailed = !saveRun(run);
     } else {
       run = out.run;
@@ -2066,6 +2122,19 @@ document.addEventListener("keydown", event => {
     runNote = `PASSED <b>${esc(passed.venue)}</b> — ON THE RECORD, AND THE SLATE MOVES ON`;
     if (runWritable) persistFailed = !saveRun(run);
     renderRun();
+    return;
+  }
+  // Lineup choice is a front-office act, not a body verb. It is legal from
+  // anywhere in the room, but never while a card is in flight: the roster is
+  // part of match identity, so changing it under settlement would make the
+  // room compare the returned card against a different deal.
+  if (event.code === "KeyB" && !event.repeat) {
+    if (settling > 0) {
+      runNote = '<span class="warn">A CARD IS STILL SETTLING — CHANGE THE LINEUP ONCE IT LANDS</span>';
+      renderRun();
+      return;
+    }
+    rotateBench();
     return;
   }
   if (
@@ -2119,7 +2188,7 @@ document.addEventListener("keydown", event => {
       renderRun();
       return;
     }
-    wearer = (wearer + 1) % SQUAD_ROSTER.length;
+    wearer = (wearer + 1) % run.roster.people.length;
     kitNote = null;   // the last purchase was about somebody else
     renderKit();
     return;
@@ -2180,6 +2249,7 @@ const WITNESS = WITNESS_PARAM ?? "https://sentinel-witness.ishawnd.workers.dev";
 let seamOpen = false;
 let seamReady = false;
 let seamDealt = null;      // the seed this room dealt, kept to check the answer
+let seamFielded = null;    // the immutable lineup snapshot this card belongs to
 let seamFrame = null;
 let seamBootTimer = 0;
 let cutTimers = [];
@@ -2269,11 +2339,11 @@ const TABLE_REACH = 1.15;
 const TABLE_X = gx(TABLE_SPOT.x);
 const TABLE_Z = gz(TABLE_SPOT.z);
 let atShop = false;
-// Who the next purchase dresses. An index into the fielded roster, not a
-// name: the room derives operative names from sheet slugs in exactly one
-// place, and this must not become a second place they are spelled.
+// Who the next purchase dresses. An index into the owned people, so the
+// benched person keeps a physical hook too. Names come from the run's person
+// record; the room never derives identity back out of a borrowed body canvas.
 let wearer = 0;
-const wearerName = () => SQUAD_ROSTER[wearer].fighter.toUpperCase();
+const wearerName = () => run.roster.people[wearer].name;
 let kitNote = null;
 
 // The control surface names the exact keys this stock answers to, filled
@@ -2306,8 +2376,8 @@ const RACK_HOOKS = [];
 const hookGeo = new THREE.BoxGeometry(1, 1, 1);
 
 function buildRack() {
-  const cols = SQUAD_ROSTER.length;
-  for (const [i, member] of SQUAD_ROSTER.entries()) {
+  const cols = run.roster.people.length;
+  for (const [i, person] of run.roster.people.entries()) {
     for (const [j, slot] of FLAIR_SLOTS.entries()) {
       const mesh = new THREE.Mesh(hookGeo, new THREE.MeshStandardMaterial({
         color: 0x1d2a21,
@@ -2321,11 +2391,10 @@ function buildRack() {
         TABLE_Z + (j - (FLAIR_SLOTS.length - 1) / 2) * 0.26
       );
       scene.add(mesh);
-      RACK_HOOKS.push({ who: member.fighter.toUpperCase(), slot, mesh });
+      RACK_HOOKS.push({ who: person.name, slot, mesh });
     }
   }
 }
-buildRack();
 
 // Drawn from the run, never from a second copy of what was bought: the
 // hook shows the item's own colour, and an unbought hook is a bare peg.
@@ -2348,22 +2417,20 @@ function syncRack() {
    that, the witness replays from exactly that, and the certificate
    carries its hash.
 
-   Derived from the bodies this room actually stages, which turns a
-   coincidence into a contract. Before this input existed, the room
-   staging vesper/koa/sable and the yard fielding VESPER/KOA/SABLE agreed
-   only because two files happened to say the same thing — the harness
-   pinned them against each other precisely because nothing at runtime
-   could. Now the room deals the names and the edge certifies them.
+   Derived from the run-owned lineup. Stable ids choose the people; run-core
+   reduces those people to tactical names at full strength and strips bodies
+   and origins before the seam. The bodies staged above are the room's visible
+   roster, including the bench, not an independent source of match identity.
 
    And the room still imports no rules. It does not validate this against
    the rules core's own check, does not compute the canonical key, and
    does not hash anything: it deals a roster and later compares what came
    home against what it dealt, field by field. The harness holds this
-   list against `rosterValid` and `CANON_ROSTER`, which is the same
+   output against `rosterValid` (and the authored opening against
+   `CANON_ROSTER`), which is the same
    asymmetry that has always guarded the names — this file cannot import
    the rules; the test can. */
-const FULL_STRENGTH = 10;   // pinned against the rules core's OP_MAX_HP in CI
-const FIELDED = SQUAD_ROSTER.map(m => ({ name: m.fighter.toUpperCase(), hp: FULL_STRENGTH }));
+const fielded = () => fieldedRoster(run);
 // Deliberately NOT validated here. A first cut checked the name shape and
 // uniqueness at boot, which read as diligence and was the opposite: a
 // second, INCOMPLETE roster grammar (no slot count, no hp bounds, no
@@ -2384,7 +2451,34 @@ const sameRoster = (a, b) =>
 // Published so the harness can hold this room's squad against the rules
 // core's own roster check — the asymmetry that has always guarded the
 // names, now guarding the whole input.
-document.getElementById("cv").dataset.fielded = rosterParam(FIELDED);
+function publishRoster() {
+  const s = summary(run);
+  canvas.dataset.fielded = rosterParam(fielded());
+  canvas.dataset.owned = s.roster.people
+    .map(person => `${person.id}:${person.name}:${person.origin.source}`).join(",");
+  canvas.dataset.lineup = s.roster.lineup.map(person => person.id).join(",");
+  canvas.dataset.bench = s.roster.bench.map(person => person.id).join(",");
+}
+
+function rotateBench() {
+  const people = run.roster.people;
+  const fieldedIds = new Set(run.roster.lineup);
+  const currentBench = people.find(person => !fieldedIds.has(person.id));
+  const nextIndex = (people.findIndex(person => person.id === currentBench.id) + 1) % people.length;
+  const nextBench = people[nextIndex];
+  const lineup = people.filter(person => person.id !== nextBench.id).map(person => person.id);
+  const out = setLineup(run, lineup);
+  if (!out.accepted) {
+    runNote = `<span class="warn">${esc(out.why.toUpperCase())}</span>`;
+    renderRun();
+    return;
+  }
+  run = out.run;
+  if (runWritable) persistFailed = !saveRun(run);
+  publishRoster();
+  runNote = `BENCHED <b>${esc(nextBench.name)}</b> · FIELDING ${fielded().map(person => esc(person.name)).join(" · ")}`;
+  renderRun();
+}
 
 const runInfo = document.getElementById("runinfo");
 const kitBox = document.getElementById("kitbox");
@@ -2405,20 +2499,24 @@ if (storageLive) {
   });
 }
 const bootAt = new Date().toISOString();
-const opened = loadRun(bootAt);
+const opened = rosterLoadError
+  ? { run: null, how: "invalid-roster" }
+  : loadRun(bootAt, HOUSE_ROSTER);
 // A fresh run in THIS room is a season: opened on the house slate, which
 // makes the panel below a front office rather than a scoreboard. Only
 // "restored" keeps what storage held — a stored plain run stays a plain
 // run (nothing is silently migrated into a season), and a stored season
 // keeps ITS OWN slate even if the house slate has since changed: the
 // tour you were on is the tour you are on.
-let run = opened.how === "restored" ? opened.run : openSeason(bootAt, HOUSE_SLATE);
+let run = opened.how === "restored"
+  ? opened.run
+  : opened.run === null ? null : openSeason(bootAt, HOUSE_SLATE, HOUSE_ROSTER);
 // "unpreserved": something is stored that this schema cannot read, and it
 // could NOT be verifiably set aside — the live slot still holds the only
 // copy, so it is not this page's to spend. The run plays in memory, like
 // the no-storage room, and every write below is gated on this instead of
 // on storageLive alone.
-const runWritable = storageLive && opened.how !== "unpreserved";
+const runWritable = run !== null && storageLive && opened.how !== "unpreserved";
 // Two kinds of thing the panel has to say, kept apart because they have
 // different lifetimes. A CONDITION is true until the page reloads; a NOTE
 // is about the last thing that happened and stops being true once
@@ -2466,6 +2564,10 @@ let settling = 0;
 // under quota with nothing said would strand the panel describing a
 // season the next reload cannot produce (caught in review, beat 2).
 if (runWritable && opened.how !== "restored") persistFailed = !saveRun(run);
+if (run) {
+  buildRack();
+  publishRoster();
+}
 
 const pct = n => `${Math.round(n * 100)}%`;
 // Everything the run renders came from somewhere else — a restored blob
@@ -2474,6 +2576,10 @@ const pct = n => `${Math.round(n * 100)}%`;
 // makes the renderer safe even when that check is the thing that is wrong.
 const esc = s => String(s).replace(/[&<>"']/g, c =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const sourceLabel = person => person.origin.faction === null
+  ? person.origin.source.replaceAll("-", " ").toUpperCase()
+  : (recruitmentFactions.get(person.origin.faction)?.name
+      ?? person.origin.faction.replaceAll("_", " ")).toUpperCase();
 
 function renderRun() {
   // Postures first: the bodies and the panel are drawn from one read of the
@@ -2482,6 +2588,15 @@ function renderRun() {
   syncSquadPostures();
   const s = summary(run);
   const rows = [];
+  // The faction door, visible before commitment. The tactical names are what
+  // crosses the north door; stable ids and authored origins remain here, where
+  // future obligations can point at people without teaching the yard about
+  // identity. With four owned people there is exactly one bench, so one key can
+  // make the whole decision legible without pretending this is a roster UI.
+  rows.push(`FIELDING · <b>${s.roster.lineup.map(person => esc(person.name)).join(" · ")}</b>`);
+  const benched = s.roster.bench[0];
+  rows.push(`BENCH · <b>${esc(benched.name)}</b> · ${esc(sourceLabel(benched))} · <kbd>B</kbd> ROTATES`);
+  rows.push(`ORIGIN · ${esc(benched.origin.reason)}`);
   // The door's state, asked of the door itself — not re-derived here.
   // The first version of this line rebuilt the condition out of the
   // season fields and omitted the settling gate, so a card in flight
@@ -2547,10 +2662,14 @@ function renderRun() {
         (n.host ? `HELD BY ${esc(n.host.toUpperCase())}` : "UNCLAIMED") + " · " +
         (n.sanction ? `SANCTIONED BY ${esc(n.sanction.toUpperCase())}` : "UNSANCTIONED"));
     }
+    if (se.clocks.length) {
+      rows.push("RECOVERING · " + se.clocks.map(([name, left]) =>
+        `${esc(name)} ${left} STOP${left === 1 ? "" : "S"}`).join(" · "));
+    }
     if (!se.fit) {
       rows.push(
         '<span class="warn">ROSTER UNFIT — THE DEAL IS GATED</span> · ' +
-        se.clocks.map(([name, left]) =>
+        se.fieldedClocks.map(([name, left]) =>
           `${esc(name)} ${left} STOP${left === 1 ? "" : "S"}`).join(" · ") +
         " · PASS TO MOVE ON (SHIFT+P)");
     }
@@ -2593,10 +2712,9 @@ function renderRun() {
       unstagedDown.map(esc).join(" · ")
     );
   }
-  // The rack's half of the same discipline. run-core has no roster — it
-  // will dress any name a caller hands it — so a stored run can carry
-  // gear for somebody this room has no hook for. Saying which beats a KIT
-  // line whose items are on no rack in the room.
+  // The rack's half of the same discipline. A malformed stored run is refused
+  // by run-core, and this still catches a room whose physical hooks drifted
+  // from the owned people it restored.
   const unhooked = s.kit
     .map(([who]) => who)
     .filter(who => !RACK_HOOKS.some(hook => hook.who === who));
@@ -2639,6 +2757,7 @@ function renderRun() {
       FLAIR_SLOTS.filter(slot => worn[slot])
         .map(slot => `${who}/${slot}/${worn[slot].id}`)).join(",")
     : "none";
+  publishRoster();
   syncRack();
   renderKit();
 }
@@ -2678,7 +2797,7 @@ function renderKit() {
     rows.push(`<kbd>${i + 1}</kbd> ${esc(item.name)} · ${esc(item.slot.toUpperCase())}`
       + ` · ${item.cost}c${state}`);
   });
-  rows.push(`RACK READS ${SQUAD_ROSTER.map(m => esc(m.fighter.toUpperCase())).join(" · ")}`
+  rows.push(`RACK READS ${run.roster.people.map(person => esc(person.name)).join(" · ")}`
     + `, LEFT TO RIGHT · ${FLAIR_SLOTS.map(sl => esc(sl.toUpperCase())).join(" THEN ")}`);
   if (kitNote) rows.push(kitNote);
   kitInfo.innerHTML = rows.join("<br>");
@@ -2746,7 +2865,7 @@ function bankCard(card) {
 }
 
 canvas.dataset.settling = "0";   // the attribute exists before the first card
-renderRun();
+if (run) renderRun();
 // The witness gets a deadline for the same reason the yard does. A witness
 // that REFUSES already lands in certifySeam's catch and the panel says
 // "NO WITNESS REACHABLE"; a witness that ACCEPTS and never answers used to
@@ -2791,6 +2910,7 @@ function beginSeam() {
   locked = null;
   const seed = DEAL ?? (Math.random() * 0xffffffff) >>> 0;
   seamDealt = seed.toString(16);
+  seamFielded = fielded();
   // On a season the cut card carries the ENTRY's framing — what this card
   // MEANS is front-office fact, and the door is where it is said. The
   // framing never crosses the seam: the yard is dealt exactly what it was
@@ -2808,7 +2928,7 @@ function beginSeam() {
   // visible at the threshold rather than only in the certificate.
   showCut(entry ? esc(entry.venue) : "KESTREL YARD",
     `${framing} · seed ${seamDealt}`
-    + `<br>FIELDING ${FIELDED.map(f => esc(f.name)).join(" · ")}`);
+    + `<br>FIELDING ${seamFielded.map(f => esc(f.name)).join(" · ")}`);
   actionStateEl.textContent = "CROSSING";
   canvas.dataset.seam = "open";
 
@@ -2818,7 +2938,7 @@ function beginSeam() {
   // The seam carries the body so Cipher cannot change bodies at the door —
   // the yard stages what the room stages in both directions of the crossing.
   let src = `../tactical3d/index.html?seam=1&seed=${seamDealt}&body=${BODY_PARAM}`
-    + `&roster=${encodeURIComponent(rosterParam(FIELDED))}`;
+    + `&roster=${encodeURIComponent(rosterParam(seamFielded))}`;
   // A season deals its venue — the one deliberately INERT input, dressed
   // for and never fought over (world/venues.json; the yard's venue-lens
   // block owns the law). A plain run deals nothing and the yard is its
@@ -2850,6 +2970,7 @@ function abortSeam(why) {
   seamOpen = false;
   seamReady = false;
   seamDealt = null;
+  seamFielded = null;
   if (seamFrame) { seamFrame.remove(); seamFrame = null; }
   window.focus();
   canvas.dataset.seam = "aborted";
@@ -2868,7 +2989,7 @@ function seamResultValid(d) {
     // always asked "is this the card I dealt"; under the new law that
     // question has a second half, because the same seed fought by a
     // different squad is a different match (roster_in_the_match.md).
-    && sameRoster(d.roster, FIELDED)
+    && sameRoster(d.roster, seamFielded)
     && (d.result === "win" || d.result === "loss")
     // integers in the domain the rules clamp to, not merely finite: these
     // are banked now, and a fractional rating truncated on its way into a
@@ -2949,6 +3070,7 @@ function endSeam(result) {
 // claimed. No witness reachable = the room takes the yard's word and the
 // panel SAYS so — an unverified truth labeled beats a silent one.
 async function certifySeam(d) {
+  const dealt = seamFielded;
   let verdict;
   let cert;
   let rules = null;
@@ -2961,9 +3083,9 @@ async function certifySeam(d) {
         record: d.record,
         // what the ROOM dealt, not the yard's echo of it. seamResultValid
         // has already refused any payload whose roster is not this one,
-        // so they are equal — sending FIELDED is what keeps them equal by
+        // so they are equal — sending the snapshotted lineup keeps them equal by
         // construction rather than by a check somebody could move.
-        roster: FIELDED,
+        roster: dealt,
         fingerprint: d.fingerprint,
       }),
       // a hang is unreachable too — the abort lands in the catch below, so
@@ -2998,7 +3120,7 @@ async function certifySeam(d) {
       // Worker is redeployed — and assuming agreement would be the
       // silent half of the same mistake. So it is counted and LABELED,
       // the same grammar an unwitnessed card already gets.
-      && (out.roster === undefined || sameRoster(out.roster, FIELDED));
+      && (out.roster === undefined || sameRoster(out.roster, dealt));
     const squadAttested = out.roster !== undefined;
     if (agrees) {
       verdict = '<span class="fp">CERTIFIED AT THE EDGE</span>'
@@ -3038,6 +3160,7 @@ async function certifySeam(d) {
     rules,
     at: new Date().toISOString(),
   });
+  seamFielded = null;
 
   const totEl = document.getElementById("seamtotals");
   if (totEl) {
@@ -3075,7 +3198,7 @@ window.addEventListener("message", event => {
     // a wasted match. Loud rather than ignored, unlike the seed above:
     // a seed mismatch is a stale frame answering for an old deal, while a
     // roster mismatch is this deal, fielded wrong.
-    if (!sameRoster(data.roster, FIELDED)) {
+    if (!sameRoster(data.roster, seamFielded)) {
       abortSeam("THE YARD FIELDED A DIFFERENT SQUAD — REFUSED");
       return;
     }
