@@ -2155,12 +2155,25 @@ try {
   // that fails to load or validate stops the boot and says why. Note the
   // split — a BAD ATLAS faults (the author broke the world), an unknown
   // VENUE NAME does not (the lens must never decide whether the match
-  // exists; see loadVenue).
-  await loadVenue();
-  applyVenueLook(VENUE.look);
+  // exists; see loadVenue). It loads BESIDE the sheets, not ahead of
+  // them: in seam mode the room's SEAM_BOOT_MS clock is running on this
+  // whole block, and a fetch with no dependency on the sheets has no
+  // business spending serial time inside that deadline (a loaded CI
+  // runner cashed that margin in on 2026-08-16). The atlas is AWAITED
+  // second, though, so its fault lands after bootYardRoster has said
+  // its piece and can never be painted over by a late "ready" — with
+  // Promise.all a venue fault would race the still-running sheet loads
+  // for the final word on dataset.sprites.
+  const venueLoad = loadVenue();
+  venueLoad.catch(() => {});   // no unhandled-rejection while sheets load
   yardRosterReady = await bootYardRoster();
+  await venueLoad;
+  applyVenueLook(VENUE.look);
 } catch (error) {
   showAssetFault([error]);
+  // an atlas fault arrives AFTER the sheets may have said yes — a yard
+  // that faulted anywhere in boot must not field a match over the fault
+  yardRosterReady = false;
 }
 canvas.dataset.booted = "1";   // the boot-check script below reads this
 if (yardRosterReady) {

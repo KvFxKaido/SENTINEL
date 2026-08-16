@@ -2182,7 +2182,13 @@ let seamBootTimer = 0;
 let cutTimers = [];
 const seamCut = document.getElementById("seamcut");
 const seamInfo = document.getElementById("seaminfo");
-const SEAM_BOOT_MS = 7000;
+// The deadline exists to catch a DEAD far side, not a slow one. At 7000
+// a live yard got executed mid-boot on a loaded CI runner (2026-08-16:
+// 140 sheets plus the venue atlas crossed 7s and the room tore down an
+// iframe that was seconds from answering — a false "NEVER ANSWERED" by
+// construction). ESC remains the impatient exit; this number only has
+// to beat "genuinely dead", and it costs nothing to give honesty room.
+const SEAM_BOOT_MS = 12000;
 
 /* ---- the run: what survives the door -----------------------------
    Replaces the session ledger this box used to hold. The policy is
