@@ -144,7 +144,11 @@ The relationship is then derived from replayed facts, never awarded because a
 client asserted `bond += 1`. The derivation may name the command index and a
 predicate over replayed state — who acted, for whom, under what danger, and
 whether the act mattered. The exact predicate belongs beside the verb in the
-rules and its tests, not in prose interpreted differently by every caller.
+rules and its tests, not in prose interpreted differently by every caller —
+and it belongs *there* because only the rules core can replay. Derivation
+next to the verb is what keeps relationship-minting deterministic and
+testable; the run consumes derived events and never computes them, which is
+the line that leaves `bond += 1` with no place to live.
 
 Simply sharing a card is not a relationship-producing verb.
 
@@ -307,18 +311,29 @@ So feed-cutting is a vertical seam change, not one clever button. A prototype
 must decide explicitly:
 
 1. Does the local canonical record continue after the public feed is cut?
-2. Does the room intentionally withhold that record from the Witness?
+2. Is the record intentionally withheld from the Witness — on **every**
+   submission path? Darkness must be a property of the card, not of one
+   surface: the yard's own **FILE THE RECORD** action posts directly to
+   `/file` (`tactical3d/index.html`), so a darkness enforced only in the
+   room's submit logic is one button away from the public archive, which
+   defeats claim-grade provenance and the later-exposure premise at once
+   (caught in review).
 3. How is deliberate darkness distinguished from infrastructure failure?
+   `unwitnessed` today means the edge was unreachable — an accident. A
+   chosen cut banked under the same label is true but misleading, so the
+   likely seat of the answer is the run's verdict surface: `CHOSE THE
+   DARK` and `LOST THE FEED` distinguished at banking time, not only
+   forensically via the surviving record.
 4. Which economic outputs disappear, shrink or move elsewhere?
 5. What durable source supports a claim-grade relationship from the dark?
 6. Can a hidden record be exposed and certified later, and who gains leverage
    by doing so?
 
 The current lean is that the local record continues — determinism should not
-be destroyed to express secrecy — while the room intentionally submits it to
-neither `/certify` nor `/file`. That preserves the possibility of later
-exposure without pretending the match was publicly witnessed when it happened.
-This is a lean, not settled law.
+be destroyed to express secrecy — while the record is submitted to neither
+`/certify` nor `/file` by any surface that holds it. That preserves the
+possibility of later exposure without pretending the match was publicly
+witnessed when it happened. This is a lean, not settled law.
 
 Feed-cutting should follow the first ordinary utility verb. Otherwise one
 prototype would be asked to invent utility actions, intentional witness loss,
@@ -363,6 +378,13 @@ cross the door. Amend the certified-input law, content address, Worker,
 goldens and seam harness together.
 
 The first four steps are the on-ramp. Step 6 is not their prerequisite.
+
+The order is dependency, not schedule. Steps 1 and 2 do not depend on each
+other — the verb needs no bench and the bench needs no verb — so the two
+largest fronts can proceed in parallel rather than the pipeline stalling
+behind recruitment authoring. What is genuinely serial: step 3 needs step
+2's verb to derive from, and step 4 needs step 1's identities and step 3's
+sources before a ledger has anything true to bank.
 
 ## 11. What Not To Build
 
