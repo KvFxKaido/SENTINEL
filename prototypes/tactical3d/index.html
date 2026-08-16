@@ -438,6 +438,15 @@ const VENUE_PARAM = new URLSearchParams(location.search).get("venue");
 const HOUSE_VENUE = "KESTREL YARD";
 var VENUE = null;   // { name, look, standing: "house" | "staged" | "unrecorded" }
 
+// The room's own escape, grown here the day the yard gained a free-form
+// input: ?venue= is a NAME, not markup, and the unrecorded path prints
+// it verbatim — into innerHTML on the card and the comms log. Without
+// this, a shared URL is a script injection (both review bots, on this
+// PR). Atlas text goes through it too: authored data is not a trusted
+// input anywhere else in this stack, and HTML is no exception.
+const esc = s => String(s).replace(/[&<>"']/g, c =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 const venueOnlyKeys = (obj, allowed) =>
   obj && typeof obj === "object" && Object.keys(obj).every(k => allowed.includes(k));
@@ -487,10 +496,16 @@ async function loadVenue() {
     const fault = venueLookFault(look);
     if (fault) throw new Error(`world/venues.json: "${name}" ${fault}`);
   }
-  if (!(HOUSE_VENUE in atlas.venues)) {
+  // Own properties only: atlas.venues rides in on JSON.parse with
+  // Object.prototype attached, so a plain `in` would let ?venue=
+  // "constructor" or "toString" skip the unrecorded fallback, hand
+  // applyVenueLook an inherited function as a look, and turn a
+  // stranger's NAME into a boot fault — the one outcome a lens is
+  // forbidden. Same boundary run-core drew against __proto__.
+  if (!Object.hasOwn(atlas.venues, HOUSE_VENUE)) {
     throw new Error(`world/venues.json has no "${HOUSE_VENUE}" — the house look is load-bearing`);
   }
-  if (VENUE_PARAM !== null && !(VENUE_PARAM in atlas.venues)) {
+  if (VENUE_PARAM !== null && !Object.hasOwn(atlas.venues, VENUE_PARAM)) {
     // The look falls back to the house; the CARD does not. The card is a
     // claim about who is present and who sanctioned what, and the atlas
     // knows none of that for this ground — printing Kestrel's people
@@ -566,11 +581,11 @@ function showCard() {
   cardOpen = true;
   cardEl.innerHTML = `
     <div class="sheet">
-      <div class="chead"><span class="tag">THE CARD · ${VENUE.card.sanction}</span><span class="sub">seed ${S.seed.toString(16)}</span></div>
-      <div class="chead"><h1>${VENUE.card.title}</h1></div>
-      <div class="sub">${VENUE.card.framing}${SEAM ? " You walked in off the interior floor, and the book saw the door open." : ""}</div>
+      <div class="chead"><span class="tag">THE CARD · ${esc(VENUE.card.sanction)}</span><span class="sub">seed ${S.seed.toString(16)}</span></div>
+      <div class="chead"><h1>${esc(VENUE.card.title)}</h1></div>
+      <div class="sub">${esc(VENUE.card.framing)}${SEAM ? " You walked in off the interior floor, and the book saw the door open." : ""}</div>
       <div class="ccell"><div class="clabel">PRESENT — WHO CAN READ YOU</div>
-        <div class="cbody">${VENUE.card.present.map(([who, what]) => `<b>${who}</b> <span class="dim">— ${what}</span>`).join("<br>")}</div>
+        <div class="cbody">${VENUE.card.present.map(([who, what]) => `<b>${esc(who)}</b> <span class="dim">— ${esc(what)}</span>`).join("<br>")}</div>
       </div>
       <div class="cgrid">
         <div class="ccell op-side"><div class="clabel">YOUR CREW</div><div id="cardops"></div></div>
@@ -672,12 +687,12 @@ function onEvent(ev) {
       // Until that PR, the staging line below is the log's honest word
       // on where you are.)
       if (VENUE.standing === "staged") {
-        log(wrapHTML(`— STAGED AT ${VENUE.look.title} —`, "sys"));
+        log(wrapHTML(`— STAGED AT ${esc(VENUE.look.title)} —`, "sys"));
       }
       // reset just wiped the log, so the loan is declared per-card too —
       // an unrecorded venue is never quietly dressed as the house
       if (VENUE.standing === "unrecorded") {
-        log(wrapHTML(`VENUE "${VENUE.name}" IS NOT IN THE ATLAS — THE HOUSE LOOK STANDS IN`, "dim"));
+        log(wrapHTML(`VENUE "${esc(VENUE.name)}" IS NOT IN THE ATLAS — THE HOUSE LOOK STANDS IN`, "dim"));
       }
       break;
     case "fire":
@@ -1343,7 +1358,11 @@ async function bootYardRoster() {
   }
   assetGate.className = "";
   assetGate.setAttribute("aria-hidden", "true");
-  canvas.dataset.sprites = "ready";
+  // dataset.sprites = "ready" is NOT set here anymore: the venue atlas
+  // loads beside the sheets and is awaited after them, so "ready" here
+  // would be a word given while dataset.venue could still be unset and
+  // an atlas fault could still be inbound. The boot block below says
+  // "ready" once, last, when everything has actually answered.
   canvas.dataset.roster = "full";
   canvas.dataset.idleFrames = FIGHTERS.map(fighter =>
     `${fighter}:${PACK_SHEETS.get(sheetKey(fighter, "idle", "down")).frames}`
@@ -2169,6 +2188,11 @@ try {
   yardRosterReady = await bootYardRoster();
   await venueLoad;
   applyVenueLook(VENUE.look);
+  // "ready" is the boot's LAST word, said here and nowhere else: by now
+  // the sheets loaded, the atlas resolved, dataset.venue is published
+  // and the look is applied — so no reader of "ready" can catch the
+  // venue half-dressed, and no late fault can arrive to contradict it.
+  if (yardRosterReady) canvas.dataset.sprites = "ready";
 } catch (error) {
   showAssetFault([error]);
   // an atlas fault arrives AFTER the sheets may have said yes — a yard

@@ -1427,7 +1427,10 @@ async function checkVenueAtlas() {
   if (!atlas.venues || typeof atlas.venues !== "object") {
     throw new Error("world/venues.json must declare a venues object");
   }
-  const missing = HOUSE_SLATE.entries.map(e => e.venue).filter(v => !(v in atlas.venues));
+  // Own properties only — a slate venue named "constructor" must read as
+  // MISSING, not as Object.prototype (the yard's venue block owns the
+  // full argument; run-core drew this boundary first, against __proto__)
+  const missing = HOUSE_SLATE.entries.map(e => e.venue).filter(v => !Object.hasOwn(atlas.venues, v));
   if (missing.length) {
     throw new Error(`the house slate stages ${missing.join(", ")} and world/venues.json has no such venue — `
       + `it knows: ${Object.keys(atlas.venues).join(", ")}`);

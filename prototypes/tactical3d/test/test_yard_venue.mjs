@@ -262,6 +262,40 @@ try {
     unrecDiff < Math.max(venueDiff / 3, controlDiff * 2),
     `unrecorded ${unrecDiff.toFixed(2)} vs venue ${venueDiff.toFixed(2)}`);
 
+  // ---- a venue is a NAME, not markup --------------------------------
+  // The unrecorded path prints the dealt name verbatim — onto the card
+  // and the log, both innerHTML sinks — so a hostile name in a shared
+  // URL was a script injection until it was escaped (both review bots,
+  // this PR). Executed with real metacharacters: the name must render
+  // as text, build no elements, and run nothing (a pageerror here would
+  // also fail the run via the handler above).
+  const hostile = `<img src=x onerror="document.title='owned'">`;
+  await boot("&venue=" + encodeURIComponent(hostile));
+  check("a hostile venue name still boots as unrecorded",
+    (await ds("sprites")) === "ready" && (await ds("venue")) === `${hostile}:unrecorded`,
+    await ds("venue"));
+  check("the card renders the name as text, not as elements",
+    (await page.$("#card img")) === null
+      && (await page.textContent("#card h1")).includes(hostile));
+  await beginCard();
+  const hostileLog = await page.evaluate(() => document.getElementById("log").innerText);
+  check("the log prints the name, the page does not execute it",
+    hostileLog.includes(hostile) && (await page.title()) !== "owned",
+    hostileLog.slice(0, 120));
+
+  // ---- a name off Object.prototype is a stranger, not an entry ------
+  // atlas.venues rides in on JSON.parse with its prototype attached, so
+  // a plain `in` check read ?venue=constructor as a KNOWN venue, handed
+  // applyVenueLook an inherited function, and boot-faulted — a lens
+  // deciding whether the match exists, the exact forbidden outcome
+  // (both bots; run-core drew this boundary first, against __proto__).
+  for (const name of ["constructor", "toString", "__proto__"]) {
+    await boot("&venue=" + name);
+    check(`"${name}" falls back to unrecorded instead of faulting`,
+      (await ds("sprites")) === "ready" && (await ds("venue")) === `${name}:unrecorded`,
+      `${await ds("sprites")} / ${await ds("venue")}`);
+  }
+
   // ---- the atlas keeps the people-file discipline --------------------
   // authored data that fails to load or validate is a boot FAULT that
   // names itself — served doctored over page.route, like the person file
