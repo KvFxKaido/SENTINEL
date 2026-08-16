@@ -142,6 +142,15 @@ try {
   const dealtRoster = new URL(seamSrc, page.url()).searchParams.get("roster");
   check("the world deals the squad beside the seed",
     dealtRoster === "VESPER:10,KOA:10,SABLE:10", dealtRoster);
+  // ---- the venue crosses as a lens ----------------------------------
+  // A season deals its entry's venue name beside the certified inputs.
+  // Declared inert on both ends: the yard dresses for it and the
+  // certificate cannot see it (test_yard_venue.mjs executes that half).
+  // A fresh room is a season at stop one, so the dealt venue is the
+  // house slate's own first entry.
+  const dealtVenue = new URL(seamSrc, page.url()).searchParams.get("venue");
+  check("the season deals its venue beside the seed",
+    dealtVenue === "KESTREL YARD", String(dealtVenue));
   const cutFielding = (await page.textContent("#seamcut")).replace(/\s+/g, " ").trim();
   check("the cut card says who is fighting",
     /FIELDING VESPER · KOA · SABLE/.test(cutFielding), cutFielding);
@@ -382,11 +391,20 @@ try {
   // bare room produced at the top of this file — same seed, same body,
   // nothing appended. This suite is the only place both surfaces are
   // alive at once, which makes it the only place that claim can be run.
+  // Both entries stage KESTREL YARD on purpose: the banked card below
+  // advances this tour to stop two before the dressed crossing, and the
+  // byte-identical claim must isolate the PURCHASE. A tour whose second
+  // stop were a different venue would change the dealt &venue= for a
+  // reason that has nothing to do with what was bought — the slate
+  // talking, not the flair. The second stop's HOST is covenant, and
+  // deliberately not the house slate's syndicate: host frames the cut
+  // and never crosses the seam, so it is what lets the cut assertion
+  // below still tell the restored slate apart from the house one.
   const SHOP_TOUR = {
     id: "purse-tour",
     entries: [
       { venue: "KESTREL YARD", host: "steel-syndicate", sanction: "steel-syndicate" },
-      { venue: "THE COLD COURT", host: "covenant", sanction: "covenant" },
+      { venue: "KESTREL YARD", host: "covenant", sanction: "covenant" },
     ],
   };
   const funded = applyCard(openSeason("2026-08-13T00:00:00Z", SHOP_TOUR), {
@@ -456,11 +474,13 @@ try {
     check("the dressed room deals the yard exactly what the bare room dealt",
       dressedSrc === seamSrc, `${dressedSrc} vs ${seamSrc}`);
     // ...and the framing on the cut still comes from the run's OWN slate,
-    // which is the beat-2 half of the same sentence: what crosses the
-    // seam is a seed, and everything else is the room talking.
+    // which is the beat-2 half of the same sentence: the venue and seed
+    // cross, and everything else on the cut is the room talking. The
+    // covenant host is the tell — the house slate's Kestrel entry is
+    // syndicate-held, so this line can only be the restored tour's.
     const dressedCut = (await page.textContent("#seamcut")).replace(/\s+/g, " ").trim();
     check("the cut is framed by the restored run's own slate",
-      /THE COLD COURT/.test(dressedCut) && /SANCTIONED BY COVENANT/.test(dressedCut),
+      /KESTREL YARD/.test(dressedCut) && /SANCTIONED BY COVENANT/.test(dressedCut),
       dressedCut);
 
     // ---- the room does not trust the edge about the squad either ------

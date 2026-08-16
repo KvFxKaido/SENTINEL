@@ -77,10 +77,25 @@ an authored tour with faction framing, wounds as recovery clocks counted
 in slate positions, and passing — `Shift`+`P` — always legal precisely
 because the clocks gate the deal. The panel says where the tour stands,
 what the next entry means, and why the door would refuse to deal; the
-cut card frames each crossing from the run's **own** slate. Nothing
-seasonal crosses the seam — the yard is dealt exactly what it was always
-dealt. A stored plain run stays plain; a stored season keeps its own
-slate even if the house slate has since changed.
+cut card frames each crossing from the run's **own** slate. Nothing that
+a replay would notice crosses the seam — the yard is dealt exactly the
+match it was always dealt. A stored plain run stays plain; a stored
+season keeps its own slate even if the house slate has since changed.
+
+And since the venue lens (2026-08-16) a season crossing also deals its
+entry's **venue name** (`&venue=THE COLD COURT`) — the one deliberately
+inert input. The yard dresses for it out of `world/venues.json`: light
+color, weather in the air, the card's venue lines — and nothing else.
+The certificate cannot see a venue (there is no field for one), and the
+harness replays the same seed at two venues and asserts the certified
+text is byte-identical while the stages visibly are not
+(`test_yard_venue.mjs`). The asymmetry with `?roster=` is the law in
+miniature: a malformed roster **faults** because fielding a guessed
+squad would certify a match nobody dealt, while a venue the atlas has
+never heard of gets the house look and *says so* — a lens must never
+decide whether the match exists. A typo'd venue in the authored house
+slate still faults, but in the ROOM at boot, where authoring mistakes
+belong. A plain run deals no venue and the yard is its own ground.
 
 And since the kit table (2026-08-13) the purse **spends**. A prop against
 the south wall — the opposite pole from the north door — sells flair, and

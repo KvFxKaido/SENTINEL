@@ -234,6 +234,13 @@ jobs:
         working-directory: prototypes/tactical3d/test
         run: node test_yard_bodies.mjs
 
+      # The venue lens, both halves: two venues must render materially
+      # different stages (against a same-venue control) and write
+      # byte-identical certified text from the same seed and commands.
+      - name: Yard venue lens
+        working-directory: prototypes/tactical3d/test
+        run: node test_yard_venue.mjs
+
       # Both surfaces alive at once — the only test that can see the claim
       # the convergence actually makes. Tolerates an unreachable witness
       # (the room says so out loud); fails on a DISPUTED record.

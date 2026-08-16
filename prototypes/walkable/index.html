@@ -580,6 +580,46 @@ const doorPractical = new THREE.PointLight(0x5ccfff, 2.1, 5.5, 2);
 doorPractical.position.set(0, 1.25, gz(0) + 0.2);
 scene.add(doorPractical);
 
+/* ---- the air of the room ------------------------------------------
+   Dust hanging in the sodium key. Cosmetic and room-owned: the venue
+   atlas dresses YARDS (each slate entry deals its look through the
+   door), but COURT 01 is one place with one light and its air is
+   authored here beside that light, not resolved from anywhere. Slow
+   fall, more sway than travel — interior dust hangs, it does not
+   weather. Math.random is fine for a room with no seed: nothing about
+   this room replays. */
+const AIR = { count: 64, color: 0xd9b98c, size: 1.7, fall: 0.02, drift: 0.05, sway: 0.16, opacity: 0.34 };
+const AIR_Y = 2.8;                       // wall-height air, not a smoke stack
+const airHalfX = (ROOM_W - 2) / 2, airHalfZ = (ROOM_H - 2) / 2;   // inside the walls
+const airPhase = new Float32Array(AIR.count);
+const airPos = new Float32Array(AIR.count * 3);
+for (let i = 0; i < AIR.count; i++) {
+  airPos[i * 3 + 0] = (Math.random() * 2 - 1) * airHalfX;
+  airPos[i * 3 + 1] = 0.15 + Math.random() * AIR_Y;
+  airPos[i * 3 + 2] = (Math.random() * 2 - 1) * airHalfZ;
+  airPhase[i] = Math.random() * Math.PI * 2;
+}
+const airGeo = new THREE.BufferGeometry();
+airGeo.setAttribute("position", new THREE.BufferAttribute(airPos, 3));
+const airPoints = new THREE.Points(airGeo, new THREE.PointsMaterial({
+  color: AIR.color, size: AIR.size, sizeAttenuation: false,
+  transparent: true, opacity: AIR.opacity, depthWrite: false,
+}));
+airPoints.frustumCulled = false;
+scene.add(airPoints);
+canvas.dataset.air = "live";
+function stepAir(dt, t) {
+  for (let i = 0; i < AIR.count; i++) {
+    const j = i * 3;
+    airPos[j + 0] += (AIR.drift + Math.sin(t * 0.6 + airPhase[i]) * AIR.sway) * dt;
+    airPos[j + 1] -= AIR.fall * dt;
+    if (airPos[j + 0] > airHalfX) airPos[j + 0] -= airHalfX * 2;
+    if (airPos[j + 0] < -airHalfX) airPos[j + 0] += airHalfX * 2;
+    if (airPos[j + 1] < 0.15) airPos[j + 1] += AIR_Y;
+  }
+  airGeo.attributes.position.needsUpdate = true;
+}
+
 // ---- floating deck ------------------------------------------------
 function bakeFloorTexture() {
   const c = document.createElement("canvas");
@@ -1366,6 +1406,37 @@ async function loadPeople() {
   }
 }
 
+/* ---- the venue atlas, checked at the door's end of the deal --------
+   The slate deals each entry's venue name through the seam and the YARD
+   dresses for it (world/venues.json) — this room never reads a look, so
+   it validates exactly what it consumes: that every venue the HOUSE
+   slate can deal is a venue the atlas knows. A typo in an authored
+   slate entry should fault at boot in the front office, not surface as
+   "UNRECORDED GROUND" on the far side of a crossing.
+
+   Deliberately NOT gated: stored seasons. A run archived under an older
+   atlas keeps dealing its own slate (that is the season's law), and a
+   save must never brick over a LOOK — the yard's unrecorded-venue path
+   says the loan out loud instead, which is the whole reason that path
+   exists. */
+async function checkVenueAtlas() {
+  const atlas = await fetch("../../world/venues.json").then(r => {
+    if (!r.ok) throw new Error(`world/venues.json did not load (${r.status})`);
+    return r.json();
+  });
+  if (!atlas.venues || typeof atlas.venues !== "object") {
+    throw new Error("world/venues.json must declare a venues object");
+  }
+  // Own properties only — a slate venue named "constructor" must read as
+  // MISSING, not as Object.prototype (the yard's venue block owns the
+  // full argument; run-core drew this boundary first, against __proto__)
+  const missing = HOUSE_SLATE.entries.map(e => e.venue).filter(v => !Object.hasOwn(atlas.venues, v));
+  if (missing.length) {
+    throw new Error(`the house slate stages ${missing.join(", ")} and world/venues.json has no such venue — `
+      + `it knows: ${Object.keys(atlas.venues).join(", ")}`);
+  }
+}
+
 function buildPeople() {
   for (const [index, entry] of people.entries()) {
     const { person } = entry;
@@ -1416,6 +1487,7 @@ async function bootBodies() {
   // single sheet is fetched rather than halfway through staging.
   try {
     await loadPeople();
+    await checkVenueAtlas();
   } catch (error) {
     showAssetFault(error);
     return;
@@ -2113,7 +2185,13 @@ let seamBootTimer = 0;
 let cutTimers = [];
 const seamCut = document.getElementById("seamcut");
 const seamInfo = document.getElementById("seaminfo");
-const SEAM_BOOT_MS = 7000;
+// The deadline exists to catch a DEAD far side, not a slow one. At 7000
+// a live yard got executed mid-boot on a loaded CI runner (2026-08-16:
+// 140 sheets plus the venue atlas crossed 7s and the room tore down an
+// iframe that was seconds from answering — a false "NEVER ANSWERED" by
+// construction). ESC remains the impatient exit; this number only has
+// to beat "genuinely dead", and it costs nothing to give honesty room.
+const SEAM_BOOT_MS = 12000;
 
 /* ---- the run: what survives the door -----------------------------
    Replaces the session ledger this box used to hold. The policy is
@@ -2741,6 +2819,13 @@ function beginSeam() {
   // the yard stages what the room stages in both directions of the crossing.
   let src = `../tactical3d/index.html?seam=1&seed=${seamDealt}&body=${BODY_PARAM}`
     + `&roster=${encodeURIComponent(rosterParam(FIELDED))}`;
+  // A season deals its venue — the one deliberately INERT input, dressed
+  // for and never fought over (world/venues.json; the yard's venue-lens
+  // block owns the law). A plain run deals nothing and the yard is its
+  // own ground, exactly as before seasons existed. Same URL either way a
+  // purchase happens: flair changes no byte of this string, and the
+  // round-trip harness still executes that claim.
+  if (entry) src += `&venue=${encodeURIComponent(entry.venue)}`;
   if (WITNESS_PARAM) src += `&witness=${encodeURIComponent(WITNESS_PARAM)}`;
   seamFrame.src = src;
   document.body.appendChild(seamFrame);
@@ -3027,6 +3112,7 @@ function frame() {
 
   updateCipher(dt, now);
   updateSquad(now);
+  stepAir(dt, now);
 
   if (displayMode === "lcd") {
     renderer.setRenderTarget(lcdTarget);
