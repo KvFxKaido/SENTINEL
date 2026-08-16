@@ -52,7 +52,7 @@ agy -p "You are reviewing SENTINEL, a tactical TTRPG with an AI Game Master.
 [User's design question]
 </question>
 
-Provide focused feedback on design patterns, architecture, or the specific question asked. Be concise. Do not edit any files." --dangerously-skip-permissions --model gemini-3.7-flash-high
+Provide focused feedback on design patterns, architecture, or the specific question asked. Be concise. Do not edit any files." --model gemini-3.7-flash-high
 ```
 
 Invocation notes (inherited from `/portrait`, learned the hard way):
@@ -63,6 +63,14 @@ Invocation notes (inherited from `/portrait`, learned the hard way):
   model only orchestrates `generate_image`; for consultation and critique
   the CLI model IS the reviewer. Use `gemini-3.7-flash-high` (check
   `agy models` for what's current).
+- **Never pass `--dangerously-skip-permissions` here.** That flag is
+  `/portrait`'s, which must write image files. Council is read-only by
+  role, and design-philosophy rule 2 says capability is granted by
+  consent, not convenience — "do not edit" in the prompt is prose, not a
+  boundary. Text consults need no permission flags at all; visual
+  critique uses `--mode plan` (read-only enforced by the harness). Both
+  verified working non-interactively without the dangerous flag
+  (2026-08-16, caught by both review bots).
 - Use a 3-minute timeout (180000ms).
 
 ### Step 2b: Visual critique (screenshots, sprites, UI)
@@ -83,8 +91,13 @@ glance? Is anything on this card unreadable at arm's length on a phone?]
 </question>
 
 Give a perceptual read, not a pixel measurement. Do not write or run
-scripts; view the images directly. Do not edit any files." --add-dir "[DIR_CONTAINING_IMAGES]" --dangerously-skip-permissions --model gemini-3.7-flash-high
+scripts; view the images directly. Do not edit any files." --add-dir "[DIR_CONTAINING_IMAGES]" --mode plan --model gemini-3.7-flash-high
 ```
+
+`--mode plan` is what makes the read-only role enforced rather than
+requested: the agent can view what `--add-dir` exposes but cannot write
+to it, which matters precisely because audition captures and screenshots
+live inside the repository.
 
 Aim it at **gestalt questions the deterministic checks cannot see** —
 "does this read", "is this legible", "can a player find X on this screen".
