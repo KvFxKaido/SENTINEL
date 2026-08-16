@@ -76,6 +76,11 @@ const io = {
 };
 export function bindIO(next) { Object.assign(io, next); }
 
+// One narrow ordering latch, owned only by the drag currently resolving.
+// endGame still makes gameOver true immediately; this merely lets the drag
+// describe where it stopped before the terminal event closes the transcript.
+let activeDragResolution = null;
+
 const roll100 = () => Math.floor(S.rng() * 100) + 1;
 const rollRange = (lo, hi) => lo + Math.floor(S.rng() * (hi - lo + 1));
 
@@ -436,29 +441,38 @@ async function overwatchCheck(mover) {
 
 async function animateMove(u, path, body = null, resolveDrag = null) {
   const g = S.gen;
-  for (let i = 0; i < path.length; i++) {
-    const [x, y] = path[i];
-    const behind = [u.x, u.y];
-    u.x = x; u.y = y;
-    // A dragged body follows the same resolved path one tile behind the
-    // actor. Every place it enters is therefore a place the actor just
-    // legally occupied; there is no second pathfinder with a second
-    // opinion about the command.
-    if (body) { body.x = behind[0]; body.y = behind[1]; }
-    io.changed();
-    await io.sleep(70);
-    if (g !== S.gen) return;
-    // On the last shared step the position is already true before the
-    // reaction shot: KOA got clear even if SABLE falls at the new tile.
-    // An interrupted longer drag resolves after the shot at the place it
-    // actually stopped. One event, and it never overclaims the board.
-    if (resolveDrag && i === path.length - 1) resolveDrag(true);
-    await overwatchCheck(u);
-    // a mover who yields under overwatch fire stops in their tracks
-    if (g !== S.gen || !u.alive || u.yielded || S.gameOver || S.decision) {
-      if (g === S.gen && resolveDrag) resolveDrag(false);
-      break;
+  try {
+    for (let i = 0; i < path.length; i++) {
+      const [x, y] = path[i];
+      const behind = [u.x, u.y];
+      u.x = x; u.y = y;
+      // A dragged body follows the same resolved path one tile behind the
+      // actor. Every place it enters is therefore a place the actor just
+      // legally occupied; there is no second pathfinder with a second
+      // opinion about the command.
+      if (body) { body.x = behind[0]; body.y = behind[1]; }
+      io.changed();
+      await io.sleep(70);
+      if (g !== S.gen) return;
+      // On the last shared step the position is already true before the
+      // reaction shot: KOA got clear even if SABLE falls at the new tile.
+      // An interrupted longer drag resolves after the shot at the place it
+      // actually stopped. One event, and it never overclaims the board.
+      if (resolveDrag && i === path.length - 1) resolveDrag(true);
+      await overwatchCheck(u);
+      // a mover who yields under overwatch fire stops in their tracks
+      if (g !== S.gen || !u.alive || u.yielded || S.gameOver || S.decision) {
+        if (resolveDrag) resolveDrag(false);
+        break;
+      }
     }
+  } finally {
+    // Settle the latch on every exit, including a restart during either
+    // sleep. A stale resolver emits neither drag nor its held end: the new
+    // generation owns the transcript and may already have emitted a wholly
+    // legitimate end of its own. Identity checks keep that stale cleanup
+    // from releasing a newer match's drag latch.
+    if (resolveDrag) resolveDrag(false);
   }
 }
 
@@ -484,7 +498,10 @@ function endGame(result) {
   S.gameOver = result;
   // the payout: rating converts to purse whether you won or not — a
   // watchable loss still sells (sentinel_circuit_design.md §5)
-  io.emit({ type: "end", result, rating: S.rating, purse: S.rating * RATING.pursePerPoint });
+  const event = { type: "end", result, rating: S.rating, purse: S.rating * RATING.pursePerPoint };
+  const drag = activeDragResolution;
+  if (drag && drag.gen === S.gen && !drag.resolved) drag.heldEnd = event;
+  else io.emit(event);
   io.changed();   // spare() ends the match with no action following — the panel must not go stale
 }
 
@@ -560,10 +577,13 @@ export async function tryDrag(actor, body, x, y) {
     S.draggedBodies.push(body.id);
     addRating(RATING.drag);
   }
-  let resolved = false;
+  const dragResolution = { gen: S.gen, resolved: false, heldEnd: null };
+  activeDragResolution = dragResolution;
   const resolveDrag = reached => {
-    if (resolved) return;
-    resolved = true;
+    if (dragResolution.resolved) return;
+    dragResolution.resolved = true;
+    if (activeDragResolution === dragResolution) activeDragResolution = null;
+    if (dragResolution.gen !== S.gen) return;
     io.emit({
       type: "drag", actor, body, reached,
       from: { actor: actorFrom, body: bodyFrom },
@@ -571,6 +591,12 @@ export async function tryDrag(actor, body, x, y) {
       to: { actor: [actor.x, actor.y], body: [body.x, body.y] },
       path: path.map(step => [...step]),
     });
+    // A drag interrupted by the match-ending shot speaks first. Recheck
+    // generation because an emit binding is allowed to restart synchronously;
+    // an old end must never trail a fresh match's reset or terminal event.
+    if (dragResolution.gen === S.gen && dragResolution.heldEnd) {
+      io.emit(dragResolution.heldEnd);
+    }
   };
   await animateMove(actor, path, body, resolveDrag);   // reaction fire resolves after every shared step
   S.busy = false;

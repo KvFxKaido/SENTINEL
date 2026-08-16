@@ -233,6 +233,65 @@ test("an interrupted drag records where the body actually stopped", async () => 
   assert.ok(cap.lines.includes("VESPER'S DRAG OF KOA STOPS — (0,9) → (0,8)"));
 });
 
+test("an interrupted drag speaks before the match-ending event", async () => {
+  let gameOverAtDrag = null;
+  const cap = captureEvents(ev => {
+    if (ev.type === "drag") gameOverAtDrag = S.gameOver;
+  });
+  restart(seedHitting(50));
+  const [actor, body, other] = living("op");
+  const watcher = living("ho")[0];
+  actor.x = 0; actor.y = 8; actor.hp = 1;
+  body.x = 0; body.y = 9; body.hp = 0; body.alive = false;
+  other.hp = 0; other.alive = false;
+  watcher.x = 0; watcher.y = 4; watcher.overwatch = true;
+
+  assert.equal(living("op").length, 1, "the drag actor must be the squad's last living operative");
+  assert.equal(await tryDrag(actor, body, 0, 6), true);
+  assert.equal(S.gameOver, "loss", "reaction fire must end the match synchronously");
+  assert.equal(gameOverAtDrag, "loss",
+    "game-over state must already guard the match while its event waits for the drag");
+  const terminal = cap.events.map(e => e.type)
+    .filter(type => ["shot", "down", "drag", "end"].includes(type));
+  assert.deepEqual(terminal.slice(-4), ["shot", "down", "drag", "end"],
+    "the interrupted position report must land before the terminal event");
+  assert.equal(cap.events.at(-2).reached, false);
+  assert.equal(cap.events.at(-1).result, "loss");
+  assert.equal(cap.lines.at(-1), "VESPER'S DRAG OF KOA STOPS — (0,9) → (0,8)",
+    "the final formatted line must be present when the end event snapshots the transcript");
+});
+
+test("a stale drag resolver cannot speak after a restarted match's end", async () => {
+  const events = [];
+  let releaseStep;
+  bindIO({
+    sleep: () => new Promise(resolve => { releaseStep = resolve; }),
+    emit: ev => { events.push(ev); },
+    changed: () => {},
+  });
+  restart(1);
+  const [actor, body] = living("op");
+  actor.x = 0; actor.y = 8;
+  body.x = 0; body.y = 9; body.hp = 0; body.alive = false;
+
+  const staleDrag = tryDrag(actor, body, 0, 7);
+  assert.equal(S.busy, true);
+  restart(2);
+  const freshReset = events.findLastIndex(e => e.type === "reset");
+  S.decision = true;   // exercise the public terminal verb in the fresh generation
+  spare();
+  assert.equal(events.at(-1).type, "end", "the new match's end must emit while the old drag is suspended");
+
+  releaseStep();
+  await staleDrag;
+  const freshEvents = events.slice(freshReset);
+  assert.equal(freshEvents.filter(e => e.type === "end").length, 1);
+  assert.equal(freshEvents.some(e => e.type === "drag"), false,
+    "the abandoned match contributes no position report to the fresh transcript");
+  assert.equal(freshEvents.at(-1).type, "end",
+    "stale cleanup must not trail the end already emitted by the new generation");
+});
+
 test("the drag golden records Sable pulling Koa under fire and replays to the same board", async () => {
   const { seed, record, result, rating, purse, lines: lineCount, fingerprint, positions } = DRAG_GOLDEN;
   const cap = captureEvents();
@@ -273,11 +332,11 @@ function seedHitting(pct) {
   throw new Error("no seed found");
 }
 
-function captureEvents() {
+function captureEvents(onEmit = () => {}) {
   const events = [], lines = [];
   bindIO({
     sleep: () => Promise.resolve(),
-    emit: ev => { events.push(ev); const l = formatEvent(ev); if (l !== null) lines.push(l); },
+    emit: ev => { events.push(ev); onEmit(ev); const l = formatEvent(ev); if (l !== null) lines.push(l); },
     changed: () => {},
   });
   return { events, lines };
