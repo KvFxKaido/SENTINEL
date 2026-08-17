@@ -23,6 +23,7 @@ import {
 } from "./run.js";
 
 const AT = "2026-08-04T12:00:00.000Z";
+const MATCH_ID = "0123456789abcdef0123456789abcdef";
 const authoredCourt = JSON.parse(fs.readFileSync(
   new URL("../../world/recruitment/court-01.json", import.meta.url), "utf8"));
 const COURT_ROSTER = { people: authoredCourt.people, lineup: authoredCourt.lineup };
@@ -77,7 +78,7 @@ function funded(run, purse = 1000) {
 
 // A certified win, three hostiles yielded and walked, nobody of ours lost.
 function card(over = {}) {
-  return {
+  const out = {
     seed: "deadbeef",
     result: "win",
     rating: 62,
@@ -85,10 +86,13 @@ function card(over = {}) {
     cert: "certified",
     ledger: { walked: 3, finished: 0, lost: 0 },
     down: [],
+    derivedEvents: [],
     rules: "abc123",
     at: AT,
     ...over,
   };
+  if (!("matchId" in over)) out.matchId = out.cert === "certified" ? MATCH_ID : null;
+  return out;
 }
 
 // ---- shape ---------------------------------------------------------
@@ -101,6 +105,7 @@ test("a fresh run is empty, versioned, and stamped with when it opened", () => {
   assert.equal(r.purse, 0);
   assert.equal(r.rules, null);
   assert.deepEqual(r.wounds, {});
+  assert.deepEqual(r.eventLedger, {});
   assert.deepEqual(r.recent, []);
   assert.equal(r.season, null, "a plain run has no slate — a season is opened, not implied");
 });
@@ -247,6 +252,78 @@ test("an unwitnessed card counts and says that it counted unwitnessed", () => {
   assert.equal(run.cards, 1);
   assert.equal(run.purse, 620);
   assert.equal(run.unwitnessed, 1);
+});
+
+test("certified derived events bank under stable ids with a filed command source", () => {
+  const event = {
+    kind: "extraction", actor: "SABLE", beneficiary: "KOA",
+    commandIndex: 6, underFire: true, reached: true,
+  };
+  const out = applyCard(openSeason(AT, slate()), card({ derivedEvents: [event] }));
+  assert.equal(out.accepted, true);
+  assert.deepEqual(out.run.recent[0].derivedEvents, [event],
+    "the receipt keeps the tactical names that crossed the wire");
+  assert.deepEqual(out.run.eventLedger, {
+    sable: [{
+      kind: "extraction",
+      beneficiary: "koa",
+      underFire: true,
+      reached: true,
+      grade: { kind: "certified", matchId: MATCH_ID, commandIndex: 6 },
+      at: AT,
+      slate: { idx: 0, venue: "KESTREL YARD", host: "steel-syndicate", sanction: null },
+    }],
+  });
+  assert.deepEqual(summary(out.run).derivedEvents[0], {
+    actor: "sable",
+    kind: "extraction",
+    beneficiary: "koa",
+    underFire: true,
+    reached: true,
+    grade: { kind: "certified", matchId: MATCH_ID, commandIndex: 6 },
+    at: AT,
+    slate: { idx: 0, venue: "KESTREL YARD", host: "steel-syndicate", sanction: null },
+  });
+});
+
+test("unwitnessed derived events bank as claims, plainly distinct from certified grade", () => {
+  const event = {
+    kind: "extraction", actor: "VESPER", beneficiary: "KOA",
+    commandIndex: 0, underFire: false, reached: true,
+  };
+  const out = applyCard(openRun(AT), card({
+    cert: "unwitnessed", derivedEvents: [event], rules: null,
+  }));
+  assert.equal(out.counted, true);
+  assert.deepEqual(out.run.eventLedger.vesper[0], {
+    kind: "extraction",
+    beneficiary: "koa",
+    underFire: false,
+    reached: true,
+    grade: { kind: "claim" },
+    at: AT,
+  });
+  assert.equal(out.run.recent[0].derivedEvents[0].actor, "VESPER");
+  assert.equal(out.run.recent[0].matchId, null);
+});
+
+test("a derived event cannot name someone outside the fielded lineup", () => {
+  const start = openRun(AT);
+  const bad = card({ derivedEvents: [{
+    kind: "extraction", actor: "NIX", beneficiary: "KOA",
+    commandIndex: 0, underFire: false, reached: true,
+  }] });
+  const out = applyCard(start, bad);
+  assert.equal(out.accepted, false);
+  assert.match(out.why, /did not field/);
+  assert.deepEqual(out.run, start);
+});
+
+test("certified grade requires a plausible filed match id", () => {
+  assert.equal(cardValid(card({ matchId: null })), false);
+  assert.equal(cardValid(card({ matchId: "short" })), false);
+  assert.equal(cardValid(card()), true);
+  assert.equal(cardValid(card({ cert: "unwitnessed", matchId: MATCH_ID })), false);
 });
 
 test("the mercy ledger accumulates across cards", () => {
@@ -453,6 +530,37 @@ test("a hand-edited run that is structurally wrong is orphaned", () => {
     memoryStore({ [RUN_KEY]: JSON.stringify(bad) });
     assert.equal(loadRun(AT).how, "orphaned", `rendered a bad run: ${JSON.stringify(bad)}`);
   }
+});
+
+test("stored derived-event ledgers validate owned ids, grades, sources, and exact entries", () => {
+  const event = {
+    kind: "extraction", actor: "SABLE", beneficiary: "KOA",
+    commandIndex: 6, underFire: true, reached: true,
+  };
+  const good = applyCard(openRun(AT), card({ derivedEvents: [event] })).run;
+  const changed = mutate => {
+    const copy = JSON.parse(JSON.stringify(good));
+    mutate(copy);
+    return copy;
+  };
+  const bad = [
+    changed(run => { run.eventLedger = []; }),
+    changed(run => { run.eventLedger.stranger = run.eventLedger.sable; delete run.eventLedger.sable; }),
+    changed(run => { run.eventLedger.sable[0].beneficiary = "stranger"; }),
+    changed(run => { run.eventLedger.sable[0].beneficiary = "sable"; }),
+    changed(run => { run.eventLedger.sable[0].grade.matchId = "short"; }),
+    changed(run => { run.eventLedger.sable[0].grade.commandIndex = -1; }),
+    changed(run => { run.eventLedger.sable[0].grade = { kind: "claim", matchId: MATCH_ID }; }),
+    changed(run => { run.eventLedger.sable[0].relationship = "not this slice"; }),
+    changed(run => { run.eventLedger.sable[0].reached = false; }),
+  ];
+  for (const run of bad) {
+    memoryStore({ [RUN_KEY]: JSON.stringify(run) });
+    assert.equal(loadRun(AT).how, "orphaned", JSON.stringify(run.eventLedger));
+  }
+
+  memoryStore({ [RUN_KEY]: JSON.stringify(good) });
+  assert.equal(loadRun(AT).how, "restored");
 });
 
 test("the check goes inside the collections, not just around them", () => {

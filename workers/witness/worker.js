@@ -20,12 +20,10 @@
                                  the same verbs the player used; a replay
                                  that cannot reproduce its own input, or
                                  that ends unfinished, certifies nothing.
-   POST /file    same body      — certifies and archives idempotently.
-                                 The room-files-what-it-certifies half of
-                                 step 3 arrives with the consumer change
-                                 (recorded decision, 2026-08-16); until it
-                                 lands, the yard files and the room
-                                 certifies.
+   POST /file    same body      — certifies and archives idempotently. The
+                                 walkable room uses this path so certified
+                                 derived events always have a filed origin
+                                 (recorded decision, 2026-08-16, step 3).
 
    The roster is the second certified input (`architecture/
    roster_in_the_match.md`): the law is now `seed + roster + record = the

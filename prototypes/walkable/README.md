@@ -2,8 +2,9 @@
 
 One room, one walking character, four owned people — and one door that is
 somewhere else's problem. This is a pure three.js renderer toy: no game
-rules and no `tactical-core` import. Its only network call is asking the
-witness to certify what the yard reports back through the seam (below).
+rules and no `tactical-core` import. Its Witness calls file what the yard
+reports back through the seam and let the room reopen a certified event's
+archived source (below).
 
 Cipher walks inside a voxel-extruded Kestrel interior while VESPER, KOA,
 SABLE, and the benched NIX stand as non-colliding bodies. The room reuses `tactical3d/`'s
@@ -105,9 +106,9 @@ Crossing the north door hands the feed to `tactical3d/` in a fullscreen
 iframe with a seed this room dealt (`?seam=1&seed=…`). The yard plays
 exactly one card — its own re-deal verbs are disabled in seam mode — and
 when you take **WALK BACK OUT** on the post-match overlay, it posts
-`{seed, roster, record, result, rating, purse, ledger, down, fingerprint}` home
-and the frame is torn down. You return standing just inside the walls;
-walking the door again deals a fresh card.
+`{seed, roster, record, result, rating, purse, ledger, down, derivedEvents,
+fingerprint}` home and the frame is torn down. You return standing just inside
+the walls; walking the door again deals a fresh card.
 
 `ledger` and `down` are the **aftermath** — walked / finished / lost, and
 the names of your dead. They ride home because the run banks what a card
@@ -127,15 +128,18 @@ The room does not take the yard's word for it:
 - the returned **seed must match the one it dealt**, and the payload must
   be shaped like a replayable record — anything else is refused;
 - the record is sent to the witness Worker, whose **replay settles the
-  run**: `CERTIFIED AT THE EDGE`, `EDGE DISPUTES THE FEED —
-  STRUCK` (the card never counts), or `UNCERTIFIED — NO WITNESS
-  REACHABLE` (counted, and labeled as taken on the yard's word).
-  The aftermath is checked the same way the outcome always was: a page
+  run**: `CERTIFIED AT THE EDGE`, `EDGE CERTIFICATE INCOMPLETE —
+  STRUCK`, `EDGE DISPUTES THE FEED — STRUCK` (struck cards never
+  count), or `UNCERTIFIED — NO WITNESS REACHABLE` (counted, and labeled
+  as taken on the yard's word).
+  On that certified path the Worker's own replay authors `derivedEvents`;
+  the room never asks the page to prove its own derivation. The aftermath is
+  checked the same way the outcome always was: a page
   that misreports what a card cost is struck, not banked;
 - the hand-off has a readiness handshake: the cut card holds until the
   yard proves it booted, with a 7s timeout and an <kbd>ESC</kbd> abort
   that put you back in the room if the far side never answers;
-- the certify request has a deadline of its own (8s). A witness that
+- the file-and-certify request has a deadline of its own (8s). A witness that
   refuses was always labelled `NO WITNESS REACHABLE`; a witness that
   *accepts and never answers* used to leave the ledger at `ASKING THE
   EDGE…` forever. A hang is unreachable too, and the room says so and
@@ -144,7 +148,36 @@ The room does not take the yard's word for it:
 
 Query params: `?deal=6` pins the seed the door deals (the same
 pin-a-board move as tactical3d's `?seed=`); `?witness=http://localhost:8787`
-passes through to the yard and is used for certification here.
+passes through to the yard and is used for filing here.
+
+### Recorded seam decision — 2026-08-16, durable-moment step 3
+
+**THE ROOM FILES WHAT IT CERTIFIES.** The certified seam path submits the
+returned record to `POST /file`, not bare `/certify`. `/file` performs the same
+replay certification and archives idempotently by the record's content key, so
+every card the room calls certified has the filed match id required for a
+resolvable origin. This is a recorded implementation decision for designer
+review, not an attempt to settle the future feed-cut design. Deliberate
+darkness composes cleanly by submitting to neither endpoint.
+
+On a successful filing, the card banks only the Worker's replay-authored
+`derivedEvents` and its returned id. The yard-computed array crosses the seam
+for immediate display and for the no-Witness case only; then it banks as a
+plainly labelled **CLAIM**, never as edge attestation. The two arrays are not
+adversarially compared because the certified path does not accept the page as
+an author at all.
+
+A filed certificate that lacks `derivedEvents` is shown as **EDGE CERTIFICATE
+INCOMPLETE — STRUCK**; the room banks neither the card nor the yard's events.
+
+Run schema v5 translates each event's tactical actor and beneficiary through
+the fielded lineup at banking time. The panel renders the resulting stable-id
+ledger as readable text. A certified extraction offers **BACK TO FILE**: the
+room fetches `GET /matches/{id}`, shows the archived record without importing
+the rules, and highlights the raw command at the stored index. A claim says
+that no Witness filed the card and that the entry is the yard's durable local
+account. No relationship, permission, obligation or bond state is created by
+this surface.
 
 On a season the door also deals the current entry's venue name
 (`&venue=…`) — renderer flavor the yard dresses for out of
