@@ -477,6 +477,10 @@ try {
     /NEXT · SECOND COURT · UNCLAIMED · SANCTIONED BY COVENANT/.test(sPanel), sPanel);
   check("the clocks are on the surface with their stops",
     /ROSTER UNFIT/.test(sPanel) && /SABLE 2 STOPS/.test(sPanel), sPanel);
+  check("without a debt no dedication is offered, and the plain pass remains",
+    (await page.$$(".dedicated-pass")).length === 0
+      && (await page.$$(".plain-pass")).length === 1
+      && /EVERY RUNNING CLOCK RECOVERS 1/.test(sPanel), sPanel);
 
   // the door enforces what the panel says: unfit means no deal, said as
   // a cut rather than a dead trigger — and no seam frame ever exists
@@ -794,12 +798,22 @@ try {
     `${legacyPanel} · ${await ds("run")}`);
   await page.unroute(/\/file$/);
 
-  // ---- the durable moment: event -> filed command -> BACK ------------
-  // The room receives a tactical-wire event, but only the Worker's /file
-  // answer authors certified grade. The run translates names through the
-  // fielded lineup, and BACK follows the stored (match id, command index)
-  // to the archive without teaching the room how to interpret a drag.
+  // ---- the first relationship, end to end ----------------------------
+  // One continuous §12 line of play: the golden yard card downs KOA,
+  // SABLE drags them clear, the Worker files its replay-authored extraction,
+  // the run names KOA's life debt, BACK resolves the raw drag, and the door
+  // exposes repayment before commitment. The room never imports the rules;
+  // this harness may, which is how it knows command 6 really is the drag.
   const DRAG_ID = "33333333333333333333333333333333";
+  const RELATIONSHIP_TOUR = {
+    id: "rescue-tour",   // isName bounds slate ids at 16 chars — a longer id nulls openSeason and the room silently falls back to the house slate (cost this suite four ghost failures)
+    entries: [
+      { venue: "RESCUE YARD", host: "steel-syndicate", sanction: "steel-syndicate" },
+      { venue: "REPAYMENT COURT", host: "covenant", sanction: "covenant" },
+      { venue: "AFTER COURT", host: "lattice", sanction: null },
+      { venue: "LAST GROUND", host: null, sanction: null },
+    ],
+  };
   const dragReply = route => {
     const asked = JSON.parse(route.request().postData() ?? "{}");
     const transcript = Array.from(
@@ -848,13 +862,14 @@ try {
       },
     }),
   }));
+  const acceptanceSeason = openSeason("2026-08-16T00:00:00Z", RELATIONSHIP_TOUR);
+  if (acceptanceSeason === null) throw new Error("acceptance fixture refused: the tour is not a slate");
   await page.evaluate(value =>
-    localStorage.setItem("sentinel.run", JSON.stringify(value)),
-    openRun("2026-08-16T00:00:00Z"));
+    localStorage.setItem("sentinel.run", JSON.stringify(value)), acceptanceSeason);
   await boot("?body=composed&deal=1");
   const dragFrame = await walkPlainDoor();
-  check("the room deals the completed-drag card", dragFrame !== null);
-  if (!dragFrame) throw new Error("the durable-moment door never dealt");
+  check("the room deals the certified extraction card", dragFrame !== null);
+  if (!dragFrame) throw new Error("the relationship acceptance door never dealt");
   await dragFrame.evaluate(value => {
     window.parent.postMessage({
       type: "sentinel-seam-result",
@@ -877,17 +892,35 @@ try {
   const certifiedRun = await page.evaluate(() =>
     JSON.parse(localStorage.getItem("sentinel.run") ?? "null"));
   const certifiedEvent = certifiedRun?.eventLedger?.sable?.[0];
+  const activeDebt = certifiedRun?.relationships?.[0];
   check("the completed drag banks a certified stable-id event",
     certifiedEvent?.beneficiary === "koa"
       && certifiedEvent?.grade?.kind === "certified"
       && certifiedEvent?.grade?.matchId === DRAG_ID
       && certifiedEvent?.grade?.commandIndex === 6,
     JSON.stringify(certifiedEvent));
-  check("the derived-event ledger is player-visible",
+  check("the run names the directional life debt from that exact source",
+    certifiedRun?.relationships?.length === 1
+      && activeDebt?.kind === "owes-a-life"
+      && activeDebt?.from === "koa" && activeDebt?.to === "sable"
+      && activeDebt?.status === "active"
+      && activeDebt?.origin?.matchId === DRAG_ID
+      && activeDebt?.origin?.commandIndex === 6
+      && activeDebt?.slate?.venue === "RESCUE YARD",
+    JSON.stringify(activeDebt));
+  check("the event and named relationship are player-visible with their stamps",
     /SABLE EXTRACTED KOA UNDER FIRE/.test(await panelText())
+      && /KOA OWES SABLE A LIFE · ACTIVE · MINTED AT RESCUE YARD/.test(await panelText())
       && /BACK TO FILE/.test(await panelText()), await panelText());
+  const activeOptions = (await page.textContent("#runinfo")).replace(/\s+/g, " ").trim();
+  check("the door offers dedicated repayment beside the plain pass before commitment",
+    (await page.$$(".plain-pass")).length === 1
+      && (await page.$$(".dedicated-pass")).length === 1
+      && /PASS — MOVE THE SLATE; EVERY RUNNING CLOCK RECOVERS 1/.test(activeOptions)
+      && /PASS — KOA REPAYS THE LIFE: SABLE RECOVERS 2/.test(activeOptions),
+    activeOptions);
 
-  await page.click(`.moment-back[data-match-id="${DRAG_ID}"]`);
+  await page.click(`.relationship-back[data-match-id="${DRAG_ID}"]`);
   await page.waitForFunction(want =>
     document.getElementById("cv").dataset.source === want,
   `${DRAG_ID}:6`, { timeout: 10000 });
@@ -896,9 +929,73 @@ try {
     /POINTED COMMAND 6/.test(source)
       && source.includes(JSON.stringify(DRAG_GOLDEN.record[6])), source);
 
+  // Commit the option the panel just spelled out. Every operative went down
+  // on this golden card: SABLE is the creditor and clears a two-stop clock;
+  // VESPER and KOA each receive the ordinary one stop.
+  await page.click(".dedicated-pass");
+  const repaidRun = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("sentinel.run") ?? "null"));
+  const fulfilledDebt = repaidRun?.relationships?.[0];
+  check("REPAY THE LIFE advances only the creditor by two and the slate by one",
+    repaidRun?.season?.pos === 2
+      && repaidRun?.season?.clocks?.sable === undefined
+      && repaidRun?.season?.clocks?.vesper === 1
+      && repaidRun?.season?.clocks?.koa === 1
+      && repaidRun?.season?.passed?.[0]?.dedication?.kind === "repay-the-life",
+    JSON.stringify(repaidRun?.season));
+  check("repayment fulfills the debt on the pass stamp without erasing history",
+    fulfilledDebt?.status === "fulfilled"
+      && fulfilledDebt?.fulfilledSlate?.venue === "REPAYMENT COURT"
+      && fulfilledDebt?.origin?.matchId === DRAG_ID
+      && fulfilledDebt?.origin?.commandIndex === 6,
+    JSON.stringify(fulfilledDebt));
+  let fulfilledPanel = await panelText();
+  check("the fulfilled debt stays visible and the one-shot dedication leaves",
+    /KOA OWES SABLE A LIFE · FULFILLED/.test(fulfilledPanel)
+      && /REPAID AT REPAYMENT COURT/.test(fulfilledPanel)
+      && /BACK TO FILE/.test(fulfilledPanel)
+      && (await page.$$(".dedicated-pass")).length === 0
+      && (await page.$$(".plain-pass")).length === 1,
+    fulfilledPanel);
+
+  await boot("?body=composed&deal=1");
+  const reloadedDebt = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("sentinel.run") ?? "null"));
+  fulfilledPanel = await panelText();
+  check("a reload preserves the source, fulfillment, clocks, and visible plain pass",
+    reloadedDebt?.relationships?.[0]?.status === "fulfilled"
+      && reloadedDebt?.relationships?.[0]?.origin?.matchId === DRAG_ID
+      && reloadedDebt?.relationships?.[0]?.fulfilledSlate?.venue === "REPAYMENT COURT"
+      && reloadedDebt?.season?.clocks?.sable === undefined
+      && reloadedDebt?.season?.clocks?.vesper === 1
+      && /KOA OWES SABLE A LIFE · FULFILLED/.test(fulfilledPanel)
+      && (await page.$$(".plain-pass")).length === 1,
+    `${JSON.stringify(reloadedDebt?.relationships)} · ${fulfilledPanel}`);
+
+  // The other negative gate: the debt exists, but a fit creditor creates no
+  // option. It is absent, not disabled, and the plain pass still exists.
+  const fitDebt = applyCard(
+    openSeason("2026-08-16T00:00:00Z", RELATIONSHIP_TOUR),
+    { ...card("b", []), derivedEvents: DRAG_GOLDEN.derived },
+  );
+  if (!fitDebt.accepted) throw new Error(`fit-debt fixture refused: ${fitDebt.why}`);
+  await page.evaluate(value =>
+    localStorage.setItem("sentinel.run", JSON.stringify(value)), fitDebt.run);
+  await boot("?body=composed&deal=1");
+  const fitDebtPanel = await panelText();
+  check("an active debt with a fit creditor offers no dedication and keeps plain pass",
+    /KOA OWES SABLE A LIFE · ACTIVE/.test(fitDebtPanel)
+      && (await page.$$(".dedicated-pass")).length === 0
+      && (await page.$$(".plain-pass")).length === 1,
+    fitDebtPanel);
+
   // Same yard fact, no Witness: the yard may show its in-session account,
   // but run-core banks no event. Claim grade waits for an append-only local
   // origin rather than pointing into the twelve-card rolling receipt.
+  await page.evaluate(value =>
+    localStorage.setItem("sentinel.run", JSON.stringify(value)),
+    openRun("2026-08-16T00:00:00Z"));
+  await boot("?body=composed&deal=1");
   await page.unroute(/\/file$/);
   await page.route(/\/file$/, route => route.abort("failed"));
   const unwitnessedFrame = await walkPlainDoor();
@@ -922,13 +1019,12 @@ try {
     JSON.parse(localStorage.getItem("sentinel.run") ?? "null"));
   const unwitnessedSeam = (await page.textContent("#seaminfo")).replace(/\s+/g, " ").trim();
   const allBankedEvents = Object.values(unwitnessedRun?.eventLedger ?? {}).flat();
-  check("the unwitnessed completed drag honestly banks no derived event",
-    allBankedEvents.length === 1
-      && allBankedEvents[0]?.grade?.kind === "certified"
-      && !allBankedEvents.some(event => event?.grade?.kind === "claim")
+  check("the unwitnessed completed drag honestly banks no event or relationship",
+    allBankedEvents.length === 0
+      && unwitnessedRun?.relationships?.length === 0
       && /YARD DERIVED · SABLE → KOA/.test(unwitnessedSeam)
       && /DERIVED EVENTS NOT BANKED — NO DURABLE ORIGIN EXISTS YET/.test(unwitnessedSeam),
-    `${JSON.stringify(allBankedEvents)} · ${unwitnessedSeam}`);
+    `${JSON.stringify(allBankedEvents)} · ${JSON.stringify(unwitnessedRun?.relationships)} · ${unwitnessedSeam}`);
   await page.unroute(/\/file$/);
   await page.unroute(new RegExp(`/matches/${DRAG_ID}$`));
 

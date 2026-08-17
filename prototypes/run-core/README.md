@@ -3,7 +3,9 @@
 What survives the door. The run layer for the walkable world's north
 door: it banks what a returned card **cost** — and, since season-lite,
 holds the slate: what the next card *means*, and whether the deal may
-happen at all.
+happen at all. Since pairwise-ledger step 4 it also banks what one certified
+act now means between two owned people, and which room-layer pass that fact
+makes legal.
 
 No DOM, no rules import, no clock of its own — it runs in Node, which is
 why the policy below is a test instead of a habit.
@@ -103,8 +105,69 @@ owned stable person id, nobody names themselves, grades have exact shapes,
 every grade is certified with a plausible filed id and command index,
 certified counts agree with the retained receipts, non-certified receipts
 carry no derived events, and slate stamps resolve to authored entries already
-passed. This is an event ledger, not a relationship ledger; it grants no
-permissions and computes no bond state.
+passed. `eventLedger` remains the event ledger: it grants no permissions and
+computes no bond state. The relationship policy consuming it is the next,
+separate run-owned layer.
+
+## The pairwise mercy ledger
+
+Run schema v6 adds `relationships`, an append-only array of named directional
+facts:
+
+```js
+{
+  kind: "owes-a-life",
+  from: "koa",                  // debtor: the extracted beneficiary
+  to: "sable",                 // creditor: the extraction actor
+  origin: { matchId, commandIndex },
+  status: "active",            // or "fulfilled"
+  at,
+  slate,                        // absent only on a plain run
+  // fulfilled entries additionally carry:
+  fulfilledAt,
+  fulfilledSlate,
+}
+```
+
+The origin is the certified event's filed `{matchId, commandIndex}`, not a
+copy of prose or a rolling receipt. `sane()` requires that pointer, direction,
+time, and mint stamp to resolve to the stable-id extraction in `eventLedger`.
+It also requires owned distinct people, the exact lifecycle shape, a unique
+origin, at most one active `owes-a-life` per directed pair, and — after
+repayment — a matching dedicated pass at the exact fulfillment stamp. On a
+season, each directed pair's entries are ordered by mint slate index (with the
+origin command index as the within-card tie-break), and every successor must
+be minted strictly after its predecessor's fulfillment slate index. The bound
+is strict because `applyPass` fulfills at the current index and then advances
+the position; only a card at the following or a later index can mint again.
+On a plain run, `at` is an opaque caller-authored string rather than a clock and
+there is no legal pass, so the module can honestly enforce only the reducer's
+append order: one active relationship per pair, rooted at the first uncovered
+event and covering later same-pair events.
+
+### Recorded relationship decisions — 2026-08-17, pairwise-ledger step 4
+
+These are implementation decisions recorded for designer veto at review:
+
+1. **THE FIRST NAMED RELATIONSHIP IS OWES A LIFE.** `applyCard` consumes a
+   certified extraction already derived by replay and applies run banking
+   policy: beneficiary owes actor a life. The rules core derives the event;
+   the run computes the relationship from that banked event. Those are
+   deliberately different ownership claims. A second rescue while the same
+   directed debt is active mints nothing, so the first source stands; a used
+   origin never mints twice.
+2. **THE FIRST OBLIGATION IS REPAY THE LIFE.** `applyPass(run, at,
+   {kind:"repay-the-life", from, to})` is legal only for a real owned pair
+   carrying an active debt whose named creditor has a running recovery clock.
+   The dedicated pass advances that creditor by `DEDICATED_RECOVERY` (2)
+   instead of 1, advances every other running clock by the ordinary 1, and
+   fulfills the debt on the current slate stamp. The plain pass remains
+   legal. This is recovery economics: no purse, match input, certified
+   snapshot, or combat number changes.
+
+`summary()` exposes both the relationship history and only the dedicated
+passes legal now. The room renders that read model rather than independently
+rebuilding the debt-and-clock gate.
 
 ## The slate (season-lite)
 
@@ -343,7 +406,7 @@ forgetting at the end of it.
 ## Shape of the interface
 
 ```
-RUN_V, RUN_KEY, CLOSED_KEY, ORPHAN_KEY, WOUND_CLOCK, FLAIR_SLOTS,
+RUN_V, RUN_KEY, CLOSED_KEY, ORPHAN_KEY, WOUND_CLOCK, DEDICATED_RECOVERY, FLAIR_SLOTS,
 LINEUP_SLOTS, FULL_STRENGTH
 
 bindStore({read, write, remove})   host supplies storage; inert default
@@ -357,8 +420,9 @@ personOf(run, id)                  the owned person behind a stable id
 fieldedRoster(run)                 exactly `{name, hp}` ×3 for the certified seam
 setLineup(run, ids)                → {run, accepted, why}; pure lineup choice
 applyCard(run, card)               → {run, accepted, counted, why}; pure
-applyPass(run, at)                 → {run, accepted, why}; decline the current
-                                     entry — advance the slate and every clock
+applyPass(run, at, dedication?)    → {run, accepted, why}; decline the current
+                                     entry — optional `{kind:"repay-the-life",
+                                     from,to}` dedicates its recovery
 applyBuy(run, item, who, at)       → {run, accepted, why}; spend the balance on
                                      flair, permanently, one slot per fighter
 itemValid(item) / stockValid(…)    the boundary checks for authored stock —
@@ -388,12 +452,13 @@ the stock, knows the balance, and knows what each fighter already wears,
 so an unaffordable purchase arriving here means the room offered
 something it should have refused.
 
-`RUN_V` is 5: the season joined the schema at 2, the purse at 3, the
-owned roster plus lineup at 4, and replay-derived pairwise events at 5. A stored
-run of any older version takes the orphan path below — moved aside and
-said so, which is the exact situation that path was built and tested for.
-Hydrating a v4 run with a made-up empty event ledger would be a silent
-migration wearing a default, so the older payload is set aside instead.
+`RUN_V` is 6: the season joined the schema at 2, the purse at 3, the
+owned roster plus lineup at 4, replay-derived pairwise events at 5, and named
+relationship lifecycle at 6. A stored run of any older version takes the
+orphan path below — moved aside and said so, which is the exact situation
+that path was built and tested for. Hydrating a v5 run with a made-up empty
+relationship ledger would be a silent migration wearing a default, so the
+older payload is set aside instead.
 
 `saveRun`'s return value is not decoration — the room raises a standing
 warning when a write fails after the probe passed, because a panel

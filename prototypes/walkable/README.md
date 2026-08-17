@@ -44,7 +44,7 @@ means this page does not run from `file://`.
 | `Q` / `E` | orbit the room 90° |
 | `P` | cycle LCD / crunch / clean |
 | `Shift` + `N` | close the run, open a fresh one |
-| `Shift` + `P` | pass the current slate entry |
+| `Shift` + `P` | plain-pass the current slate entry |
 | `B` | rotate the bench before the next deal |
 
 `J` and `K` swung the pack's sword until 2026-08-02 and are gone. No rule
@@ -183,7 +183,33 @@ the twelve-card recent buffer cannot serve as a durable origin. When a card is
 unwitnessed or could not be archived, the seam may still show `YARD DERIVED`
 for the current session, followed by the honest line `DERIVED EVENTS NOT
 BANKED — NO DURABLE ORIGIN EXISTS YET`. No relationship, permission,
-obligation or bond state is created by this surface.
+obligation or bond state was created by the step-3 surface.
+
+### Recorded relationship decisions — 2026-08-17, pairwise-ledger step 4
+
+These two implementation decisions are recorded for designer veto at review:
+
+1. **THE FIRST NAMED RELATIONSHIP IS OWES A LIFE.** On the certified filed
+   path, run schema v6 consumes the Worker's `extraction` event and mints the
+   directional fact beneficiary owes actor a life. Repeated rescues do not
+   replace an active debt's first source. The run panel names both people,
+   shows `ACTIVE` or `FULFILLED`, keeps the mint and repayment slate stamps,
+   and retains **BACK TO FILE `{matchId}` / COMMAND `{commandIndex}`** after
+   fulfillment. The existing archived-source view follows that pointer and
+   exposes the raw drag command.
+2. **THE FIRST OBLIGATION IS THE DEDICATED PASS — REPAY THE LIFE.** Every live
+   slate stop shows its plain pass explicitly. When and only when an active
+   debt's named creditor has a running recovery clock, a second button appears
+   beside it: **PASS — KOA REPAYS THE LIFE: SABLE RECOVERS 2** (with the owned
+   names for that pair). Committing it advances that creditor by two, every
+   other clock by one, and fulfills the debt at that pass's slate stamp. When
+   either gate is false the dedicated option is absent, not mysteriously
+   disabled; the plain pass never disappears while a stop remains.
+
+This remains entirely on the run/room side of the door. Neither relationship
+state nor the dedication enters the yard, changes `{name, hp}`, touches the
+certified snapshot, moves combat arithmetic, or spends purse. The shop remains
+flair-only by construction.
 
 On a season the door also deals the current entry's venue name
 (`&venue=…`) — renderer flavor the yard dresses for out of
@@ -288,6 +314,13 @@ What it does and deliberately does not touch:
   durations in-page against per-sheet frame counts. Real composed sheets
   for Cipher, VESPER, KOA and SABLE are backed up before the run and
   restored after.
+- The same harness carries §12's first-relationship acceptance sentence as
+  one continuous case: KOA goes down, SABLE's golden DRAG returns filed and
+  certified, the named debt appears, its archive pointer resolves to command
+  6, the gated dedicated pass clears SABLE's two-stop clock and fulfills the
+  debt, and reload preserves the source, lifecycle, pass stamp, clocks, and
+  visible history. Separate negatives prove no dedication without a debt or
+  with a fit creditor, while the plain pass remains offered.
 - The mold test runs the actual `scripts/roster_mold.py` twice against
   fake packs — **fully sandboxed in a temp dir** via the mold's
   `ROSTER_MOLD_PACKS` / `ROSTER_MOLD_OUT` test hooks, so the real

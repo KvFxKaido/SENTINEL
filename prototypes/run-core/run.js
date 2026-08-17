@@ -64,6 +64,20 @@
    passed. Same reasoning as the rules stamp sitting below the struck
    return: what the edge disputed does not get to move the season.
 
+   ---- Pairwise mercy ------------------------------------------------
+
+   A filed extraction is a replay fact. What that fact MEANS after the
+   card is the run's policy: the rescued person OWES the rescuer A LIFE.
+   The relationship points back to the filed command, stays directional,
+   and has a lifecycle rather than a score. Repeated rescues do not climb
+   a meter or replace the first active origin.
+
+   Its first obligation lives entirely in the room. A debtor may dedicate
+   an otherwise ordinary pass to a recovering creditor: that clock moves
+   two stops, every other clock moves one, and the debt becomes fulfilled
+   on the pass's authored slate stamp. The plain pass remains legal. No
+   relationship state crosses the door or changes the `{name, hp}` card.
+
    ---- The purse spends (season-lite) --------------------------------
 
    Purse stopped being a scoreboard the moment there was somewhere to
@@ -128,12 +142,13 @@
 // 3: the purse joined it (spent, bought).
 // 4: the faction door joined it (owned people, origins, lineup).
 // 5: replay-derived pairwise events joined it (stable ids + certified source).
+// 6: named pairwise relationships joined it (lifecycle + room obligation).
 // A stored run of any older
 // version takes the orphan path below — moved aside and said so, exactly
-// the situation that path was built and tested for. Hydrating a v2 run
-// with an empty kit in place would be a silent migration wearing a
-// default, same as it was one version ago.
-export const RUN_V = 5;
+// the situation that path was built and tested for. Hydrating a v5 run
+// with an empty relationship ledger would be a silent migration wearing
+// a default, same as it was one version ago.
+export const RUN_V = 6;
 // The live key is deliberately NOT versioned. It used to be
 // `sentinel.run.v${RUN_V}`, which made the orphan path below unreachable
 // in the only situation it exists for: bumping RUN_V to 2 would point
@@ -184,6 +199,7 @@ export const FULL_STRENGTH = 10;
 // doc — tune it here, in one place, when play says so (open question 2:
 // recovery economics).
 export const WOUND_CLOCK = 2;
+export const DEDICATED_RECOVERY = 2;
 
 /* The entire shop, and the reason it is short. `sentinel_circuit_design.md`
    sorts gear slots by whether they carry VERBS: head (sensing), torso
@@ -361,6 +377,7 @@ export function openRun(at, roster = DEFAULT_ROSTER) {
     mercy: { walked: 0, finished: 0 },
     wounds: {},         // stable person id -> times that person went down
     eventLedger: {},    // stable actor id -> certified replay-derived events
+    relationships: [],  // named directional facts, each pointing at one event
     struck: 0,          // cards the edge disputed — banked by nobody
     unwitnessed: 0,     // cards counted without certification
     rules: null,        // the rules stamp this run's numbers were earned under
@@ -439,10 +456,13 @@ const copySeason = s => s === null ? null : {
    law instead of two agreeing coincidences. Cleared clocks are dropped,
    not stored as zeros — a zero clock is not a short clock, it is no
    clock, and sane() treats a stored zero as the junk it would be. */
-function advance(season) {
+function advance(season, dedicatedRecovery = null) {
   season.pos += 1;
   for (const id of Object.keys(season.clocks)) {
-    const left = season.clocks[id] - 1;
+    // A dedicated life-debt pass is recovery economics, not combat
+    // arithmetic: this one clock advances by two while every other clock
+    // still advances by the slate's ordinary one.
+    const left = season.clocks[id] - (id === dedicatedRecovery ? DEDICATED_RECOVERY : 1);
     if (left > 0) season.clocks[id] = left;
     else delete season.clocks[id];
   }
@@ -507,6 +527,9 @@ const CARD_KEYS = ["seed", "result", "rating", "purse", "cert",
   "walked", "finished", "down", "derivedEvents", "matchId", "at", "slate"];
 const BOUGHT_KEYS = ["id", "name", "slot", "color", "who", "cost", "at", "slate"];
 const EVENT_KEYS = ["kind", "beneficiary", "underFire", "reached", "grade", "at", "slate"];
+const RELATIONSHIP_KEYS = ["kind", "from", "to", "origin", "status", "at"];
+const PASS_KEYS = ["idx", "venue", "host", "sanction", "at"];
+const DEDICATION_KEYS = ["kind", "from", "to"];
 const onlyKeys = (obj, allowed) => Object.keys(obj).every(k => allowed.includes(k));
 
 // Framing equality against the authored entry. Restore uses this to
@@ -518,6 +541,30 @@ const sameFraming = (rec, entry) =>
   rec.venue === entry.venue
   && rec.host === entry.host
   && rec.sanction === entry.sanction;
+
+const sameStamp = (a, b) => !!a && !!b
+  && a.idx === b.idx && sameFraming(a, b);
+
+const dedicationShapeValid = dedication => !!dedication
+  && typeof dedication === "object" && !Array.isArray(dedication)
+  && exactKeys(dedication, DEDICATION_KEYS)
+  && dedication.kind === "repay-the-life"
+  && isPersonId(dedication.from) && isPersonId(dedication.to)
+  && dedication.from !== dedication.to;
+
+const copyRelationship = relationship => ({
+  kind: relationship.kind,
+  from: relationship.from,
+  to: relationship.to,
+  origin: { ...relationship.origin },
+  status: relationship.status,
+  at: relationship.at,
+  ...(relationship.slate ? { slate: { ...relationship.slate } } : {}),
+  ...(relationship.status === "fulfilled" ? {
+    fulfilledAt: relationship.fulfilledAt,
+    fulfilledSlate: { ...relationship.fulfilledSlate },
+  } : {}),
+});
 
 /* ---- what a card must look like before a run believes it ----------
    The room validates the seam payload before it gets here, and this
@@ -622,6 +669,7 @@ export function applyCard(run, card) {
     wounds: { ...run.wounds },
     eventLedger: Object.fromEntries(
       Object.entries(run.eventLedger).map(([id, events]) => [id, events.slice()])),
+    relationships: run.relationships.map(copyRelationship),
     recent: run.recent.slice(),
     season: copySeason(run.season),
   };
@@ -706,6 +754,44 @@ export function applyCard(run, card) {
       banked.slate = { idx: run.season.pos, venue: e.venue, host: e.host, sanction: e.sanction };
     }
     next.eventLedger[actor] = [...(next.eventLedger[actor] ?? []), banked];
+
+    /* The relationship IS computed here, deliberately. The rules core
+       derives the replay fact (`extraction`); the run owns the banking
+       policy that says what that certified fact means after the card.
+       Keeping those two derivations named and separate prevents either
+       side from quietly taking ownership of the other.
+
+       Direction matters: the rescued beneficiary owes the actor a life.
+       While that directed debt is active, another rescue mints nothing —
+       no repetition treadmill, and the first source remains the origin.
+       A source already used by a fulfilled debt cannot mint twice either;
+       a later debt needs a later rescue with its own origin. */
+    const origin = { matchId: card.matchId, commandIndex: event.commandIndex };
+    const activeAlready = next.relationships.some(relationship =>
+      relationship.kind === "owes-a-life"
+      && relationship.from === beneficiary
+      && relationship.to === actor
+      && relationship.status === "active");
+    const originAlreadyUsed = next.relationships.some(relationship =>
+      relationship.origin.matchId === origin.matchId
+      && relationship.origin.commandIndex === origin.commandIndex);
+    if (!activeAlready && !originAlreadyUsed) {
+      const relationship = {
+        kind: "owes-a-life",
+        from: beneficiary,
+        to: actor,
+        origin,
+        status: "active",
+        at: card.at,
+      };
+      if (run.season) {
+        const e = slateEntry(run.season);
+        relationship.slate = {
+          idx: run.season.pos, venue: e.venue, host: e.host, sanction: e.sanction,
+        };
+      }
+      next.relationships.push(relationship);
+    }
   }
 
   next.cards += 1;
@@ -737,8 +823,8 @@ export function applyCard(run, card) {
 }
 
 /* ---- passing ------------------------------------------------------
-   The season's second verb, and the only one that is ALWAYS legal while
-   the slate has entries left — fit or unfit, that is the point. Passing
+   The season's second verb. Its plain form is ALWAYS legal while the
+   slate has entries left — fit or unfit, that is the point. Passing
    is how a wounded roster heals (the clocks tick on advance) and how a
    fit one rests, and its cost is the record itself: the entry's framing
    is banked with the pass, so the card you declined is a fact of the
@@ -748,7 +834,7 @@ export function applyCard(run, card) {
    verdict to count. A pass is the run's own act; nothing about it can
    be disputed, so the two-negatives distinction has nothing to
    distinguish. */
-export function applyPass(run, at) {
+export function applyPass(run, at, dedication = null) {
   if (!run || run.v !== RUN_V) {
     return { run, accepted: false, why: "run is not this schema version" };
   }
@@ -762,12 +848,60 @@ export function applyPass(run, at) {
   if (typeof at !== "string" || !at) {
     return { run, accepted: false, why: "a pass needs to know when it happened" };
   }
-  const next = { ...run, season: copySeason(run.season) };
-  next.season.passed = [
-    ...next.season.passed,
-    { idx: next.season.pos, venue: entry.venue, host: entry.host, sanction: entry.sanction, at },
-  ];
-  advance(next.season);
+  let relationshipIndex = -1;
+  if (dedication !== null && dedication !== undefined) {
+    const owned = new Set(run.roster.people.map(person => person.id));
+    if (!dedicationShapeValid(dedication)
+        || !owned.has(dedication.from) || !owned.has(dedication.to)) {
+      return {
+        run, accepted: false,
+        why: "a dedicated pass must name the real owned debtor and creditor — wrong person",
+      };
+    }
+    relationshipIndex = run.relationships.findIndex(relationship =>
+      relationship.kind === "owes-a-life"
+      && relationship.from === dedication.from
+      && relationship.to === dedication.to
+      && relationship.status === "active");
+    if (relationshipIndex < 0) {
+      return { run, accepted: false, why: "that pair has no active life debt to repay" };
+    }
+    if (!Object.prototype.hasOwnProperty.call(run.season.clocks, dedication.to)) {
+      return {
+        run, accepted: false,
+        why: "the named creditor has no running recovery clock for this dedication",
+      };
+    }
+  }
+
+  const next = {
+    ...run,
+    relationships: run.relationships.map(copyRelationship),
+    season: copySeason(run.season),
+  };
+  const pass = {
+    idx: next.season.pos,
+    venue: entry.venue,
+    host: entry.host,
+    sanction: entry.sanction,
+    at,
+  };
+  if (relationshipIndex >= 0) {
+    pass.dedication = {
+      kind: dedication.kind, from: dedication.from, to: dedication.to,
+    };
+    const relationship = next.relationships[relationshipIndex];
+    next.relationships[relationshipIndex] = {
+      ...relationship,
+      status: "fulfilled",
+      fulfilledAt: at,
+      fulfilledSlate: {
+        idx: pass.idx, venue: pass.venue, host: pass.host, sanction: pass.sanction,
+      },
+    };
+  }
+  next.season.passed = [...next.season.passed, pass];
+  advance(next.season, relationshipIndex >= 0 ? dedication.to : null);
   return { run: next, accepted: true, why: null };
 }
 
@@ -972,6 +1106,60 @@ function sane(r) {
   })) return false;
   const certifiedEvents = allEvents.length;
   if (certifiedEvents > (r.cards - r.unwitnessed) * MAX_DERIVED_PER_CARD) return false;
+  if (!Array.isArray(r.relationships) || r.relationships.length > certifiedEvents) return false;
+  const relationshipOrigins = new Set();
+  const activePairs = new Set();
+  if (!r.relationships.every(relationship => {
+    if (!relationship || typeof relationship !== "object" || Array.isArray(relationship)) return false;
+    const base = relationship.slate === undefined
+      ? RELATIONSHIP_KEYS
+      : [...RELATIONSHIP_KEYS, "slate"];
+    const expected = relationship.status === "fulfilled"
+      ? [...base, "fulfilledAt", "fulfilledSlate"]
+      : base;
+    if (!exactKeys(relationship, expected)) return false;
+    if (relationship.kind !== "owes-a-life") return false;
+    if (!ownedIds.has(relationship.from) || !ownedIds.has(relationship.to)
+        || relationship.from === relationship.to) return false;
+    if (relationship.status !== "active" && relationship.status !== "fulfilled") return false;
+    if (typeof relationship.at !== "string" || !relationship.at) return false;
+    if (relationship.slate !== undefined && !stampValid(relationship.slate)) return false;
+    const origin = relationship.origin;
+    if (!origin || typeof origin !== "object" || Array.isArray(origin)
+        || !exactKeys(origin, ["matchId", "commandIndex"])
+        || !matchIdValid(origin.matchId)
+        || !intIn(origin.commandIndex, 0, MAX_DERIVED_PER_CARD - 1)) return false;
+    const originKey = `${origin.matchId}@${origin.commandIndex}`;
+    if (relationshipOrigins.has(originKey)) return false;
+    relationshipOrigins.add(originKey);
+    if (relationship.status === "active") {
+      const pair = `${relationship.from}->${relationship.to}`;
+      if (activePairs.has(pair)) return false;
+      activePairs.add(pair);
+    } else if (typeof relationship.fulfilledAt !== "string" || !relationship.fulfilledAt
+        || !stampValid(relationship.fulfilledSlate)) return false;
+
+    // A relationship is banking policy over a banked event, not an
+    // unsupported sentence. Its stable-id direction, certified pointer,
+    // time and slate stamp must all resolve to the extraction it names.
+    return allEvents.some(({ actor, event }) =>
+      actor === relationship.to
+      && event.kind === "extraction"
+      && event.beneficiary === relationship.from
+      && event.grade.matchId === origin.matchId
+      && event.grade.commandIndex === origin.commandIndex
+      && event.at === relationship.at
+      && (event.slate === undefined
+        ? relationship.slate === undefined
+        : sameStamp(event.slate, relationship.slate)));
+  })) return false;
+  const relationshipsByPair = new Map();
+  for (const relationship of r.relationships) {
+    const pair = `${relationship.from}->${relationship.to}`;
+    const history = relationshipsByPair.get(pair) ?? [];
+    history.push(relationship);
+    relationshipsByPair.set(pair, history);
+  }
   if (!Array.isArray(r.recent) || r.recent.length > RECENT) return false;
   if (!r.recent.every(c =>
     c && typeof c === "object"
@@ -1075,6 +1263,11 @@ function sane(r) {
     // syntactically valid pass with forged framing restored fine and
     // summary() reported a venue the slate never said).
     if (!s.passed.every((p, i) => p && typeof p === "object"
+      && (p.dedication === undefined
+        ? exactKeys(p, PASS_KEYS)
+        : exactKeys(p, [...PASS_KEYS, "dedication"])
+          && dedicationShapeValid(p.dedication)
+          && ownedIds.has(p.dedication.from) && ownedIds.has(p.dedication.to))
       && intIn(p.idx, 0, entries.length - 1)
       && entryValid(p)
       && sameFraming(p, entries[p.idx])
@@ -1105,6 +1298,75 @@ function sane(r) {
         last = event.slate.idx;
       }
     }
+    let lastRelationship = -1;
+    for (const relationship of r.relationships) {
+      // Every relationship on a season was minted by a banked card, so its
+      // source is behind the current position and cannot regress through the
+      // append-only ledger. Fulfillment is a banked pass and obeys the same
+      // authored-stamp law.
+      if (!relationship.slate || relationship.slate.idx >= s.pos
+          || relationship.slate.idx < lastRelationship
+          || !sameFraming(relationship.slate, entries[relationship.slate.idx])) return false;
+      lastRelationship = relationship.slate.idx;
+      if (relationship.status === "fulfilled"
+          && (relationship.fulfilledSlate.idx >= s.pos
+            || relationship.fulfilledSlate.idx < relationship.slate.idx
+            || !sameFraming(
+              relationship.fulfilledSlate, entries[relationship.fulfilledSlate.idx]))) return false;
+    }
+    // A directed pair's history is a sequence of non-overlapping active
+    // intervals, not merely a collection with one active entry at restore.
+    // Order by the mint point the reducer actually writes. The command
+    // index is only a deterministic tie-break inside one card; applyCard
+    // cannot mint the same pair twice there because the first debt is
+    // already active.
+    //
+    // The bound is strict. applyPass fulfills at the current position and
+    // then advances it, so the earliest card capable of re-minting that
+    // pair is stamped at the following slate index. A successor at or
+    // before the fulfillment index was rescued while its predecessor was
+    // still active and could not have been minted by applyCard.
+    for (const history of relationshipsByPair.values()) {
+      const byMint = history.slice().sort((a, b) =>
+        a.slate.idx - b.slate.idx
+        || a.origin.commandIndex - b.origin.commandIndex);
+      for (let i = 1; i < byMint.length; i++) {
+        const predecessor = byMint[i - 1];
+        const successor = byMint[i];
+        if (predecessor.status !== "fulfilled"
+            || successor.slate.idx <= predecessor.fulfilledSlate.idx) return false;
+      }
+    }
+    const dedicatedPasses = s.passed.filter(pass => pass.dedication !== undefined);
+    const fulfilled = r.relationships.filter(relationship => relationship.status === "fulfilled");
+    // Repayment history is two views of one run-owned act: the pass says
+    // which debt it dedicated, and the relationship says where it became
+    // fulfilled. Either side without the other is a hand-edited story.
+    if (!dedicatedPasses.every(pass => fulfilled.filter(relationship =>
+      relationship.from === pass.dedication.from
+      && relationship.to === pass.dedication.to
+      && relationship.fulfilledAt === pass.at
+      && sameStamp(relationship.fulfilledSlate, pass)).length === 1)) return false;
+    if (!fulfilled.every(relationship => dedicatedPasses.filter(pass =>
+      pass.dedication.from === relationship.from
+      && pass.dedication.to === relationship.to
+      && pass.at === relationship.fulfilledAt
+      && sameStamp(pass, relationship.fulfilledSlate)).length === 1)) return false;
+    // Completeness matters as much as refusing invented entries. Walk every
+    // certified extraction through the relationship intervals it could have
+    // observed: the first event in an inactive interval must be the source of
+    // a relationship; later rescues are covered by that active debt until its
+    // dedicated pass. Deleting the ledger (or moving its origin to a later
+    // rescue) therefore cannot restore as an apparently honest run.
+    if (!allEvents.every(({ actor, event }) => r.relationships.some(relationship => {
+      if (relationship.from !== event.beneficiary || relationship.to !== actor) return false;
+      const startsBefore = relationship.slate.idx < event.slate.idx
+        || (relationship.slate.idx === event.slate.idx
+          && relationship.origin.commandIndex <= event.grade.commandIndex);
+      const stillActive = relationship.status === "active"
+        || event.slate.idx < relationship.fulfilledSlate.idx;
+      return startsBefore && stillActive;
+    }))) return false;
     if (!s.clocks || typeof s.clocks !== "object" || Array.isArray(s.clocks)) return false;
     if (!Object.keys(s.clocks).every(isPersonId)) return false;
     if (!Object.keys(s.clocks).every(id => ownedIds.has(id))) return false;
@@ -1117,9 +1379,28 @@ function sane(r) {
     if (r.cards + s.passed.length !== s.pos) return false;
   } else {
     // And a plain run's cards carry no stamp at all — a stamp with no
-    // slate to answer to is unfalsifiable, so it does not restore.
+    // slate to answer to is unfalsifiable, so it does not restore. Its
+    // `at` strings are caller-authored labels, not an ordered clock, and
+    // applyPass is unavailable without a season. The honest lifecycle
+    // claim here is therefore only what applyCard can write: at most one
+    // active relationship per pair, whose origin precedes every later
+    // same-pair event in that actor's append-only event ledger.
     if (!r.recent.every(c => c.slate === undefined)) return false;
     if (!allEvents.every(({ event }) => event.slate === undefined)) return false;
+    if (!r.relationships.every(relationship =>
+      relationship.slate === undefined && relationship.status === "active")) return false;
+    for (const [actor, events] of Object.entries(r.eventLedger)) {
+      for (let i = 0; i < events.length; i++) {
+        const event = events[i];
+        if (!r.relationships.some(relationship => {
+          if (relationship.from !== event.beneficiary || relationship.to !== actor) return false;
+          const sourceIndex = events.findIndex(candidate =>
+            candidate.grade.matchId === relationship.origin.matchId
+            && candidate.grade.commandIndex === relationship.origin.commandIndex);
+          return sourceIndex >= 0 && sourceIndex <= i;
+        })) return false;
+      }
+    }
   }
   // The rack, all the way in, same as everything else that reaches a
   // surface. A stored purchase is the one record here that can move
@@ -1261,6 +1542,19 @@ export function summary(run) {
       at: event.at,
       ...(event.slate ? { slate: { ...event.slate } } : {}),
     })));
+  const relationships = run.relationships.map(copyRelationship);
+  // These are the dedicated choices the door may render NOW. The room
+  // does not rebuild the debt + running-creditor-clock gate; summary is
+  // the one read model for both the visible offer and applyPass's policy.
+  const dedicatedPasses = run.season === null ? [] : relationships
+    .filter(relationship => relationship.status === "active"
+      && Object.prototype.hasOwnProperty.call(run.season.clocks, relationship.to))
+    .map(relationship => ({
+      kind: "repay-the-life",
+      from: relationship.from,
+      to: relationship.to,
+      recovers: DEDICATED_RECOVERY,
+    }));
   return {
     cards: run.cards,
     record: `${run.wins}–${losses}`,
@@ -1288,6 +1582,7 @@ export function summary(run) {
     struck: run.struck,
     unwitnessed: run.unwitnessed,
     derivedEvents,
+    relationships,
     drift: run.drift,
     roster: {
       people,
@@ -1309,6 +1604,7 @@ export function summary(run) {
       fit: f.fit,
       clocks: f.clocks,
       fieldedClocks: f.fieldedClocks,
+      dedicatedPasses,
     },
   };
 }
