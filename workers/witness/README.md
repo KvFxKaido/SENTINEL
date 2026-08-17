@@ -126,7 +126,8 @@ the original entry with its original timestamp, so resubmission can
 neither inflate the ledger nor bump an old record to the top.
 
 **Recorded design decision — 2026-08-16, durable-moment step 3:** the
-walkable room's certified seam path calls `/file`, not bare `/certify`.
+walkable room's certified seam path will call `/file`, not bare `/certify` —
+that consumer half ships separately and lands once this edge is deployed.
 Therefore every card that surface labels certified receives a durable match
 id in the same replay transaction. This is recorded for designer review and
 can be vetoed there. It does not pre-decide feed cutting: a future deliberate
