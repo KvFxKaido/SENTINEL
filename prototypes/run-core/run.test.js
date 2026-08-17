@@ -24,6 +24,7 @@ import {
 
 const AT = "2026-08-04T12:00:00.000Z";
 const MATCH_ID = "0123456789abcdef0123456789abcdef";
+const MATCH_ID_2 = "fedcba9876543210fedcba9876543210";
 const authoredCourt = JSON.parse(fs.readFileSync(
   new URL("../../world/recruitment/court-01.json", import.meta.url), "utf8"));
 const COURT_ROSTER = { people: authoredCourt.people, lineup: authoredCourt.lineup };
@@ -95,6 +96,18 @@ function card(over = {}) {
   return out;
 }
 
+function extraction(over = {}) {
+  return {
+    kind: "extraction", actor: "SABLE", beneficiary: "KOA",
+    commandIndex: 6, underFire: true, reached: true,
+    ...over,
+  };
+}
+
+const lifeDedication = (over = {}) => ({
+  kind: "repay-the-life", from: "koa", to: "sable", ...over,
+});
+
 // ---- shape ---------------------------------------------------------
 
 test("a fresh run is empty, versioned, and stamped with when it opened", () => {
@@ -106,6 +119,7 @@ test("a fresh run is empty, versioned, and stamped with when it opened", () => {
   assert.equal(r.rules, null);
   assert.deepEqual(r.wounds, {});
   assert.deepEqual(r.eventLedger, {});
+  assert.deepEqual(r.relationships, []);
   assert.deepEqual(r.recent, []);
   assert.equal(r.season, null, "a plain run has no slate — a season is opened, not implied");
 });
@@ -255,10 +269,7 @@ test("an unwitnessed card counts and says that it counted unwitnessed", () => {
 });
 
 test("certified derived events bank under stable ids with a filed command source", () => {
-  const event = {
-    kind: "extraction", actor: "SABLE", beneficiary: "KOA",
-    commandIndex: 6, underFire: true, reached: true,
-  };
+  const event = extraction();
   const out = applyCard(openSeason(AT, slate()), card({ derivedEvents: [event] }));
   assert.equal(out.accepted, true);
   assert.deepEqual(out.run.recent[0].derivedEvents, [event],
@@ -284,6 +295,32 @@ test("certified derived events bank under stable ids with a filed command source
     at: AT,
     slate: { idx: 0, venue: "KESTREL YARD", host: "steel-syndicate", sanction: null },
   });
+  assert.deepEqual(out.run.relationships, [{
+    kind: "owes-a-life",
+    from: "koa",
+    to: "sable",
+    origin: { matchId: MATCH_ID, commandIndex: 6 },
+    status: "active",
+    at: AT,
+    slate: { idx: 0, venue: "KESTREL YARD", host: "steel-syndicate", sanction: null },
+  }], "the run's banking policy says the beneficiary owes the actor a life");
+  assert.deepEqual(summary(out.run).relationships, out.run.relationships);
+  assert.deepEqual(summary(out.run).season.dedicatedPasses, [],
+    "a debt alone is not an offer while its creditor is fit");
+});
+
+test("an active life debt keeps its first rescue origin — no repetition treadmill", () => {
+  let run = applyCard(openRun(AT), card({ derivedEvents: [extraction()] })).run;
+  run = applyCard(run, card({
+    seed: "fadedcab",
+    matchId: MATCH_ID_2,
+    at: "2026-08-05T12:00:00.000Z",
+    derivedEvents: [extraction({ commandIndex: 9, underFire: false })],
+  })).run;
+  assert.equal(run.eventLedger.sable.length, 2, "both certified events remain history");
+  assert.equal(run.relationships.length, 1, "the second rescue is not relationship XP");
+  assert.deepEqual(run.relationships[0].origin, { matchId: MATCH_ID, commandIndex: 6 },
+    "the first active debt's origin stands");
 });
 
 test("unwitnessed derived events are not banked before a durable local origin exists", () => {
@@ -559,6 +596,85 @@ test("stored derived-event ledgers validate owned ids, grades, sources, and exac
   assert.equal(loadRun(AT).how, "restored");
 });
 
+test("an active and then fulfilled relationship survives save and restore; v5 is orphaned", () => {
+  let run = applyCard(openSeason(AT, slate()), card({
+    derivedEvents: [extraction()],
+    ledger: { walked: 0, finished: 0, lost: 1 }, down: ["SABLE"],
+  })).run;
+  run = applyPass(run, "2026-08-05T13:00:00.000Z", lifeDedication()).run;
+  const box = memoryStore();
+  assert.equal(saveRun(run), true);
+  const restored = loadRun("2026-09-01T00:00:00.000Z");
+  assert.equal(restored.how, "restored");
+  assert.deepEqual(restored.run.relationships, run.relationships);
+  assert.deepEqual(restored.run.season.passed, run.season.passed);
+
+  const v5 = { ...run, v: 5 };
+  box[RUN_KEY] = JSON.stringify(v5);
+  const orphaned = loadRun(AT);
+  assert.equal(orphaned.how, "orphaned");
+  assert.equal(box[RUN_KEY], undefined);
+  assert.match(box[ORPHAN_KEY], /"v":5/);
+});
+
+test("stored relationship forgeries are orphaned all the way through repayment", () => {
+  let good = applyCard(openSeason(AT, slate()), card({
+    derivedEvents: [extraction()],
+    ledger: { walked: 0, finished: 0, lost: 1 }, down: ["SABLE"],
+  })).run;
+  good = applyPass(good, "2026-08-05T13:00:00.000Z", lifeDedication()).run;
+  memoryStore({ [RUN_KEY]: JSON.stringify(good) });
+  assert.equal(loadRun(AT).how, "restored", "the reducer's repayment must restore");
+
+  const changed = mutate => {
+    const copy = JSON.parse(JSON.stringify(good));
+    mutate(copy);
+    return copy;
+  };
+  const missingLedger = changed(run => { delete run.relationships; });
+  const forged = [
+    missingLedger,
+    changed(run => { run.relationships = {}; }),
+    changed(run => { run.relationships[0].from = "stranger"; }),
+    changed(run => { run.relationships[0].from = "sable"; }),
+    changed(run => { run.relationships[0].origin.matchId = "short"; }),
+    changed(run => { run.relationships[0].origin.commandIndex = -1; }),
+    changed(run => { run.relationships[0].origin.matchId = MATCH_ID_2; }),
+    changed(run => { run.relationships[0].status = "trusted"; }),
+    changed(run => { run.relationships[0].trust = 1; }),
+    changed(run => { delete run.relationships[0].fulfilledAt; }),
+    changed(run => { run.relationships[0].fulfilledSlate.venue = "MADE UP STOP"; }),
+    changed(run => { delete run.season.passed[0].dedication; }),
+    changed(run => { run.season.passed[0].dedication.to = "vesper"; }),
+  ];
+  for (const run of forged) {
+    memoryStore({ [RUN_KEY]: JSON.stringify(run) });
+    assert.equal(loadRun(AT).how, "orphaned", JSON.stringify(run.relationships));
+  }
+
+  let twoEvents = applyCard(openRun(AT), card({ derivedEvents: [extraction()] })).run;
+  const secondAt = "2026-08-05T12:00:00.000Z";
+  twoEvents = applyCard(twoEvents, card({
+    seed: "fadedcab", matchId: MATCH_ID_2, at: secondAt,
+    derivedEvents: [extraction({ commandIndex: 9 })],
+  })).run;
+  const duplicateActive = JSON.parse(JSON.stringify(twoEvents));
+  duplicateActive.relationships.push({
+    ...duplicateActive.relationships[0],
+    origin: { matchId: MATCH_ID_2, commandIndex: 9 },
+    at: secondAt,
+  });
+  memoryStore({ [RUN_KEY]: JSON.stringify(duplicateActive) });
+  assert.equal(loadRun(AT).how, "orphaned",
+    "two active owes-a-life entries for one directed pair cannot be hand-written in");
+
+  const erased = applyCard(openRun(AT), card({ derivedEvents: [extraction()] })).run;
+  erased.relationships = [];
+  memoryStore({ [RUN_KEY]: JSON.stringify(erased) });
+  assert.equal(loadRun(AT).how, "orphaned",
+    "a certified extraction cannot restore with its deterministically banked debt erased");
+});
+
 test("stored unwitnessed receipts cannot smuggle in a pointerless derived event", () => {
   const event = {
     kind: "extraction", actor: "VESPER", beneficiary: "KOA",
@@ -771,6 +887,70 @@ test("a pass banks the entry it declined and advances the slate", () => {
   assert.deepEqual(run.season.passed, [
     { idx: 0, venue: "KESTREL YARD", host: "steel-syndicate", sanction: null, at: AT },
   ], "the card you declined is a fact of the season, framing and all");
+});
+
+test("dedicated repayment refuses wrong people, no debt, and no clock distinctly", () => {
+  const wrongPersonRun = applyCard(openSeason(AT, slate()), card({
+    derivedEvents: [extraction()],
+    ledger: { walked: 0, finished: 0, lost: 1 }, down: ["SABLE"],
+  })).run;
+  const wrongPerson = applyPass(wrongPersonRun, AT, lifeDedication({ to: "stranger" }));
+  assert.equal(wrongPerson.accepted, false);
+  assert.match(wrongPerson.why, /wrong person/);
+
+  const noDebtRun = applyCard(openSeason(AT, slate()), card({
+    ledger: { walked: 0, finished: 0, lost: 1 }, down: ["SABLE"],
+  })).run;
+  const noDebt = applyPass(noDebtRun, AT, lifeDedication());
+  assert.equal(noDebt.accepted, false);
+  assert.match(noDebt.why, /no active life debt/);
+
+  const noClockRun = applyCard(openSeason(AT, slate()), card({
+    derivedEvents: [extraction()],
+  })).run;
+  const noClock = applyPass(noClockRun, AT, lifeDedication());
+  assert.equal(noClock.accepted, false);
+  assert.match(noClock.why, /no running recovery clock/);
+
+  assert.equal(new Set([wrongPerson.why, noDebt.why, noClock.why]).size, 3,
+    "the three illegal requests must not collapse into one mysterious refusal");
+  assert.deepEqual(summary(noDebtRun).season.dedicatedPasses, []);
+  assert.deepEqual(summary(noClockRun).season.dedicatedPasses, []);
+});
+
+test("REPAY THE LIFE advances the creditor by two, everyone else by one, and fulfills the debt", () => {
+  const start = applyCard(openSeason(AT, slate()), card({
+    derivedEvents: [extraction()],
+    ledger: { walked: 0, finished: 0, lost: 2 }, down: ["VESPER", "SABLE"],
+  })).run;
+  assert.deepEqual(start.season.clocks, { vesper: WOUND_CLOCK, sable: WOUND_CLOCK });
+  assert.deepEqual(summary(start).season.dedicatedPasses, [{
+    kind: "repay-the-life", from: "koa", to: "sable", recovers: 2,
+  }]);
+  const snapshot = JSON.stringify(start);
+  const repaidAt = "2026-08-05T13:00:00.000Z";
+  const out = applyPass(start, repaidAt, lifeDedication());
+  assert.equal(out.accepted, true);
+  assert.equal(JSON.stringify(start), snapshot, "repayment must not mutate the run it was given");
+  assert.deepEqual(out.run.season.clocks, { vesper: WOUND_CLOCK - 1 },
+    "SABLE receives two stops; VESPER receives the ordinary one");
+  assert.deepEqual(out.run.season.passed[0], {
+    idx: 1, venue: "THE COLD COURT", host: null, sanction: "covenant", at: repaidAt,
+    dedication: { kind: "repay-the-life", from: "koa", to: "sable" },
+  });
+  assert.deepEqual(out.run.relationships[0], {
+    kind: "owes-a-life",
+    from: "koa",
+    to: "sable",
+    origin: { matchId: MATCH_ID, commandIndex: 6 },
+    status: "fulfilled",
+    at: AT,
+    slate: { idx: 0, venue: "KESTREL YARD", host: "steel-syndicate", sanction: null },
+    fulfilledAt: repaidAt,
+    fulfilledSlate: { idx: 1, venue: "THE COLD COURT", host: null, sanction: "covenant" },
+  });
+  assert.deepEqual(summary(out.run).season.dedicatedPasses, [],
+    "a fulfilled debt is history, not a repeatable recovery button");
 });
 
 test("wounds are clocks: a down fighter gates the deal", () => {

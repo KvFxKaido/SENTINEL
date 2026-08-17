@@ -291,11 +291,13 @@
   /* Caveats read as caveats: a run carrying struck cards, unwitnessed
      cards or a rules change must not look like a clean one at a glance. */
   #seaminfo .warn, #runinfo .warn, #kitinfo .warn, #sourceinfo .warn { color: var(--red); }
-  .moment-back {
+  .moment-back, .run-option {
     border: 1px solid var(--line); background: var(--panel-2); color: var(--cyan);
     padding: 2px 5px; font: inherit; cursor: pointer;
   }
-  .moment-back:hover { border-color: var(--green-dim); color: var(--green); }
+  .moment-back:hover, .run-option:hover { border-color: var(--green-dim); color: var(--green); }
+  .run-option { margin: 2px 3px 2px 0; text-align: left; }
+  .dedicated-pass { border-color: var(--amber); color: var(--amber); }
   #sourcebox[hidden] { display: none; }
   #source-record { max-height: 220px; overflow: auto; margin-top: 7px; }
   #source-record .command { display: block; padding: 2px 4px; color: var(--text-dim); white-space: pre-wrap; }
@@ -372,7 +374,7 @@
         <tr><th><kbd>Q</kbd> / <kbd>E</kbd></th><td>orbit 90°</td></tr>
         <tr><th><kbd>P</kbd></th><td>LCD / crunch / clean</td></tr>
         <tr><th><kbd>Shift</kbd>+<kbd>N</kbd></th><td>close the run, open a fresh one</td></tr>
-        <tr><th><kbd>Shift</kbd>+<kbd>P</kbd></th><td>pass the slate entry — always legal</td></tr>
+        <tr><th><kbd>Shift</kbd>+<kbd>P</kbd></th><td>plain-pass the slate entry — always legal</td></tr>
         <tr><th><kbd>B</kbd></th><td>rotate the bench before the next deal</td></tr>
         <tr><th>KIT TABLE</th><td id="kitkeys">stand at it — number keys buy, <kbd>Z</kbd> chooses who</td></tr>
         <tr><th>NORTH DOOR</th><td>walk it — the yard takes the feed</td></tr>
@@ -434,8 +436,9 @@
 
    It DOES import run-core, and that is not the same wall. run-core holds
    no rules and decides no match: it banks what a returned card cost and
-   nothing else. The room stays unable to compute an outcome, which is
-   the property the no-rules wall exists to protect.
+   which room-layer obligations that history makes legal. The room stays
+   unable to compute an outcome, which is the property the no-rules wall
+   exists to protect.
    ================================================================ */
 
 import * as THREE from "../tactical3d/vendor/three.module.js";
@@ -2045,6 +2048,37 @@ function updateSquad(now) {
   canvas.dataset.peopleSprites = peopleShown.join(",");
 }
 
+/* One pass path for the keyboard's plain pass and the panel's explicit
+   choices. The room owns the offer and the in-flight guard; run-core owns
+   whether a dedication is true and legal. Keeping both buttons on this
+   path means the visible sentence cannot commit some adjacent operation. */
+function passRun(dedication = null) {
+  if (settling > 0) {
+    runNote = '<span class="warn">A CARD IS STILL SETTLING — PASS ONCE IT LANDS</span>';
+    renderRun();
+    return;
+  }
+  const debtor = dedication ? personOf(run, dedication.from) : null;
+  const creditor = dedication ? personOf(run, dedication.to) : null;
+  const out = applyPass(run, new Date().toISOString(), dedication);
+  if (!out.accepted) {
+    // accepted:false is applyPass saying this run cannot pass — a plain
+    // run, a completed slate, or a dedication whose visible gates no
+    // longer hold. Surfaced in the run's own words.
+    runNote = `<span class="warn">${esc(out.why.toUpperCase())}</span>`;
+    renderRun();
+    return;
+  }
+  run = out.run;
+  const passed = run.season.passed[run.season.passed.length - 1];
+  runNote = dedication
+    ? `PASSED <b>${esc(passed.venue)}</b> — <b>${esc(debtor.name)}</b> REPAID THE LIFE`
+      + ` · <b>${esc(creditor.name)}</b> RECOVERED 2`
+    : `PASSED <b>${esc(passed.venue)}</b> — ON THE RECORD, AND THE SLATE MOVES ON`;
+  if (runWritable) persistFailed = !saveRun(run);
+  renderRun();
+}
+
 document.addEventListener("keydown", event => {
   if (!run) return;
   // while the yard holds the feed, the room takes no input — except that
@@ -2118,24 +2152,7 @@ document.addEventListener("keydown", event => {
   // under it would advance the slate before the card banks, stamping the
   // card with an entry it was never fought at.
   if (event.code === "KeyP" && event.shiftKey && !event.repeat) {
-    if (settling > 0) {
-      runNote = '<span class="warn">A CARD IS STILL SETTLING — PASS ONCE IT LANDS</span>';
-      renderRun();
-      return;
-    }
-    const out = applyPass(run, new Date().toISOString());
-    if (!out.accepted) {
-      // accepted:false is applyPass saying this run cannot pass — a plain
-      // run, or a completed slate. Surfaced in the run's own words.
-      runNote = `<span class="warn">${esc(out.why.toUpperCase())}</span>`;
-      renderRun();
-      return;
-    }
-    run = out.run;
-    const passed = run.season.passed[run.season.passed.length - 1];
-    runNote = `PASSED <b>${esc(passed.venue)}</b> — ON THE RECORD, AND THE SLATE MOVES ON`;
-    if (runWritable) persistFailed = !saveRun(run);
-    renderRun();
+    passRun();
     return;
   }
   // Lineup choice is a front-office act, not a body verb. It is legal from
@@ -2649,8 +2666,8 @@ function renderRun() {
     // This is the kit-table lesson applied to history: a durable fact the
     // room cannot show is not yet a usable fact. Claim grade is deliberately
     // absent until an append-only local event can survive as its target.
-    // Still events only — no relationship, permission, obligation, or bond
-    // state is inferred here.
+    // This stanza stays the event receipt. The named relationship below is
+    // run-core's banking policy, never an inference this renderer performs.
     if (s.derivedEvents.length) {
       rows.push("DERIVED EVENTS · " + s.derivedEvents.map(event => {
         const actor = personOf(run, event.actor);
@@ -2666,6 +2683,30 @@ function renderRun() {
       }).join("<br>DERIVED EVENTS · "));
     } else {
       rows.push("DERIVED EVENTS · NONE BANKED YET");
+    }
+    // The event above says what replay proved. This is the run's named,
+    // directional consequence of that fact, kept separate on purpose:
+    // replay derivation belongs to the rules; relationship banking policy
+    // belongs here. Fulfillment never erases the source or the first stamp.
+    if (s.relationships.length) {
+      rows.push("RELATIONSHIPS · " + s.relationships.map(relationship => {
+        const debtor = personOf(run, relationship.from);
+        const creditor = personOf(run, relationship.to);
+        const minted = relationship.slate
+          ? ` · MINTED AT ${esc(relationship.slate.venue)}`
+          : "";
+        const fulfilled = relationship.status === "fulfilled"
+          ? ` · REPAID AT ${esc(relationship.fulfilledSlate.venue)}`
+          : "";
+        return `<b>${esc(debtor.name)} OWES ${esc(creditor.name)} A LIFE</b>`
+          + ` · ${relationship.status.toUpperCase()}${minted}${fulfilled}`
+          + ` · <button type="button" class="moment-back relationship-back"`
+          + ` data-match-id="${esc(relationship.origin.matchId)}"`
+          + ` data-command-index="${relationship.origin.commandIndex}">`
+          + `BACK TO FILE ${esc(relationship.origin.matchId)} / COMMAND ${relationship.origin.commandIndex}</button>`;
+      }).join("<br>RELATIONSHIPS · "));
+    } else {
+      rows.push("RELATIONSHIPS · NONE BANKED YET");
     }
     // The card log, newest first — the one view that shows shape rather
     // than totals. Struck cards appear here and NOWHERE in the numbers
@@ -2700,6 +2741,21 @@ function renderRun() {
         `NEXT · <b>${esc(n.venue)}</b> · ` +
         (n.host ? `HELD BY ${esc(n.host.toUpperCase())}` : "UNCLAIMED") + " · " +
         (n.sanction ? `SANCTIONED BY ${esc(n.sanction.toUpperCase())}` : "UNSANCTIONED"));
+      // Passing is still always available in its plain form. A dedication
+      // appears only when summary says both run-owned gates hold: an active
+      // directed debt and its named creditor's running recovery clock. No
+      // disabled mystery option; absence means illegal.
+      const plainPass = '<button type="button" class="run-option plain-pass">'
+        + 'PASS — MOVE THE SLATE; EVERY RUNNING CLOCK RECOVERS 1</button>';
+      const dedicated = se.dedicatedPasses.map(option => {
+        const debtor = personOf(run, option.from);
+        const creditor = personOf(run, option.to);
+        return `<button type="button" class="run-option dedicated-pass"`
+          + ` data-kind="${option.kind}" data-from="${esc(option.from)}" data-to="${esc(option.to)}">`
+          + `PASS — ${esc(debtor.name)} REPAYS THE LIFE: ${esc(creditor.name)} RECOVERS ${option.recovers}`
+          + "</button>";
+      }).join(" ");
+      rows.push(`PASS OPTIONS · ${plainPass}${dedicated ? ` ${dedicated}` : ""}`);
     }
     if (se.clocks.length) {
       rows.push("RECOVERING · " + se.clocks.map(([id, left]) =>
@@ -2834,9 +2890,23 @@ async function showArchivedSource(matchId, commandIndex) {
 }
 
 runInfo.addEventListener("click", event => {
-  const button = event.target.closest(".moment-back");
-  if (!button) return;
-  showArchivedSource(button.dataset.matchId, Number(button.dataset.commandIndex));
+  const sourceButton = event.target.closest(".moment-back");
+  if (sourceButton) {
+    showArchivedSource(
+      sourceButton.dataset.matchId, Number(sourceButton.dataset.commandIndex));
+    return;
+  }
+  const passButton = event.target.closest(".run-option");
+  if (!passButton) return;
+  if (passButton.classList.contains("dedicated-pass")) {
+    passRun({
+      kind: passButton.dataset.kind,
+      from: passButton.dataset.from,
+      to: passButton.dataset.to,
+    });
+  } else {
+    passRun();
+  }
 });
 
 /* The shop surface, which exists only while the body is at the table.

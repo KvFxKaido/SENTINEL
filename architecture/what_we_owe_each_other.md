@@ -402,6 +402,22 @@ Bank one named relationship on the run and render it in the room. Give it one
 room-layer permission or obligation. Prove save, restore, provenance and the
 visible gate. The yard remains unchanged.
 
+> **Landed 2026-08-17.** Run schema v6 banks `OWES A LIFE` from a certified
+> extraction: the beneficiary owes the actor, direction and stable identities
+> intact, with the filed `{matchId, commandIndex}` as its reopenable origin.
+> One active debt per directed pair preserves the first rescue rather than
+> turning repetition into progress. Its first obligation is the dedicated
+> `REPAY THE LIFE` pass: while the named creditor has a recovery clock, the
+> room offers it explicitly beside the always-available plain pass; committing
+> it advances that creditor by two stops, every other clock by one, and stamps
+> the relationship fulfilled at the pass's slate entry. The room keeps active
+> and fulfilled history visible and follows the source into the filed raw
+> command. Save, restore, older-run orphaning, gate negatives, fulfillment and
+> hand-edited forgeries are covered in `run-core`; the walkable harness carries
+> the certified extraction through source resolution, repayment and reload as
+> one case. No relationship state, pass dedication, combat arithmetic, purse,
+> match input, certified snapshot, yard, Worker or rules-core behavior changed.
+
 ### 5. The integrity verb
 
 Prototype feed-cutting as its own seam slice: deliberate unwitnessed status,
@@ -457,3 +473,8 @@ play:
 If the source cannot be reopened, it is not provenance. If the next decision
 does not change, it is a journal entry. If the yard changes before receiving a
 certified snapshot, it is a lie at the door.
+
+> **Demonstrable end to end as of 2026-08-17.** Step 4's walkable harness now
+> performs this entire sentence with the certified DRAG extraction, the named
+> `OWES A LIFE` debt, its resolving archive pointer, the visible dedicated
+> `REPAY THE LIFE` choice, fulfillment, and reload.
