@@ -385,11 +385,16 @@ The room must be able to take the player back to the source.
 > Witness is the author on the certified path: its own replay returns the
 > `derivedEvents` certificate field, and `/file` supplies the content-derived
 > match id. Run schema v5 translates tactical names through the fielded lineup
-> at bank time and stores the event under stable person ids as either certified
-> `{matchId, commandIndex}` provenance or a plainly labelled local claim. The
-> room renders both grades and **BACK TO FILE** opens `GET /matches/{id}` with
-> the pointed command visible. This is event provenance only: no relationship,
-> permission, obligation, bond name or bond ledger landed in this step.
+> at bank time and stores the event under stable person ids only with certified
+> `{matchId, commandIndex}` provenance. The room renders that grade and **BACK
+> TO FILE** opens `GET /matches/{id}` with the pointed command visible.
+> Unwitnessed cards and cards certified but not archived still count, while
+> banking no derived event; the yard's account remains visible only for the
+> current session. Claim grade is deferred because the append-only local event
+> log named in §5 does not exist yet, and the twelve-card recent buffer cannot
+> be the surviving target a claim pointer requires. This is event provenance
+> only: no relationship, permission, obligation, bond name or bond ledger
+> landed in this step.
 
 ### 4. The pairwise ledger
 

@@ -105,9 +105,11 @@
    the policy was already right and only its lifetime was wrong:
 
      certified   — the edge replayed the record and agreed. Counts.
-     unwitnessed — no witness reachable. Counts, and SAYS it counted
-                   unwitnessed; an unverified truth labeled beats a
-                   silent one.
+     unwitnessed — no durable filed attestation is available: the witness
+                   was unreachable, its infrastructure failed, or the
+                   archive refused the write. Counts, and SAYS it counted
+                   unwitnessed; an unverified truth labeled beats a silent
+                   one.
      struck      — the edge replayed the record and disagreed. Does not
                    count, and is tallied so the surface can say how
                    often that happened.
@@ -125,7 +127,7 @@
 // 2: the season joined the schema (slate, clocks, passes).
 // 3: the purse joined it (spent, bought).
 // 4: the faction door joined it (owned people, origins, lineup).
-// 5: replay-derived pairwise events joined it (stable ids + graded source).
+// 5: replay-derived pairwise events joined it (stable ids + certified source).
 // A stored run of any older
 // version takes the orphan path below — moved aside and said so, exactly
 // the situation that path was built and tested for. Hydrating a v2 run
@@ -358,7 +360,7 @@ export function openRun(at, roster = DEFAULT_ROSTER) {
     longest: 0,         // longest win streak this run
     mercy: { walked: 0, finished: 0 },
     wounds: {},         // stable person id -> times that person went down
-    eventLedger: {},    // stable actor id -> replay-derived pairwise events
+    eventLedger: {},    // stable actor id -> certified replay-derived events
     struck: 0,          // cards the edge disputed — banked by nobody
     unwitnessed: 0,     // cards counted without certification
     rules: null,        // the rules stamp this run's numbers were earned under
@@ -469,9 +471,9 @@ const isName = s =>
 const MATCH_ID = /^[0-9a-f]{32}$/;
 const DERIVED_KEYS = ["kind", "actor", "beneficiary", "commandIndex", "underFire", "reached"];
 
-// The tactical wire stays tactical: names, not stable ids. Only the rules
-// core authors this array on a certified card; an unwitnessed yard carries
-// the same shape as a claim. Translation happens once, in applyCard.
+// The tactical wire stays tactical: names, not stable ids. The yard may
+// return this array without a Witness, but only the Worker's replay can mint
+// a durable event in this slice. Translation happens once, in applyCard.
 function derivedEventValid(event) {
   return !!event && typeof event === "object" && !Array.isArray(event)
     && exactKeys(event, DERIVED_KEYS)
@@ -633,9 +635,13 @@ export function applyCard(run, card) {
     walked: card.ledger.walked,
     finished: card.ledger.finished,
     down: card.down.slice(),
-    // Receipts keep the tactical wire. The durable ledger below is the
-    // only place the fielded-name snapshot becomes stable person ids.
-    derivedEvents: card.derivedEvents.map(event => ({ ...event })),
+    // Receipts keep the Worker's tactical wire. An unwitnessed or struck
+    // card gets no retained event: the yard's in-session account has no
+    // append-only local origin yet, so preserving it here would mint a
+    // pointerless claim inside a twelve-card rolling buffer.
+    derivedEvents: card.cert === "certified"
+      ? card.derivedEvents.map(event => ({ ...event }))
+      : [],
     matchId: card.matchId,
     at: card.at,
   };
@@ -680,18 +686,19 @@ export function applyCard(run, card) {
     }
   }
 
-  // Bank rules-authored events; never compute one here. Certified entries
-  // point at the filed record and command. Unwitnessed entries are durable
-  // local claims and say so in their grade — neither is relationship state.
-  for (const { event, actor, beneficiary } of translatedEvents) {
+  // Bank rules-authored events; never compute one here. This ledger is
+  // certified-grade-only until an append-only local event log exists:
+  // without a surviving target, an unwitnessed event cannot honestly mint
+  // a claim pointer. The yard's account may still be shown in-session by the
+  // room, but it does not enter this run.
+  for (const { event, actor, beneficiary } of
+      (card.cert === "certified" ? translatedEvents : [])) {
     const banked = {
       kind: event.kind,
       beneficiary,
       underFire: event.underFire,
       reached: event.reached,
-      grade: card.cert === "certified"
-        ? { kind: "certified", matchId: card.matchId, commandIndex: event.commandIndex }
-        : { kind: "claim" },
+      grade: { kind: "certified", matchId: card.matchId, commandIndex: event.commandIndex },
       at: card.at,
     };
     if (run.season) {
@@ -958,16 +965,12 @@ function sane(r) {
     if (typeof event.at !== "string" || !event.at) return false;
     const grade = event.grade;
     if (!grade || typeof grade !== "object" || Array.isArray(grade)) return false;
-    if (grade.kind === "certified") {
-      return exactKeys(grade, ["kind", "matchId", "commandIndex"])
-        && matchIdValid(grade.matchId)
-        && intIn(grade.commandIndex, 0, MAX_DERIVED_PER_CARD - 1);
-    }
-    return grade.kind === "claim" && exactKeys(grade, ["kind"]);
+    return grade.kind === "certified"
+      && exactKeys(grade, ["kind", "matchId", "commandIndex"])
+      && matchIdValid(grade.matchId)
+      && intIn(grade.commandIndex, 0, MAX_DERIVED_PER_CARD - 1);
   })) return false;
-  const claimedEvents = allEvents.filter(({ event }) => event.grade.kind === "claim").length;
-  const certifiedEvents = allEvents.length - claimedEvents;
-  if (claimedEvents > r.unwitnessed * MAX_DERIVED_PER_CARD) return false;
+  const certifiedEvents = allEvents.length;
   if (certifiedEvents > (r.cards - r.unwitnessed) * MAX_DERIVED_PER_CARD) return false;
   if (!Array.isArray(r.recent) || r.recent.length > RECENT) return false;
   if (!r.recent.every(c =>
@@ -987,6 +990,9 @@ function sane(r) {
     && Array.isArray(c.derivedEvents) && c.derivedEvents.length <= MAX_DERIVED_PER_CARD
     && c.derivedEvents.every(event =>
       derivedEventValid(event) && ownedNames.has(event.actor) && ownedNames.has(event.beneficiary))
+    // Only a filed certificate gives an event a surviving source in this
+    // slice. applyCard writes an empty receipt for every other verdict.
+    && (c.cert === "certified" || c.derivedEvents.length === 0)
     && (c.cert === "certified" ? matchIdValid(c.matchId)
       : c.cert === "unwitnessed" ? c.matchId === null
       : c.matchId === null || matchIdValid(c.matchId))
@@ -1026,7 +1032,6 @@ function sane(r) {
   const sum = (list, of) => list.reduce((n, c) => n + of(c), 0);
   const wins = banked.filter(c => c.result === "win").length;
   const unwitnessed = banked.filter(c => c.cert === "unwitnessed").length;
-  const recentClaimEvents = sum(banked.filter(c => c.cert === "unwitnessed"), c => c.derivedEvents.length);
   const recentCertifiedEvents = sum(banked.filter(c => c.cert === "certified"), c => c.derivedEvents.length);
   if (r.cards + r.struck === r.recent.length) {
     if (banked.length !== r.cards) return false;
@@ -1038,7 +1043,7 @@ function sane(r) {
     // you have been, which is worse than a lie about money.
     if (sum(banked, c => c.walked) !== r.mercy.walked) return false;
     if (sum(banked, c => c.finished) !== r.mercy.finished) return false;
-    if (claimedEvents !== recentClaimEvents || certifiedEvents !== recentCertifiedEvents) return false;
+    if (certifiedEvents !== recentCertifiedEvents) return false;
   } else {
     // The only way an event can be missing is the buffer being full.
     if (r.cards + r.struck <= RECENT || r.recent.length !== RECENT) return false;
@@ -1049,7 +1054,7 @@ function sane(r) {
     if (r.struck < r.recent.length - banked.length) return false;
     if (r.mercy.walked < sum(banked, c => c.walked)) return false;
     if (r.mercy.finished < sum(banked, c => c.finished)) return false;
-    if (claimedEvents < recentClaimEvents || certifiedEvents < recentCertifiedEvents) return false;
+    if (certifiedEvents < recentCertifiedEvents) return false;
   }
   // The season, when there is one, all the way in — same reasoning as the
   // collections above: every field here reaches the room's surface or

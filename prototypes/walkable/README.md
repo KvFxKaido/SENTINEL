@@ -128,10 +128,13 @@ The room does not take the yard's word for it:
 - the returned **seed must match the one it dealt**, and the payload must
   be shaped like a replayable record — anything else is refused;
 - the record is sent to the witness Worker, whose **replay settles the
-  run**: `CERTIFIED AT THE EDGE`, `EDGE CERTIFICATE INCOMPLETE —
-  STRUCK`, `EDGE DISPUTES THE FEED — STRUCK` (struck cards never
-  count), or `UNCERTIFIED — NO WITNESS REACHABLE` (counted, and labeled
-  as taken on the yard's word).
+  run**: `CERTIFIED AT THE EDGE`; `EDGE DISPUTES THE FEED — STRUCK` for
+  a genuine 422 replay/rules dispute (struck cards never count); or a
+  specifically labelled `COUNTED UNWITNESSED` verdict for unreachable,
+  500, 507, or incomplete protocol/infrastructure outcomes. A full archive
+  says `CERTIFIED BUT NOT ARCHIVED — COUNTED UNWITNESSED · THE ARCHIVE IS
+  FULL`. A 400 remains a caller bug and the run refuses it rather than
+  recasting it as either a dispute or an unwitnessed card.
   On that certified path the Worker's own replay authors `derivedEvents`;
   the room never asks the page to prove its own derivation. The aftermath is
   checked the same way the outcome always was: a page
@@ -162,22 +165,25 @@ darkness composes cleanly by submitting to neither endpoint.
 
 On a successful filing, the card banks only the Worker's replay-authored
 `derivedEvents` and its returned id. The yard-computed array crosses the seam
-for immediate display and for the no-Witness case only; then it banks as a
-plainly labelled **CLAIM**, never as edge attestation. The two arrays are not
-adversarially compared because the certified path does not accept the page as
-an author at all.
+for immediate in-session display, but never enters the run ledger. The two
+arrays are not adversarially compared because the certified path does not
+accept the page as an author at all.
 
-A filed certificate that lacks `derivedEvents` is shown as **EDGE CERTIFICATE
-INCOMPLETE — STRUCK**; the room banks neither the card nor the yard's events.
+A filed certificate that lacks `derivedEvents` is counted unwitnessed with an
+explicit incomplete-attestation verdict; the room banks the card's ordinary
+run consequences but no derived event.
 
 Run schema v5 translates each event's tactical actor and beneficiary through
 the fielded lineup at banking time. The panel renders the resulting stable-id
 ledger as readable text. A certified extraction offers **BACK TO FILE**: the
 room fetches `GET /matches/{id}`, shows the archived record without importing
-the rules, and highlights the raw command at the stored index. A claim says
-that no Witness filed the card and that the entry is the yard's durable local
-account. No relationship, permission, obligation or bond state is created by
-this surface.
+the rules, and highlights the raw command at the stored index. Claim grade is
+deferred: the append-only local event log does not exist, and
+the twelve-card recent buffer cannot serve as a durable origin. When a card is
+unwitnessed or could not be archived, the seam may still show `YARD DERIVED`
+for the current session, followed by the honest line `DERIVED EVENTS NOT
+BANKED — NO DURABLE ORIGIN EXISTS YET`. No relationship, permission,
+obligation or bond state is created by this surface.
 
 On a season the door also deals the current entry's venue name
 (`&venue=…`) — renderer flavor the yard dresses for out of

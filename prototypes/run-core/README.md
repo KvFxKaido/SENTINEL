@@ -83,24 +83,28 @@ the yard wire: it is a receipt, not another durable identity ledger.
 ## The durable moment
 
 Run schema v5 adds `eventLedger`, keyed by the actor's stable person id. The
-run never derives an event. It accepts the exact tactical wire event returned
-on the card, translates `actor` and `beneficiary` through the lineup that was
-fielded for that card, and banks the stable ids once. As with wounds,
-`recent[].derivedEvents` remains a receipt in tactical names.
+run never derives an event. On a filed certificate it accepts the Worker's
+replay-authored tactical event, translates `actor` and `beneficiary` through
+the lineup that was fielded for that card, and banks the stable ids once.
+`recent[].derivedEvents` remains the certified receipt in tactical names.
 
 The one event in this slice is `extraction`. A certified entry carries
 `grade: {kind:"certified", matchId, commandIndex}`; the 32-hex match id points
-to a filed Witness record and the command index points inside it. An
-unwitnessed entry carries `grade: {kind:"claim"}` and is itself the surviving
-local event, plainly distinguished from edge attestation. Season entries also
-carry the same authored slate stamp as other banked facts.
+to a filed Witness record and the command index points inside it. The ledger
+is certified-grade-only in this slice. An unwitnessed or unarchived card still
+counts as a card, and the yard may show its derived account for the current
+session, but the run retains no derived event from it. Claim grade is deferred
+until the append-only local event log exists: the rolling twelve-card receipt
+is not a durable target, and no pointer is minted before its target survives.
+Season entries carry the same authored slate stamp as other banked facts.
 
 `sane()` validates the ledger all the way in: every key and beneficiary is an
 owned stable person id, nobody names themselves, grades have exact shapes,
-certified sources have plausible filed ids and command indices, claim and
-certified counts agree with the retained receipts, and slate stamps resolve
-to authored entries already passed. This is an event ledger, not a
-relationship ledger; it grants no permissions and computes no bond state.
+every grade is certified with a plausible filed id and command index,
+certified counts agree with the retained receipts, non-certified receipts
+carry no derived events, and slate stamps resolve to authored entries already
+passed. This is an event ledger, not a relationship ledger; it grants no
+permissions and computes no bond state.
 
 ## The slate (season-lite)
 
@@ -233,7 +237,9 @@ already right and only its lifetime was wrong.
 An unverified truth that says it is unverified beats a silent one. A card
 the edge *disputes* is not a card, but a run that quietly discarded
 disputes would look identical to one that never had any — so the count is
-kept.
+kept. "Banked" in this table means the card's run consequences; only a
+certified card may also bank replay-derived events. Infrastructure failures
+never mint claim-grade events in this slice.
 
 `applyCard` returns two different negatives on purpose:
 

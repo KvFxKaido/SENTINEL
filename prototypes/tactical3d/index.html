@@ -2246,8 +2246,9 @@ document.getElementById("ovwalk").onclick = () => {
     ledger: lastLedger,
     down: lastDown,
     // This is the yard's own rules-core derivation. The room may display it
-    // and may bank it as a labeled claim if no Witness answers; on the filed
-    // path the Worker's replay-authored derivedEvents replace it.
+    // in-session, but does not bank it if no Witness answers: claim grade
+    // waits for an append-only local origin. On the filed path the Worker's
+    // replay-authored derivedEvents replace it.
     derivedEvents: lastDerived,
     // the squad this card was actually fought by, posted home so the
     // world can check it against what it dealt rather than assume

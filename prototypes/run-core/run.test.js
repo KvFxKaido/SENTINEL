@@ -286,7 +286,7 @@ test("certified derived events bank under stable ids with a filed command source
   });
 });
 
-test("unwitnessed derived events bank as claims, plainly distinct from certified grade", () => {
+test("unwitnessed derived events are not banked before a durable local origin exists", () => {
   const event = {
     kind: "extraction", actor: "VESPER", beneficiary: "KOA",
     commandIndex: 0, underFire: false, reached: true,
@@ -295,15 +295,11 @@ test("unwitnessed derived events bank as claims, plainly distinct from certified
     cert: "unwitnessed", derivedEvents: [event], rules: null,
   }));
   assert.equal(out.counted, true);
-  assert.deepEqual(out.run.eventLedger.vesper[0], {
-    kind: "extraction",
-    beneficiary: "koa",
-    underFire: false,
-    reached: true,
-    grade: { kind: "claim" },
-    at: AT,
-  });
-  assert.equal(out.run.recent[0].derivedEvents[0].actor, "VESPER");
+  assert.deepEqual(out.run.eventLedger, {},
+    "a rolling receipt is not the append-only event target claim grade requires");
+  assert.deepEqual(out.run.recent[0].derivedEvents, [],
+    "the yard's in-session account does not become stored run history");
+  assert.deepEqual(summary(out.run).derivedEvents, []);
   assert.equal(out.run.recent[0].matchId, null);
 });
 
@@ -550,7 +546,7 @@ test("stored derived-event ledgers validate owned ids, grades, sources, and exac
     changed(run => { run.eventLedger.sable[0].beneficiary = "sable"; }),
     changed(run => { run.eventLedger.sable[0].grade.matchId = "short"; }),
     changed(run => { run.eventLedger.sable[0].grade.commandIndex = -1; }),
-    changed(run => { run.eventLedger.sable[0].grade = { kind: "claim", matchId: MATCH_ID }; }),
+    changed(run => { run.eventLedger.sable[0].grade = { kind: "claim" }; }),
     changed(run => { run.eventLedger.sable[0].relationship = "not this slice"; }),
     changed(run => { run.eventLedger.sable[0].reached = false; }),
   ];
@@ -561,6 +557,23 @@ test("stored derived-event ledgers validate owned ids, grades, sources, and exac
 
   memoryStore({ [RUN_KEY]: JSON.stringify(good) });
   assert.equal(loadRun(AT).how, "restored");
+});
+
+test("stored unwitnessed receipts cannot smuggle in a pointerless derived event", () => {
+  const event = {
+    kind: "extraction", actor: "VESPER", beneficiary: "KOA",
+    commandIndex: 0, underFire: false, reached: true,
+  };
+  const good = applyCard(openRun(AT), card({
+    cert: "unwitnessed", derivedEvents: [event], rules: null,
+  })).run;
+  memoryStore({ [RUN_KEY]: JSON.stringify(good) });
+  assert.equal(loadRun(AT).how, "restored");
+
+  const minted = JSON.parse(JSON.stringify(good));
+  minted.recent[0].derivedEvents = [event];
+  memoryStore({ [RUN_KEY]: JSON.stringify(minted) });
+  assert.equal(loadRun(AT).how, "orphaned");
 });
 
 test("the check goes inside the collections, not just around them", () => {

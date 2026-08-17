@@ -171,8 +171,10 @@ diverge — and the witness certificate carries the same three, so the room
 strikes a card whose aftermath the edge disagrees with.
 
 It also posts the rules core's local `derivedEvents` array. That array is
-useful for the yard's immediate aftermath and becomes a labelled claim if no
-Witness can answer; it is not the authority on a certified card. **FILE THE
+useful for the yard's immediate aftermath but is not retained by the run when
+no Witness can answer or the archive cannot store the card. Claim grade waits
+for an append-only local event target; the rolling recent-card buffer cannot
+back it. The local array is not the authority on a certified card. **FILE THE
 RECORD** calls `/file`, and after filing the post-match card replaces the local
 display with the Worker's own replay-authored array, rendering every event
 beside its durable `(match id, command index)` address.

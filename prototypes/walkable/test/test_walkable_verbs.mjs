@@ -695,10 +695,84 @@ try {
     plainRacePanel);
   await page.unroute(/\/file$/);
 
+  // HTTP status is part of the verdict vocabulary. /file certifies before
+  // it touches the archive, so its capacity and KV failures cannot be
+  // collapsed into the 422 replay-dispute path.
+  await page.route(/\/file$/, route => route.fulfill({
+    status: 507,
+    contentType: "application/json",
+    body: JSON.stringify({
+      filed: false,
+      error: "the archive is full — this is a prototype ledger, not a product one",
+    }),
+  }));
+  const fullFrame = await walkPlainDoor();
+  check("a plain run deals a card to the full archive", fullFrame !== null);
+  if (!fullFrame) throw new Error("the full-archive door never dealt");
+  await postPlainCard(fullFrame, "archive-full");
+  const fullSettled = await page.waitForFunction(() =>
+    /CERTIFIED BUT NOT ARCHIVED/.test(document.getElementById("seaminfo").textContent),
+  null, { timeout: 10000 }).then(() => true, () => false);
+  const fullPanel = (await page.textContent("#seaminfo")).replace(/\s+/g, " ").trim();
+  check("a 507 banks unwitnessed and names the archive limit",
+    fullSettled
+      && /COUNTED UNWITNESSED/.test(fullPanel)
+      && /THE ARCHIVE IS FULL/.test(fullPanel)
+      && !/DISPUTES|STRUCK/.test(fullPanel)
+      && /^3:3–0:210:0:0:0$/.test(await ds("run")),
+    `${fullPanel} · ${await ds("run")}`);
+  await page.unroute(/\/file$/);
+
+  await page.route(/\/file$/, route => route.fulfill({
+    status: 500,
+    contentType: "application/json",
+    body: JSON.stringify({ error: "certify failed" }),
+  }));
+  const failedFrame = await walkPlainDoor();
+  check("a plain run deals a card before a Worker failure", failedFrame !== null);
+  if (!failedFrame) throw new Error("the Worker-failure door never dealt");
+  await postPlainCard(failedFrame, "worker-failed");
+  const failedSettled = await page.waitForFunction(() =>
+    /WITNESS INFRASTRUCTURE FAILURE/.test(document.getElementById("seaminfo").textContent),
+  null, { timeout: 10000 }).then(() => true, () => false);
+  const failedPanel = (await page.textContent("#seaminfo")).replace(/\s+/g, " ").trim();
+  check("a 500 banks unwitnessed instead of inventing a dispute",
+    failedSettled
+      && /COUNTED UNWITNESSED/.test(failedPanel)
+      && /certify failed/.test(failedPanel)
+      && !/DISPUTES|STRUCK/.test(failedPanel)
+      && /^4:4–0:280:0:0:0$/.test(await ds("run")),
+    `${failedPanel} · ${await ds("run")}`);
+  await page.unroute(/\/file$/);
+
+  await page.route(/\/file$/, route => route.fulfill({
+    status: 422,
+    contentType: "application/json",
+    body: JSON.stringify({
+      filed: false, certified: false, error: "record does not replay",
+      rules: "stub-rules", applied: 0, submitted: 1,
+    }),
+  }));
+  const disputedFrame = await walkPlainDoor();
+  check("a plain run deals a card to the disputing edge", disputedFrame !== null);
+  if (!disputedFrame) throw new Error("the dispute door never dealt");
+  await postPlainCard(disputedFrame, "record-diverged");
+  const disputedSettled = await page.waitForFunction(() =>
+    /EDGE DISPUTES THE FEED — STRUCK/.test(document.getElementById("seaminfo").textContent),
+  null, { timeout: 10000 }).then(() => true, () => false);
+  const disputedPanel = (await page.textContent("#seaminfo")).replace(/\s+/g, " ").trim();
+  check("a genuine 422 replay dispute remains struck",
+    disputedSettled
+      && /record does not replay/.test(disputedPanel)
+      && /NOT BANKED — CARD STRUCK/.test(disputedPanel)
+      && /^4:4–0:280:0:0:1$/.test(await ds("run")),
+    `${disputedPanel} · ${await ds("run")}`);
+  await page.unroute(/\/file$/);
+
   // A legacy /file response can attest and archive the match while saying
   // nothing about derived events. That is not evidence for an empty array,
-  // and the yard's local array cannot be promoted into an edge-authored one:
-  // the room strikes the incomplete certificate and says exactly why.
+  // and the yard's local array cannot be promoted into an edge-authored one.
+  // The protocol gap is counted unwitnessed, not rewritten as a dispute.
   await page.route(/\/file$/, route => route.fulfill(fileReply(route, {
     id: "22222222222222222222222222222222",
     includeDerivedEvents: false,
@@ -708,14 +782,15 @@ try {
   if (!legacyFrame) throw new Error("the legacy-edge door never dealt");
   await postPlainCard(legacyFrame, "legacy-edge");
   const legacySettled = await page.waitForFunction(() =>
-    /EDGE CERTIFICATE INCOMPLETE — STRUCK/.test(
+    /CERTIFICATE EVENT ATTESTATION INCOMPLETE/.test(
       document.getElementById("seaminfo").textContent),
   null, { timeout: 10000 }).then(() => true, () => false);
   const legacyPanel = (await page.textContent("#seaminfo")).replace(/\s+/g, " ").trim();
-  check("a certificate without derivedEvents is struck legibly",
+  check("a certificate without derivedEvents counts unwitnessed without minting an event",
     legacySettled && /derivedEvents missing/.test(legacyPanel)
-      && /NOT BANKED — CARD STRUCK/.test(legacyPanel)
-      && /^2:2–0:140:0:0:1$/.test(await ds("run")),
+      && /COUNTED UNWITNESSED/.test(legacyPanel)
+      && !/DISPUTES|STRUCK/.test(legacyPanel)
+      && /^5:5–0:350:0:0:1$/.test(await ds("run")),
     `${legacyPanel} · ${await ds("run")}`);
   await page.unroute(/\/file$/);
 
@@ -821,14 +896,15 @@ try {
     /POINTED COMMAND 6/.test(source)
       && source.includes(JSON.stringify(DRAG_GOLDEN.record[6])), source);
 
-  // Same yard fact, no Witness: the local event survives, but only as a
-  // claim, and the panel explains exactly what that grade does not prove.
+  // Same yard fact, no Witness: the yard may show its in-session account,
+  // but run-core banks no event. Claim grade waits for an append-only local
+  // origin rather than pointing into the twelve-card rolling receipt.
   await page.unroute(/\/file$/);
   await page.route(/\/file$/, route => route.abort("failed"));
-  const claimFrame = await walkPlainDoor();
-  check("the room deals an unwitnessed completed-drag card", claimFrame !== null);
-  if (!claimFrame) throw new Error("the claim-grade door never dealt");
-  await claimFrame.evaluate(value => {
+  const unwitnessedFrame = await walkPlainDoor();
+  check("the room deals an unwitnessed completed-drag card", unwitnessedFrame !== null);
+  if (!unwitnessedFrame) throw new Error("the unwitnessed door never dealt");
+  await unwitnessedFrame.evaluate(value => {
     window.parent.postMessage({
       type: "sentinel-seam-result",
       seed: "1", record: value.record, result: value.result,
@@ -842,13 +918,17 @@ try {
   await page.waitForFunction(() =>
     /UNCERTIFIED/.test(document.getElementById("seaminfo").textContent),
   null, { timeout: 10000 });
-  const claimRun = await page.evaluate(() =>
+  const unwitnessedRun = await page.evaluate(() =>
     JSON.parse(localStorage.getItem("sentinel.run") ?? "null"));
-  const claimEvent = claimRun?.eventLedger?.sable?.[1];
-  check("the unwitnessed completed drag banks as a labeled claim",
-    claimEvent?.grade?.kind === "claim"
-      && /CLAIM — NO WITNESS FILED THIS CARD/.test(await panelText()),
-    `${JSON.stringify(claimEvent)} · ${await panelText()}`);
+  const unwitnessedSeam = (await page.textContent("#seaminfo")).replace(/\s+/g, " ").trim();
+  const allBankedEvents = Object.values(unwitnessedRun?.eventLedger ?? {}).flat();
+  check("the unwitnessed completed drag honestly banks no derived event",
+    allBankedEvents.length === 1
+      && allBankedEvents[0]?.grade?.kind === "certified"
+      && !allBankedEvents.some(event => event?.grade?.kind === "claim")
+      && /YARD DERIVED · SABLE → KOA/.test(unwitnessedSeam)
+      && /DERIVED EVENTS NOT BANKED — NO DURABLE ORIGIN EXISTS YET/.test(unwitnessedSeam),
+    `${JSON.stringify(allBankedEvents)} · ${unwitnessedSeam}`);
   await page.unroute(/\/file$/);
   await page.unroute(new RegExp(`/matches/${DRAG_ID}$`));
 
