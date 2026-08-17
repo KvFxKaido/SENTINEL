@@ -675,6 +675,80 @@ test("stored relationship forgeries are orphaned all the way through repayment",
     "a certified extraction cannot restore with its deterministically banked debt erased");
 });
 
+test("a relationship minted inside its predecessor's active season interval is orphaned", () => {
+  let run = applyCard(openSeason(AT, slate()), card({
+    derivedEvents: [extraction()],
+  })).run;
+  const secondAt = "2026-08-05T12:00:00.000Z";
+  run = applyCard(run, card({
+    seed: "fadedcab", matchId: MATCH_ID_2, at: secondAt,
+    derivedEvents: [extraction({ commandIndex: 9 })],
+    ledger: { walked: 0, finished: 0, lost: 1 }, down: ["SABLE"],
+  })).run;
+  run = applyPass(run, "2026-08-05T13:00:00.000Z", lifeDedication()).run;
+  assert.equal(run.relationships.length, 1,
+    "the reducer suppresses the second rescue while the first debt is active");
+  memoryStore({ [RUN_KEY]: JSON.stringify(run) });
+  assert.equal(loadRun(AT).how, "restored",
+    "the reducer-authored history beneath the forged mint must remain valid");
+
+  const overlapped = JSON.parse(JSON.stringify(run));
+  overlapped.relationships.push({
+    kind: "owes-a-life",
+    from: "koa",
+    to: "sable",
+    origin: { matchId: MATCH_ID_2, commandIndex: 9 },
+    status: "active",
+    at: secondAt,
+    slate: {
+      idx: 1, venue: "THE COLD COURT", host: null, sanction: "covenant",
+    },
+  });
+  memoryStore({ [RUN_KEY]: JSON.stringify(overlapped) });
+  assert.equal(loadRun(AT).how, "orphaned",
+    "a later fulfillment cannot retroactively make an in-interval mint possible");
+});
+
+test("a fulfilled season debt can be re-minted by a post-fulfillment extraction", () => {
+  let run = applyCard(openSeason(AT, slate()), card({
+    derivedEvents: [extraction()],
+    ledger: { walked: 0, finished: 0, lost: 1 }, down: ["SABLE"],
+  })).run;
+  run = applyPass(run, "2026-08-05T13:00:00.000Z", lifeDedication()).run;
+  run = applyCard(run, card({
+    seed: "fadedcab", matchId: MATCH_ID_2, at: "2026-08-06T12:00:00.000Z",
+    derivedEvents: [extraction({ commandIndex: 9 })],
+  })).run;
+
+  assert.deepEqual(run.relationships.map(relationship => ({
+    status: relationship.status,
+    minted: relationship.slate.idx,
+    fulfilled: relationship.fulfilledSlate?.idx,
+  })), [
+    { status: "fulfilled", minted: 0, fulfilled: 1 },
+    { status: "active", minted: 2, fulfilled: undefined },
+  ]);
+  memoryStore({ [RUN_KEY]: JSON.stringify(run) });
+  assert.equal(loadRun(AT).how, "restored");
+});
+
+test("plain runs order repeated rescues by ledger append, not opaque at strings", () => {
+  let run = applyCard(openRun(AT), card({
+    at: "z-later-looking", derivedEvents: [extraction()],
+  })).run;
+  run = applyCard(run, card({
+    seed: "fadedcab", matchId: MATCH_ID_2, at: "a-earlier-looking",
+    derivedEvents: [extraction({ commandIndex: 9 })],
+  })).run;
+
+  assert.equal(run.relationships.length, 1,
+    "without passes, the first active relationship covers the later appended rescue");
+  assert.deepEqual(run.relationships[0].origin, { matchId: MATCH_ID, commandIndex: 6 });
+  memoryStore({ [RUN_KEY]: JSON.stringify(run) });
+  assert.equal(loadRun(AT).how, "restored",
+    "plain-run timestamps are retained labels, not a chronology sane() can prove");
+});
+
 test("stored unwitnessed receipts cannot smuggle in a pointerless derived event", () => {
   const event = {
     kind: "extraction", actor: "VESPER", beneficiary: "KOA",

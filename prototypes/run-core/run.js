@@ -1153,6 +1153,13 @@ function sane(r) {
         ? relationship.slate === undefined
         : sameStamp(event.slate, relationship.slate)));
   })) return false;
+  const relationshipsByPair = new Map();
+  for (const relationship of r.relationships) {
+    const pair = `${relationship.from}->${relationship.to}`;
+    const history = relationshipsByPair.get(pair) ?? [];
+    history.push(relationship);
+    relationshipsByPair.set(pair, history);
+  }
   if (!Array.isArray(r.recent) || r.recent.length > RECENT) return false;
   if (!r.recent.every(c =>
     c && typeof c === "object"
@@ -1307,6 +1314,29 @@ function sane(r) {
             || !sameFraming(
               relationship.fulfilledSlate, entries[relationship.fulfilledSlate.idx]))) return false;
     }
+    // A directed pair's history is a sequence of non-overlapping active
+    // intervals, not merely a collection with one active entry at restore.
+    // Order by the mint point the reducer actually writes. The command
+    // index is only a deterministic tie-break inside one card; applyCard
+    // cannot mint the same pair twice there because the first debt is
+    // already active.
+    //
+    // The bound is strict. applyPass fulfills at the current position and
+    // then advances it, so the earliest card capable of re-minting that
+    // pair is stamped at the following slate index. A successor at or
+    // before the fulfillment index was rescued while its predecessor was
+    // still active and could not have been minted by applyCard.
+    for (const history of relationshipsByPair.values()) {
+      const byMint = history.slice().sort((a, b) =>
+        a.slate.idx - b.slate.idx
+        || a.origin.commandIndex - b.origin.commandIndex);
+      for (let i = 1; i < byMint.length; i++) {
+        const predecessor = byMint[i - 1];
+        const successor = byMint[i];
+        if (predecessor.status !== "fulfilled"
+            || successor.slate.idx <= predecessor.fulfilledSlate.idx) return false;
+      }
+    }
     const dedicatedPasses = s.passed.filter(pass => pass.dedication !== undefined);
     const fulfilled = r.relationships.filter(relationship => relationship.status === "fulfilled");
     // Repayment history is two views of one run-owned act: the pass says
@@ -1349,7 +1379,12 @@ function sane(r) {
     if (r.cards + s.passed.length !== s.pos) return false;
   } else {
     // And a plain run's cards carry no stamp at all — a stamp with no
-    // slate to answer to is unfalsifiable, so it does not restore.
+    // slate to answer to is unfalsifiable, so it does not restore. Its
+    // `at` strings are caller-authored labels, not an ordered clock, and
+    // applyPass is unavailable without a season. The honest lifecycle
+    // claim here is therefore only what applyCard can write: at most one
+    // active relationship per pair, whose origin precedes every later
+    // same-pair event in that actor's append-only event ledger.
     if (!r.recent.every(c => c.slate === undefined)) return false;
     if (!allEvents.every(({ event }) => event.slate === undefined)) return false;
     if (!r.relationships.every(relationship =>

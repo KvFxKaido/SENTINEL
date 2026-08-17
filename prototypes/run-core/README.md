@@ -134,7 +134,16 @@ copy of prose or a rolling receipt. `sane()` requires that pointer, direction,
 time, and mint stamp to resolve to the stable-id extraction in `eventLedger`.
 It also requires owned distinct people, the exact lifecycle shape, a unique
 origin, at most one active `owes-a-life` per directed pair, and — after
-repayment — a matching dedicated pass at the exact fulfillment stamp.
+repayment — a matching dedicated pass at the exact fulfillment stamp. On a
+season, each directed pair's entries are ordered by mint slate index (with the
+origin command index as the within-card tie-break), and every successor must
+be minted strictly after its predecessor's fulfillment slate index. The bound
+is strict because `applyPass` fulfills at the current index and then advances
+the position; only a card at the following or a later index can mint again.
+On a plain run, `at` is an opaque caller-authored string rather than a clock and
+there is no legal pass, so the module can honestly enforce only the reducer's
+append order: one active relationship per pair, rooted at the first uncovered
+event and covering later same-pair events.
 
 ### Recorded relationship decisions — 2026-08-17, pairwise-ledger step 4
 
