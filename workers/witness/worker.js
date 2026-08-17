@@ -35,6 +35,7 @@
 import { S, bindIO, restart, endPlayerTurn, replayMatch, formatEvent, RATING, rosterValid, rosterKey } from "../../prototypes/tactical-core/rules.js";
 import { SHOWRUNNER_GOLDEN } from "../../prototypes/tactical-core/showrunner-golden.js";
 import { ROSTER_GOLDEN } from "../../prototypes/tactical-core/roster-golden.js";
+import { DRAG_GOLDEN } from "../../prototypes/tactical-core/drag-golden.js";
 
 // FNV-1a, mirroring rules.test.js — the certificate must be the same hash
 // the goldens assert or it certifies nothing.
@@ -63,18 +64,21 @@ function serialized(fn) {
 // carry it, and a record claiming a different stamp is refused before
 // replay — its faithfulness under these rules would be meaningless.
 //
-// THREE playouts, one stamp: the deadbeef golden exercises the base game,
+// FOUR playouts, one stamp: the deadbeef golden exercises the base game,
 // the showrunner golden exercises the twist grammar and card math a
 // no-input playout can never reach, and the roster golden exercises the
-// second certified input — without each of them, a change in that area
-// would move nothing and old records would silently certify under new
-// terms. Each golden contributes its transcript fingerprint AND its
-// outcome (result, rating, purse): rating is deliberately never a
+// second certified input. The drag golden exercises the first explicit
+// two-person record verb and its board/rating consequences — without
+// each of them, a change in that area would move nothing and old records
+// would silently certify under new terms. Each golden contributes its
+// transcript fingerprint AND its outcome (result, rating, purse): rating
+// is deliberately never a
 // transcript line, so payout behavior could otherwise change under an
 // unchanged stamp (caught in review). Extending the stamp's INPUTS is
 // the one legitimate way the stamp changes without behavior changing;
-// it happened when twists landed, it happens again here, and both times
-// deliberately. Note what this does NOT do: the stamp covers how a
+// it happened when twists and rosters landed, it happens again here, and
+// each time deliberately. Note what this does NOT do: the stamp covers
+// how a
 // roster is APPLIED, never which roster a given card fielded — that is
 // the certificate's own field, because a wound is not a deployment.
 // Computed once per isolate; callers must hold the mutex (it runs the
@@ -100,9 +104,15 @@ async function rulesFingerprint() {
       fnv(rosterLines.join("\n")), S.gameOver, S.rating,
       S.rating * RATING.pursePerPoint, rosterKey(S.roster), played.faithful,
     ];
+    const dragLines = captureLines();
+    await replayMatch(DRAG_GOLDEN.seed, DRAG_GOLDEN.record);
+    const drag = [
+      fnv(dragLines.join("\n")), S.gameOver, S.rating,
+      S.rating * RATING.pursePerPoint,
+    ];
     rulesStamp = fnv([
       base.fingerprint, base.result, base.rating, base.purse,
-      ...twist, ...roster,
+      ...twist, ...roster, ...drag,
     ].join(":"));
   }
   return rulesStamp;
@@ -223,7 +233,7 @@ const SEED_RE = /^[0-9a-fA-F]{1,8}$/;
 // gatekeeper stays the dispatcher in the rules core — if the grammar
 // grows a verb this table lags on, witness_check's played-match round
 // trip fails loudly at deploy time, not silently in production.
-const ARITY = { move: 4, shoot: 3, finish: 3, ow: 2, spare: 1, end: 1, twist: 2 };
+const ARITY = { move: 4, drag: 5, shoot: 3, finish: 3, ow: 2, spare: 1, end: 1, twist: 2 };
 function validRecord(record) {
   return Array.isArray(record) && record.length <= 1024 &&
     record.every(c => Array.isArray(c) && c.length === ARITY[c[0]] &&

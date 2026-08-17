@@ -204,7 +204,7 @@
       <div id="roster"></div>
     </div>
     <div class="box">
-      <h2>FIRING SOLUTION</h2>
+      <h2>ACTION READOUT</h2>
       <div id="shotinfo"><span class="dim">select an operative — hover a hostile</span></div>
     </div>
     <div class="box">
@@ -223,7 +223,7 @@
       A Steel Syndicate crew is stripping the relay for parts.
       Lattice wants them gone before the grid sector browns out.
       No reinforcements. No extraction timer. Just the yard.<br><br>
-      <kbd>click</kbd> select / move &nbsp; <kbd>tab</kbd> next unit &nbsp;
+      <kbd>click</kbd> select / move / drag a down teammate &nbsp; <kbd>tab</kbd> next unit &nbsp;
       <kbd>F</kbd> shoot &nbsp; <kbd>Y</kbd> overwatch &nbsp; <kbd>⏎</kbd> end turn<br>
       <kbd>Q</kbd>/<kbd>E</kbd> rotate camera &nbsp; <kbd>P</kbd> display: LCD / crunch / clean &nbsp;
       <kbd>R</kbd>/<kbd>shift+R</kbd> new / replay seed<br>
@@ -262,8 +262,8 @@ import * as THREE from "./vendor/three.module.js";
 import {
   S, W, H, FLOOR, HALF, FULL, RATING, TWISTS,
   bindIO, restart as rulesRestart, formatEvent,
-  selected, living, unitAt, solution, los, reachable, coveringTiles,
-  selectUnit, cycleSelect, tryMove, tryShoot, tryFinish, spare, setOverwatch, endPlayerTurn,
+  selected, living, unitAt, downAt, solution, los, reachable, dragReachable, coveringTiles,
+  selectUnit, cycleSelect, tryMove, tryDrag, tryShoot, tryFinish, spare, setOverwatch, endPlayerTurn,
   rosterValid, rosterKey, CANON_ROSTER, OP_MAX_HP,
 } from "../tactical-core/rules.js";
 import { directorTick } from "../tactical-core/director.js";
@@ -276,6 +276,7 @@ import {
 // ---- renderer-owned state --------------------------------------
 // Transient presentation only. Anything the rules need to know lives in S.
 var hoverTile = null;
+var dragBodyId = null;    // presentation selection; the committed command names the body again
 var tracers = [];        // {x0,y0,x1,y1,until,mesh?}
 var curSeed = 0;
 var directorArm = false; // a between-rounds window is opening — let the house read the board
@@ -666,6 +667,7 @@ function onEvent(ev) {
 
   switch (ev.type) {
     case "reset":
+      dragBodyId = null;
       logEl.innerHTML = "";
       matchLines = [];
       clearTracers();
@@ -719,7 +721,7 @@ function onEvent(ev) {
     // the player's round is opening — arm the director; it speaks on the
     // first quiet frame (enemyTurn emits this while S.busy still holds)
     case "turn":   sfx.turn(); if (ev.side === "op") directorArm = true; break;
-    case "select": sfx.select(); showSolution(null, null); break;
+    case "select": dragBodyId = null; sfx.select(); showSolution(null, null); break;
     // the AI sets overwatch constantly; only chirp for the player's own
     case "overwatch-set": if (ev.unit.side === "op") sfx.select(); break;
     // the house speaks: sting + the broadcast takes the screen; the
@@ -832,6 +834,7 @@ const COL = {
   tile:      [0x17231a, 0x131e16],     // checkerboard base
   range:     0x235a72,                 // reachable with 1 AP
   dash:      0x5f4718,                 // reachable only by spending 2
+  drag:      0x315e4b,                 // whole-activation extraction range
   hover:     0x2f7a4c,
   covering:  0x6a4a1a,                 // cover currently shielding a target
   op:        0x5ccfff,
@@ -1578,7 +1581,14 @@ function tileFromEvent(e) {
   ndc.y = -((e.clientY - r.top) / r.height) * 2 + 1;
   raycaster.setFromCamera(ndc, camera);
   const bodies = [];
-  for (const u of S.units) if (u.alive && u._obj) bodies.push(u._obj.userData.spr);
+  for (const u of S.units) {
+    // Fallen operatives remain bodies in the yard, and DRAG begins by
+    // choosing one explicitly. Hostile corpses are still scenery: the
+    // verb's beneficiary is always one of your own people.
+    if ((u.alive || (!u.alive && u.hp === 0 && u.side === "op")) && u._obj?.visible) {
+      bodies.push(u._obj.userData.spr);
+    }
+  }
   // walk the sorted hits: a sprite hit only counts on an opaque texel, so
   // clicks through a sprite's transparent corners fall to what's behind
   for (const hit of raycaster.intersectObjects([floor, ...bodies], false)) {
@@ -1734,12 +1744,20 @@ const tileColor = new THREE.Color();
 
 function syncScene() {
   const u = selected();
+  const body = S.units.find(v => v.id === dragBodyId && !v.alive && v.hp === 0 && v.side === "op") ?? null;
   const colors = new Array(W * H);
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     colors[y * W + x] = COL.tile[(x + y) & 1];
   }
 
-  if (u && S.turn === "op" && !S.busy && !S.targetMode && !S.decision && u.ap > 0) {
+  const dragRange = body ? dragReachable(u, body) : null;
+  if (dragRange) {
+    for (const k of dragRange.cost.keys()) {
+      const [x, y] = k.split(",").map(Number);
+      if (x === u.x && y === u.y) continue;
+      colors[y * W + x] = COL.drag;
+    }
+  } else if (u && S.turn === "op" && !S.busy && !S.targetMode && !S.decision && u.ap > 0) {
     const { cost } = reachable(u, u.mobility * u.ap);
     for (const k of cost.keys()) {
       const [x, y] = k.split(",").map(Number);
@@ -1776,7 +1794,8 @@ function syncScene() {
     // picking, targeting, and every other rules-facing surface.
     o.visible = v.alive || d.locked?.name === "death" || d.downed;
     if (!o.visible) continue;
-    d.ring.visible = v.alive && v.id === S.selectedId && S.turn === "op";
+    d.ring.visible = S.turn === "op" && ((v.alive && v.id === S.selectedId)
+      || (!v.alive && v.id === dragBodyId));
     d.ow.visible = v.alive && v.overwatch;
     d.badge.visible = v.alive;
     d.ghost.material.opacity = v.yielded ? 0.2 : 0.35;
@@ -1988,11 +2007,51 @@ function showSolution(att, def) {
     `<span class="dim">crit chance</span> ${sol.critPct}% &nbsp; <span class="dim">dmg</span> 3–5 (+3 crit)`;
 }
 
+function dragBody() {
+  return S.units.find(v => v.id === dragBodyId && !v.alive && v.hp === 0 && v.side === "op") ?? null;
+}
+
+function showDrag(att, body, tile = null) {
+  const el = document.getElementById("shotinfo");
+  const name = u => `<span class="${u.side}">${u.name}</span>`;
+  const range = dragReachable(att, body);
+  if (!range) {
+    el.innerHTML = `${name(att)} → ${name(body)}<br>` +
+      '<span class="dim">drag needs an adjacent down teammate and a full activation</span>';
+    return;
+  }
+  const max = Math.floor(att.mobility / 2);
+  const cost = tile ? range.cost.get(`${tile[0]},${tile[1]}`) : undefined;
+  el.innerHTML = `${name(att)} → ${name(body)} &nbsp; <span class="pct">DRAG</span><br>` +
+    `<span class="dim">whole activation · range ${max} · overwatch fires on every step</span>` +
+    (tile ? `<br><span class="${cost > 0 ? "op" : "dim"}">${cost > 0 ? "click to commit" : "destination out of drag range"}</span>` : "");
+}
+
+function armDrag(att, body) {
+  if (!dragReachable(att, body)) { showDrag(att, body); return false; }
+  dragBodyId = body.id;
+  S.targetMode = false;
+  showDrag(att, body);
+  sfx.select();
+  draw(); syncPanel();
+  return true;
+}
+
+function clearDrag() {
+  dragBodyId = null;
+}
+
 // ---- input ------------------------------------------------------
 canvas.addEventListener("mousemove", e => {
   hoverTile = tileFromEvent(e);
   const u = selected();
   if (u && hoverTile) {
+    const body = dragBody();
+    if (body) {
+      showDrag(u, body, hoverTile);
+      if (!S.busy) draw();
+      return;
+    }
     const t = unitAt(hoverTile[0], hoverTile[1]);
     if (t && t.side === "ho") {
       showSolution(u, t);
@@ -2001,7 +2060,12 @@ canvas.addEventListener("mousemove", e => {
   }
   if (!S.busy) draw();
 });
-canvas.addEventListener("mouseleave", () => { hoverTile = null; showSolution(null, null); if (!S.busy) draw(); });
+canvas.addEventListener("mouseleave", () => {
+  hoverTile = null;
+  const u = selected(), body = dragBody();
+  body && u ? showDrag(u, body) : showSolution(null, null);
+  if (!S.busy) draw();
+});
 
 canvas.addEventListener("click", e => {
   if (S.busy || S.gameOver || S.turn !== "op") return;
@@ -2009,12 +2073,30 @@ canvas.addEventListener("click", e => {
   if (!t) return;
   const [x, y] = t;
   const clicked = unitAt(x, y);
+  const body = downAt(x, y);
   const u = selected();
 
   if (clicked && clicked.side === "op") { selectUnit(clicked); return; }
   if (!u) return;
 
+  if (body && body.side === "op") { armDrag(u, body); return; }
+
+  const armed = dragBody();
+  if (armed) {
+    const range = dragReachable(u, armed);
+    if (!range?.cost.has(`${x},${y}`) || range.cost.get(`${x},${y}`) === 0) {
+      showDrag(u, armed, t);
+      return;
+    }
+    tryDrag(u, armed, x, y).then(committed => {
+      if (committed) clearDrag();
+      draw(); syncPanel();
+    });
+    return;
+  }
+
   if (clicked && clicked.side === "ho") {
+    clearDrag();
     if (clicked.yielded) { tryFinish(u, clicked); return; }
     if (u.ap > 0) tryShoot(u, clicked);
     return;
@@ -2051,19 +2133,19 @@ document.addEventListener("keydown", e => {
   switch (e.key) {
     case "Tab": e.preventDefault(); cycleSelect(); break;
     case "f": case "F":
-      if (u && u.ap > 0 && !S.decision) { S.targetMode = !S.targetMode; draw(); syncPanel(); }
+      if (u && u.ap > 0 && !S.decision) { clearDrag(); S.targetMode = !S.targetMode; draw(); syncPanel(); }
       break;
     case "y": case "Y":
-      if (u && u.ap > 0) setOverwatch(u);
+      if (u && u.ap > 0) { clearDrag(); setOverwatch(u); }
       break;
-    case "Enter": S.decision ? spare() : endPlayerTurn(); break;
-    case "Escape": S.targetMode = false; draw(); syncPanel(); break;
+    case "Enter": clearDrag(); S.decision ? spare() : endPlayerTurn(); break;
+    case "Escape": clearDrag(); S.targetMode = false; showSolution(null, null); draw(); syncPanel(); break;
   }
 });
 
-document.getElementById("btnShoot").onclick = () => { if (cardOpen) return; S.targetMode = !S.targetMode; draw(); syncPanel(); };
-document.getElementById("btnOw").onclick = () => { if (cardOpen) return; const u = selected(); if (u) setOverwatch(u); };
-document.getElementById("btnEnd").onclick = () => { if (cardOpen) return; S.decision ? spare() : endPlayerTurn(); };
+document.getElementById("btnShoot").onclick = () => { if (cardOpen) return; clearDrag(); S.targetMode = !S.targetMode; draw(); syncPanel(); };
+document.getElementById("btnOw").onclick = () => { if (cardOpen) return; clearDrag(); const u = selected(); if (u) setOverwatch(u); };
+document.getElementById("btnEnd").onclick = () => { if (cardOpen) return; clearDrag(); S.decision ? spare() : endPlayerTurn(); };
 document.getElementById("ovnew").onclick = () => restart(true);
 document.getElementById("ovreplay").onclick = () => restart(false);
 document.getElementById("ovfile").onclick = async () => {

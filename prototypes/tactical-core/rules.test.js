@@ -15,11 +15,13 @@ import {
   S, bindIO, restart, endPlayerTurn, formatEvent,
   los, coverBonus, solution, reachable, living, unitAt, W, H,
   mulberry32, MORALE, RATING, tryShoot, tryFinish, spare, setOverwatch, tryMove,
+  downAt, dragReachable, tryDrag,
   replayMatch, TWISTS, playTwist, twistWindow,
   rosterValid, rosterKey, CANON_ROSTER, ROSTER_SLOTS, OP_MAX_HP,
 } from "./rules.js";
 import { SHOWRUNNER_GOLDEN } from "./showrunner-golden.js";
 import { ROSTER_GOLDEN } from "./roster-golden.js";
+import { DRAG_GOLDEN } from "./drag-golden.js";
 import { directorTick } from "./director.js";
 
 // FNV-1a, matching the fingerprint taken in the browser
@@ -128,6 +130,192 @@ test("the map is the size the renderer assumes", () => {
   for (const row of S.map) assert.equal(row.length, W);
 });
 
+/* ---- extraction -------------------------------------------------
+ * DRAG is deliberately a record verb rather than geometry interpreted
+ * after the fact: actor, body, and destination are all committed. It
+ * buys position at the cost of a whole activation, half mobility, and
+ * every reaction shot the shared movement path crosses.
+ */
+
+test("a drag names both operatives, moves the body behind the actor, and spends the activation", async () => {
+  const cap = captureEvents();
+  restart(1);
+  const [actor, body] = living("op");
+  actor.x = 4; actor.y = 5; actor.mobility = 5;
+  body.x = 4; body.y = 6; body.hp = 0; body.alive = false;
+  const before = S.rating;
+
+  const range = dragReachable(actor, body);
+  assert.ok(range.cost.has("4,3"), "half of mobility 5 rounds down to two tiles");
+  assert.ok(!range.cost.has("4,2"), "a drag never rounds its half-mobility up");
+  assert.equal(await tryDrag(actor, body, 4, 3), true);
+
+  assert.deepEqual(S.record, [["drag", actor.id, body.id, 4, 3]],
+    "the committed input says who acted, for whom, and where");
+  assert.deepEqual([actor.x, actor.y], [4, 3]);
+  assert.deepEqual([body.x, body.y], [4, 4], "the body follows the resolved path one step behind");
+  assert.equal(actor.ap, 0, "two tiles or one, the whole activation is gone");
+  assert.equal(body.alive, false);
+  assert.equal(body.hp, 0, "position changed; condition did not");
+  assert.equal(downAt(4, 4), body, "the moved body remains a down body on the board");
+  assert.equal(S.rating, before + RATING.drag);
+  assert.deepEqual(S.draggedBodies, [body.id]);
+  assert.ok(cap.lines.includes(`${actor.name} DRAGS ${body.name} CLEAR — (4,6) → (4,4)`));
+
+  actor.ap = 2;
+  assert.equal(await tryDrag(actor, body, 5, 3), true, "the position verb remains useful after its first score");
+  assert.equal(S.rating, before + RATING.drag, "a body shuttled twice pays the crowd once");
+  assert.equal(cap.events.filter(e => e.type === "rating" && e.delta === RATING.drag).length, 1);
+});
+
+test("illegal drags buy no state and never enter the record", async () => {
+  captureEvents();
+  restart(1);
+  const [actor, body] = living("op");
+  actor.x = 4; actor.y = 5;
+  body.x = 4; body.y = 6; body.hp = 0; body.alive = false;
+  const start = [actor.x, actor.y, body.x, body.y, S.rating];
+
+  actor.ap = 1;
+  assert.equal(await tryDrag(actor, body, 4, 4), false, "a partial activation cannot assist for free");
+  actor.ap = 2;
+  body.x = 4; body.y = 7;
+  assert.equal(await tryDrag(actor, body, 4, 4), false, "the named body must be adjacent");
+  body.x = 4; body.y = 6;
+  assert.equal(await tryDrag(actor, body, 4, 2), false, "ordinary move range is not drag range");
+  assert.equal(await tryDrag(actor, body, 4.5, 4), false, "record coordinates are grid integers");
+
+  assert.deepEqual(S.record, []);
+  assert.deepEqual([actor.x, actor.y, body.x, body.y, S.rating], start);
+  assert.deepEqual(S.draggedBodies, []);
+});
+
+test("dragging crosses overwatch one shared step at a time", async () => {
+  const cap = captureEvents();
+  restart(seedHitting(50));
+  const [actor, body] = living("op");
+  const watcher = living("ho")[0];
+  actor.x = 0; actor.y = 8;
+  body.x = 0; body.y = 9; body.hp = 0; body.alive = false;
+  watcher.x = 0; watcher.y = 4; watcher.overwatch = true;
+
+  assert.equal(await tryDrag(actor, body, 0, 6), true);
+  assert.deepEqual([actor.x, actor.y], [0, 6]);
+  assert.deepEqual([body.x, body.y], [0, 7]);
+  assert.equal(body.alive, false, "reaction fire targets the actor, never revives or retargets the body");
+  assert.equal(watcher.overwatch, false, "the same first-visible-step trigger is consumed");
+  const action = cap.events.map(e => e.type)
+    .filter(type => ["drag", "overwatch-trigger", "fire", "shot"].includes(type));
+  assert.deepEqual(action, ["overwatch-trigger", "fire", "shot", "drag"],
+    "reaction fire resolves on the first shared step; the drag line reports the board it reached");
+  const shot = cap.events.find(e => e.type === "shot");
+  assert.equal(shot.label, "reaction-");
+  assert.equal(shot.hit, true, "the fixture must actually spend safety, not merely cross an empty cone");
+});
+
+test("an interrupted drag records where the body actually stopped", async () => {
+  const cap = captureEvents();
+  restart(seedHitting(50));
+  const [actor, body] = living("op");
+  const watcher = living("ho")[0];
+  actor.x = 0; actor.y = 8; actor.hp = 1;
+  body.x = 0; body.y = 9; body.hp = 0; body.alive = false;
+  watcher.x = 0; watcher.y = 4; watcher.overwatch = true;
+
+  assert.equal(await tryDrag(actor, body, 0, 6), true, "the command committed before the danger resolved");
+  assert.equal(actor.alive, false);
+  assert.deepEqual([actor.x, actor.y], [0, 7], "the actor fell on the first shared step");
+  assert.deepEqual([body.x, body.y], [0, 8], "the body moved only as far as the actor actually pulled it");
+  const drag = cap.events.find(e => e.type === "drag");
+  assert.equal(drag.reached, false);
+  assert.deepEqual(drag.target.body, [0, 7], "the event keeps the attempted destination inspectable");
+  assert.deepEqual(drag.to.body, [0, 8], "and reports the resolved board instead of overclaiming it");
+  assert.ok(cap.lines.includes("VESPER'S DRAG OF KOA STOPS — (0,9) → (0,8)"));
+});
+
+test("an interrupted drag speaks before the match-ending event", async () => {
+  let gameOverAtDrag = null;
+  const cap = captureEvents(ev => {
+    if (ev.type === "drag") gameOverAtDrag = S.gameOver;
+  });
+  restart(seedHitting(50));
+  const [actor, body, other] = living("op");
+  const watcher = living("ho")[0];
+  actor.x = 0; actor.y = 8; actor.hp = 1;
+  body.x = 0; body.y = 9; body.hp = 0; body.alive = false;
+  other.hp = 0; other.alive = false;
+  watcher.x = 0; watcher.y = 4; watcher.overwatch = true;
+
+  assert.equal(living("op").length, 1, "the drag actor must be the squad's last living operative");
+  assert.equal(await tryDrag(actor, body, 0, 6), true);
+  assert.equal(S.gameOver, "loss", "reaction fire must end the match synchronously");
+  assert.equal(gameOverAtDrag, "loss",
+    "game-over state must already guard the match while its event waits for the drag");
+  const terminal = cap.events.map(e => e.type)
+    .filter(type => ["shot", "down", "drag", "end"].includes(type));
+  assert.deepEqual(terminal.slice(-4), ["shot", "down", "drag", "end"],
+    "the interrupted position report must land before the terminal event");
+  assert.equal(cap.events.at(-2).reached, false);
+  assert.equal(cap.events.at(-1).result, "loss");
+  assert.equal(cap.lines.at(-1), "VESPER'S DRAG OF KOA STOPS — (0,9) → (0,8)",
+    "the final formatted line must be present when the end event snapshots the transcript");
+});
+
+test("a stale drag resolver cannot speak after a restarted match's end", async () => {
+  const events = [];
+  let releaseStep;
+  bindIO({
+    sleep: () => new Promise(resolve => { releaseStep = resolve; }),
+    emit: ev => { events.push(ev); },
+    changed: () => {},
+  });
+  restart(1);
+  const [actor, body] = living("op");
+  actor.x = 0; actor.y = 8;
+  body.x = 0; body.y = 9; body.hp = 0; body.alive = false;
+
+  const staleDrag = tryDrag(actor, body, 0, 7);
+  assert.equal(S.busy, true);
+  restart(2);
+  const freshReset = events.findLastIndex(e => e.type === "reset");
+  S.decision = true;   // exercise the public terminal verb in the fresh generation
+  spare();
+  assert.equal(events.at(-1).type, "end", "the new match's end must emit while the old drag is suspended");
+
+  releaseStep();
+  await staleDrag;
+  const freshEvents = events.slice(freshReset);
+  assert.equal(freshEvents.filter(e => e.type === "end").length, 1);
+  assert.equal(freshEvents.some(e => e.type === "drag"), false,
+    "the abandoned match contributes no position report to the fresh transcript");
+  assert.equal(freshEvents.at(-1).type, "end",
+    "stale cleanup must not trail the end already emitted by the new generation");
+});
+
+test("the drag golden records Sable pulling Koa under fire and replays to the same board", async () => {
+  const { seed, record, result, rating, purse, lines: lineCount, fingerprint, positions } = DRAG_GOLDEN;
+  const cap = captureEvents();
+  const played = await replayMatch(seed, record);
+  assert.equal(played.faithful, true, "the explicit actor + beneficiary command reproduces itself");
+  assert.deepEqual(S.record, record);
+  assert.equal(S.gameOver, result);
+  assert.equal(S.rating, rating);
+  assert.equal(S.rating * RATING.pursePerPoint, purse,
+    "the once-per-body crowd beat is an outcome input, not an unstamped side effect");
+  assert.equal(cap.lines.length, lineCount);
+  assert.equal(fnv(cap.lines.join("\n")), fingerprint,
+    "the extraction golden pins names, movement, and the fire crossed to do it");
+  const line = cap.lines.indexOf("SABLE DRAGS KOA CLEAR — (2,9) → (3,9)");
+  assert.ok(line >= 0);
+  assert.equal(cap.lines[line + 1], "SYN-3 overwatch triggered");
+  assert.ok(cap.lines[line + 2].startsWith("SYN-3 reaction-hits SABLE"));
+  assert.deepEqual(
+    S.units.filter(u => u.side === "op").map(({ name, x, y, hp, alive }) => ({ name, x, y, hp, alive })),
+    positions,
+    "the record moved KOA's down body and left every condition untouched");
+  assert.deepEqual(S.draggedBodies, [1]);
+});
+
 /* ---- yield states ----------------------------------------------
  * The golden transcripts above predate the morale mechanic and still pass
  * untouched: in a no-input playout the hostiles never take damage, morale
@@ -144,11 +332,11 @@ function seedHitting(pct) {
   throw new Error("no seed found");
 }
 
-function captureEvents() {
+function captureEvents(onEmit = () => {}) {
   const events = [], lines = [];
   bindIO({
     sleep: () => Promise.resolve(),
-    emit: ev => { events.push(ev); const l = formatEvent(ev); if (l !== null) lines.push(l); },
+    emit: ev => { events.push(ev); onEmit(ev); const l = formatEvent(ev); if (l !== null) lines.push(l); },
     changed: () => {},
   });
   return { events, lines };

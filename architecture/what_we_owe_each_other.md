@@ -360,6 +360,15 @@ Add one explicit two-person utility verb with a real cost, deterministic
 replay, readable events and a golden that exercises it. No bond effect is
 required for the verb to be worthwhile.
 
+> **Landed 2026-08-16.** `tactical-core` records DRAG as
+> `["drag", actorId, bodyId, x, y]`: an adjacent down operative moves one
+> tile behind an actor spending a full activation at half mobility, with
+> overwatch checked on every shared step. It pays +2 rating once per body,
+> heals nothing, and names both people plus the body's movement on the feed.
+> The seed-1 golden pins SABLE dragging KOA under SYN-3 reaction fire at
+> fingerprint `e9e0a018`; `tactical3d` commits the same verb by selecting
+> actor, body, then destination, and slides the existing DEATH pose.
+
 ### 3. The durable moment
 
 Derive one pairwise event from replay and give it a surviving target: a filed

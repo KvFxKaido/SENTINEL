@@ -25,10 +25,12 @@ where the record is the command list the rules core accumulated in
 `S.record` while the match was played. Both replay through
 the shared rules module and return the certified transcript: result,
 rating, purse, line count, the FNV-1a fingerprint, and the transcript
-itself. The grammar spans seven verbs — the player's six and the house's
+itself. The grammar spans eight verbs — the player's seven and the house's
 `["twist", cardId]` (Circuit step 4), which certifies like any other hand
 on the record: legal only between rounds, budgeted by the rules, an
-illegally-timed card fails closed as an unfaithful replay.
+illegally-timed card fails closed as an unfaithful replay. Extraction's
+`["drag", actorId, bodyId, x, y]` is likewise explicit on the record: who
+acted, for whom, and where all cross the wire together.
 
 ## Certification policy
 
@@ -59,7 +61,7 @@ stamp alongside them and send it back as `rules` when certifying, so a
 record can never be silently reinterpreted by newer rules as if history
 had always been that way.
 
-The stamp hashes **three** playouts, each pinning an area the others
+The stamp hashes **four** playouts, each pinning an area the others
 cannot reach:
 
 | golden | pins | fingerprint |
@@ -67,20 +69,22 @@ cannot reach:
 | deadbeef, no input | the base game | `39e8be71` |
 | showrunner (`showrunner-golden.js`) | the twist grammar and card math | `6495eab3` |
 | roster (`roster-golden.js`) | how a fielded squad is carried in | `d44833c0` |
+| extraction (`drag-golden.js`) | the drag grammar, movement, reaction fire, and rating | `e9e0a018` |
 
 The second landed with twists (2026-07-29) because a no-input playout can
 never play a card: without it, a balance patch to a card's terms would
 move nothing and old records would silently certify under new card math.
 The third landed with the roster doctrine (2026-08-13) for exactly the
 same reason — the other two both field the canonical three, so neither
-can stamp what a roster does.
+can stamp what a roster does. The fourth landed with extraction: none of
+the earlier records can exercise a two-person drag or its consequences.
 
 Each golden contributes its transcript fingerprint **and its outcome** —
 result, rating, purse — because rating is deliberately never a transcript
 line, so payout behavior could otherwise change under an unchanged stamp
 (caught in review); the roster golden adds its canonical key and its
-`faithful` flag. Today's stamp is `cb003a2` =
-`fnv("39e8be71:loss:29:290:6495eab3:win:92:920:d44833c0:loss:35:350:VESPER:6|NIX:10|SABLE:3:true")`.
+`faithful` flag. Today's stamp is `78c24d5a` =
+`fnv("39e8be71:loss:29:290:6495eab3:win:92:920:d44833c0:loss:35:350:VESPER:6|NIX:10|SABLE:3:true:e9e0a018:loss:41:410")`.
 
 The roster golden runs through **`replayMatch(seed, record, roster)`**,
 not `restart` — the path certification actually takes. Stamping the
@@ -89,8 +93,8 @@ neighbouring path left the roster's *forwarding* unstamped: a
 fielding the canonical three (caught in review, executed as a mutation).
 
 Extending the stamp's *inputs* is the one legitimate way the stamp
-changes without behavior changing — it has happened twice now, both times
-deliberately. Records stamped under an older input set are correctly
+changes without behavior changing — it has happened three times now, each
+time deliberately. Records stamped under an older input set are correctly
 refused as claiming a different rules version, because they are.
 
 What the stamp does **not** cover: which roster a given card fielded. That
@@ -173,8 +177,9 @@ Seed `deadbeef` must answer fingerprint `39e8be71` (42 lines) and seed `1`
 must answer `bac5ad90` (39 lines) — the exact hashes captured from the
 browser build *before the rules were extracted*, asserted in
 `rules.test.js`, and now served from the edge. The showrunner golden must
-certify to `6495eab3` with MERCY ODDS paid. If the edge disagrees with
-the goldens, the deploy is wrong, not the goldens.
+certify to `6495eab3` with MERCY ODDS paid, and the extraction golden must
+certify its drag-containing record to `e9e0a018`. If the edge disagrees
+with the goldens, the deploy is wrong, not the goldens.
 
 `witness_check.mjs` goes one further: it imports the rules core, *plays* a
 match locally (deterministic auto-player, public verbs only), and demands
