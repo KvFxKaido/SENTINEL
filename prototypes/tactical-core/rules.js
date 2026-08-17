@@ -59,6 +59,7 @@ export const S = {
   decision: false,     // every living hostile has yielded — match holds for spare/finish
   rating: 50,          // crowd meter, 0–100 — pays out at match end (sentinel_circuit_design.md §5)
   draggedBodies: [],   // op body ids already paid for extraction — one rescue is a moment, shuttling is not
+  dragResolutions: [], // replayed drag facts; derivePairwiseEvents owns the predicate over them
   record: [],          // the witness record — every committed command, in order
   pendingTwist: null,  // house card announced this round; goes live next round
   activeTwist: null,   // house card in effect for the rest of the match
@@ -427,19 +428,23 @@ async function fireShot(att, def, aimMod = 0, label = "") {
 }
 
 // overwatch: fires once per watcher at the first hostile step it sees
-async function overwatchCheck(mover) {
+async function overwatchCheck(mover, dragResolution = null) {
   const watchers = S.units.filter(u => u.alive && u.overwatch && u.side !== mover.side);
   for (const w of watchers) {
     if (!mover.alive) break;
     if (los(w.x, w.y, mover.x, mover.y)) {
       w.overwatch = false;
       io.emit({ type: "overwatch-trigger", unit: w });
+      // "Under fire" means a reaction shot was actually fired during the
+      // drag. Crossing an empty cone is not danger, and hit/miss is not the
+      // predicate: the safety was spent when the watcher took the shot.
+      if (dragResolution) dragResolution.reactionShots += 1;
       await fireShot(w, mover, -15, "reaction-");
     }
   }
 }
 
-async function animateMove(u, path, body = null, resolveDrag = null) {
+async function animateMove(u, path, body = null, resolveDrag = null, dragResolution = null) {
   const g = S.gen;
   try {
     for (let i = 0; i < path.length; i++) {
@@ -459,7 +464,7 @@ async function animateMove(u, path, body = null, resolveDrag = null) {
       // An interrupted longer drag resolves after the shot at the place it
       // actually stopped. One event, and it never overclaims the board.
       if (resolveDrag && i === path.length - 1) resolveDrag(true);
-      await overwatchCheck(u);
+      await overwatchCheck(u, dragResolution);
       // a mover who yields under overwatch fire stops in their tracks
       if (g !== S.gen || !u.alive || u.yielded || S.gameOver || S.decision) {
         if (resolveDrag) resolveDrag(false);
@@ -569,6 +574,7 @@ export async function tryDrag(actor, body, x, y) {
   const bodyTarget = path.length === 1 ? actorFrom : path[path.length - 2];
 
   S.record.push(["drag", actor.id, body.id, x, y]);
+  const commandIndex = S.record.length - 1;
   S.roundActed = true;
   S.busy = true;
   actor.ap = 0;          // whatever the distance, this is the activation
@@ -577,12 +583,21 @@ export async function tryDrag(actor, body, x, y) {
     S.draggedBodies.push(body.id);
     addRating(RATING.drag);
   }
-  const dragResolution = { gen: S.gen, resolved: false, heldEnd: null };
+  const dragResolution = {
+    gen: S.gen,
+    resolved: false,
+    heldEnd: null,
+    commandIndex,
+    actor: actor.name,
+    beneficiary: body.name,
+    reached: false,
+    reactionShots: 0,
+  };
   activeDragResolution = dragResolution;
   const resolveDrag = reached => {
     if (dragResolution.resolved) return;
     dragResolution.resolved = true;
-    if (activeDragResolution === dragResolution) activeDragResolution = null;
+    dragResolution.reached = reached;
     if (dragResolution.gen !== S.gen) return;
     io.emit({
       type: "drag", actor, body, reached,
@@ -598,7 +613,20 @@ export async function tryDrag(actor, body, x, y) {
       io.emit(dragResolution.heldEnd);
     }
   };
-  await animateMove(actor, path, body, resolveDrag);   // reaction fire resolves after every shared step
+  await animateMove(actor, path, body, resolveDrag, dragResolution);   // reaction fire resolves after every shared step
+  if (activeDragResolution === dragResolution) activeDragResolution = null;
+  // The fact is recorded only after every reaction shot on the shared path
+  // has resolved. The visible drag line may precede fire on the final tile;
+  // derivation must still know that shot belonged to this command.
+  if (dragResolution.gen === S.gen) {
+    S.dragResolutions.push({
+      commandIndex: dragResolution.commandIndex,
+      actor: dragResolution.actor,
+      beneficiary: dragResolution.beneficiary,
+      reached: dragResolution.reached,
+      reactionShots: dragResolution.reactionShots,
+    });
+  }
   S.busy = false;
   io.changed();
   autoAdvance();
@@ -832,7 +860,7 @@ export function restart(seed, roster = null) {
   S.roster = (roster ?? CANON_ROSTER).map(f => ({ name: f.name, hp: f.hp }));
   buildMap();
   makeUnits(roster);
-  S.turn = "op"; S.selectedId = 0; S.targetMode = false; S.busy = false; S.gameOver = null; S.decision = false; S.rating = RATING.start; S.draggedBodies = []; S.record = []; S.pendingTwist = null; S.activeTwist = null; S.roundActed = false;
+  S.turn = "op"; S.selectedId = 0; S.targetMode = false; S.busy = false; S.gameOver = null; S.decision = false; S.rating = RATING.start; S.draggedBodies = []; S.dragResolutions = []; S.record = []; S.pendingTwist = null; S.activeTwist = null; S.roundActed = false;
   io.emit({ type: "reset" });
   io.emit({ type: "mission" });
   io.emit({ type: "turn", side: "op" });
@@ -887,11 +915,39 @@ export async function replayMatch(seed, commands, roster = null) {
     if (S.gameOver) break;   // commands past the ending are not play
     await applyCommand(cmd);
   }
+  const faithful = JSON.stringify(S.record) === JSON.stringify(commands);
   return {
-    faithful: JSON.stringify(S.record) === JSON.stringify(commands),
+    faithful,
     applied: S.record.length,
     submitted: commands.length,
+    // The replay is the author. A caller receives the rules core's facts;
+    // it never supplies a derived event for the core to bless.
+    derivedEvents: faithful ? derivePairwiseEvents() : [],
   };
+}
+
+/* ---- pairwise events ---------------------------------------------
+   The durable-moment predicate (`what_we_owe_each_other.md` §4, §5,
+   §10 step 3) lives beside DRAG because only this module can replay the
+   command and know how it resolved. This is an EVENT deriver, not
+   relationship state: it names what happened and where in the record.
+
+   Only a finished match can yield events, and only a drag that reached
+   its declared destination is an extraction. A committed command stopped
+   by reaction fire remains on the record, but it does not mint the fact
+   "extraction". */
+export function derivePairwiseEvents() {
+  if (!S.gameOver) return [];
+  return S.dragResolutions
+    .filter(drag => drag.reached)
+    .map(drag => ({
+      kind: "extraction",
+      actor: drag.actor,
+      beneficiary: drag.beneficiary,
+      commandIndex: drag.commandIndex,
+      underFire: drag.reactionShots > 0,
+      reached: true,
+    }));
 }
 
 /* ---- one formatter, two skins ----------------------------------

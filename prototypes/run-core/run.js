@@ -125,12 +125,13 @@
 // 2: the season joined the schema (slate, clocks, passes).
 // 3: the purse joined it (spent, bought).
 // 4: the faction door joined it (owned people, origins, lineup).
+// 5: replay-derived pairwise events joined it (stable ids + graded source).
 // A stored run of any older
 // version takes the orphan path below — moved aside and said so, exactly
 // the situation that path was built and tested for. Hydrating a v2 run
 // with an empty kit in place would be a silent migration wearing a
 // default, same as it was one version ago.
-export const RUN_V = 4;
+export const RUN_V = 5;
 // The live key is deliberately NOT versioned. It used to be
 // `sentinel.run.v${RUN_V}`, which made the orphan path below unreachable
 // in the only situation it exists for: bumping RUN_V to 2 would point
@@ -167,6 +168,7 @@ const MAX_BOUGHT = 24;     // purchases per run — a rack, not a warehouse
 const MAX_ROSTER = 4;      // this slice proves one real bench behind three slots
 const MAX_PERSON_ID = 24;  // stable authored ids stay diffable and URL-safe
 const MAX_REASON = 160;    // one authored sentence about why this person is here
+const MAX_DERIVED_PER_CARD = 1024; // one event per command is the hard wire ceiling
 
 // The certified match still fields exactly three. This copy belongs to the
 // run boundary and is pinned against tactical-core's ROSTER_SLOTS in the seam
@@ -356,6 +358,7 @@ export function openRun(at, roster = DEFAULT_ROSTER) {
     longest: 0,         // longest win streak this run
     mercy: { walked: 0, finished: 0 },
     wounds: {},         // stable person id -> times that person went down
+    eventLedger: {},    // stable actor id -> replay-derived pairwise events
     struck: 0,          // cards the edge disputed — banked by nobody
     unwitnessed: 0,     // cards counted without certification
     rules: null,        // the rules stamp this run's numbers were earned under
@@ -463,6 +466,25 @@ const isName = s =>
   typeof s === "string" && s.length > 0 && s.length <= MAX_NAME
   && s !== "__proto__";
 
+const MATCH_ID = /^[0-9a-f]{32}$/;
+const DERIVED_KEYS = ["kind", "actor", "beneficiary", "commandIndex", "underFire", "reached"];
+
+// The tactical wire stays tactical: names, not stable ids. Only the rules
+// core authors this array on a certified card; an unwitnessed yard carries
+// the same shape as a claim. Translation happens once, in applyCard.
+function derivedEventValid(event) {
+  return !!event && typeof event === "object" && !Array.isArray(event)
+    && exactKeys(event, DERIVED_KEYS)
+    && event.kind === "extraction"
+    && isName(event.actor) && isName(event.beneficiary)
+    && event.actor !== event.beneficiary
+    && intIn(event.commandIndex, 0, MAX_DERIVED_PER_CARD - 1)
+    && typeof event.underFire === "boolean"
+    && event.reached === true;
+}
+
+const matchIdValid = id => typeof id === "string" && MATCH_ID.test(id);
+
 const intIn = (n, lo, hi) =>
   Number.isInteger(n) && n >= lo && n <= hi;
 
@@ -480,8 +502,9 @@ const stampValid = st =>
    (caught in review). Cards get the same treatment for the same reason —
    storage is one editable blob, not two. */
 const CARD_KEYS = ["seed", "result", "rating", "purse", "cert",
-  "walked", "finished", "down", "at", "slate"];
+  "walked", "finished", "down", "derivedEvents", "matchId", "at", "slate"];
 const BOUGHT_KEYS = ["id", "name", "slot", "color", "who", "cost", "at", "slate"];
+const EVENT_KEYS = ["kind", "beneficiary", "underFire", "reached", "grade", "at", "slate"];
 const onlyKeys = (obj, allowed) => Object.keys(obj).every(k => allowed.includes(k));
 
 // Framing equality against the authored entry. Restore uses this to
@@ -515,6 +538,15 @@ export function cardValid(card) {
   if (!intIn(l.lost, 0, MAX_SIDE)) return false;
   if (!Array.isArray(card.down) || card.down.length > MAX_WOUNDED) return false;
   if (!card.down.every(isName)) return false;
+  if (!Array.isArray(card.derivedEvents)
+      || card.derivedEvents.length > MAX_DERIVED_PER_CARD
+      || !card.derivedEvents.every(derivedEventValid)) return false;
+  // Certified grade is impossible without a filed origin. Unwitnessed
+  // cards have no public archive id; a struck card may have reached /file
+  // before another field disagreed, but none of its facts bank below.
+  if (card.cert === "certified" && !matchIdValid(card.matchId)) return false;
+  if (card.cert === "unwitnessed" && card.matchId !== null) return false;
+  if (card.cert === "struck" && card.matchId !== null && !matchIdValid(card.matchId)) return false;
   // The yard counts the bodies and also names them. The count is what the
   // edge certifies; the names are the yard's own word (the certificate
   // carries `lost` as a number and nothing else). Requiring them to agree
@@ -556,7 +588,16 @@ export function applyCard(run, card) {
   if (card.down.some(name => !idByDealtName.has(name))) {
     return { run, accepted: false, counted: false, why: "the card names someone this run did not field" };
   }
+  if (card.derivedEvents.some(event =>
+    !idByDealtName.has(event.actor) || !idByDealtName.has(event.beneficiary))) {
+    return { run, accepted: false, counted: false, why: "a derived event names someone this run did not field" };
+  }
   const downIds = card.down.map(name => idByDealtName.get(name));
+  const translatedEvents = card.derivedEvents.map(event => ({
+    event,
+    actor: idByDealtName.get(event.actor),
+    beneficiary: idByDealtName.get(event.beneficiary),
+  }));
 
   // Season gates, both of them accepted:false on purpose. The room gates
   // the deal at the door — a card arriving here while the slate is done
@@ -577,6 +618,8 @@ export function applyCard(run, card) {
     ...run,
     mercy: { ...run.mercy },
     wounds: { ...run.wounds },
+    eventLedger: Object.fromEntries(
+      Object.entries(run.eventLedger).map(([id, events]) => [id, events.slice()])),
     recent: run.recent.slice(),
     season: copySeason(run.season),
   };
@@ -590,6 +633,10 @@ export function applyCard(run, card) {
     walked: card.ledger.walked,
     finished: card.ledger.finished,
     down: card.down.slice(),
+    // Receipts keep the tactical wire. The durable ledger below is the
+    // only place the fielded-name snapshot becomes stable person ids.
+    derivedEvents: card.derivedEvents.map(event => ({ ...event })),
+    matchId: card.matchId,
     at: card.at,
   };
   // `recent[].down` preserves the tactical names exactly as the card crossed
@@ -631,6 +678,27 @@ export function applyCard(run, card) {
     else if (next.rules !== card.rules && next.drift === null) {
       next.drift = { from: next.rules, to: card.rules, at: card.at };
     }
+  }
+
+  // Bank rules-authored events; never compute one here. Certified entries
+  // point at the filed record and command. Unwitnessed entries are durable
+  // local claims and say so in their grade — neither is relationship state.
+  for (const { event, actor, beneficiary } of translatedEvents) {
+    const banked = {
+      kind: event.kind,
+      beneficiary,
+      underFire: event.underFire,
+      reached: event.reached,
+      grade: card.cert === "certified"
+        ? { kind: "certified", matchId: card.matchId, commandIndex: event.commandIndex }
+        : { kind: "claim" },
+      at: card.at,
+    };
+    if (run.season) {
+      const e = slateEntry(run.season);
+      banked.slate = { idx: run.season.pos, venue: e.venue, host: e.host, sanction: e.sanction };
+    }
+    next.eventLedger[actor] = [...(next.eventLedger[actor] ?? []), banked];
   }
 
   next.cards += 1;
@@ -873,6 +941,34 @@ function sane(r) {
   if (!Object.keys(r.wounds).every(isPersonId)) return false;
   if (!Object.keys(r.wounds).every(id => ownedIds.has(id))) return false;
   if (!Object.values(r.wounds).every(n => Number.isInteger(n) && n >= 0)) return false;
+  if (!r.eventLedger || typeof r.eventLedger !== "object" || Array.isArray(r.eventLedger)) return false;
+  if (!Object.keys(r.eventLedger).every(isPersonId)) return false;
+  if (!Object.keys(r.eventLedger).every(id => ownedIds.has(id))) return false;
+  if (!Object.values(r.eventLedger).every(events => Array.isArray(events) && events.length > 0)) return false;
+  const allEvents = Object.entries(r.eventLedger)
+    .flatMap(([actor, events]) => events.map(event => ({ actor, event })));
+  if (allEvents.length > r.cards * MAX_DERIVED_PER_CARD) return false;
+  if (!allEvents.every(({ actor, event }) => {
+    if (!event || typeof event !== "object" || Array.isArray(event)) return false;
+    if (!onlyKeys(event, EVENT_KEYS)) return false;
+    if (event.kind !== "extraction" || event.reached !== true
+        || typeof event.underFire !== "boolean") return false;
+    if (!isPersonId(event.beneficiary) || !ownedIds.has(event.beneficiary)
+        || event.beneficiary === actor) return false;
+    if (typeof event.at !== "string" || !event.at) return false;
+    const grade = event.grade;
+    if (!grade || typeof grade !== "object" || Array.isArray(grade)) return false;
+    if (grade.kind === "certified") {
+      return exactKeys(grade, ["kind", "matchId", "commandIndex"])
+        && matchIdValid(grade.matchId)
+        && intIn(grade.commandIndex, 0, MAX_DERIVED_PER_CARD - 1);
+    }
+    return grade.kind === "claim" && exactKeys(grade, ["kind"]);
+  })) return false;
+  const claimedEvents = allEvents.filter(({ event }) => event.grade.kind === "claim").length;
+  const certifiedEvents = allEvents.length - claimedEvents;
+  if (claimedEvents > r.unwitnessed * MAX_DERIVED_PER_CARD) return false;
+  if (certifiedEvents > (r.cards - r.unwitnessed) * MAX_DERIVED_PER_CARD) return false;
   if (!Array.isArray(r.recent) || r.recent.length > RECENT) return false;
   if (!r.recent.every(c =>
     c && typeof c === "object"
@@ -888,6 +984,12 @@ function sane(r) {
     // Receipts retain the tactical names carried by the card; unlike the
     // durable wound and clock ledgers, they are a record of the yard wire.
     && Array.isArray(c.down) && c.down.every(name => isName(name) && ownedNames.has(name))
+    && Array.isArray(c.derivedEvents) && c.derivedEvents.length <= MAX_DERIVED_PER_CARD
+    && c.derivedEvents.every(event =>
+      derivedEventValid(event) && ownedNames.has(event.actor) && ownedNames.has(event.beneficiary))
+    && (c.cert === "certified" ? matchIdValid(c.matchId)
+      : c.cert === "unwitnessed" ? c.matchId === null
+      : c.matchId === null || matchIdValid(c.matchId))
     && (c.slate === undefined || stampValid(c.slate))
   )) return false;
   /* The totals are not free-floating either, and since there is now
@@ -924,6 +1026,8 @@ function sane(r) {
   const sum = (list, of) => list.reduce((n, c) => n + of(c), 0);
   const wins = banked.filter(c => c.result === "win").length;
   const unwitnessed = banked.filter(c => c.cert === "unwitnessed").length;
+  const recentClaimEvents = sum(banked.filter(c => c.cert === "unwitnessed"), c => c.derivedEvents.length);
+  const recentCertifiedEvents = sum(banked.filter(c => c.cert === "certified"), c => c.derivedEvents.length);
   if (r.cards + r.struck === r.recent.length) {
     if (banked.length !== r.cards) return false;
     if (wins !== r.wins) return false;
@@ -934,6 +1038,7 @@ function sane(r) {
     // you have been, which is worse than a lie about money.
     if (sum(banked, c => c.walked) !== r.mercy.walked) return false;
     if (sum(banked, c => c.finished) !== r.mercy.finished) return false;
+    if (claimedEvents !== recentClaimEvents || certifiedEvents !== recentCertifiedEvents) return false;
   } else {
     // The only way an event can be missing is the buffer being full.
     if (r.cards + r.struck <= RECENT || r.recent.length !== RECENT) return false;
@@ -944,6 +1049,7 @@ function sane(r) {
     if (r.struck < r.recent.length - banked.length) return false;
     if (r.mercy.walked < sum(banked, c => c.walked)) return false;
     if (r.mercy.finished < sum(banked, c => c.finished)) return false;
+    if (claimedEvents < recentClaimEvents || certifiedEvents < recentCertifiedEvents) return false;
   }
   // The season, when there is one, all the way in — same reasoning as the
   // collections above: every field here reaches the room's surface or
@@ -983,6 +1089,17 @@ function sane(r) {
       && intIn(c.slate.idx, 0, entries.length - 1)
       && c.slate.idx <= s.pos
       && sameFraming(c.slate, entries[c.slate.idx]))) return false;
+    // Derived events are banked facts, never struck attempts: every one
+    // points behind the current position and carries the slate's own word.
+    for (const events of Object.values(r.eventLedger)) {
+      let last = -1;
+      for (const event of events) {
+        if (!event.slate || !stampValid(event.slate)) return false;
+        if (event.slate.idx >= s.pos || event.slate.idx < last) return false;
+        if (!sameFraming(event.slate, entries[event.slate.idx])) return false;
+        last = event.slate.idx;
+      }
+    }
     if (!s.clocks || typeof s.clocks !== "object" || Array.isArray(s.clocks)) return false;
     if (!Object.keys(s.clocks).every(isPersonId)) return false;
     if (!Object.keys(s.clocks).every(id => ownedIds.has(id))) return false;
@@ -997,6 +1114,7 @@ function sane(r) {
     // And a plain run's cards carry no stamp at all — a stamp with no
     // slate to answer to is unfalsifiable, so it does not restore.
     if (!r.recent.every(c => c.slate === undefined)) return false;
+    if (!allEvents.every(({ event }) => event.slate === undefined)) return false;
   }
   // The rack, all the way in, same as everything else that reaches a
   // surface. A stored purchase is the one record here that can move
@@ -1015,7 +1133,7 @@ function sane(r) {
   // body was not written by applyBuy — and the derived kit would silently
   // pick one of them and drop the other, which is money on the record
   // with nothing on the rack to show for it.
-  const hooks = r.bought.map(b => `${b.who} ${b.slot}`);
+  const hooks = r.bought.map(b => `${b.who}@${b.slot}`);
   if (new Set(hooks).size !== hooks.length) return false;
   // The purse's own arithmetic, the same way the slate's position is
   // checked against cards+passes: `spent` IS the sum of the rack, and a
@@ -1127,6 +1245,17 @@ export function summary(run) {
     body: person.body,
     origin: { ...person.origin },
   }));
+  const derivedEvents = people.flatMap(person =>
+    (run.eventLedger[person.id] ?? []).map(event => ({
+      actor: person.id,
+      kind: event.kind,
+      beneficiary: event.beneficiary,
+      underFire: event.underFire,
+      reached: event.reached,
+      grade: { ...event.grade },
+      at: event.at,
+      ...(event.slate ? { slate: { ...event.slate } } : {}),
+    })));
   return {
     cards: run.cards,
     record: `${run.wins}–${losses}`,
@@ -1153,6 +1282,7 @@ export function summary(run) {
     wounded,
     struck: run.struck,
     unwitnessed: run.unwitnessed,
+    derivedEvents,
     drift: run.drift,
     roster: {
       people,

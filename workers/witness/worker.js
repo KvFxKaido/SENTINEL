@@ -8,7 +8,7 @@
    assert, so seed deadbeef answers 39e8be71 from the edge or it is a
    deploy failure.
 
-   Two endpoints, one discipline:
+   Three endpoints, one discipline:
 
    GET  /replay?seed=<hex>     — no-input playout, a pure function of the
                                  seed. The goldens live here.
@@ -20,6 +20,10 @@
                                  the same verbs the player used; a replay
                                  that cannot reproduce its own input, or
                                  that ends unfinished, certifies nothing.
+   POST /file    same body      — certifies and archives idempotently. The
+                                 walkable room uses this path so certified
+                                 derived events always have a filed origin
+                                 (recorded decision, 2026-08-16, step 3).
 
    The roster is the second certified input (`architecture/
    roster_in_the_match.md`): the law is now `seed + roster + record = the
@@ -32,7 +36,7 @@
    season progression as drift on every card.
    ============================================================ */
 
-import { S, bindIO, restart, endPlayerTurn, replayMatch, formatEvent, RATING, rosterValid, rosterKey } from "../../prototypes/tactical-core/rules.js";
+import { S, bindIO, restart, endPlayerTurn, replayMatch, derivePairwiseEvents, formatEvent, RATING, rosterValid, rosterKey } from "../../prototypes/tactical-core/rules.js";
 import { SHOWRUNNER_GOLDEN } from "../../prototypes/tactical-core/showrunner-golden.js";
 import { ROSTER_GOLDEN } from "../../prototypes/tactical-core/roster-golden.js";
 import { DRAG_GOLDEN } from "../../prototypes/tactical-core/drag-golden.js";
@@ -76,8 +80,8 @@ function serialized(fn) {
 // transcript line, so payout behavior could otherwise change under an
 // unchanged stamp (caught in review). Extending the stamp's INPUTS is
 // the one legitimate way the stamp changes without behavior changing;
-// it happened when twists and rosters landed, it happens again here, and
-// each time deliberately. Note what this does NOT do: the stamp covers
+// twists, roster handling, DRAG, and now its derived-event predicate each
+// extended them deliberately. Note what this does NOT do: the stamp covers
 // how a
 // roster is APPLIED, never which roster a given card fielded — that is
 // the certificate's own field, because a wound is not a deployment.
@@ -88,8 +92,11 @@ async function rulesFingerprint() {
   if (rulesStamp === null) {
     const base = await replay(0xdeadbeef);
     const twistLines = captureLines();
-    await replayMatch(SHOWRUNNER_GOLDEN.seed, SHOWRUNNER_GOLDEN.record);
-    const twist = [fnv(twistLines.join("\n")), S.gameOver, S.rating, S.rating * RATING.pursePerPoint];
+    const twistPlayed = await replayMatch(SHOWRUNNER_GOLDEN.seed, SHOWRUNNER_GOLDEN.record);
+    const twist = [
+      fnv(twistLines.join("\n")), S.gameOver, S.rating,
+      S.rating * RATING.pursePerPoint, JSON.stringify(twistPlayed.derivedEvents),
+    ];
     const rosterLines = captureLines();
     // Through replayMatch, not restart: that is the path certification
     // takes, and stamping the neighbouring one left the roster's
@@ -103,15 +110,17 @@ async function rulesFingerprint() {
     const roster = [
       fnv(rosterLines.join("\n")), S.gameOver, S.rating,
       S.rating * RATING.pursePerPoint, rosterKey(S.roster), played.faithful,
+      JSON.stringify(played.derivedEvents),
     ];
     const dragLines = captureLines();
-    await replayMatch(DRAG_GOLDEN.seed, DRAG_GOLDEN.record);
+    const dragPlayed = await replayMatch(DRAG_GOLDEN.seed, DRAG_GOLDEN.record);
     const drag = [
       fnv(dragLines.join("\n")), S.gameOver, S.rating,
-      S.rating * RATING.pursePerPoint,
+      S.rating * RATING.pursePerPoint, JSON.stringify(dragPlayed.derivedEvents),
     ];
     rulesStamp = fnv([
       base.fingerprint, base.result, base.rating, base.purse,
+      JSON.stringify(base.derivedEvents),
       ...twist, ...roster, ...drag,
     ].join(":"));
   }
@@ -140,6 +149,9 @@ function certificate(seed, lines, extra = {}) {
     result: S.gameOver,
     rating: S.rating,
     purse: S.rating * RATING.pursePerPoint,
+    // Pairwise events are authored here from this replay's rules facts.
+    // A page never POSTs them for the Worker to trust or cross-check.
+    derivedEvents: derivePairwiseEvents(),
     ...extra,
     lines: lines.length,
     fingerprint: fnv(lines.join("\n")),
@@ -377,7 +389,7 @@ export default {
       usage: {
         replay: "GET /replay?seed=deadbeef — no-input playout, a pure function of the seed",
         certify: 'POST /certify {"seed":"<hex>","record":[...],"roster":[{"name":"VESPER","hp":10},...],"rules":"<optional fingerprint>"} — a played match; certified only if the record replays faithfully to a finished match under these rules and this roster',
-        file: "POST /file — same body as /certify; certifies AND archives. Idempotent: the key is content-derived, so a match files once no matter how often it is submitted — and a different roster is a different key, because it is a different match",
+        file: "POST /file — same body as /certify; certifies AND archives. The certificate's derivedEvents come from the Worker's replay. Idempotent: the key is content-derived, so a match files once no matter how often it is submitted — and a different roster is a different key, because it is a different match",
         matches: "GET /matches — the archive, newest first (metadata only). GET /matches/{id} — one filed match in full: record + certificate",
       },
       note: "the record grammar lives in prototypes/tactical-core/rules.js (S.record / replayMatch) — seed + roster + record IS the match (architecture/roster_in_the_match.md; the roster is optional on the wire and canonical when absent). A certificate attests validity under the stamped rules version, not who played it; identity/signatures do not exist yet, so the archive is self-attested but replay-verified.",

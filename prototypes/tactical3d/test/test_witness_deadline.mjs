@@ -95,7 +95,7 @@ try {
   // Never fulfilled and never aborted from out here, so if the session
   // settles, it settled because the PAGE gave up — which is the claim.
   let asked = 0;
-  await page.route(/\/certify$/, () => { asked++; /* hang, deliberately */ });
+  await page.route(/\/file$/, () => { asked++; /* hang, deliberately */ });
 
   await page.goto(URL);
   await page.waitForFunction(() =>
