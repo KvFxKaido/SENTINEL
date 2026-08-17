@@ -148,6 +148,8 @@ The body suite drives the match through the *game* — `Tab` selects, `F`
 takes target mode, overwatch plus `Enter` hands the board to the AI — so
 it reaches fire / hurt / death / kneel without needing to know where a
 body is on screen, which is the one thing a headless test cannot see.
+It also stubs a successful `/file` response and pins the post-match display of
+a replay-derived extraction with its filed match id and command index.
 
 The seam suite is the only test where both surfaces are alive at once. It
 tolerates an unreachable witness (`UNCERTIFIED` is an honest outcome and
@@ -167,6 +169,15 @@ counts are read off the same final board the post-match ledger line is
 drawn from, so the number on screen and the number the world banks cannot
 diverge — and the witness certificate carries the same three, so the room
 strikes a card whose aftermath the edge disagrees with.
+
+It also posts the rules core's local `derivedEvents` array. That array is
+useful for the yard's immediate aftermath but is not retained by the run when
+no Witness can answer or the archive cannot store the card. Claim grade waits
+for an append-only local event target; the rolling recent-card buffer cannot
+back it. The local array is not the authority on a certified card. **FILE THE
+RECORD** calls `/file`, and after filing the post-match card replaces the local
+display with the Worker's own replay-authored array, rendering every event
+beside its durable `(match id, command index)` address.
 
 The deadline suite covers the case that tolerance was hiding. A witness
 that *refuses* has always landed in `certifySeam`'s catch and been

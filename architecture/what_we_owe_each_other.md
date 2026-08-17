@@ -174,9 +174,13 @@ tested it. The invariant is that the source resolves.
 ### Certified grade
 
 `POST /certify` proves that a record replayed under the current rules. It does
-not make the record durable. The live room certifies returned cards, while the
-yard's separate **FILE THE RECORD** action is what puts a match in the Witness
-archive.
+not make the record durable. For the durable-moment slice the live room uses
+`POST /file` on its certified path, so the same replay that certifies the card
+also gives it an archived origin. This is the recorded 2026-08-16 step-3
+decision **THE ROOM FILES WHAT IT CERTIFIES**, subject to designer veto at
+review; the yard's separate **FILE THE RECORD** action remains another route
+to the same idempotent endpoint. A future deliberate feed cut submits to
+neither endpoint, so it does not conflict with this choice.
 
 A relationship called **certified** therefore needs a filed match id (and, when
 one match contains several candidate moments, the command or derived-event
@@ -374,6 +378,23 @@ required for the verb to be worthwhile.
 Derive one pairwise event from replay and give it a surviving target: a filed
 match id for certified grade or an append-only local event for claim grade.
 The room must be able to take the player back to the source.
+
+> **Landed 2026-08-16.** A completed DRAG deterministically derives
+> `{kind:"extraction", actor, beneficiary, commandIndex, underFire, reached:true}`
+> beside the verb in `tactical-core`; interrupted drags derive nothing. The
+> Witness is the author on the certified path: its own replay returns the
+> `derivedEvents` certificate field, and `/file` supplies the content-derived
+> match id. Run schema v5 translates tactical names through the fielded lineup
+> at bank time and stores the event under stable person ids only with certified
+> `{matchId, commandIndex}` provenance. The room renders that grade and **BACK
+> TO FILE** opens `GET /matches/{id}` with the pointed command visible.
+> Unwitnessed cards and cards certified but not archived still count, while
+> banking no derived event; the yard's account remains visible only for the
+> current session. Claim grade is deferred because the append-only local event
+> log named in §5 does not exist yet, and the twelve-card recent buffer cannot
+> be the surviving target a claim pointer requires. This is event provenance
+> only: no relationship, permission, obligation, bond name or bond ledger
+> landed in this step.
 
 ### 4. The pairwise ledger
 

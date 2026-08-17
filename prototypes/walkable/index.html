@@ -285,12 +285,21 @@
   #seamcut .cutname { color: var(--amber); font-size: 22px; letter-spacing: 8px; }
   #seamcut .cutsub { color: var(--text); font-size: 11px; letter-spacing: 2px; }
 
-  #seaminfo, #runinfo, #kitinfo { color: var(--text-dim); font-size: 10px; line-height: 1.7; }
-  #seaminfo b, #runinfo b, #kitinfo b { color: var(--amber); font-weight: normal; }
-  #seaminfo .fp, #runinfo .fp { color: var(--cyan); }
+  #seaminfo, #runinfo, #kitinfo, #sourceinfo { color: var(--text-dim); font-size: 10px; line-height: 1.7; }
+  #seaminfo b, #runinfo b, #kitinfo b, #sourceinfo b { color: var(--amber); font-weight: normal; }
+  #seaminfo .fp, #runinfo .fp, #sourceinfo .fp { color: var(--cyan); }
   /* Caveats read as caveats: a run carrying struck cards, unwitnessed
      cards or a rules change must not look like a clean one at a glance. */
-  #seaminfo .warn, #runinfo .warn, #kitinfo .warn { color: var(--red); }
+  #seaminfo .warn, #runinfo .warn, #kitinfo .warn, #sourceinfo .warn { color: var(--red); }
+  .moment-back {
+    border: 1px solid var(--line); background: var(--panel-2); color: var(--cyan);
+    padding: 2px 5px; font: inherit; cursor: pointer;
+  }
+  .moment-back:hover { border-color: var(--green-dim); color: var(--green); }
+  #sourcebox[hidden] { display: none; }
+  #source-record { max-height: 220px; overflow: auto; margin-top: 7px; }
+  #source-record .command { display: block; padding: 2px 4px; color: var(--text-dim); white-space: pre-wrap; }
+  #source-record .pointed { border-left: 2px solid var(--amber); color: var(--text); background: var(--panel-2); }
   #kitbox[hidden] { display: none; }
 
   @media (max-width: 1015px) {
@@ -373,6 +382,11 @@
     <section class="box" id="runbox">
       <h2>THE RUN</h2>
       <div id="runinfo">Opening…</div>
+    </section>
+
+    <section class="box" id="sourcebox" hidden>
+      <h2>ARCHIVED SOURCE</h2>
+      <div id="sourceinfo"></div>
     </section>
 
     <!-- The shop is a place: this box exists only while the body is
@@ -2242,7 +2256,7 @@ const DEAL = (() => {
   return Number.isFinite(n) ? n >>> 0 : null;
 })();
 // ?witness= passes through to the yard, so local worker dev works from here —
-// and this room asks the same witness to certify what the yard reports
+// and this room asks the same witness to file and certify what the yard reports
 const WITNESS_PARAM = new URLSearchParams(location.search).get("witness");
 const WITNESS = WITNESS_PARAM ?? "https://sentinel-witness.ishawnd.workers.dev";
 
@@ -2631,6 +2645,28 @@ function renderRun() {
           return `${esc(name)}${count > 1 ? ` ×${count}` : ""}`;
         }).join(" · ")}`
       : `DOWN · NOBODY OF YOURS, YET`);
+    // Certified replay-derived events get panel text, not just a dataset.
+    // This is the kit-table lesson applied to history: a durable fact the
+    // room cannot show is not yet a usable fact. Claim grade is deliberately
+    // absent until an append-only local event can survive as its target.
+    // Still events only — no relationship, permission, obligation, or bond
+    // state is inferred here.
+    if (s.derivedEvents.length) {
+      rows.push("DERIVED EVENTS · " + s.derivedEvents.map(event => {
+        const actor = personOf(run, event.actor);
+        const beneficiary = personOf(run, event.beneficiary);
+        const sentence = `<b>${esc(actor.name)}</b> EXTRACTED <b>${esc(beneficiary.name)}</b>`
+          + (event.underFire ? " UNDER FIRE" : " CLEAR OF FIRE");
+        const place = event.slate ? ` · AT ${esc(event.slate.venue)}` : "";
+        return sentence + place
+          + ` · CERTIFIED · <button type="button" class="moment-back"`
+          + ` data-match-id="${esc(event.grade.matchId)}"`
+          + ` data-command-index="${event.grade.commandIndex}">`
+          + `BACK TO FILE ${esc(event.grade.matchId)} / COMMAND ${event.grade.commandIndex}</button>`;
+      }).join("<br>DERIVED EVENTS · "));
+    } else {
+      rows.push("DERIVED EVENTS · NONE BANKED YET");
+    }
     // The card log, newest first — the one view that shows shape rather
     // than totals. Struck cards appear here and NOWHERE in the numbers
     // above, which is the honest way to show a card that happened and
@@ -2764,6 +2800,44 @@ function renderRun() {
   syncRack();
   renderKit();
 }
+
+const sourceBox = document.getElementById("sourcebox");
+const sourceInfo = document.getElementById("sourceinfo");
+
+// BACK means the stored target, not a prose recap. The room deliberately
+// does not import tactical-core to interpret the command: it fetches the
+// archived record and shows the raw command at the certified index.
+async function showArchivedSource(matchId, commandIndex) {
+  sourceBox.hidden = false;
+  sourceInfo.innerHTML = `FILE <span class="fp">${esc(matchId)}</span> · FETCHING COMMAND ${commandIndex}…`;
+  canvas.dataset.source = "fetching";
+  try {
+    const response = await fetch(`${WITNESS}/matches/${encodeURIComponent(matchId)}`);
+    const archived = await response.json();
+    if (!response.ok || archived.id !== matchId || !Array.isArray(archived.record)
+        || !Number.isInteger(commandIndex) || commandIndex < 0
+        || commandIndex >= archived.record.length) {
+      throw new Error(archived.error ?? "the filed command does not resolve");
+    }
+    const commands = archived.record.map((command, index) =>
+      `<span class="command${index === commandIndex ? " pointed" : ""}">`
+      + `${index === commandIndex ? "→" : " "} ${index} · ${esc(JSON.stringify(command))}</span>`).join("");
+    sourceInfo.innerHTML =
+      `FILE <span class="fp">${esc(matchId)}</span> · ${archived.record.length} COMMANDS<br>`
+      + `<b>POINTED COMMAND ${commandIndex}</b> · ${esc(JSON.stringify(archived.record[commandIndex]))}`
+      + `<div id="source-record">${commands}</div>`;
+    canvas.dataset.source = `${matchId}:${commandIndex}`;
+  } catch (error) {
+    sourceInfo.innerHTML = `<span class="warn">SOURCE DID NOT RESOLVE</span> · ${esc(error.message)}`;
+    canvas.dataset.source = "unresolved";
+  }
+}
+
+runInfo.addEventListener("click", event => {
+  const button = event.target.closest(".moment-back");
+  if (!button) return;
+  showArchivedSource(button.dataset.matchId, Number(button.dataset.commandIndex));
+});
 
 /* The shop surface, which exists only while the body is at the table.
    The stock, its prices, who the next purchase dresses, and — the part
@@ -2983,11 +3057,25 @@ function abortSeam(why) {
   dropCut(1100);
 }
 
+const derivedEventValid = event => {
+  if (!event || typeof event !== "object" || Array.isArray(event)) return false;
+  const keys = ["kind", "actor", "beneficiary", "commandIndex", "underFire", "reached"];
+  if (Object.keys(event).length !== keys.length || !Object.keys(event).every(key => keys.includes(key))) return false;
+  return event.kind === "extraction"
+    && typeof event.actor === "string" && event.actor.length > 0 && event.actor.length <= 16
+    && typeof event.beneficiary === "string" && event.beneficiary.length > 0 && event.beneficiary.length <= 16
+    && event.actor !== event.beneficiary
+    && Number.isInteger(event.commandIndex) && event.commandIndex >= 0 && event.commandIndex < 1024
+    && typeof event.underFire === "boolean" && event.reached === true;
+};
+const derivedEventsValid = events =>
+  Array.isArray(events) && events.length <= 1024 && events.every(derivedEventValid);
+
 // what a returned card must look like before the room believes a word of
 // it: the seed IT dealt, a sane outcome, a replayable-shaped record
 function seamResultValid(d) {
   const count = n => Number.isInteger(n) && n >= 0 && n <= 16;
-  return d.seed === seamDealt
+  const yardValid = d.seed === seamDealt
     // ...and fought by the squad this room dealt. The seed check has
     // always asked "is this the card I dealt"; under the new law that
     // question has a second half, because the same seed fought by a
@@ -3012,7 +3100,17 @@ function seamResultValid(d) {
     && count(d.ledger.walked) && count(d.ledger.finished) && count(d.ledger.lost)
     && Array.isArray(d.down)
     && d.down.length === d.ledger.lost
-    && d.down.every(n => typeof n === "string" && n.length > 0 && n.length <= 16);
+    && d.down.every(n => typeof n === "string" && n.length > 0 && n.length <= 16)
+    && derivedEventsValid(d.derivedEvents);
+  return yardValid;
+}
+
+// This validates only the /file envelope. The yard card was already checked
+// synchronously while its deal was still live; re-running that check after
+// endSeam clears the deal would make every honest async answer look disputed.
+function filedReceiptValid(filed) {
+  return !!filed && filed.certified === true && filed.filed === true
+    && typeof filed.id === "string" && /^[0-9a-f]{32}$/.test(filed.id);
 }
 
 function endSeam(result) {
@@ -3050,6 +3148,10 @@ function endSeam(result) {
     `FIELDED ${result.roster.map(f => `${esc(f.name)} ${f.hp}/${FULL_STRENGTH}`).join(" · ")}<br>` +
     `seed ${esc(result.seed)} · ${result.record.length} commands` +
     ` · fp <span class="fp">${esc(result.fingerprint)}</span><br>` +
+    (result.derivedEvents.length
+      ? `YARD DERIVED · ${result.derivedEvents.map(event =>
+          `${esc(event.actor)} → ${esc(event.beneficiary)} / COMMAND ${event.commandIndex}`).join(" · ")}<br>`
+      : "YARD DERIVED · NONE<br>") +
     `<span id="seamcert">CERT · ASKING THE EDGE…</span><br>` +
     `<span id="seamtotals">RUN · settling…</span>`;
   canvas.dataset.lastResult = result.result;
@@ -3081,8 +3183,18 @@ async function certifySeam(d, dealt) {
   let verdict;
   let cert;
   let rules = null;
+  // Nothing from the yard enters the run's event ledger. The successful
+  // filed certificate below is the only path that replaces this empty set
+  // with replay-authored events.
+  let derivedEvents = [];
+  let matchId = null;
+  let eventOriginNote = null;
   try {
-    const r = await fetch(`${WITNESS}/certify`, {
+    // RECORDED DESIGN DECISION — 2026-08-16, durable-moment step 3:
+    // THE ROOM FILES WHAT IT CERTIFIES. /file is certify + durable archive,
+    // idempotent by content key, so certified grade always has an origin the
+    // player can reopen. A future cut-feed card submits to neither endpoint.
+    const r = await fetch(`${WITNESS}/file`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -3100,53 +3212,102 @@ async function certifySeam(d, dealt) {
       signal: AbortSignal.timeout(WITNESS_MS),
     });
     const out = await r.json();
-    const agrees = out.certified === true
-      && out.result === d.result
-      && out.rating === d.rating
-      && out.purse === d.purse
-      // The aftermath is checked the same way the outcome always was.
-      // It has to be: the run banks mercy and wounds off these numbers,
-      // so a page that misreports what a card cost would write a run
-      // history the edge never attested to. The certificate carries the
-      // same three counts off its own replay.
-      && !!out.ledger
-      && out.ledger.walked === d.ledger.walked
-      && out.ledger.finished === d.ledger.finished
-      && out.ledger.lost === d.ledger.lost
-      // ...and the edge replayed the squad this room dealt. The
-      // certificate reports what the REPLAY fielded, so this is the one
-      // place that can catch an edge which quietly ignored the roster and
-      // certified the canonical three instead — which would look like
-      // agreement on every card where the difference happened not to
-      // change the outcome (caught in review).
-      //
-      // An edge that says NOTHING about the squad is a third case, not a
-      // failure: a Worker deployed before this input existed certifies
-      // the match honestly and simply never speaks to who fought it.
-      // Requiring the field would strike every honest card until the
-      // Worker is redeployed — and assuming agreement would be the
-      // silent half of the same mistake. So it is counted and LABELED,
-      // the same grammar an unwitnessed card already gets.
-      && (out.roster === undefined || sameRoster(out.roster, dealt));
-    const squadAttested = out.roster !== undefined;
-    if (agrees) {
-      verdict = '<span class="fp">CERTIFIED AT THE EDGE</span>'
-        + (squadAttested ? ""
-          : ' · <span class="warn">SQUAD NOT ATTESTED — THIS EDGE PREDATES THE ROSTER</span>');
-      cert = "certified";
-      // stamped so the run can notice a rules deploy underneath it rather
-      // than presenting one total across two different rule sets
-      rules = typeof out.rules === "string" ? out.rules : null;
-    } else {
-      verdict = `<b>EDGE DISPUTES THE FEED — STRUCK</b> · ${esc(out.error ?? "outcome mismatch")}`;
+    const error = typeof out?.error === "string" ? out.error : `HTTP ${r.status}`;
+    const disputeErrors = new Set([
+      "record claims a different rules version",
+      "record does not replay",
+      "record replays but the match is unfinished",
+      "record replays to a different match than claimed",
+    ]);
+    const genuineDispute = r.status === 422
+      && out?.certified === false
+      && disputeErrors.has(out.error);
+    const callerBug = r.status === 400;
+    const archiveFull = r.status === 507
+      && out?.filed === false
+      && /archive is full/i.test(error);
+
+    // HTTP failures do not all mean the same thing. A 422 is the Worker's
+    // replay verdict; 507/500 are infrastructure after (or around) that
+    // verdict and cannot turn an honest card into a dispute. A 400 means the
+    // room sent a request outside the grammar — the caller-bug class the seam
+    // harness asserts ordinary play never reaches.
+    if (genuineDispute) {
+      verdict = `<b>EDGE DISPUTES THE FEED — STRUCK</b> · ${esc(error)}`;
       cert = "struck";
+      rules = typeof out.rules === "string" ? out.rules : null;
+    } else if (callerBug) {
+      verdict = `<b>WITNESS REFUSED THE ROOM'S REQUEST — CALLER BUG</b> · ${esc(error)}`;
+      cert = "caller-bug";
+    } else if (!r.ok) {
+      verdict = archiveFull
+        ? '<b>CERTIFIED BUT NOT ARCHIVED — COUNTED UNWITNESSED</b> · THE ARCHIVE IS FULL'
+        : `<b>WITNESS INFRASTRUCTURE FAILURE — COUNTED UNWITNESSED</b> · ${esc(error)}`;
+      cert = "unwitnessed";
+      if (d.derivedEvents.length) {
+        eventOriginNote = "DERIVED EVENTS NOT BANKED — NO DURABLE ORIGIN EXISTS YET";
+      }
+    } else {
+      const factsAgree = !!out
+        && out.result === d.result
+        && out.rating === d.rating
+        && out.purse === d.purse
+        // The aftermath is checked the same way the outcome always was.
+        // It has to be: the run banks mercy and wounds off these numbers,
+        // so a page that misreports what a card cost would write a run
+        // history the edge never attested to. The certificate carries the
+        // same three counts off its own replay.
+        && !!out.ledger
+        && out.ledger.walked === d.ledger.walked
+        && out.ledger.finished === d.ledger.finished
+        && out.ledger.lost === d.ledger.lost
+        // An edge that says NOTHING about the squad predates this input. It
+        // counts with a caveat; an attested different squad is a dispute.
+        && (out.roster === undefined || sameRoster(out.roster, dealt));
+      const receiptValid = filedReceiptValid(out);
+      const eventsAttested = derivedEventsValid(out?.derivedEvents);
+      const squadAttested = out?.roster !== undefined;
+      if (receiptValid && eventsAttested && factsAgree) {
+        verdict = '<span class="fp">CERTIFIED AT THE EDGE</span>'
+          + (squadAttested ? ""
+            : ' · <span class="warn">SQUAD NOT ATTESTED — THIS EDGE PREDATES THE ROSTER</span>');
+        cert = "certified";
+        derivedEvents = out.derivedEvents;
+        matchId = out.id;
+        // stamped so the run can notice a rules deploy underneath it rather
+        // than presenting one total across two different rule sets
+        rules = typeof out.rules === "string" ? out.rules : null;
+      } else if (receiptValid && !factsAgree) {
+        verdict = "<b>EDGE DISPUTES THE FEED — STRUCK</b> · outcome mismatch";
+        cert = "struck";
+        matchId = out.id;
+      } else {
+        // A legacy or malformed success envelope is not a replay dispute.
+        // It cannot mint certified grade, but neither may it erase the card.
+        const missing = !Object.prototype.hasOwnProperty.call(out ?? {}, "derivedEvents");
+        verdict = receiptValid && factsAgree
+          ? `<b>CERTIFICATE EVENT ATTESTATION INCOMPLETE — COUNTED UNWITNESSED</b> · derivedEvents ${missing ? "missing" : "unreadable"}`
+          : "<b>WITNESS RESPONSE INCOMPLETE — COUNTED UNWITNESSED</b>";
+        cert = "unwitnessed";
+        if (d.derivedEvents.length) {
+          eventOriginNote = receiptValid
+            ? "DERIVED EVENTS NOT BANKED — THE FILE HAS NO EVENT ATTESTATION"
+            : "DERIVED EVENTS NOT BANKED — NO DURABLE ORIGIN EXISTS YET";
+        }
+      }
     }
   } catch {
-    verdict = "UNCERTIFIED — NO WITNESS REACHABLE";
+    verdict = "UNCERTIFIED — NO WITNESS REACHABLE · COUNTED UNWITNESSED";
     cert = "unwitnessed";
+    if (d.derivedEvents.length) {
+      eventOriginNote = "DERIVED EVENTS NOT BANKED — NO DURABLE ORIGIN EXISTS YET";
+    }
   }
   const certEl = document.getElementById("seamcert");
-  if (certEl) certEl.innerHTML = `CERT · ${verdict}`;
+  if (certEl) {
+    certEl.innerHTML = `CERT · ${verdict}`
+      + (eventOriginNote ? `<br><span class="warn">${eventOriginNote}</span>` : "");
+  }
 
   // this card has landed on the run that dealt it; closing is safe again
   // once nothing else is still in the air
@@ -3163,6 +3324,8 @@ async function certifySeam(d, dealt) {
     purse: d.purse,
     ledger: d.ledger,
     down: d.down,
+    derivedEvents,
+    matchId,
     cert,
     rules,
     at: new Date().toISOString(),

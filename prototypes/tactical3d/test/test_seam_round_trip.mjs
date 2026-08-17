@@ -421,6 +421,7 @@ try {
   const funded = applyCard(openSeason("2026-08-13T00:00:00Z", SHOP_TOUR), {
     seed: "a", result: "win", rating: 30, purse: 300,
     ledger: { walked: 0, finished: 0, lost: 0 }, down: [], cert: "certified",
+    derivedEvents: [], matchId: "0123456789abcdef0123456789abcdef",
     rules: "test-rules", at: "2026-08-13T00:00:00Z",
   });
   if (!funded.accepted) throw new Error(`purse fixture refused: ${funded.why}`);
@@ -503,27 +504,49 @@ try {
     // not to change the outcome — so without this check it would look
     // exactly like agreement (caught in review).
     //
-    // Driven by stubbing /certify rather than by playing a card: the
+    // Driven by stubbing /file rather than by playing a card: the
     // claim is about what the ROOM does with an answer, and a crafted
     // answer is the only way to produce the disagreement on demand. The
     // seam result is posted from INSIDE the frame because the room
     // refuses any message that is not its own iframe's.
     const DEALT = [{ name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 }, { name: "NIX", hp: 10 }];
     const CANONICAL = [{ name: "VESPER", hp: 10 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 }];
-    const stubCert = certRoster => page.route(/\/certify$/, route => route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        certified: true, rules: "stub-rules", result: "loss", rating: 7, purse: 70,
-        ledger: { walked: 0, finished: 0, lost: 0 }, roster: certRoster,
-        rosterHash: "stub", fingerprint: "abc123", lines: 1, transcript: [],
-      }),
-    }));
+    const stubFile = certRoster => page.route(/\/file$/, route => {
+      const asked = JSON.parse(route.request().postData() ?? "{}");
+      const rosterFields = certRoster === undefined ? {} : {
+        roster: certRoster,
+        rosterHash: "00000000",
+      };
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          filed: true,
+          existing: false,
+          id: "22222222222222222222222222222222",
+          filed_at: "2026-08-16T00:00:00.000Z",
+          certified: true,
+          rules: "stub-rules",
+          ledger: { walked: 0, finished: 0, lost: 0 },
+          seed: asked.seed,
+          ...rosterFields,
+          result: "loss",
+          rating: 7,
+          purse: 70,
+          commands: asked.record.length,
+          derivedEvents: [],
+          lines: 1,
+          fingerprint: "abc123",
+          transcript: ["stub transcript"],
+        }),
+      });
+    });
     const postHome = (frameHandle, roster = DEALT) => frameHandle.evaluate(roster => {
       window.parent.postMessage({
         type: "sentinel-seam-result",
         seed: "6", record: [["end"]], result: "loss", rating: 7, purse: 70,
         ledger: { walked: 0, finished: 0, lost: 0 }, down: [],
+        derivedEvents: [],
         roster,
         fingerprint: "abc123", lines: 1,
       }, location.origin);
@@ -537,7 +560,7 @@ try {
     };
 
     const dressedFrame = await (await page.$("#seamframe")).contentFrame();
-    await stubCert(CANONICAL);
+    await stubFile(CANONICAL);
     await postHome(dressedFrame);
     const wrongSquadVerdict = await settledVerdict();
     check("an edge certifying a squad the room did not deal is disputed",
@@ -559,7 +582,7 @@ try {
     await page.keyboard.up("KeyD");
     await page.keyboard.up("Shift");
     if (reopened) {
-      await stubCert(DEALT);
+      await stubFile(DEALT);
       await postHome(await (await page.$("#seamframe")).contentFrame());
       const rightSquadVerdict = await settledVerdict();
       check("and the same stub agreeing about the squad certifies",
@@ -596,7 +619,7 @@ try {
     await page.keyboard.up("KeyD");
     await page.keyboard.up("Shift");
     if (thirdDeal) {
-      await stubCert(undefined);
+      await stubFile(undefined);
       await postHome(await (await page.$("#seamframe")).contentFrame(), CANONICAL);
       const silentVerdict = await settledVerdict();
       check("an edge that predates the roster counts, and says it did not attest the squad",
@@ -606,7 +629,7 @@ try {
     } else {
       check("an edge that predates the roster counts, and says so", false, "the door never re-dealt");
     }
-    await page.unroute(/\/certify$/);
+    await page.unroute(/\/file$/);
   }
 
   // ---- the seam carries the OTHER body too ---------------------------

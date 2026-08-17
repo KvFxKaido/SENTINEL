@@ -348,6 +348,54 @@ try {
   check("a downed body plays the death verb", played.includes("death"), played.join(","));
   check("a yielded body kneels", played.includes("kneel"), played.join(","));
 
+  // ---- the filed aftermath carries a durable command pointer --------
+  // This is a surface claim, not a replay test: witness_check owns the
+  // Worker's authorship. Here the edge answers with one replay-derived
+  // event and the yard must put its filed address on the post-match card.
+  const filedId = "44444444444444444444444444444444";
+  await page.route("https://sentinel-witness.ishawnd.workers.dev/file", route => {
+    const asked = JSON.parse(route.request().postData() ?? "{}");
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        filed: true,
+        existing: false,
+        id: filedId,
+        filed_at: "2026-08-16T00:00:00.000Z",
+        certified: true,
+        rules: "stub-rules",
+        ledger: { walked: 0, finished: 0, lost: 0 },
+        seed: asked.seed,
+        roster: asked.roster,
+        rosterHash: "00000000",
+        result: "loss",
+        rating: 0,
+        purse: 0,
+        commands: asked.record.length,
+        derivedEvents: [{
+          kind: "extraction", actor: "SABLE", beneficiary: "KOA",
+          commandIndex: 6, underFire: true, reached: true,
+        }],
+        lines: 0,
+        fingerprint: asked.fingerprint,
+        transcript: [],
+      }),
+    });
+  });
+  if (await ended()) {
+    await page.click("#ovfile");
+    await page.waitForFunction(id =>
+      document.getElementById("ovderived").dataset.pointer === `${id}:6`, filedId);
+    const filedMoment = await page.textContent("#ovderived");
+    check("the filed extraction renders its match and command pointer",
+      filedMoment.includes(filedId) && /COMMAND 6/.test(filedMoment), filedMoment);
+  } else {
+    check("the filed extraction renders its match and command pointer", false,
+      "the driven match did not reach its post-match card");
+  }
+  await page.unroute("https://sentinel-witness.ishawnd.workers.dev/file");
+
   // ---- a roster this yard cannot STAGE faults at the door -----------
   // Two different questions, and only one is the rules core's:
   // `rosterValid` says who may FIGHT, this page says who it can DRAW.

@@ -80,6 +80,32 @@ Inside the run, durable wounds and recovery clocks key on the stable person id.
 `recent[].down` deliberately keeps the tactical names the card carried across
 the yard wire: it is a receipt, not another durable identity ledger.
 
+## The durable moment
+
+Run schema v5 adds `eventLedger`, keyed by the actor's stable person id. The
+run never derives an event. On a filed certificate it accepts the Worker's
+replay-authored tactical event, translates `actor` and `beneficiary` through
+the lineup that was fielded for that card, and banks the stable ids once.
+`recent[].derivedEvents` remains the certified receipt in tactical names.
+
+The one event in this slice is `extraction`. A certified entry carries
+`grade: {kind:"certified", matchId, commandIndex}`; the 32-hex match id points
+to a filed Witness record and the command index points inside it. The ledger
+is certified-grade-only in this slice. An unwitnessed or unarchived card still
+counts as a card, and the yard may show its derived account for the current
+session, but the run retains no derived event from it. Claim grade is deferred
+until the append-only local event log exists: the rolling twelve-card receipt
+is not a durable target, and no pointer is minted before its target survives.
+Season entries carry the same authored slate stamp as other banked facts.
+
+`sane()` validates the ledger all the way in: every key and beneficiary is an
+owned stable person id, nobody names themselves, grades have exact shapes,
+every grade is certified with a plausible filed id and command index,
+certified counts agree with the retained receipts, non-certified receipts
+carry no derived events, and slate stamps resolve to authored entries already
+passed. This is an event ledger, not a relationship ledger; it grants no
+permissions and computes no bond state.
+
 ## The slate (season-lite)
 
 A run opened on a **slate** is a season (`architecture/
@@ -211,7 +237,9 @@ already right and only its lifetime was wrong.
 An unverified truth that says it is unverified beats a silent one. A card
 the edge *disputes* is not a card, but a run that quietly discarded
 disputes would look identical to one that never had any — so the count is
-kept.
+kept. "Banked" in this table means the card's run consequences; only a
+certified card may also bank replay-derived events. Infrastructure failures
+never mint claim-grade events in this slice.
 
 `applyCard` returns two different negatives on purpose:
 
@@ -360,12 +388,12 @@ the stock, knows the balance, and knows what each fighter already wears,
 so an unaffordable purchase arriving here means the room offered
 something it should have refused.
 
-`RUN_V` is 4: the season joined the schema at 2, the purse at 3, and the
-owned roster plus lineup at 4. A stored
+`RUN_V` is 5: the season joined the schema at 2, the purse at 3, the
+owned roster plus lineup at 4, and replay-derived pairwise events at 5. A stored
 run of any older version takes the orphan path below — moved aside and
 said so, which is the exact situation that path was built and tested for.
-Hydrating a v3 run with a made-up roster would be a silent migration wearing
-a default, so the older payload is set aside instead.
+Hydrating a v4 run with a made-up empty event ledger would be a silent
+migration wearing a default, so the older payload is set aside instead.
 
 `saveRun`'s return value is not decoration — the room raises a standing
 warning when a write fails after the probe passed, because a panel

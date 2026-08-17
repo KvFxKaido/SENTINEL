@@ -39,6 +39,7 @@ import {
   S as RULES_S, restart as rulesRestart,
   rosterValid, CANON_ROSTER, OP_MAX_HP,
 } from "../../tactical-core/rules.js";
+import { DRAG_GOLDEN } from "../../tactical-core/drag-golden.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..", "..");
@@ -75,7 +76,9 @@ function card(seed, down, cert = "certified") {
   return {
     seed, result: "loss", rating: 1, purse: 10,
     ledger: { walked: 0, finished: 0, lost: down.length },
-    down, cert, rules: "test-rules", at: `2026-08-05T00:00:0${seed}Z`,
+    down, derivedEvents: [], cert,
+    matchId: cert === "certified" ? "0123456789abcdef0123456789abcdef" : null,
+    rules: "test-rules", at: `2026-08-05T00:00:0${seed}Z`,
   };
 }
 
@@ -87,6 +90,45 @@ function runWith(cards) {
     run = out.run;
   }
   return run;
+}
+
+const STUB_FILED_AT = "2026-08-16T00:00:00.000Z";
+function filedResponse(asked, {
+  id,
+  result,
+  rating,
+  purse,
+  ledger,
+  rules = "stub-rules",
+  derivedEvents = [],
+  includeDerivedEvents = true,
+  fingerprint = asked.fingerprint,
+  lines = 1,
+  transcript = ["stub transcript"],
+} = {}) {
+  const certificate = {
+    certified: true,
+    rules,
+    ledger,
+    seed: asked.seed,
+    roster: asked.roster,
+    rosterHash: "00000000",
+    result,
+    rating,
+    purse,
+    commands: asked.record.length,
+    lines,
+    fingerprint,
+    transcript,
+  };
+  if (includeDerivedEvents) certificate.derivedEvents = derivedEvents;
+  return {
+    filed: true,
+    existing: false,
+    id,
+    filed_at: STUB_FILED_AT,
+    ...certificate,
+  };
 }
 
 // A playwright whose version tag doesn't match a pre-provisioned browser
@@ -547,27 +589,30 @@ try {
   await page.evaluate(value =>
     localStorage.setItem("sentinel.run", JSON.stringify(value)),
     openRun("2026-08-16T00:00:00Z"));
-  let heldCertify = null;
-  let certifyRequests = 0;
-  const certifyReply = route => {
+  let heldFile = null;
+  let fileRequests = 0;
+  const fileReply = (route, options = {}) => {
     const asked = JSON.parse(route.request().postData() ?? "{}");
     return {
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({
-        certified: true, rules: "stub-rules", result: "win", rating: 7, purse: 70,
-        ledger: { walked: 0, finished: 0, lost: 0 }, roster: asked.roster,
-        rosterHash: "stub", fingerprint: asked.fingerprint, lines: 1, transcript: [],
-      }),
+      body: JSON.stringify(filedResponse(asked, {
+        id: "11111111111111111111111111111111",
+        result: "win",
+        rating: 7,
+        purse: 70,
+        ledger: { walked: 0, finished: 0, lost: 0 },
+        ...options,
+      })),
     };
   };
-  await page.route(/\/certify$/, route => {
-    certifyRequests++;
-    if (certifyRequests === 1) {
-      heldCertify = route;   // card A stays at ASKING THE EDGE…
+  await page.route(/\/file$/, route => {
+    fileRequests++;
+    if (fileRequests === 1) {
+      heldFile = route;   // card A stays at ASKING THE EDGE…
       return;
     }
-    return route.fulfill(certifyReply(route));
+    return route.fulfill(fileReply(route));
   });
   await boot("?body=composed&deal=6");
 
@@ -596,6 +641,7 @@ try {
       type: "sentinel-seam-result",
       seed: "6", record: [["end"]], result: "win", rating: 7, purse: 70,
       ledger: { walked: 0, finished: 0, lost: 0 }, down: [],
+      derivedEvents: [],
       roster: value.roster, fingerprint: value.fingerprint, lines: 1,
     }, window.parent.location.origin);
   }, { roster: plainRoster, fingerprint });
@@ -603,23 +649,23 @@ try {
   const frameA = await walkPlainDoor();
   check("a plain run deals card A", frameA !== null);
   if (!frameA) throw new Error("the plain door never dealt card A");
-  const cardAAsked = page.waitForRequest(/\/certify$/, { timeout: 10000 })
+  const cardAAsked = page.waitForRequest(/\/file$/, { timeout: 10000 })
     .then(() => true, () => false);
   await postPlainCard(frameA, "plain-a");
   const aHeld = await page.waitForFunction(() =>
     document.getElementById("cv").dataset.settling === "1",
   null, { timeout: 10000 }).then(() => true, () => false);
   const aAsked = await cardAAsked;
-  check("card A waits at the edge", aHeld && aAsked && heldCertify !== null,
-    `${await ds("settling")} settling · ${certifyRequests} requests`);
-  if (!heldCertify) throw new Error("card A never asked the stubbed edge");
+  check("card A waits at the edge", aHeld && aAsked && heldFile !== null,
+    `${await ds("settling")} settling · ${fileRequests} requests`);
+  if (!heldFile) throw new Error("card A never asked the stubbed edge");
 
   const frameB = await walkPlainDoor();
   check("the plain door deals card B before A settles", frameB !== null,
     `${await ds("dealGate")} · ${await ds("settling")} settling`);
   if (!frameB) throw new Error("the plain door did not deal card B mid-settlement");
 
-  await heldCertify.fulfill(certifyReply(heldCertify));
+  await heldFile.fulfill(fileReply(heldFile));
   const aLandedInsideB = await page.waitForFunction(() => {
     const cv = document.getElementById("cv");
     return cv.dataset.settling === "0"
@@ -639,15 +685,252 @@ try {
   check("the first settlement cannot dispute the next honest plain card",
     bFinished && (await ds("seam")) === "closed"
       && /^2:2–0:140:0:0:0$/.test(plainRaceRun)
-      && certifyRequests === 2,
-    `${await ds("seam")} · ${plainRaceRun} · ${certifyRequests} requests`);
+      && fileRequests === 2,
+    `${await ds("seam")} · ${plainRaceRun} · ${fileRequests} requests`);
   const plainRacePanel = (await page.textContent("#seaminfo")).replace(/\s+/g, " ").trim();
   check("and the panel says the second card banked",
     /CERTIFIED AT THE EDGE/.test(plainRacePanel)
       && /BANKED TO THE RUN · 2 CARDS/.test(plainRacePanel)
       && !/DISPUTES|STRUCK|REFUSED/.test(plainRacePanel),
     plainRacePanel);
-  await page.unroute(/\/certify$/);
+  await page.unroute(/\/file$/);
+
+  // HTTP status is part of the verdict vocabulary. /file certifies before
+  // it touches the archive, so its capacity and KV failures cannot be
+  // collapsed into the 422 replay-dispute path.
+  await page.route(/\/file$/, route => route.fulfill({
+    status: 507,
+    contentType: "application/json",
+    body: JSON.stringify({
+      filed: false,
+      error: "the archive is full — this is a prototype ledger, not a product one",
+    }),
+  }));
+  const fullFrame = await walkPlainDoor();
+  check("a plain run deals a card to the full archive", fullFrame !== null);
+  if (!fullFrame) throw new Error("the full-archive door never dealt");
+  await postPlainCard(fullFrame, "archive-full");
+  const fullSettled = await page.waitForFunction(() =>
+    /CERTIFIED BUT NOT ARCHIVED/.test(document.getElementById("seaminfo").textContent),
+  null, { timeout: 10000 }).then(() => true, () => false);
+  const fullPanel = (await page.textContent("#seaminfo")).replace(/\s+/g, " ").trim();
+  check("a 507 banks unwitnessed and names the archive limit",
+    fullSettled
+      && /COUNTED UNWITNESSED/.test(fullPanel)
+      && /THE ARCHIVE IS FULL/.test(fullPanel)
+      && !/DISPUTES|STRUCK/.test(fullPanel)
+      && /^3:3–0:210:0:0:0$/.test(await ds("run")),
+    `${fullPanel} · ${await ds("run")}`);
+  await page.unroute(/\/file$/);
+
+  await page.route(/\/file$/, route => route.fulfill({
+    status: 500,
+    contentType: "application/json",
+    body: JSON.stringify({ error: "certify failed" }),
+  }));
+  const failedFrame = await walkPlainDoor();
+  check("a plain run deals a card before a Worker failure", failedFrame !== null);
+  if (!failedFrame) throw new Error("the Worker-failure door never dealt");
+  await postPlainCard(failedFrame, "worker-failed");
+  const failedSettled = await page.waitForFunction(() =>
+    /WITNESS INFRASTRUCTURE FAILURE/.test(document.getElementById("seaminfo").textContent),
+  null, { timeout: 10000 }).then(() => true, () => false);
+  const failedPanel = (await page.textContent("#seaminfo")).replace(/\s+/g, " ").trim();
+  check("a 500 banks unwitnessed instead of inventing a dispute",
+    failedSettled
+      && /COUNTED UNWITNESSED/.test(failedPanel)
+      && /certify failed/.test(failedPanel)
+      && !/DISPUTES|STRUCK/.test(failedPanel)
+      && /^4:4–0:280:0:0:0$/.test(await ds("run")),
+    `${failedPanel} · ${await ds("run")}`);
+  await page.unroute(/\/file$/);
+
+  await page.route(/\/file$/, route => route.fulfill({
+    status: 422,
+    contentType: "application/json",
+    body: JSON.stringify({
+      filed: false, certified: false, error: "record does not replay",
+      rules: "stub-rules", applied: 0, submitted: 1,
+    }),
+  }));
+  const disputedFrame = await walkPlainDoor();
+  check("a plain run deals a card to the disputing edge", disputedFrame !== null);
+  if (!disputedFrame) throw new Error("the dispute door never dealt");
+  await postPlainCard(disputedFrame, "record-diverged");
+  const disputedSettled = await page.waitForFunction(() =>
+    /EDGE DISPUTES THE FEED — STRUCK/.test(document.getElementById("seaminfo").textContent),
+  null, { timeout: 10000 }).then(() => true, () => false);
+  const disputedPanel = (await page.textContent("#seaminfo")).replace(/\s+/g, " ").trim();
+  check("a genuine 422 replay dispute remains struck",
+    disputedSettled
+      && /record does not replay/.test(disputedPanel)
+      && /NOT BANKED — CARD STRUCK/.test(disputedPanel)
+      && /^4:4–0:280:0:0:1$/.test(await ds("run")),
+    `${disputedPanel} · ${await ds("run")}`);
+  await page.unroute(/\/file$/);
+
+  // A legacy /file response can attest and archive the match while saying
+  // nothing about derived events. That is not evidence for an empty array,
+  // and the yard's local array cannot be promoted into an edge-authored one.
+  // The protocol gap is counted unwitnessed, not rewritten as a dispute.
+  await page.route(/\/file$/, route => route.fulfill(fileReply(route, {
+    id: "22222222222222222222222222222222",
+    includeDerivedEvents: false,
+  })));
+  const legacyFrame = await walkPlainDoor();
+  check("a plain run deals a card to the legacy edge", legacyFrame !== null);
+  if (!legacyFrame) throw new Error("the legacy-edge door never dealt");
+  await postPlainCard(legacyFrame, "legacy-edge");
+  const legacySettled = await page.waitForFunction(() =>
+    /CERTIFICATE EVENT ATTESTATION INCOMPLETE/.test(
+      document.getElementById("seaminfo").textContent),
+  null, { timeout: 10000 }).then(() => true, () => false);
+  const legacyPanel = (await page.textContent("#seaminfo")).replace(/\s+/g, " ").trim();
+  check("a certificate without derivedEvents counts unwitnessed without minting an event",
+    legacySettled && /derivedEvents missing/.test(legacyPanel)
+      && /COUNTED UNWITNESSED/.test(legacyPanel)
+      && !/DISPUTES|STRUCK/.test(legacyPanel)
+      && /^5:5–0:350:0:0:1$/.test(await ds("run")),
+    `${legacyPanel} · ${await ds("run")}`);
+  await page.unroute(/\/file$/);
+
+  // ---- the durable moment: event -> filed command -> BACK ------------
+  // The room receives a tactical-wire event, but only the Worker's /file
+  // answer authors certified grade. The run translates names through the
+  // fielded lineup, and BACK follows the stored (match id, command index)
+  // to the archive without teaching the room how to interpret a drag.
+  const DRAG_ID = "33333333333333333333333333333333";
+  const dragReply = route => {
+    const asked = JSON.parse(route.request().postData() ?? "{}");
+    const transcript = Array.from(
+      { length: DRAG_GOLDEN.lines }, (_, index) => `stub transcript ${index}`);
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(filedResponse(asked, {
+        id: DRAG_ID,
+        rules: "drag-rules",
+        result: DRAG_GOLDEN.result,
+        rating: DRAG_GOLDEN.rating,
+        purse: DRAG_GOLDEN.purse,
+        ledger: { walked: 0, finished: 0, lost: 3 },
+        fingerprint: DRAG_GOLDEN.fingerprint,
+        lines: DRAG_GOLDEN.lines,
+        transcript,
+        derivedEvents: DRAG_GOLDEN.derived,
+      })),
+    });
+  };
+  await page.route(/\/file$/, dragReply);
+  await page.route(new RegExp(`/matches/${DRAG_ID}$`), route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      id: DRAG_ID,
+      filed_at: "2026-08-16T00:00:00Z",
+      record: DRAG_GOLDEN.record,
+      certificate: {
+        certified: true,
+        rules: "drag-rules",
+        ledger: { walked: 0, finished: 0, lost: 3 },
+        seed: "1",
+        roster: [{ name: "VESPER", hp: 10 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 }],
+        rosterHash: "00000000",
+        result: DRAG_GOLDEN.result,
+        rating: DRAG_GOLDEN.rating,
+        purse: DRAG_GOLDEN.purse,
+        commands: DRAG_GOLDEN.record.length,
+        derivedEvents: DRAG_GOLDEN.derived,
+        lines: DRAG_GOLDEN.lines,
+        fingerprint: DRAG_GOLDEN.fingerprint,
+        transcript: Array.from(
+          { length: DRAG_GOLDEN.lines }, (_, index) => `stub transcript ${index}`),
+      },
+    }),
+  }));
+  await page.evaluate(value =>
+    localStorage.setItem("sentinel.run", JSON.stringify(value)),
+    openRun("2026-08-16T00:00:00Z"));
+  await boot("?body=composed&deal=1");
+  const dragFrame = await walkPlainDoor();
+  check("the room deals the completed-drag card", dragFrame !== null);
+  if (!dragFrame) throw new Error("the durable-moment door never dealt");
+  await dragFrame.evaluate(value => {
+    window.parent.postMessage({
+      type: "sentinel-seam-result",
+      seed: "1",
+      record: value.record,
+      result: value.result,
+      rating: value.rating,
+      purse: value.purse,
+      ledger: { walked: 0, finished: 0, lost: 3 },
+      down: ["VESPER", "KOA", "SABLE"],
+      derivedEvents: value.derived,
+      roster: [{ name: "VESPER", hp: 10 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 }],
+      fingerprint: value.fingerprint,
+      lines: value.lines,
+    }, window.parent.location.origin);
+  }, DRAG_GOLDEN);
+  await page.waitForFunction(() =>
+    /CERTIFIED AT THE EDGE/.test(document.getElementById("seaminfo").textContent),
+  null, { timeout: 10000 });
+  const certifiedRun = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("sentinel.run") ?? "null"));
+  const certifiedEvent = certifiedRun?.eventLedger?.sable?.[0];
+  check("the completed drag banks a certified stable-id event",
+    certifiedEvent?.beneficiary === "koa"
+      && certifiedEvent?.grade?.kind === "certified"
+      && certifiedEvent?.grade?.matchId === DRAG_ID
+      && certifiedEvent?.grade?.commandIndex === 6,
+    JSON.stringify(certifiedEvent));
+  check("the derived-event ledger is player-visible",
+    /SABLE EXTRACTED KOA UNDER FIRE/.test(await panelText())
+      && /BACK TO FILE/.test(await panelText()), await panelText());
+
+  await page.click(`.moment-back[data-match-id="${DRAG_ID}"]`);
+  await page.waitForFunction(want =>
+    document.getElementById("cv").dataset.source === want,
+  `${DRAG_ID}:6`, { timeout: 10000 });
+  const source = (await page.textContent("#sourceinfo")).replace(/\s+/g, " ").trim();
+  check("BACK resolves the filed pointer and exposes the drag command",
+    /POINTED COMMAND 6/.test(source)
+      && source.includes(JSON.stringify(DRAG_GOLDEN.record[6])), source);
+
+  // Same yard fact, no Witness: the yard may show its in-session account,
+  // but run-core banks no event. Claim grade waits for an append-only local
+  // origin rather than pointing into the twelve-card rolling receipt.
+  await page.unroute(/\/file$/);
+  await page.route(/\/file$/, route => route.abort("failed"));
+  const unwitnessedFrame = await walkPlainDoor();
+  check("the room deals an unwitnessed completed-drag card", unwitnessedFrame !== null);
+  if (!unwitnessedFrame) throw new Error("the unwitnessed door never dealt");
+  await unwitnessedFrame.evaluate(value => {
+    window.parent.postMessage({
+      type: "sentinel-seam-result",
+      seed: "1", record: value.record, result: value.result,
+      rating: value.rating, purse: value.purse,
+      ledger: { walked: 0, finished: 0, lost: 3 },
+      down: ["VESPER", "KOA", "SABLE"], derivedEvents: value.derived,
+      roster: [{ name: "VESPER", hp: 10 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 }],
+      fingerprint: value.fingerprint, lines: value.lines,
+    }, window.parent.location.origin);
+  }, DRAG_GOLDEN);
+  await page.waitForFunction(() =>
+    /UNCERTIFIED/.test(document.getElementById("seaminfo").textContent),
+  null, { timeout: 10000 });
+  const unwitnessedRun = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("sentinel.run") ?? "null"));
+  const unwitnessedSeam = (await page.textContent("#seaminfo")).replace(/\s+/g, " ").trim();
+  const allBankedEvents = Object.values(unwitnessedRun?.eventLedger ?? {}).flat();
+  check("the unwitnessed completed drag honestly banks no derived event",
+    allBankedEvents.length === 1
+      && allBankedEvents[0]?.grade?.kind === "certified"
+      && !allBankedEvents.some(event => event?.grade?.kind === "claim")
+      && /YARD DERIVED · SABLE → KOA/.test(unwitnessedSeam)
+      && /DERIVED EVENTS NOT BANKED — NO DURABLE ORIGIN EXISTS YET/.test(unwitnessedSeam),
+    `${JSON.stringify(allBankedEvents)} · ${unwitnessedSeam}`);
+  await page.unroute(/\/file$/);
+  await page.unroute(new RegExp(`/matches/${DRAG_ID}$`));
 
   // and a FRESH room opens on the house slate — the front office is the
   // default surface, not an opt-in
@@ -703,6 +986,7 @@ try {
   const paidCard = {
     seed: "b", result: "win", rating: 30, purse: 300,
     ledger: { walked: 0, finished: 0, lost: 0 }, down: [], cert: "certified",
+    derivedEvents: [], matchId: "0123456789abcdef0123456789abcdef",
     rules: "test-rules", at: "2026-08-13T00:00:00Z",
   };
   const paid = applyCard(openSeason("2026-08-13T00:00:00Z", TOUR), paidCard);
