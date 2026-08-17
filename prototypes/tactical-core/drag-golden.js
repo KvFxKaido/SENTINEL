@@ -31,6 +31,16 @@ export const DRAG_GOLDEN = {
   purse: 410,
   lines: 30,
   fingerprint: "e9e0a018",
+  derived: [
+    {
+      kind: "extraction",
+      actor: "SABLE",
+      beneficiary: "KOA",
+      commandIndex: 6,
+      underFire: true,
+      reached: true,
+    },
+  ],
   positions: [
     { name: "VESPER", x: 1, y: 9, hp: 0, alive: false },
     { name: "KOA", x: 3, y: 9, hp: 0, alive: false },

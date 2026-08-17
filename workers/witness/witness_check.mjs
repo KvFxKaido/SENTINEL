@@ -6,7 +6,7 @@
 //   node witness_check.mjs [base-url]     (default http://localhost:8787)
 import {
   S, bindIO, restart, endPlayerTurn, tryShoot, tryFinish, spare, tryMove,
-  setOverwatch, solution, reachable, living, formatEvent,
+  setOverwatch, solution, reachable, living, derivePairwiseEvents, formatEvent,
 } from "../../prototypes/tactical-core/rules.js";
 import { SHOWRUNNER_GOLDEN } from "../../prototypes/tactical-core/showrunner-golden.js";
 import { ROSTER_GOLDEN } from "../../prototypes/tactical-core/roster-golden.js";
@@ -112,6 +112,7 @@ async function autoPlay(seed, resolve = "spare", maxTurns = 20, roster = null) {
     lines: lines.length,
     rating: S.rating,
     result: S.gameOver,
+    derivedEvents: derivePairwiseEvents(),
   };
 }
 
@@ -123,7 +124,8 @@ check(cert.status === 200 && cert.body.certified === true &&
       cert.body.fingerprint === local.fingerprint &&
       cert.body.lines === local.lines &&
       cert.body.rating === local.rating &&
-      cert.body.result === local.result,
+      cert.body.result === local.result &&
+      Array.isArray(cert.body.derivedEvents) && cert.body.derivedEvents.length === 0,
   `certify: edge fp=${cert.body.fingerprint} vs local ${local.fingerprint}, rating ${cert.body.rating} vs ${local.rating}, purse=${cert.body.purse}`);
 
 // ---- the rules stamp --------------------------------------------
@@ -139,14 +141,18 @@ check(cert.status === 200 && cert.body.certified === true &&
 // before replay.
 const STAMP = fnv([
   GOLDENS[0].fingerprint, GOLDENS[0].result, GOLDENS[0].rating, GOLDENS[0].purse,
+  JSON.stringify([]),
   SHOWRUNNER_GOLDEN.fingerprint, SHOWRUNNER_GOLDEN.result, SHOWRUNNER_GOLDEN.rating, SHOWRUNNER_GOLDEN.purse,
+  JSON.stringify([]),
   ROSTER_GOLDEN.fingerprint, ROSTER_GOLDEN.result, ROSTER_GOLDEN.rating, ROSTER_GOLDEN.purse,
   ROSTER_GOLDEN.key,
   // `faithful` too: the roster golden runs through replayMatch, the path
   // certification takes, so a record that stopped reproducing itself
   // under a roster moves the stamp rather than passing unnoticed
   true,
+  JSON.stringify([]),
   DRAG_GOLDEN.fingerprint, DRAG_GOLDEN.result, DRAG_GOLDEN.rating, DRAG_GOLDEN.purse,
+  JSON.stringify(DRAG_GOLDEN.derived),
 ].join(":"));
 check(cert.body.rules === STAMP,
   `certificate carries the four-golden rules stamp: ${cert.body.rules} (expected ${STAMP})`);
@@ -186,7 +192,8 @@ check(dragCert.status === 200 && dragCert.body.certified === true &&
       dragCert.body.fingerprint === DRAG_GOLDEN.fingerprint &&
       dragCert.body.rating === DRAG_GOLDEN.rating &&
       dragCert.body.purse === DRAG_GOLDEN.purse &&
-      dragCert.body.result === DRAG_GOLDEN.result,
+      dragCert.body.result === DRAG_GOLDEN.result &&
+      JSON.stringify(dragCert.body.derivedEvents) === JSON.stringify(DRAG_GOLDEN.derived),
   `drag golden certifies at the edge: fp=${dragCert.body.fingerprint} rating=${dragCert.body.rating}`);
 
 // ---- the roster: the match's second certified input ---------------
@@ -318,7 +325,8 @@ check(!!mine && mine.rating === local.rating && mine.result === local.result
 
 const fetched = (await getJson(`/matches/${filed.body.id}`)).body;
 check(JSON.stringify(fetched.record) === JSON.stringify(local.record) &&
-      fetched.certificate?.fingerprint === local.fingerprint,
+      fetched.certificate?.fingerprint === local.fingerprint &&
+      Array.isArray(fetched.certificate?.derivedEvents) && fetched.certificate.derivedEvents.length === 0,
   `filed match fetches back in full: ${fetched.record?.length} commands + certificate`);
 
 // The fourth item on run-core's price list, answered at the edge: what

@@ -15,7 +15,7 @@ import {
   S, bindIO, restart, endPlayerTurn, formatEvent,
   los, coverBonus, solution, reachable, living, unitAt, W, H,
   mulberry32, MORALE, RATING, tryShoot, tryFinish, spare, setOverwatch, tryMove,
-  downAt, dragReachable, tryDrag,
+  downAt, dragReachable, tryDrag, derivePairwiseEvents,
   replayMatch, TWISTS, playTwist, twistWindow,
   rosterValid, rosterKey, CANON_ROSTER, ROSTER_SLOTS, OP_MAX_HP,
 } from "./rules.js";
@@ -168,6 +168,26 @@ test("a drag names both operatives, moves the body behind the actor, and spends 
   assert.equal(cap.events.filter(e => e.type === "rating" && e.delta === RATING.drag).length, 1);
 });
 
+test("a completed drag outside overwatch derives an extraction clear of fire", async () => {
+  captureEvents();
+  restart(1);
+  const [actor, body] = living("op");
+  actor.x = 4; actor.y = 5;
+  body.x = 4; body.y = 6; body.hp = 0; body.alive = false;
+
+  assert.equal(await tryDrag(actor, body, 4, 4), true);
+  assert.deepEqual(derivePairwiseEvents(), [], "a fragment does not mint durable events");
+  S.gameOver = "win";
+  assert.deepEqual(derivePairwiseEvents(), [{
+    kind: "extraction",
+    actor: "VESPER",
+    beneficiary: "KOA",
+    commandIndex: 0,
+    underFire: false,
+    reached: true,
+  }]);
+});
+
 test("illegal drags buy no state and never enter the record", async () => {
   captureEvents();
   restart(1);
@@ -231,6 +251,8 @@ test("an interrupted drag records where the body actually stopped", async () => 
   assert.deepEqual(drag.target.body, [0, 7], "the event keeps the attempted destination inspectable");
   assert.deepEqual(drag.to.body, [0, 8], "and reports the resolved board instead of overclaiming it");
   assert.ok(cap.lines.includes("VESPER'S DRAG OF KOA STOPS — (0,9) → (0,8)"));
+  S.gameOver = "loss";
+  assert.deepEqual(derivePairwiseEvents(), [], "an interrupted drag is not an extraction");
 });
 
 test("an interrupted drag speaks before the match-ending event", async () => {
@@ -293,7 +315,7 @@ test("a stale drag resolver cannot speak after a restarted match's end", async (
 });
 
 test("the drag golden records Sable pulling Koa under fire and replays to the same board", async () => {
-  const { seed, record, result, rating, purse, lines: lineCount, fingerprint, positions } = DRAG_GOLDEN;
+  const { seed, record, result, rating, purse, lines: lineCount, fingerprint, positions, derived } = DRAG_GOLDEN;
   const cap = captureEvents();
   const played = await replayMatch(seed, record);
   assert.equal(played.faithful, true, "the explicit actor + beneficiary command reproduces itself");
@@ -314,6 +336,18 @@ test("the drag golden records Sable pulling Koa under fire and replays to the sa
     positions,
     "the record moved KOA's down body and left every condition untouched");
   assert.deepEqual(S.draggedBodies, [1]);
+  assert.deepEqual(played.derivedEvents, derived,
+    "the golden pins the extraction predicate beside the verb it interprets");
+});
+
+test("replay and pairwise derivation agree across runs", async () => {
+  const first = await replayMatch(DRAG_GOLDEN.seed, DRAG_GOLDEN.record);
+  const firstEvents = JSON.parse(JSON.stringify(first.derivedEvents));
+  const second = await replayMatch(DRAG_GOLDEN.seed, DRAG_GOLDEN.record);
+  assert.equal(first.faithful, true);
+  assert.equal(second.faithful, true);
+  assert.deepEqual(second.derivedEvents, firstEvents);
+  assert.deepEqual(derivePairwiseEvents(), DRAG_GOLDEN.derived);
 });
 
 /* ---- yield states ----------------------------------------------
