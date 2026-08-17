@@ -25,7 +25,9 @@ where the record is the command list the rules core accumulated in
 `S.record` while the match was played. Both replay through
 the shared rules module and return the certified transcript: result,
 rating, purse, line count, the FNV-1a fingerprint, and the transcript
-itself. The grammar spans eight verbs — the player's seven and the house's
+itself. A certificate also carries `derivedEvents`, authored from the
+Worker's own completed replay; request bodies never supply this field for the
+edge to trust or cross-check. The grammar spans eight verbs — the player's seven and the house's
 `["twist", cardId]` (Circuit step 4), which certifies like any other hand
 on the record: legal only between rounds, budgeted by the rules, an
 illegally-timed card fails closed as an unfaithful replay. Extraction's
@@ -83,8 +85,12 @@ Each golden contributes its transcript fingerprint **and its outcome** —
 result, rating, purse — because rating is deliberately never a transcript
 line, so payout behavior could otherwise change under an unchanged stamp
 (caught in review); the roster golden adds its canonical key and its
-`faithful` flag. Today's stamp is `78c24d5a` =
-`fnv("39e8be71:loss:29:290:6495eab3:win:92:920:d44833c0:loss:35:350:VESPER:6|NIX:10|SABLE:3:true:e9e0a018:loss:41:410")`.
+`faithful` flag. Since durable-moment step 3, each also contributes its
+derived-event array: the first three contribute `[]`, while the drag golden
+contributes its pinned extraction predicate. Today's stamp is `b9a69b0c` =
+`fnv("39e8be71:loss:29:290:[]:6495eab3:win:92:920:[]:d44833c0:loss:35:350:VESPER:6|NIX:10|SABLE:3:true:[]:e9e0a018:loss:41:410:[{\"kind\":\"extraction\",\"actor\":\"SABLE\",\"beneficiary\":\"KOA\",\"commandIndex\":6,\"underFire\":true,\"reached\":true}]")`.
+The four transcript fingerprints stayed fixed; the stamp moved from
+`78c24d5a` because the derivation predicate is now stamped rules behavior.
 
 The roster golden runs through **`replayMatch(seed, record, roster)`**,
 not `restart` — the path certification actually takes. Stamping the
@@ -93,7 +99,7 @@ neighbouring path left the roster's *forwarding* unstamped: a
 fielding the canonical three (caught in review, executed as a mutation).
 
 Extending the stamp's *inputs* is the one legitimate way the stamp
-changes without behavior changing — it has happened three times now, each
+changes without behavior changing — it has happened four times now, each
 time deliberately. Records stamped under an older input set are correctly
 refused as claiming a different rules version, because they are.
 
@@ -119,16 +125,26 @@ identity.) Filing is **state-idempotent**: an already-filed match returns
 the original entry with its original timestamp, so resubmission can
 neither inflate the ledger nor bump an old record to the top.
 
+**Recorded design decision — 2026-08-16, durable-moment step 3:** the
+walkable room's certified seam path calls `/file`, not bare `/certify`.
+Therefore every card that surface labels certified receives a durable match
+id in the same replay transaction. This is recorded for designer review and
+can be vetoed there. It does not pre-decide feed cutting: a future deliberate
+darkness path submits to neither endpoint. The tactical yard's explicit
+**FILE THE RECORD** button also continues to call `/file` directly.
+
 `POST /file` and `/certify` also accept an optional **fingerprint claim**
 — "this is the match I watched." A browser page that outlived a rules
 deploy can hold a record whose commands still replay under newer rules,
 to a different match; the claim makes the worker refuse rather than
 archive a transcript the player never saw. The prototype always sends it.
 
-Certificates (and stored metadata) carry the **ledger** — walked /
-finished / lost, derived from the replayed state — the **roster** the
+Certificates carry the **ledger** — walked / finished / lost — and
+`derivedEvents`, all derived from the replayed state, plus the **roster** the
 replay actually fielded with its own `rosterHash`, and the rules stamp,
 so a future rules version can refuse to silently reinterpret the archive.
+The full stored certificate retains the derived array; the metadata-only
+archive listing does not need to duplicate it.
 
 The roster is validated at this boundary with the rules core's own
 `rosterValid` — one definition of what a squad is, not a second one
@@ -144,8 +160,9 @@ as rules drift on every card.
 globally newest-first and complete, bounded by the cap.
 
 The tactical prototype consumes this directly: the post-match card's FILE
-THE RECORD button posts the exact `/file` wire shape, and THE ARCHIVE
-line is `GET /matches` summarized — cards on file, W–L, purse paid out.
+THE RECORD button posts the exact `/file` wire shape and, after success,
+shows each replay-derived event with its `(match id, command index)` pointer.
+THE ARCHIVE line is `GET /matches` summarized — cards on file, W–L, purse paid out.
 It is labeled *archive*, not *career*, because the ledger is one shared
 public namespace and nothing scopes records to a player yet; when
 identity exists, careers become a view over it.
@@ -177,8 +194,9 @@ Seed `deadbeef` must answer fingerprint `39e8be71` (42 lines) and seed `1`
 must answer `bac5ad90` (39 lines) — the exact hashes captured from the
 browser build *before the rules were extracted*, asserted in
 `rules.test.js`, and now served from the edge. The showrunner golden must
-certify to `6495eab3` with MERCY ODDS paid, and the extraction golden must
-certify its drag-containing record to `e9e0a018`. If the edge disagrees
+certify to `6495eab3` with MERCY ODDS paid and an empty derived array, and the
+extraction golden must certify its drag-containing record to `e9e0a018` with
+the pinned extraction event. If the edge disagrees
 with the goldens, the deploy is wrong, not the goldens.
 
 `witness_check.mjs` goes one further: it imports the rules core, *plays* a

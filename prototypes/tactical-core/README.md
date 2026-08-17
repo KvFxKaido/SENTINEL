@@ -54,7 +54,10 @@ RATING                crowd-meter deltas and payout rate, exported for tuning
 formatEvent(ev, wrap) one formatter, two skins
 S.record              the witness record — committed commands, in order
 replayMatch(seed, commands)
-                      drive a record back through the verbs (see below)
+                      drive a record back through the verbs and return its
+                      replay-derived pairwise events (see below)
+derivePairwiseEvents()
+                      derive completed-match events from replayed rules facts
 ```
 
 The rules never call the renderer. They emit events — `fire`, `shot`, `down`,
@@ -167,6 +170,23 @@ under SYN-3's reaction fire: 30 lines, rating 41, fingerprint `e9e0a018`.
 That golden also pins final positions because a readable sentence without a
 moved body would not be the verb it claims to record. The older no-drag
 goldens remain byte-identical.
+
+DRAG also supplies the first deterministic pairwise-event predicate, beside
+the verb because only this module can replay its resolution. Once the match is
+complete, `derivePairwiseEvents()` emits one event for each drag that reached
+its declared destination:
+
+```js
+{ kind: "extraction", actor, beneficiary, commandIndex,
+  underFire, reached: true }
+```
+
+`underFire` means at least one overwatch reaction shot was actually fired
+during that drag; hit or miss does not change the fact. An interrupted drag
+remains a faithful command and a readable board event but derives no
+extraction. `replayMatch` returns the same `derivedEvents` array, and callers
+consume it rather than recomputing the predicate. This is a replay-derived
+event only — no relationship state lives in the rules core.
 
 ## Showrunner twists
 
