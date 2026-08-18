@@ -3248,7 +3248,7 @@ function endSeam(result) {
   // here and keep seam state inside the seam lifecycle.
   seamFielded = null;
 
-  if (darkness) showCut("CHOSE THE DARK", "THE FEED WAS CUT BY CHOICE — THE LOCAL RECORD CAME BACK WITH YOU");
+  if (darkness) showCut("CHOSE THE DARK", "THE FEED WAS CUT BY CHOICE — NOBODY SAW THE ENDING");
   else showCut("FEED RETURNED", "THE RECORD CAME BACK WITH YOU");
   dropCut(900);
 }
@@ -3269,11 +3269,14 @@ async function certifySeam(d, dealt) {
   let matchId = null;
   let eventOriginNote = null;
   // Submission policy lives with every holder, all consulting the same
-  // tactical-core predicate. The local record still settles and remains
-  // available for later exposure; neither /certify nor /file sees it now.
+  // tactical-core predicate. Neither /certify nor /file sees a dark card —
+  // and until the local event log exists (integrity slice, half B), NOTHING
+  // retains it: this settlement banks the outcome and the record is gone.
+  // The panel says so rather than claiming a retention that does not exist
+  // (caught in review). Later exposure needs half B's surviving target.
   const darkness = feedCut(d.record);
   if (darkness) {
-    verdict = `<b>THE FEED WAS CUT BY CHOICE — COUNTED UNWITNESSED</b> · COMMAND ${darkness.commandIndex} · THE RECORD STAYED LOCAL`;
+    verdict = `<b>THE FEED WAS CUT BY CHOICE — COUNTED UNWITNESSED</b> · COMMAND ${darkness.commandIndex} · NOTHING KEPT — THE DARK HAS NO LEDGER YET`;
     cert = "unwitnessed";
     if (d.derivedEvents.length) {
       eventOriginNote = "DERIVED EVENTS NOT BANKED — THE RECORD WAS WITHHELD BY CHOICE";

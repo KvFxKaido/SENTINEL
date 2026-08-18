@@ -140,10 +140,11 @@ The room does not take the yard's word for it:
   checked the same way the outcome always was: a page
   that misreports what a card cost is struck, not banked;
 - a returned record carrying `CUT THE FEED` is sent to neither `/certify`
-  nor `/file`. The panel says the feed was cut by choice and the local record
-  stayed local. Until the run-ledger vocabulary changes in the second half
-  of the integrity slice, it banks through the existing explicitly labelled
-  `unwitnessed` path;
+  nor `/file`. The panel says the feed was cut by choice — and says that
+  nothing keeps the record: until the local event log lands in the second
+  half of the integrity slice, a dark record is withheld AND discarded, and
+  claiming otherwise would be a retention lie (caught in review). The card
+  banks through the existing explicitly labelled `unwitnessed` path;
 - the hand-off has a readiness handshake: the cut card holds until the
   yard proves it booted, with a 7s timeout and an <kbd>ESC</kbd> abort
   that put you back in the room if the far side never answers;
