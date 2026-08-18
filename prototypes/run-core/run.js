@@ -494,6 +494,7 @@ const isName = s =>
   && s !== "__proto__";
 
 const MATCH_ID = /^[0-9a-f]{32}$/;
+const LOG_CONTENT_KEY = /^[0-9a-f]{8}$/;
 const DERIVED_KEYS = ["kind", "actor", "beneficiary", "commandIndex", "underFire", "reached"];
 
 // The tactical wire stays tactical: names, not stable ids. The yard returns
@@ -546,14 +547,15 @@ const originValid = (grade, origin) => {
       && intIn(origin.commandIndex, 0, MAX_DERIVED_PER_CARD - 1);
   }
   return grade === "claim"
-    && exactKeys(origin, ["logId", "commandIndex"])
+    && exactKeys(origin, ["logId", "commandIndex", "key"])
     && Number.isInteger(origin.logId) && origin.logId >= 0
-    && intIn(origin.commandIndex, 0, MAX_DERIVED_PER_CARD - 1);
+    && intIn(origin.commandIndex, 0, MAX_DERIVED_PER_CARD - 1)
+    && typeof origin.key === "string" && LOG_CONTENT_KEY.test(origin.key);
 };
 
 const originKey = (grade, origin) => grade === "certified"
   ? `certified:${origin.matchId}@${origin.commandIndex}`
-  : `claim:${origin.logId}@${origin.commandIndex}`;
+  : `claim:${origin.logId}:${origin.key}@${origin.commandIndex}`;
 
 const sameOrigin = (aGrade, aOrigin, bGrade, bOrigin) =>
   aGrade === bGrade && originKey(aGrade, aOrigin) === originKey(bGrade, bOrigin);
@@ -652,15 +654,18 @@ export function cardValid(card) {
    Collapsing them into one boolean would make a renderer bug look
    exactly like an honest dispute, which is the failure the whole
    certification chain exists to prevent. */
-export function applyCard(run, card, claimLogId = null) {
+export function applyCard(run, card, claimOrigin = null) {
   if (!run || run.v !== RUN_V) {
     return { run, accepted: false, counted: false, why: "run is not this schema version" };
   }
   if (!cardValid(card)) {
     return { run, accepted: false, counted: false, why: "card is not a shape a run can bank" };
   }
-  const hasClaimOrigin = claimLogId !== null && claimLogId !== undefined;
-  if (hasClaimOrigin && (!Number.isInteger(claimLogId) || claimLogId < 0
+  const hasClaimOrigin = claimOrigin !== null && claimOrigin !== undefined;
+  if (hasClaimOrigin && (!claimOrigin || typeof claimOrigin !== "object"
+      || Array.isArray(claimOrigin) || !exactKeys(claimOrigin, ["logId", "key"])
+      || !Number.isInteger(claimOrigin.logId) || claimOrigin.logId < 0
+      || typeof claimOrigin.key !== "string" || !LOG_CONTENT_KEY.test(claimOrigin.key)
       || !["dark", "unwitnessed"].includes(card.cert)
       || card.derivedEvents.length === 0)) {
     return { run, accepted: false, counted: false, why: "claim origin does not belong to this card" };
@@ -771,16 +776,20 @@ export function applyCard(run, card, claimLogId = null) {
   // Bank rules-authored events; never compute one here and never replay the
   // record. Who vouches is the grade. The Worker authored the certified
   // array; on counted darkness/accident paths the yard authored the same
-  // rules-core output and the supplied log id proves only that its full
-  // record survived before this pointer was minted. A forged seam post can
-  // therefore bank a CLAIM that the preserved record later falsifies. It can
-  // never bank certification.
+  // rules-core output and the supplied log reference proves only that its
+  // full record survived before this content-bound pointer was minted. A
+  // forged seam post can therefore bank a CLAIM that the preserved record
+  // later falsifies. It can never bank certification.
   const eventGrade = card.cert === "certified" ? "certified" : "claim";
   const bankableEvents = card.cert === "certified" || hasClaimOrigin ? translatedEvents : [];
   for (const { event, actor, beneficiary } of bankableEvents) {
     const origin = card.cert === "certified"
       ? { matchId: card.matchId, commandIndex: event.commandIndex }
-      : { logId: claimLogId, commandIndex: event.commandIndex };
+      : {
+          logId: claimOrigin.logId,
+          commandIndex: event.commandIndex,
+          key: claimOrigin.key,
+        };
     const banked = {
       kind: event.kind,
       beneficiary,
@@ -1178,9 +1187,9 @@ function sane(r) {
     // A relationship is banking policy over a banked event, not an
     // unsupported sentence. Its stable-id direction, grade, pointer, time
     // and slate stamp must all resolve to the extraction it names. Whether a
-    // claim log id still resolves is deliberately outside sane(): the
-    // chronicle is independent state over which RUN_V has no jurisdiction.
-    // The room checks that target when it renders the source.
+    // claim log address still resolves to the named content is deliberately
+    // outside sane(): the chronicle is independent state over which RUN_V has
+    // no jurisdiction. The room checks that target when it renders the source.
     return allEvents.some(({ actor, event }) =>
       actor === relationship.to
       && event.kind === "extraction"
@@ -1217,8 +1226,9 @@ function sane(r) {
     && c.derivedEvents.every(event =>
       derivedEventValid(event) && ownedNames.has(event.actor) && ownedNames.has(event.beneficiary))
     // A struck receipt never carries an event. Counted uncertified receipts
-    // may carry claim events, but only applyCard with a prior log id writes
-    // them; sane() validates the corresponding ledger origin shape below.
+    // may carry claim events, but only applyCard with a prior content-bound
+    // log reference writes them; sane() validates the corresponding ledger
+    // origin shape below.
     && (c.cert !== "struck" || c.derivedEvents.length === 0)
     && (c.cert === "certified" ? matchIdValid(c.matchId)
       : c.cert === "dark" || c.cert === "unwitnessed" ? c.matchId === null

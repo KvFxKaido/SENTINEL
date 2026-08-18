@@ -141,10 +141,12 @@ The room does not take the yard's word for it:
   that misreports what a card cost is struck, not banked;
 - a returned record carrying `CUT THE FEED` is sent to neither `/certify`
   nor `/file`. The room calls it `dark`, not `unwitnessed`, at banking time.
-  When the yard returned derived events, the full `seed + roster + record`,
-  claimed events and aftermath are appended to the independent local
-  chronicle before run-core receives the returned `logId`. Only then may the
-  event and relationship bank at claim grade;
+  Every counted dark or accidentally unwitnessed card appends its full
+  `seed + roster + record`, claimed events (including an empty array) and
+  aftermath to the independent local chronicle. When the yard returned
+  derived events, run-core receives the returned `{logId,key}` only after that
+  append survives; only then may the event and relationship bank at claim
+  grade;
 - the hand-off has a readiness handshake: the cut card holds until the
   yard proves it booted, with a 7s timeout and an <kbd>ESC</kbd> abort
   that put you back in the room if the far side never answers;
@@ -185,10 +187,10 @@ the fielded lineup at banking time and records the author explicitly. A
 certified extraction carries `grade:"certified"` with filed
 `{matchId,commandIndex}` and offers **BACK TO FILE**. A dark or accidentally
 unwitnessed extraction carries `grade:"claim"` with local
-`{logId,commandIndex}` and offers **BACK TO LOG**. Both source paths use the
-same raw-record view without importing replay rules. A missing or malformed
-claim target says **THE SOURCE DOES NOT RESOLVE** rather than crashing or
-silently hiding the entry.
+`{logId,commandIndex,key}` and offers **BACK TO LOG**. Both source paths use the
+same raw-record view without importing replay rules. A missing, malformed, or
+content-mismatched claim target says **THE SOURCE DOES NOT RESOLVE** rather
+than crashing, silently hiding the entry, or opening the wrong match.
 
 ### Recorded integrity decisions — 2026-08-18, step 5
 
@@ -200,12 +202,14 @@ its preserved record disproves; it can never bank certification.
 
 **NO POINTER BEFORE ITS TARGET SURVIVES.** The local chronicle is append-only,
 independent of RUN_V, run close and run orphaning, and capped at 200 entries.
-On every counted uncertified card with yard-derived events, the room appends
-the full match first, banks the card second, then passes the returned id so
-run-core can bank claim events and mint relationships. A full, blocked or
-damaged log still banks purse, wounds, mercy and slate movement, but the panel
-says **THE LOG IS FULL — NOTHING KEPT** (or names the other refusal) and no
-event or debt appears. A struck 422 logs and mints nothing.
+On every counted uncertified card, the room appends the full match first and
+banks the card second. When the card has yard-derived events, it maps the
+returned `{id,key}` to the `{logId,key}` reference run-core needs to bank claim
+events and mint relationships; an event-less card receives no origin and says
+its record was kept with nothing to bank. A full, blocked or damaged log still
+banks purse, wounds, mercy and slate movement, but the panel says **THE LOG IS
+FULL — NOTHING KEPT** (or names the other refusal) and no event or debt appears.
+A struck 422 logs and mints nothing.
 
 **GRADES ARE NOT POWER TIERS.** `OWES A LIFE` records the same grade and origin
 as its extraction. One active debt per directed pair spans grades, and

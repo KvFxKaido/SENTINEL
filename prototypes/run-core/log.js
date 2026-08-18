@@ -7,11 +7,18 @@
 
    localStorage can only replace a value, so the implementation writes a
    new array blob; the public operation is nevertheless append-only. It
-   preserves every prior slot as parsed data, exposes no
-   update or delete operation, assigns the next array index, and verifies
-   the completed append by reading it back. A damaged slot remains in place
-   as null from entries()/readEntry() rather than being filtered out and
-   renumbering every later address.
+   preserves every prior slot as parsed data, exposes no update or delete
+   operation, assigns the next array index, and verifies the completed append
+   by reading it back. A damaged slot remains in place as null from
+   entries()/readEntry() rather than being filtered out and renumbering every
+   later address.
+
+   This prototype assumes one writer. localStorage has no synchronous lock or
+   compare-and-swap, so concurrent same-origin tabs can still replace one
+   another's append after read-back and LOSE an entry. The content key makes
+   that race degrade honestly: a claim whose slot was replaced no longer
+   resolves, but it can never open the different match now occupying that
+   numeric address.
    ============================================================ */
 
 export const LOG_KEY = "sentinel.chronicle";
@@ -43,6 +50,27 @@ const intIn = (value, lo, hi) =>
 const nameValid = value =>
   typeof value === "string" && value.length > 0 && value.length <= 16
   && value !== "__proto__";
+
+const CONTENT_KEY = /^[0-9a-f]{8}$/;
+
+// FNV-1a over one canonical match identity. Rebuilding the roster objects is
+// intentional: object insertion order from an untrusted caller is not part of
+// the match, while fighter and command order are.
+const contentKey = entry => {
+  const roster = Array.isArray(entry?.roster)
+    ? entry.roster.map(person => ({ name: person?.name, hp: person?.hp }))
+    : entry?.roster;
+  const record = Array.isArray(entry?.record)
+    ? entry.record.map(command => Array.isArray(command) ? command.slice() : command)
+    : entry?.record;
+  const identity = JSON.stringify({ seed: entry?.seed, roster, record });
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < identity.length; i++) {
+    hash ^= identity.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, "0");
+};
 
 const TACTICAL_NAME = /^[A-Z0-9][A-Z0-9-]{0,15}$/;
 const rosterValid = roster => Array.isArray(roster) && roster.length === 3
@@ -97,13 +125,15 @@ const slateValid = slate => !!slate && typeof slate === "object" && !Array.isArr
 const entryValid = (entry, expectedId) => {
   if (!entry || typeof entry !== "object" || Array.isArray(entry)) return false;
   const keys = entry.slate === undefined
-    ? ["id", "kind", "cert", "seed", "roster", "record", "derivedEvents", "aftermath", "at"]
-    : ["id", "kind", "cert", "seed", "roster", "record", "derivedEvents", "aftermath", "at", "slate"];
+    ? ["id", "key", "kind", "cert", "seed", "roster", "record", "derivedEvents", "aftermath", "at"]
+    : ["id", "key", "kind", "cert", "seed", "roster", "record", "derivedEvents", "aftermath", "at", "slate"];
   if (!exactKeys(entry, keys)) return false;
   if (entry.id !== expectedId || entry.kind !== "match") return false;
+  if (typeof entry.key !== "string" || !CONTENT_KEY.test(entry.key)) return false;
   if (entry.cert !== "dark" && entry.cert !== "unwitnessed") return false;
   if (typeof entry.seed !== "string" || !/^[0-9a-f]{1,8}$/.test(entry.seed)) return false;
   if (!rosterValid(entry.roster) || !recordValid(entry.record)) return false;
+  if (entry.key !== contentKey(entry)) return false;
   if (!Array.isArray(entry.derivedEvents) || entry.derivedEvents.length > 1024
       || !entry.derivedEvents.every(eventValid)) return false;
   if (!aftermathValid(entry.aftermath)) return false;
@@ -139,6 +169,8 @@ export function appendEntry(entry) {
   }
   const id = current.entries.length;
   const candidate = { id, ...entry };
+  try { candidate.key = contentKey(candidate); }
+  catch { throw new LogRefusal("invalid", "the log refused a malformed match entry"); }
   if (!entryValid(candidate, id)) {
     throw new LogRefusal("invalid", "the log refused a malformed match entry");
   }
@@ -153,7 +185,7 @@ export function appendEntry(entry) {
     if (error instanceof LogRefusal) throw error;
     throw new LogRefusal("unwritable", "the log refused the write — nothing was kept");
   }
-  return id;
+  return { id, key: candidate.key };
 }
 
 export function readEntry(id) {

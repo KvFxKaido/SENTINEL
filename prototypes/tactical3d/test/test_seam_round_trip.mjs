@@ -751,7 +751,9 @@ try {
           && /CLAIM EVENTS BANKED/.test(smuggleVerdict)
           && smuggledEvent?.grade === "claim"
           && smuggledEvent?.origin?.logId === 0
+          && smuggledEvent?.origin?.key === smuggled.log?.[0]?.key
           && smuggled.run?.relationships?.[0]?.grade === "claim"
+          && smuggled.run?.relationships?.[0]?.origin?.key === smuggled.log?.[0]?.key
           && JSON.stringify(smuggled.log?.[0]?.record) === JSON.stringify(ILLEGAL_DARK_CARD.record)
           && (await page.evaluate(() => document.getElementById("cv").dataset.run)).startsWith("1:"),
         `${smuggleVerdict} · ${JSON.stringify(smuggled)}`);

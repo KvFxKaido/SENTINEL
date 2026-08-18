@@ -350,10 +350,10 @@ must decide explicitly:
 
    **Landed answer — an append-only local match event containing the full
    trinity.** The chronicle stores `seed + roster + record`, the yard-derived
-   events and claimed aftermath before the run may bank a `{logId,
-   commandIndex}` origin. It is independent of run close, orphaning and schema
-   version. A full or unwritable log refuses the append; the card still counts,
-   while no claim event or relationship is minted.
+   events (including an empty array) and claimed aftermath before the run may
+   bank a `{logId, commandIndex, key}` origin. It is independent of run close,
+   orphaning and schema version. A full or unwritable log refuses the append;
+   the card still counts, while no claim event or relationship is minted.
 6. Can a hidden record be exposed and certified later, and who gains leverage
    by doing so?
 
@@ -480,7 +480,7 @@ explicit economics and claim-grade relationship origins.
 > rules stamp remains `2d9b514b`. Run schema v7 distinguishes `dark` from accidental
 > `unwitnessed` at banking time. An independent 200-entry append-only local
 > chronicle now stores the full `seed + roster + record`, claimed derived
-> events and aftermath before any `{logId, commandIndex}` pointer is minted;
+> events and aftermath before any `{logId, commandIndex, key}` pointer is minted;
 > refusal still banks the card but no event or relationship. `eventLedger`
 > and `OWES A LIFE` carry explicit certified or claim grade, one active debt
 > per directed pair spans both grades, and `REPAY THE LIFE` treats them alike.

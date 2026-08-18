@@ -88,15 +88,16 @@ Run schema v5 added `eventLedger`, keyed by the actor's stable person id; v7
 adds its second grade. The run never derives or replays an event. On a filed
 certificate it accepts the Worker's replay-authored tactical event. On a
 counted dark or accidentally unwitnessed card it accepts the yard rules core's
-event only when the caller first supplies the id returned by the independent
-local chronicle. In either case it translates `actor` and `beneficiary`
+event only when the caller maps the independent chronicle's returned `{id,key}`
+to `{logId:id,key}`. In either case it translates `actor` and `beneficiary`
 through the lineup fielded for that card and banks the stable ids once.
 
 The one event in this slice is `extraction`. A certified entry carries
 `grade:"certified"` and `origin:{matchId,commandIndex}`; the 32-hex match id
 points to a filed Witness record. A claim entry carries `grade:"claim"` and
-`origin:{logId,commandIndex}`; that integer points to the full local match in
-`sentinel.chronicle`. `recent[].derivedEvents` keeps the tactical receipt only
+`origin:{logId,commandIndex,key}`; the integer addresses the full local match in
+`sentinel.chronicle`, while the 8-hex key binds the pointer to that match's
+`seed + roster + record`. `recent[].derivedEvents` keeps the tactical receipt only
 when one of those origins survived. A log refusal still counts the ordinary
 card but leaves the receipt, event ledger and relationship ledger untouched.
 Season entries carry the same authored slate stamp as other banked facts.
@@ -105,9 +106,9 @@ Season entries carry the same authored slate stamp as other banked facts.
 owned stable person id, nobody names themselves, both grade/origin shapes are
 exact, grade counts agree with the retained receipts, and slate stamps resolve
 to authored entries already passed. It deliberately cannot ask whether a
-claim's independent log target still exists: RUN_V has no jurisdiction over
-the chronicle. The room resolves that pointer at render time and says when it
-cannot. `eventLedger` remains the event ledger: it grants no permissions and
+claim's independent log target still exists or still has the named content:
+RUN_V has no jurisdiction over the chronicle. The room resolves both address
+and key at render time and says when they disagree. `eventLedger` remains the event ledger: it grants no permissions and
 computes no bond state. The relationship policy consuming it is the next,
 separate run-owned layer.
 
@@ -122,7 +123,7 @@ facts:
   from: "koa",                  // debtor: the extracted beneficiary
   to: "sable",                 // creditor: the extraction actor
   grade: "certified",           // or "claim"
-  origin: { matchId, commandIndex }, // claim uses {logId, commandIndex}
+  origin: { matchId, commandIndex }, // claim uses {logId, commandIndex, key}
   status: "active",            // or "fulfilled"
   at,
   slate,                        // absent only on a plain run
@@ -308,8 +309,8 @@ the edge *disputes* is not a card, but a run that quietly discarded
 disputes would look identical to one that never had any — so the count is
 kept. "Banked" in this table means the card's ordinary run consequences. A
 certified card may bank edge-authored events; any counted uncertified card
-with yard-derived events may bank claim grade after its local log append. A
-422 dispute is struck and therefore logs and mints nothing.
+is logged locally, and one with yard-derived events may bank claim grade after
+that append. A 422 dispute is struck and therefore logs and mints nothing.
 
 `applyCard` returns two different negatives on purpose:
 
@@ -434,8 +435,8 @@ rosterValid(roster)                four stable people, origins, three owned ids
 personOf(run, id)                  the owned person behind a stable id
 fieldedRoster(run)                 exactly `{name, hp}` ×3 for the certified seam
 setLineup(run, ids)                → {run, accepted, why}; pure lineup choice
-applyCard(run, card, claimLogId?)   → {run, accepted, counted, why}; pure;
-                                     claimLogId must already resolve outside
+applyCard(run, card, claimOrigin?)  → {run, accepted, counted, why}; pure;
+                                     `{logId,key}` must already resolve outside
                                      the reducer before claim pointers mint
 applyPass(run, at, dedication?)    → {run, accepted, why}; decline the current
                                      entry — optional `{kind:"repay-the-life",
@@ -460,7 +461,7 @@ summary(run)                       every number the surface renders
 log.js:
 LOG_KEY, LOG_CAP
 bindStore({read, write})           independent chronicle storage
-appendEntry(entry)                 → monotonic id; loud refusal on no write
+appendEntry(entry)                 → `{id,key}`; loud refusal on no write
 readEntry(id)                      → match entry or null
 entries()                          → chronological entries; damaged slots null
 ```

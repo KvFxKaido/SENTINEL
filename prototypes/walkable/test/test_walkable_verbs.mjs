@@ -62,6 +62,20 @@ const PY = process.platform === "win32" ? "python" : "python3";
 const PORT = process.env.WALKABLE_TEST_PORT ?? "8093";
 const URL = `http://localhost:${PORT}/prototypes/walkable/`;
 
+function chronicleKey(value) {
+  const identity = JSON.stringify({
+    seed: value.seed,
+    roster: value.roster.map(person => ({ name: person.name, hp: person.hp })),
+    record: value.record,
+  });
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < identity.length; i++) {
+    hash ^= identity.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, "0");
+}
+
 function gen(mode) {
   const r = spawnSync(PY, [GEN, mode, FIGHTERS.join(",")], { stdio: "inherit" });
   if (r.status !== 0) throw new Error(`sheet generation failed (${mode})`);
@@ -1032,13 +1046,16 @@ try {
       ])
       && darkState.log[0]?.derivedEvents?.[0]?.commandIndex === 7
       && darkState.log[0]?.aftermath?.feedCut?.commandIndex === 0
+      && /^[0-9a-f]{8}$/.test(darkState.log[0]?.key)
       && darkState.log[0]?.slate?.venue === "RESCUE YARD",
     JSON.stringify(darkState.log));
   check("the dark extraction mints OWES A LIFE at claim grade",
     darkEvent?.grade === "claim"
       && darkEvent?.origin?.logId === 0 && darkEvent?.origin?.commandIndex === 7
+      && darkEvent?.origin?.key === darkState.log[0]?.key
       && darkDebt?.grade === "claim"
       && darkDebt?.origin?.logId === 0 && darkDebt?.origin?.commandIndex === 7
+      && darkDebt?.origin?.key === darkState.log[0]?.key
       && darkDebt?.from === "koa" && darkDebt?.to === "sable"
       && /CLAIM · THE SQUAD'S WORD · LOG 0/.test(await panelText())
       && (await page.$$(".dedicated-pass")).length === 1,
@@ -1052,6 +1069,31 @@ try {
   check("BACK TO LOG resolves the preserved drag command",
     /LOG 0/.test(darkSource) && /POINTED COMMAND 7/.test(darkSource)
       && darkSource.includes(JSON.stringify(DARK_DRAG.record[7])), darkSource);
+
+  // A same-origin tab can replace the whole array after appendEntry's
+  // read-back. The numeric slot survives but its content does not; the claim
+  // must fail closed on the content key instead of opening the new match.
+  const replacement = { ...darkState.log[0], seed: "2" };
+  const clobberedEntry = { ...replacement, key: chronicleKey(replacement) };
+  await page.evaluate(entry => {
+    localStorage.setItem("sentinel.chronicle", JSON.stringify([entry]));
+  }, clobberedEntry);
+  await boot("?body=composed&deal=1");
+  await page.click('.relationship-back[data-log-id="0"]');
+  await page.waitForFunction(() =>
+    document.getElementById("cv").dataset.source === "unresolved",
+  null, { timeout: 10000 });
+  const clobberedSource = (await page.textContent("#sourceinfo")).replace(/\s+/g, " ").trim();
+  check("a raced claim never opens the different valid match now in its slot",
+    clobberedEntry.key !== darkDebt.origin.key
+      && /THE SOURCE DOES NOT RESOLVE/.test(clobberedSource)
+      && /THE LOG ENTRY IS NOT THE MATCH THIS CLAIM NAMES/.test(clobberedSource),
+    `${JSON.stringify(clobberedEntry)} · ${clobberedSource}`);
+
+  await page.evaluate(entry => {
+    localStorage.setItem("sentinel.chronicle", JSON.stringify([entry]));
+  }, darkState.log[0]);
+  await boot("?body=composed&deal=1");
 
   await page.click(".dedicated-pass");
   let repaidClaim = await page.evaluate(() => ({
@@ -1153,7 +1195,9 @@ try {
     allBankedEvents.length === 1
       && allBankedEvents[0]?.grade === "claim"
       && allBankedEvents[0]?.origin?.logId === 0
+      && allBankedEvents[0]?.origin?.key === unwitnessedLog?.[0]?.key
       && unwitnessedRun?.relationships?.[0]?.grade === "claim"
+      && unwitnessedRun?.relationships?.[0]?.origin?.key === unwitnessedLog?.[0]?.key
       && unwitnessedRun?.unwitnessed === 1
       && unwitnessedRun?.dark === 0
       && unwitnessedLog?.[0]?.cert === "unwitnessed"
@@ -1163,6 +1207,65 @@ try {
       && /CLAIM EVENTS BANKED — THE SQUAD'S WORD · LOG 0/.test(unwitnessedSeam),
     `${JSON.stringify(allBankedEvents)} · ${JSON.stringify(unwitnessedRun?.relationships)} · ${JSON.stringify(unwitnessedLog)} · ${unwitnessedSeam}`);
   await page.unroute(/\/file$/);
+
+  // No extraction is still a record. Chosen darkness preserves the complete
+  // card even when there is no rules-derived fact for the run to bank.
+  await page.evaluate(value => {
+    localStorage.setItem("sentinel.run", JSON.stringify(value));
+    localStorage.removeItem("sentinel.chronicle");
+  }, openRun("2026-08-18T00:00:00Z"));
+  await boot("?body=composed&deal=1");
+  const eventlessDarkFrame = await walkPlainDoor();
+  check("the room deals an event-less dark card", eventlessDarkFrame !== null);
+  if (!eventlessDarkFrame) throw new Error("the event-less dark door never dealt");
+  const EVENTLESS_DARK = {
+    seed: "1",
+    roster: [
+      { name: "VESPER", hp: 10 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 },
+    ],
+    record: [["cut", 0], ["end"]],
+    result: "win",
+    rating: 9,
+    purse: 90,
+    ledger: { walked: 0, finished: 0, lost: 0 },
+    down: [],
+    derivedEvents: [],
+    fingerprint: "eventless-dark",
+    lines: ["eventless dark fixture"],
+  };
+  await eventlessDarkFrame.evaluate(value => {
+    window.parent.postMessage({
+      type: "sentinel-seam-result",
+      ...value,
+    }, window.parent.location.origin);
+  }, EVENTLESS_DARK);
+  await page.waitForFunction(() =>
+    /THE RECORD IS KEPT — LOG 0 · NOTHING TO BANK FROM IT/.test(
+      document.getElementById("seaminfo").textContent),
+  null, { timeout: 10000 });
+  const eventlessDark = await page.evaluate(() => ({
+    run: JSON.parse(localStorage.getItem("sentinel.run") ?? "null"),
+    log: JSON.parse(localStorage.getItem("sentinel.chronicle") ?? "[]"),
+    panel: document.getElementById("seaminfo").textContent.replace(/\s+/g, " ").trim(),
+  }));
+  check("an event-less dark card keeps its full record and banks no fact",
+    eventlessDark.run?.cards === 1 && eventlessDark.run?.dark === 1
+      && Object.values(eventlessDark.run?.eventLedger ?? {}).flat().length === 0
+      && eventlessDark.run?.relationships?.length === 0
+      && eventlessDark.run?.recent?.[0]?.derivedEvents?.length === 0
+      && eventlessDark.log?.length === 1
+      && eventlessDark.log[0]?.id === 0
+      && /^[0-9a-f]{8}$/.test(eventlessDark.log[0]?.key)
+      && eventlessDark.log[0]?.seed === EVENTLESS_DARK.seed
+      && JSON.stringify(eventlessDark.log[0]?.roster) === JSON.stringify(EVENTLESS_DARK.roster)
+      && JSON.stringify(eventlessDark.log[0]?.record) === JSON.stringify(EVENTLESS_DARK.record)
+      && eventlessDark.log[0]?.derivedEvents?.length === 0
+      && eventlessDark.log[0]?.aftermath?.result === EVENTLESS_DARK.result
+      && eventlessDark.log[0]?.aftermath?.rating === EVENTLESS_DARK.rating
+      && eventlessDark.log[0]?.aftermath?.purse === EVENTLESS_DARK.purse
+      && eventlessDark.log[0]?.aftermath?.feedCut?.commandIndex === 0
+      && /THE RECORD IS KEPT — LOG 0 · NOTHING TO BANK FROM IT/.test(eventlessDark.panel),
+    JSON.stringify(eventlessDark));
 
   // A replay dispute is the hard boundary. Even when the page supplies a
   // plausible extraction, 422 says the record diverged: no chronicle entry,
@@ -1200,7 +1303,7 @@ try {
     run: JSON.parse(localStorage.getItem("sentinel.run") ?? "null"),
     log: JSON.parse(localStorage.getItem("sentinel.chronicle") ?? "[]"),
   }));
-  check("a struck extraction logs and mints nothing",
+  check("a struck extraction logs nothing and mints nothing",
     struckClaim.run?.cards === 0 && struckClaim.run?.struck === 1
       && Object.values(struckClaim.run?.eventLedger ?? {}).flat().length === 0
       && struckClaim.run?.relationships?.length === 0
@@ -1211,19 +1314,22 @@ try {
   // Capacity is a refusal, not an eviction policy. Fill the independent
   // chronicle, return a real dark extraction, and prove the card still
   // counts while its event and debt do not appear.
-  const fullLogSeed = Array.from({ length: 200 }, (_, id) => ({
-    id, kind: "match", cert: "unwitnessed", seed: "1",
-    roster: [
-      { name: "VESPER", hp: 10 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 },
-    ],
-    record: [["drag", 2, 1, 4, 9], ["end"]],
-    derivedEvents: [{
-      kind: "extraction", actor: "SABLE", beneficiary: "KOA",
-      commandIndex: 0, underFire: true, reached: true,
-    }],
-    aftermath: { result: "loss", rating: 1, purse: 10, feedCut: null },
-    at: "2026-08-18T00:00:00Z",
-  }));
+  const fullLogSeed = Array.from({ length: 200 }, (_, id) => {
+    const value = {
+      id, kind: "match", cert: "unwitnessed", seed: "1",
+      roster: [
+        { name: "VESPER", hp: 10 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 },
+      ],
+      record: [["drag", 2, 1, 4, 9], ["end"]],
+      derivedEvents: [{
+        kind: "extraction", actor: "SABLE", beneficiary: "KOA",
+        commandIndex: 0, underFire: true, reached: true,
+      }],
+      aftermath: { result: "loss", rating: 1, purse: 10, feedCut: null },
+      at: "2026-08-18T00:00:00Z",
+    };
+    return { ...value, key: chronicleKey(value) };
+  });
   await page.evaluate(({ run, log }) => {
     localStorage.setItem("sentinel.run", JSON.stringify(run));
     localStorage.setItem("sentinel.chronicle", JSON.stringify(log));

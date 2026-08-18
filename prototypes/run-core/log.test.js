@@ -41,17 +41,40 @@ const entry = (over = {}) => ({
   ...over,
 });
 
+function contentKey(value) {
+  const identity = JSON.stringify({
+    seed: value.seed,
+    roster: value.roster.map(person => ({ name: person.name, hp: person.hp })),
+    record: value.record,
+  });
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < identity.length; i++) {
+    hash ^= identity.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, "0");
+}
+
+const storedEntry = (id, over = {}) => {
+  const value = { id, ...entry(over) };
+  return { ...value, key: contentKey(value) };
+};
+
 test("ids are monotonic array addresses and appends preserve every prior slot", () => {
   memoryStore();
-  assert.equal(appendEntry(entry()), 0);
-  assert.equal(appendEntry(entry({ seed: "1" })), 1);
-  assert.equal(appendEntry(entry({ seed: "2" })), 2);
+  assert.deepEqual(appendEntry(entry()), { id: 0, key: contentKey(entry()) });
+  assert.deepEqual(appendEntry(entry({ seed: "1" })), {
+    id: 1, key: contentKey(entry({ seed: "1" })),
+  });
+  assert.deepEqual(appendEntry(entry({ seed: "2" })), {
+    id: 2, key: contentKey(entry({ seed: "2" })),
+  });
   assert.deepEqual(entries().map(e => e.seed), ["deadbeef", "1", "2"]);
   assert.equal(readEntry(1).seed, "1");
 });
 
 test("the cap refuses loudly and writes nothing", () => {
-  const full = Array.from({ length: LOG_CAP }, (_, id) => ({ ...entry(), id }));
+  const full = Array.from({ length: LOG_CAP }, (_, id) => storedEntry(id));
   const box = memoryStore({ [LOG_KEY]: JSON.stringify(full) });
   const before = box[LOG_KEY];
   assert.throws(() => appendEntry(entry()), refusal =>
@@ -62,9 +85,9 @@ test("the cap refuses loudly and writes nothing", () => {
 
 test("a malformed slot reads null in place — later addresses never renumber", () => {
   const tampered = [
-    { ...entry(), id: 0 },
+    storedEntry(0),
     { bogus: true },
-    { ...entry({ seed: "2" }), id: 2 },
+    storedEntry(2, { seed: "2" }),
   ];
   memoryStore({ [LOG_KEY]: JSON.stringify(tampered) });
   assert.equal(readEntry(1), null, "damage reads as null, not as garbage");
@@ -111,11 +134,29 @@ test("a write that throws or silently drops is an unwritable refusal, not a mint
 
 test("returned entries are copies — a caller cannot mutate the chronicle", () => {
   memoryStore();
-  const id = appendEntry(entry());
+  const { id, key } = appendEntry(entry());
   const first = readEntry(id);
   first.record.push(["forged"]);
   first.aftermath.purse = 9999;
   assert.deepEqual(readEntry(id), {
-    ...entry(), id,
+    ...entry(), id, key,
   }, "mutating a returned copy must not reach storage");
+});
+
+test("the content key survives append/read round-trips", () => {
+  memoryStore();
+  const ref = appendEntry(entry());
+  assert.match(ref.key, /^[0-9a-f]{8}$/);
+  assert.equal(readEntry(ref.id).key, ref.key);
+  assert.equal(entries()[ref.id].key, ref.key);
+});
+
+test("an entry whose content no longer matches its key reads null", () => {
+  const box = memoryStore();
+  const { id } = appendEntry(entry());
+  const stored = JSON.parse(box[LOG_KEY]);
+  stored[id].record[0] = ["end-turn"];
+  box[LOG_KEY] = JSON.stringify(stored);
+  assert.equal(readEntry(id), null);
+  assert.equal(entries()[id], null);
 });

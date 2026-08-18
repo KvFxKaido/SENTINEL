@@ -28,6 +28,7 @@ import {
 const AT = "2026-08-04T12:00:00.000Z";
 const MATCH_ID = "0123456789abcdef0123456789abcdef";
 const MATCH_ID_2 = "fedcba9876543210fedcba9876543210";
+const CLAIM_KEY = "89abcdef";
 const authoredCourt = JSON.parse(fs.readFileSync(
   new URL("../../world/recruitment/court-01.json", import.meta.url), "utf8"));
 const COURT_ROSTER = { people: authoredCourt.people, lineup: authoredCourt.lineup };
@@ -381,17 +382,28 @@ test("the chronicle append precedes claim banking, and a refused origin mints no
   assert.deepEqual(beforeTarget.run.relationships, []);
   assert.deepEqual(beforeTarget.run.recent[0].derivedEvents, []);
 
-  const logId = appendEntry(logMatch());
-  assert.notEqual(readEntry(logId), null, "the target survives before the pointer is minted");
-  const banked = applyCard(openRun(AT), darkCard, logId);
+  const bareId = applyCard(openRun(AT), darkCard, 0);
+  assert.equal(bareId.accepted, false, "a bare numeric slot is no longer a claim origin");
+  const eventlessOrigin = applyCard(
+    openRun(AT), card({ cert: "dark", rules: null }), { logId: 0, key: CLAIM_KEY });
+  assert.equal(eventlessOrigin.accepted, false,
+    "an event-less card may be logged, but must not receive a claim origin");
+
+  const logRef = appendEntry(logMatch());
+  assert.notEqual(readEntry(logRef.id), null, "the target survives before the pointer is minted");
+  const claimOrigin = { logId: logRef.id, key: logRef.key };
+  const banked = applyCard(openRun(AT), darkCard, claimOrigin);
   assert.equal(banked.counted, true);
   assert.deepEqual(banked.run.eventLedger.sable[0], {
     kind: "extraction", beneficiary: "koa", underFire: true, reached: true,
-    grade: "claim", origin: { logId, commandIndex: 6 }, at: AT,
+    grade: "claim",
+    origin: { logId: logRef.id, commandIndex: 6, key: logRef.key },
+    at: AT,
   });
   assert.deepEqual(banked.run.relationships[0], {
     kind: "owes-a-life", from: "koa", to: "sable", grade: "claim",
-    origin: { logId, commandIndex: 6 }, status: "active", at: AT,
+    origin: { logId: logRef.id, commandIndex: 6, key: logRef.key },
+    status: "active", at: AT,
   });
   assert.deepEqual(banked.run.recent[0].derivedEvents, [extraction()]);
 });
@@ -419,13 +431,13 @@ test("one active life debt per directed pair spans certified and claim grades", 
     cert: "dark", seed: "1", rules: null, at: "claim-at", derivedEvents: [extraction()],
   });
   let certifiedFirst = applyCard(openRun(AT), card({ derivedEvents: [extraction()] })).run;
-  certifiedFirst = applyCard(certifiedFirst, claim, 7).run;
+  certifiedFirst = applyCard(certifiedFirst, claim, { logId: 7, key: CLAIM_KEY }).run;
   assert.equal(certifiedFirst.eventLedger.sable.length, 2);
   assert.equal(certifiedFirst.relationships.length, 1);
   assert.equal(certifiedFirst.relationships[0].grade, "certified",
     "a later claim cannot open a parallel debt ledger");
 
-  let claimFirst = applyCard(openRun(AT), claim, 8).run;
+  let claimFirst = applyCard(openRun(AT), claim, { logId: 8, key: CLAIM_KEY }).run;
   claimFirst = applyCard(claimFirst, card({
     seed: "2", matchId: MATCH_ID_2, at: "certified-at", derivedEvents: [extraction({ commandIndex: 9 })],
   })).run;
@@ -437,15 +449,29 @@ test("one active life debt per directed pair spans certified and claim grades", 
   assert.equal(loadRun(AT).how, "restored");
 });
 
-test("claim shapes are exact; a missing-target forgery remains render-time truth", () => {
+test("claim shapes are exact; missing or mismatched targets remain render-time truth", () => {
   const good = applyCard(openRun(AT), card({
     cert: "dark", rules: null, derivedEvents: [extraction()],
-  }), 99).run;
+  }), { logId: 99, key: CLAIM_KEY }).run;
   memoryStore({ [RUN_KEY]: JSON.stringify(good) });
   assert.equal(loadRun(AT).how, "restored",
     "sane has no jurisdiction over the independent chronicle, so it cannot detect this forgery");
   assert.equal(readEntry(99), null,
     "a shape-valid pointer whose target is absent must fail when the source is opened");
+
+  const target = appendEntry(logMatch());
+  const wrongKey = target.key === "00000000" ? "ffffffff" : "00000000";
+  const raced = applyCard(openRun(AT), card({
+    cert: "dark", rules: null, derivedEvents: [extraction()],
+  }), { logId: target.id, key: wrongKey }).run;
+  memoryStore({
+    [RUN_KEY]: JSON.stringify(raced),
+    [LOG_KEY]: JSON.stringify([readEntry(target.id)]),
+  });
+  assert.equal(loadRun(AT).how, "restored",
+    "a content mismatch is still shape-valid because sane cannot read the chronicle");
+  assert.notEqual(readEntry(target.id).key, raced.relationships[0].origin.key,
+    "the independent read catches the forged or raced target");
 
   const changed = mutate => {
     const copy = JSON.parse(JSON.stringify(good));
@@ -456,9 +482,13 @@ test("claim shapes are exact; a missing-target forgery remains render-time truth
     changed(run => { run.eventLedger.sable[0].grade = "rumor"; }),
     changed(run => { run.eventLedger.sable[0].origin.logId = -1; }),
     changed(run => { run.eventLedger.sable[0].origin.commandIndex = -1; }),
+    changed(run => { run.eventLedger.sable[0].origin.key = "NOT-HEX"; }),
+    changed(run => { delete run.eventLedger.sable[0].origin.key; }),
     changed(run => { run.eventLedger.sable[0].origin.matchId = MATCH_ID; }),
     changed(run => { run.relationships[0].grade = "certified"; }),
-    changed(run => { run.relationships[0].origin = { logId: 99, commandIndex: 5 }; }),
+    changed(run => {
+      run.relationships[0].origin = { logId: 99, commandIndex: 5, key: CLAIM_KEY };
+    }),
     changed(run => { delete run.relationships[0].grade; }),
   ];
   for (const run of forged) {
@@ -711,7 +741,9 @@ test("stored derived-event ledgers validate owned ids, grades, sources, and exac
     changed(run => { run.eventLedger.sable[0].origin.matchId = "short"; }),
     changed(run => { run.eventLedger.sable[0].origin.commandIndex = -1; }),
     changed(run => { run.eventLedger.sable[0].grade = "claim"; }),
-    changed(run => { run.eventLedger.sable[0].origin = { logId: -1, commandIndex: 6 }; }),
+    changed(run => {
+      run.eventLedger.sable[0].origin = { logId: -1, commandIndex: 6, key: CLAIM_KEY };
+    }),
     changed(run => { run.eventLedger.sable[0].relationship = "not this slice"; }),
     changed(run => { run.eventLedger.sable[0].reached = false; }),
   ];
@@ -946,18 +978,20 @@ test("the live key is not versioned, so a schema bump can actually orphan", () =
 
 test("the chronicle survives RUN_V orphaning and closeRun because it is not run state", () => {
   const box = memoryStore();
-  const logId = appendEntry(logMatch());
+  const logRef = appendEntry(logMatch());
   const logged = box[LOG_KEY];
 
   box[RUN_KEY] = JSON.stringify({ ...openRun(AT), v: RUN_V - 1 });
   assert.equal(loadRun(AT).how, "orphaned");
   assert.equal(box[LOG_KEY], logged);
-  assert.equal(readEntry(logId).id, logId);
+  assert.equal(readEntry(logRef.id).id, logRef.id);
+  assert.equal(readEntry(logRef.id).key, logRef.key);
 
   const banked = applyCard(openRun(AT), card()).run;
   assert.equal(closeRun(banked, "2026-08-09T00:00:00.000Z").closed, true);
   assert.equal(box[LOG_KEY], logged);
-  assert.equal(readEntry(logId).id, logId);
+  assert.equal(readEntry(logRef.id).id, logRef.id);
+  assert.equal(readEntry(logRef.id).key, logRef.key);
 });
 
 test("closing a run archives it and opens a fresh one in its place", () => {
@@ -1177,7 +1211,7 @@ test("REPAY THE LIFE has identical force and stamps on a claim-grade debt", () =
   const start = applyCard(openSeason(AT, slate()), card({
     cert: "dark", rules: null, derivedEvents: [extraction()],
     ledger: { walked: 0, finished: 0, lost: 2 }, down: ["VESPER", "SABLE"],
-  }), 17).run;
+  }), { logId: 17, key: CLAIM_KEY }).run;
   assert.deepEqual(summary(start).season.dedicatedPasses, [{
     kind: "repay-the-life", from: "koa", to: "sable", recovers: 2,
   }]);
@@ -1188,7 +1222,8 @@ test("REPAY THE LIFE has identical force and stamps on a claim-grade debt", () =
   assert.deepEqual(out.run.season.clocks, { vesper: WOUND_CLOCK - 1 });
   assert.deepEqual(out.run.relationships[0], {
     kind: "owes-a-life", from: "koa", to: "sable", grade: "claim",
-    origin: { logId: 17, commandIndex: 6 }, status: "fulfilled", at: AT,
+    origin: { logId: 17, commandIndex: 6, key: CLAIM_KEY },
+    status: "fulfilled", at: AT,
     slate: { idx: 0, venue: "KESTREL YARD", host: "steel-syndicate", sanction: null },
     fulfilledAt: repaidAt,
     fulfilledSlate: { idx: 1, venue: "THE COLD COURT", host: null, sanction: "covenant" },

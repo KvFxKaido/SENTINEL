@@ -2630,7 +2630,8 @@ function sourceControl(grade, origin) {
   }
   return `CLAIM · THE SQUAD'S WORD · LOG ${origin.logId} · `
     + `<button type="button" class="moment-back" data-source-kind="log"`
-    + ` data-log-id="${origin.logId}" data-command-index="${origin.commandIndex}">`
+    + ` data-log-id="${origin.logId}" data-log-key="${esc(origin.key)}"`
+    + ` data-command-index="${origin.commandIndex}">`
     + `BACK TO LOG ${origin.logId} / COMMAND ${origin.commandIndex}</button>`;
 }
 
@@ -2916,7 +2917,7 @@ async function showArchivedSource(matchId, commandIndex) {
   }
 }
 
-function showLoggedSource(logId, commandIndex) {
+function showLoggedSource(logId, commandIndex, key) {
   sourceBox.hidden = false;
   sourceInfo.innerHTML = `LOG <span class="fp">${logId}</span> · FETCHING COMMAND ${commandIndex}…`;
   canvas.dataset.source = "fetching";
@@ -2924,6 +2925,9 @@ function showLoggedSource(logId, commandIndex) {
     const logged = readEntry(logId);
     if (!logged || logged.kind !== "match") {
       throw new Error("the local log entry is missing or malformed");
+    }
+    if (logged.key !== key) {
+      throw new Error("THE LOG ENTRY IS NOT THE MATCH THIS CLAIM NAMES");
     }
     renderSourceRecord("LOG", String(logId), logged.record, commandIndex,
       `log:${logId}:${commandIndex}`);
@@ -2937,7 +2941,11 @@ runInfo.addEventListener("click", event => {
   const sourceButton = event.target.closest(".moment-back");
   if (sourceButton) {
     if (sourceButton.dataset.sourceKind === "log") {
-      showLoggedSource(Number(sourceButton.dataset.logId), Number(sourceButton.dataset.commandIndex));
+      showLoggedSource(
+        Number(sourceButton.dataset.logId),
+        Number(sourceButton.dataset.commandIndex),
+        sourceButton.dataset.logKey,
+      );
     } else {
       showArchivedSource(
         sourceButton.dataset.matchId, Number(sourceButton.dataset.commandIndex));
@@ -3048,8 +3056,8 @@ function buyItem(index) {
 
 // Bank a returned card and redraw. One place writes the run, so the
 // stored copy, the panel, and the squad aftermath cannot disagree.
-function bankCard(card, claimLogId = null) {
-  const { run: next, accepted, counted, why } = applyCard(run, card, claimLogId);
+function bankCard(card, claimOrigin = null) {
+  const { run: next, accepted, counted, why } = applyCard(run, card, claimOrigin);
   run = next;
   runNote = null;   // a card is newer news than whatever the note was about
   // the return value is the point: a save that failed and said nothing
@@ -3311,7 +3319,7 @@ async function certifySeam(d, dealt) {
   // append below succeeds and returns their claim origin.
   let derivedEvents = [];
   let matchId = null;
-  let eventOriginNote = null;
+  let logNote = null;
   // Submission policy lives with every holder, all consulting the same
   // tactical-core predicate. Neither /certify nor /file sees a dark card.
   // The chronicle does retain the full local identity before the run is
@@ -3425,22 +3433,24 @@ async function certifySeam(d, dealt) {
     cert = "unwitnessed";
   }
 
-  // NO POINTER BEFORE ITS TARGET SURVIVES. Every counted uncertified card
-  // with a yard-derived event attempts this append before bankCard touches
-  // the run. Full, blocked, silently-dropping, or damaged storage leaves the
-  // ordinary card consequences intact but supplies no log id, so applyCard
-  // banks no event and mints no relationship. A forged seam post can still
-  // make a falsifiable claim: the room has no rules engine and does not
-  // replay. The log keeps the record that can expose it later.
+  // Every counted uncertified card attempts this append before bankCard
+  // touches the run, including a card with nothing to bank from it. NO
+  // POINTER BEFORE ITS TARGET SURVIVES: only a successful append with a
+  // yard-derived event supplies applyCard a content-bound claim origin.
+  // Full, blocked, silently-dropping, or damaged storage leaves ordinary
+  // card consequences intact but banks no event and mints no relationship.
+  // A forged seam post can still make a falsifiable claim: the room has no
+  // rules engine and does not replay. The log keeps the record that can
+  // expose it later.
   const bankAt = new Date().toISOString();
-  let claimLogId = null;
-  if ((cert === "dark" || cert === "unwitnessed") && d.derivedEvents.length) {
+  let claimOrigin = null;
+  if (cert === "dark" || cert === "unwitnessed") {
     const season = summary(run).season;
     const slate = season && !season.complete
       ? { idx: season.pos, venue: season.next.venue, host: season.next.host, sanction: season.next.sanction }
       : undefined;
     try {
-      claimLogId = appendEntry({
+      const logged = appendEntry({
         kind: "match",
         cert,
         seed: d.seed,
@@ -3454,11 +3464,16 @@ async function certifySeam(d, dealt) {
         at: bankAt,
         ...(slate ? { slate } : {}),
       });
-      derivedEvents = d.derivedEvents;
-      eventOriginNote = `CLAIM EVENTS BANKED — THE SQUAD'S WORD · LOG ${claimLogId}`;
+      if (d.derivedEvents.length) {
+        claimOrigin = { logId: logged.id, key: logged.key };
+        derivedEvents = d.derivedEvents;
+        logNote = `CLAIM EVENTS BANKED — THE SQUAD'S WORD · LOG ${logged.id}`;
+      } else {
+        logNote = `THE RECORD IS KEPT — LOG ${logged.id} · NOTHING TO BANK FROM IT`;
+      }
     } catch (error) {
       derivedEvents = [];
-      eventOriginNote = error?.code === "full"
+      logNote = error?.code === "full"
         ? "THE LOG IS FULL — NOTHING KEPT"
         : error?.code === "damaged"
           ? "THE LOG IS DAMAGED — NOTHING KEPT"
@@ -3468,7 +3483,7 @@ async function certifySeam(d, dealt) {
   const certEl = document.getElementById("seamcert");
   if (certEl) {
     certEl.innerHTML = `CERT · ${verdict}`
-      + (eventOriginNote ? `<br><span class="warn">${eventOriginNote}</span>` : "");
+      + (logNote ? `<br><span class="warn">${logNote}</span>` : "");
   }
 
   // this card has landed on the run that dealt it; closing is safe again
@@ -3491,7 +3506,7 @@ async function certifySeam(d, dealt) {
     cert,
     rules,
     at: bankAt,
-  }, claimLogId);
+  }, claimOrigin);
   // Do not clear seam state from this async settlement. A plain run may
   // already have its next card in the yard, and clearing seamFielded here
   // erases that card's honest roster (caught in review on PR #135).
