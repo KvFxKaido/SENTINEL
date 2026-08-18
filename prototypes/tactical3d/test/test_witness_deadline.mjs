@@ -1,6 +1,6 @@
 // The room's deadline on the WITNESS, not on the yard.
 //
-// certifySeam's catch already produced an honest "UNCERTIFIED — NO WITNESS
+// certifySeam's catch already produces an honest "LOST THE FEED — NO WITNESS
 // REACHABLE" for an edge that REFUSES. An edge that ACCEPTS and never
 // answers was a different story: the fetch had no deadline, so the ledger
 // sat at "ASKING THE EDGE…" forever with no abort and nothing said. The
@@ -236,7 +236,7 @@ try {
 
   const t0 = Date.now();
   const settled = await page.waitForFunction(
-    () => /CERTIFIED|UNCERTIFIED|STRUCK/.test(document.getElementById("seaminfo").textContent),
+    () => /CERTIFIED|LOST THE FEED|STRUCK/.test(document.getElementById("seaminfo").textContent),
     null, { timeout: 30000 }).then(() => true, () => false);
   const waited = Date.now() - t0;
   const verdict = (await page.textContent("#seaminfo")).replace(/\s+/g, " ").trim();
@@ -246,7 +246,7 @@ try {
   // the deadline is 8s in the page; a generous ceiling still proves that
   // SOMETHING gave up rather than the request eventually completing
   check("it settles on the page's own deadline", settled && waited < 20000, `${waited}ms`);
-  check("and it says the edge was unreachable", /UNCERTIFIED/.test(verdict), verdict);
+  check("and it says the edge was unreachable", /LOST THE FEED/.test(verdict), verdict);
   // the card still counts — an unverified truth LABELED beats a lost one
   check("the unverified card still counts on the run",
     /1 CARD/.test(verdict), verdict);

@@ -295,8 +295,8 @@ The desired shape is compelling:
 
 - a fighter deliberately cuts or jams the broadcast;
 - the act creates a visible tactical advantage;
-- the match returns labelled unwitnessed rather than pretending it was
-  certified;
+- the match returns labelled dark rather than pretending it was certified or
+  collapsing chosen secrecy into an accidental lost feed;
 - public purse, sponsor attention or faction response changes because nobody
   received the show;
 - relationships produced in the dark carry claim-grade provenance;
@@ -315,6 +315,10 @@ So feed-cutting is a vertical seam change, not one clever button. A prototype
 must decide explicitly:
 
 1. Does the local canonical record continue after the public feed is cut?
+
+   **Landed answer — yes.** The canonical record continues after the cut. It
+   is kept whole in the local chronicle, so darkness changes who saw the match,
+   not whether the match remains deterministic.
 2. Is the record intentionally withheld from the Witness — on **every**
    submission path? Darkness must be a property of the card, not of one
    surface: the yard's own **FILE THE RECORD** action posts directly to
@@ -322,22 +326,97 @@ must decide explicitly:
    room's submit logic is one button away from the public archive, which
    defeats claim-grade provenance and the later-exposure premise at once
    (caught in review).
+
+   **Landed answer — yes, by one shared predicate.** Every holder consults
+   `feedCut(record)`: the room submits a dark record to neither `/certify` nor
+   `/file`, and the yard suppresses its direct **FILE THE RECORD** route too.
 3. How is deliberate darkness distinguished from infrastructure failure?
    `unwitnessed` today means the edge was unreachable — an accident. A
    chosen cut banked under the same label is true but misleading, so the
    likely seat of the answer is the run's verdict surface: `CHOSE THE
    DARK` and `LOST THE FEED` distinguished at banking time, not only
    forensically via the surviving record.
+
+   **Landed answer — at banking time.** Run schema v7 adds `dark` beside
+   `unwitnessed`: `CHOSE THE DARK` is the chosen family; `LOST THE FEED`
+   remains the unreachable, 507, 500 and legacy-certificate family. Both
+   count, but the run never asks later evidence to reconstruct intent.
 4. Which economic outputs disappear, shrink or move elsewhere?
+
+   **Landed answer — the public meter freezes and pays what aired.** CUT THE
+   FEED stops later rating changes; settlement pays the frozen reported rating
+   and purse. There is no shadow meter and no second off-camera total.
 5. What durable source supports a claim-grade relationship from the dark?
+
+   **Landed answer — an append-only local match event containing the full
+   trinity.** The chronicle stores `seed + roster + record`, the yard-derived
+   events (including an empty array) and claimed aftermath before the run may
+   bank a `{logId, commandIndex, key}` origin. It is independent of run close,
+   orphaning and schema version. A full or unwritable log refuses the append;
+   the card still counts, while no claim event or relationship is minted.
 6. Can a hidden record be exposed and certified later, and who gains leverage
    by doing so?
 
-The current lean is that the local record continues — determinism should not
-be destroyed to express secrecy — while the record is submitted to neither
-`/certify` nor `/file` by any surface that holds it. That preserves the
-possibility of later exposure without pretending the match was publicly
-witnessed when it happened. This is a lean, not settled law.
+   **Preserved answer — the data survives; the exposure verb does not yet
+   exist.** The Witness certifies only an exposed record. The local log keeps
+   enough to submit or replay later, making present claims falsifiable, but no
+   actor can expose one through the room in this slice and no leverage content
+   is minted yet.
+
+The settled prototype therefore keeps two authors honest without pretending
+they are interchangeable. Certified events are the edge's word and point to a
+filed match. Claim events are the squad's word and point to the local
+chronicle. The room imports no replay machinery: a forged seam post can bank a
+claim for an event that did not happen, but the preserved record makes that
+claim re-checkable and it never becomes certification.
+
+### The integrity decisions — ratified 2026-08-18
+
+The designer reviewed the slice's four integrity decisions and kept all four,
+two of them named foundational. Recorded here because the formulations are
+sharper than the implementation notes above:
+
+- **Grade and verdict answer different questions and must never merge.** The
+  verdict says *why* a card was not witnessed (`CHOSE THE DARK` versus `LOST
+  THE FEED`); the grade says *whose authority currently backs a fact*
+  (`certified` versus `claim`). A claim may be entirely true and remain a
+  claim until its source is exposed; a squad may lie and the ontology holds,
+  because the lie is honestly represented as their claim. A room that tried
+  to prevent false claims would quietly turn "claim" into certification-lite.
+- **The card happened; the evidence failed.** Counting a card whose chronicle
+  append was refused is the consciously-stamped designer choice, and it
+  encodes the broader rule: a durable-evidence failure constrains what may
+  later be *asserted* about reality, never whether reality *occurred*.
+  Provenance does not get freebies, and a busted localStorage is not a time
+  machine.
+- **`sane()` stays inside its jurisdiction.** Structural coherence of the run
+  is one job; whether an external target still exists and still matches is
+  source resolution's job at render time. Making run validity depend on
+  whatever happens to occupy storage at the moment of the check would turn an
+  invariant into an environmental audit — actively vetoed.
+- **Struck submissions stay outside the canonical chronicle.** The edge
+  proved they do not replay. If a disproven account someday becomes
+  interesting evidence in its own right, that is a separate forensic history
+  of rejected submissions — a possible future system, deliberately unbuilt,
+  and never a tenant of the chronicle that backs claims.
+
+### Faction response — direction recorded 2026-08-18
+
+Cutting the feed also means the holding and sanctioning factions did not see
+the match. That cuts both ways: they miss the acts that would upset them, and
+they also miss mercy, restraint and favorable wins they would have valued.
+Faction reactions should therefore be **named facts**, in §6's grammar rather
+than meters, minted from **certified** derived events only. The squad's own
+claim does not move a faction that was not watching; darkness gates those facts
+for free because it banks no certified event.
+
+Later exposure lets the faction learn retroactively. That is the leverage
+payoff preserved by question 6 once authored content exists: exposure can make
+an old act newly actionable without rewriting when it happened. Which acts
+move which faction is authored per faction, not universal scoring. The slate's
+existing **HELD BY** and **SANCTIONED BY** stops are already the audience in
+the data model; this direction records their future use and implements no
+faction fact in this step.
 
 Feed-cutting should follow the first ordinary utility verb. Otherwise one
 prototype would be asked to invent utility actions, intentional witness loss,
@@ -420,8 +499,28 @@ visible gate. The yard remains unchanged.
 
 ### 5. The integrity verb
 
-Prototype feed-cutting as its own seam slice: deliberate unwitnessed status,
+Prototype feed-cutting as its own seam slice: deliberate dark status,
 explicit economics and claim-grade relationship origins.
+
+> **Landed 2026-08-18, in two halves.** CUT THE FEED is a canonical recorded
+> utility verb with a full-activation cost, no combat advantage — §9's
+> "visible tactical advantage" is deliberately deferred to a future verb that
+> wants privacy — one shared every-path withholding predicate, and a public
+> rating meter that freezes at the cut while paying the aired portion; the
+> rules stamp remains `2d9b514b`. Run schema v7 distinguishes `dark` from accidental
+> `unwitnessed` at banking time. An independent 200-entry append-only local
+> chronicle now stores the full `seed + roster + record`, claimed derived
+> events and aftermath before any `{logId, commandIndex, key}` pointer is minted;
+> refusal still banks the card but no event or relationship. `eventLedger`
+> and `OWES A LIFE` carry explicit certified or claim grade, one active debt
+> per directed pair spans both grades, and `REPAY THE LIFE` treats them alike.
+> The room names the author, reopens FILE or LOG at the pointed raw command,
+> and says when a local source no longer resolves. Darkness, unreachable edge,
+> archive-full, infrastructure and legacy paths claim the yard's derived
+> events only after logging; a struck replay dispute logs and mints nothing.
+> No tactical doctrine, match input, Worker behavior, rules stamp, exposure
+> verb or faction-reaction fact landed. Question 6 and the faction audience
+> direction above remain future leverage/content work.
 
 ### 6. The doctrine change
 

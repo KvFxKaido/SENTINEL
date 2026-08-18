@@ -66,11 +66,12 @@
 
    ---- Pairwise mercy ------------------------------------------------
 
-   A filed extraction is a replay fact. What that fact MEANS after the
-   card is the run's policy: the rescued person OWES the rescuer A LIFE.
-   The relationship points back to the filed command, stays directional,
-   and has a lifecycle rather than a score. Repeated rescues do not climb
-   a meter or replace the first active origin.
+   An extraction is a rules-derived fact. Its grade says who vouches: the
+   edge's filed replay, or the squad's claim backed by a preserved local
+   record. What that fact MEANS after the card is the run's policy: the
+   rescued person OWES the rescuer A LIFE. The relationship points back to
+   the command, stays directional, and has a lifecycle rather than a score.
+   Repeated rescues do not climb a meter or replace the first active origin.
 
    Its first obligation lives entirely in the room. A debtor may dedicate
    an otherwise ordinary pass to a recovering creditor: that clock moves
@@ -115,10 +116,12 @@
 
    ---- What counts ---------------------------------------------------
 
-   Inherited verbatim from the session ledger this replaces, because
-   the policy was already right and only its lifetime was wrong:
+   The original session-ledger policy remains, with one banking-time split
+   so chosen witness loss cannot masquerade as an accident:
 
      certified   — the edge replayed the record and agreed. Counts.
+     dark        — the squad deliberately withheld the record. Counts,
+                   but chosen darkness remains distinct from an accident.
      unwitnessed — no durable filed attestation is available: the witness
                    was unreachable, its infrastructure failed, or the
                    archive refused the write. Counts, and SAYS it counted
@@ -143,12 +146,13 @@
 // 4: the faction door joined it (owned people, origins, lineup).
 // 5: replay-derived pairwise events joined it (stable ids + certified source).
 // 6: named pairwise relationships joined it (lifecycle + room obligation).
+// 7: chosen darkness, the independent chronicle, and claim-grade provenance.
 // A stored run of any older
 // version takes the orphan path below — moved aside and said so, exactly
-// the situation that path was built and tested for. Hydrating a v5 run
-// with an empty relationship ledger would be a silent migration wearing
-// a default, same as it was one version ago.
-export const RUN_V = 6;
+// the situation that path was built and tested for. Hydrating a v6 run
+// with invented dark counts and provenance would be a silent migration
+// wearing defaults, same as it was one version ago.
+export const RUN_V = 7;
 // The live key is deliberately NOT versioned. It used to be
 // `sentinel.run.v${RUN_V}`, which made the orphan path below unreachable
 // in the only situation it exists for: bumping RUN_V to 2 would point
@@ -376,10 +380,11 @@ export function openRun(at, roster = DEFAULT_ROSTER) {
     longest: 0,         // longest win streak this run
     mercy: { walked: 0, finished: 0 },
     wounds: {},         // stable person id -> times that person went down
-    eventLedger: {},    // stable actor id -> certified replay-derived events
+    eventLedger: {},    // stable actor id -> rules-derived events, graded by author
     relationships: [],  // named directional facts, each pointing at one event
     struck: 0,          // cards the edge disputed — banked by nobody
-    unwitnessed: 0,     // cards counted without certification
+    unwitnessed: 0,     // accidental witness/archive failures that still counted
+    dark: 0,            // cards deliberately withheld from the Witness
     rules: null,        // the rules stamp this run's numbers were earned under
     drift: null,        // { from, to, at } once the stamp changes mid-run
     recent: [],         // newest first, capped at RECENT
@@ -489,11 +494,13 @@ const isName = s =>
   && s !== "__proto__";
 
 const MATCH_ID = /^[0-9a-f]{32}$/;
+const LOG_CONTENT_KEY = /^[0-9a-f]{8}$/;
 const DERIVED_KEYS = ["kind", "actor", "beneficiary", "commandIndex", "underFire", "reached"];
 
-// The tactical wire stays tactical: names, not stable ids. The yard may
-// return this array without a Witness, but only the Worker's replay can mint
-// a durable event in this slice. Translation happens once, in applyCard.
+// The tactical wire stays tactical: names, not stable ids. The yard returns
+// this array from its own completed session. A Worker replay authors
+// certified grade; a surviving local chronicle entry lets the squad author
+// claim grade. Translation happens once, in applyCard. The run never replays.
 function derivedEventValid(event) {
   return !!event && typeof event === "object" && !Array.isArray(event)
     && exactKeys(event, DERIVED_KEYS)
@@ -526,11 +533,32 @@ const stampValid = st =>
 const CARD_KEYS = ["seed", "result", "rating", "purse", "cert",
   "walked", "finished", "down", "derivedEvents", "matchId", "at", "slate"];
 const BOUGHT_KEYS = ["id", "name", "slot", "color", "who", "cost", "at", "slate"];
-const EVENT_KEYS = ["kind", "beneficiary", "underFire", "reached", "grade", "at", "slate"];
-const RELATIONSHIP_KEYS = ["kind", "from", "to", "origin", "status", "at"];
+const EVENT_KEYS = ["kind", "beneficiary", "underFire", "reached", "grade", "origin", "at", "slate"];
+const RELATIONSHIP_KEYS = ["kind", "from", "to", "grade", "origin", "status", "at"];
 const PASS_KEYS = ["idx", "venue", "host", "sanction", "at"];
 const DEDICATION_KEYS = ["kind", "from", "to"];
 const onlyKeys = (obj, allowed) => Object.keys(obj).every(k => allowed.includes(k));
+
+const originValid = (grade, origin) => {
+  if (!origin || typeof origin !== "object" || Array.isArray(origin)) return false;
+  if (grade === "certified") {
+    return exactKeys(origin, ["matchId", "commandIndex"])
+      && matchIdValid(origin.matchId)
+      && intIn(origin.commandIndex, 0, MAX_DERIVED_PER_CARD - 1);
+  }
+  return grade === "claim"
+    && exactKeys(origin, ["logId", "commandIndex", "key"])
+    && Number.isInteger(origin.logId) && origin.logId >= 0
+    && intIn(origin.commandIndex, 0, MAX_DERIVED_PER_CARD - 1)
+    && typeof origin.key === "string" && LOG_CONTENT_KEY.test(origin.key);
+};
+
+const originKey = (grade, origin) => grade === "certified"
+  ? `certified:${origin.matchId}@${origin.commandIndex}`
+  : `claim:${origin.logId}:${origin.key}@${origin.commandIndex}`;
+
+const sameOrigin = (aGrade, aOrigin, bGrade, bOrigin) =>
+  aGrade === bGrade && originKey(aGrade, aOrigin) === originKey(bGrade, bOrigin);
 
 // Framing equality against the authored entry. Restore uses this to
 // enforce what the reducers wrote: every stamp and every pass carries
@@ -556,6 +584,7 @@ const copyRelationship = relationship => ({
   kind: relationship.kind,
   from: relationship.from,
   to: relationship.to,
+  grade: relationship.grade,
   origin: { ...relationship.origin },
   status: relationship.status,
   at: relationship.at,
@@ -579,7 +608,7 @@ export function cardValid(card) {
   if (card.result !== "win" && card.result !== "loss") return false;
   if (!intIn(card.rating, 0, MAX_RATING)) return false;
   if (!intIn(card.purse, 0, MAX_PURSE)) return false;
-  if (!["certified", "unwitnessed", "struck"].includes(card.cert)) return false;
+  if (!["certified", "dark", "unwitnessed", "struck"].includes(card.cert)) return false;
   const l = card.ledger;
   if (!l || typeof l !== "object") return false;
   if (!intIn(l.walked, 0, MAX_SIDE)) return false;
@@ -590,11 +619,12 @@ export function cardValid(card) {
   if (!Array.isArray(card.derivedEvents)
       || card.derivedEvents.length > MAX_DERIVED_PER_CARD
       || !card.derivedEvents.every(derivedEventValid)) return false;
-  // Certified grade is impossible without a filed origin. Unwitnessed
-  // cards have no public archive id; a struck card may have reached /file
-  // before another field disagreed, but none of its facts bank below.
+  // Certified grade is impossible without a filed origin. Dark and
+  // unwitnessed cards have no public archive id; a struck card may have
+  // reached /file before another field disagreed, but none of its facts
+  // bank below.
   if (card.cert === "certified" && !matchIdValid(card.matchId)) return false;
-  if (card.cert === "unwitnessed" && card.matchId !== null) return false;
+  if ((card.cert === "dark" || card.cert === "unwitnessed") && card.matchId !== null) return false;
   if (card.cert === "struck" && card.matchId !== null && !matchIdValid(card.matchId)) return false;
   // The yard counts the bodies and also names them. The count is what the
   // edge certifies; the names are the yard's own word (the certificate
@@ -624,12 +654,21 @@ export function cardValid(card) {
    Collapsing them into one boolean would make a renderer bug look
    exactly like an honest dispute, which is the failure the whole
    certification chain exists to prevent. */
-export function applyCard(run, card) {
+export function applyCard(run, card, claimOrigin = null) {
   if (!run || run.v !== RUN_V) {
     return { run, accepted: false, counted: false, why: "run is not this schema version" };
   }
   if (!cardValid(card)) {
     return { run, accepted: false, counted: false, why: "card is not a shape a run can bank" };
+  }
+  const hasClaimOrigin = claimOrigin !== null && claimOrigin !== undefined;
+  if (hasClaimOrigin && (!claimOrigin || typeof claimOrigin !== "object"
+      || Array.isArray(claimOrigin) || !exactKeys(claimOrigin, ["logId", "key"])
+      || !Number.isInteger(claimOrigin.logId) || claimOrigin.logId < 0
+      || typeof claimOrigin.key !== "string" || !LOG_CONTENT_KEY.test(claimOrigin.key)
+      || !["dark", "unwitnessed"].includes(card.cert)
+      || card.derivedEvents.length === 0)) {
+    return { run, accepted: false, counted: false, why: "claim origin does not belong to this card" };
   }
   const dealt = fieldedRoster(run) ?? [];
   const idByDealtName = new Map(dealt.map((person, i) =>
@@ -683,11 +722,11 @@ export function applyCard(run, card) {
     walked: card.ledger.walked,
     finished: card.ledger.finished,
     down: card.down.slice(),
-    // Receipts keep the Worker's tactical wire. An unwitnessed or struck
-    // card gets no retained event: the yard's in-session account has no
-    // append-only local origin yet, so preserving it here would mint a
-    // pointerless claim inside a twelve-card rolling buffer.
-    derivedEvents: card.cert === "certified"
+    // Receipts keep the tactical wire. A certified event has a filed source;
+    // a claim event is retained only after the caller supplies the id already
+    // returned by the independent chronicle. A refused log append and every
+    // struck card therefore retain an empty event receipt.
+    derivedEvents: (card.cert === "certified" || hasClaimOrigin)
       ? card.derivedEvents.map(event => ({ ...event }))
       : [],
     matchId: card.matchId,
@@ -734,19 +773,30 @@ export function applyCard(run, card) {
     }
   }
 
-  // Bank rules-authored events; never compute one here. This ledger is
-  // certified-grade-only until an append-only local event log exists:
-  // without a surviving target, an unwitnessed event cannot honestly mint
-  // a claim pointer. The yard's account may still be shown in-session by the
-  // room, but it does not enter this run.
-  for (const { event, actor, beneficiary } of
-      (card.cert === "certified" ? translatedEvents : [])) {
+  // Bank rules-authored events; never compute one here and never replay the
+  // record. Who vouches is the grade. The Worker authored the certified
+  // array; on counted darkness/accident paths the yard authored the same
+  // rules-core output and the supplied log reference proves only that its
+  // full record survived before this content-bound pointer was minted. A
+  // forged seam post can therefore bank a CLAIM that the preserved record
+  // later falsifies. It can never bank certification.
+  const eventGrade = card.cert === "certified" ? "certified" : "claim";
+  const bankableEvents = card.cert === "certified" || hasClaimOrigin ? translatedEvents : [];
+  for (const { event, actor, beneficiary } of bankableEvents) {
+    const origin = card.cert === "certified"
+      ? { matchId: card.matchId, commandIndex: event.commandIndex }
+      : {
+          logId: claimOrigin.logId,
+          commandIndex: event.commandIndex,
+          key: claimOrigin.key,
+        };
     const banked = {
       kind: event.kind,
       beneficiary,
       underFire: event.underFire,
       reached: event.reached,
-      grade: { kind: "certified", matchId: card.matchId, commandIndex: event.commandIndex },
+      grade: eventGrade,
+      origin,
       at: card.at,
     };
     if (run.season) {
@@ -757,7 +807,7 @@ export function applyCard(run, card) {
 
     /* The relationship IS computed here, deliberately. The rules core
        derives the replay fact (`extraction`); the run owns the banking
-       policy that says what that certified fact means after the card.
+       policy that says what that graded fact means after the card.
        Keeping those two derivations named and separate prevents either
        side from quietly taking ownership of the other.
 
@@ -766,21 +816,20 @@ export function applyCard(run, card) {
        no repetition treadmill, and the first source remains the origin.
        A source already used by a fulfilled debt cannot mint twice either;
        a later debt needs a later rescue with its own origin. */
-    const origin = { matchId: card.matchId, commandIndex: event.commandIndex };
     const activeAlready = next.relationships.some(relationship =>
       relationship.kind === "owes-a-life"
       && relationship.from === beneficiary
       && relationship.to === actor
       && relationship.status === "active");
     const originAlreadyUsed = next.relationships.some(relationship =>
-      relationship.origin.matchId === origin.matchId
-      && relationship.origin.commandIndex === origin.commandIndex);
+      sameOrigin(relationship.grade, relationship.origin, eventGrade, origin));
     if (!activeAlready && !originAlreadyUsed) {
       const relationship = {
         kind: "owes-a-life",
         from: beneficiary,
         to: actor,
-        origin,
+        grade: eventGrade,
+        origin: { ...origin },
         status: "active",
         at: card.at,
       };
@@ -803,6 +852,7 @@ export function applyCard(run, card) {
     next.wounds[id] = (next.wounds[id] ?? 0) + 1;
   }
   if (card.cert === "unwitnessed") next.unwitnessed += 1;
+  if (card.cert === "dark") next.dark += 1;
   if (card.result === "win") {
     next.wins += 1;
     next.streak += 1;
@@ -1067,7 +1117,7 @@ export function loadRun(at, roster = DEFAULT_ROSTER) {
 // that renders whatever storage happened to contain is a surface that
 // renders whatever anything on this origin decided to put there.
 function sane(r) {
-  const ints = ["cards", "wins", "purse", "best", "streak", "longest", "struck", "unwitnessed"];
+  const ints = ["cards", "wins", "purse", "best", "streak", "longest", "struck", "unwitnessed", "dark"];
   if (!ints.every(k => Number.isInteger(r[k]) && r[k] >= 0)) return false;
   if (typeof r.opened !== "string") return false;
   if (!rosterValid(r.roster)) return false;
@@ -1097,16 +1147,14 @@ function sane(r) {
     if (!isPersonId(event.beneficiary) || !ownedIds.has(event.beneficiary)
         || event.beneficiary === actor) return false;
     if (typeof event.at !== "string" || !event.at) return false;
-    const grade = event.grade;
-    if (!grade || typeof grade !== "object" || Array.isArray(grade)) return false;
-    return grade.kind === "certified"
-      && exactKeys(grade, ["kind", "matchId", "commandIndex"])
-      && matchIdValid(grade.matchId)
-      && intIn(grade.commandIndex, 0, MAX_DERIVED_PER_CARD - 1);
+    return (event.grade === "certified" || event.grade === "claim")
+      && originValid(event.grade, event.origin);
   })) return false;
-  const certifiedEvents = allEvents.length;
-  if (certifiedEvents > (r.cards - r.unwitnessed) * MAX_DERIVED_PER_CARD) return false;
-  if (!Array.isArray(r.relationships) || r.relationships.length > certifiedEvents) return false;
+  const certifiedEvents = allEvents.filter(({ event }) => event.grade === "certified").length;
+  const claimEvents = allEvents.length - certifiedEvents;
+  if (certifiedEvents > (r.cards - r.unwitnessed - r.dark) * MAX_DERIVED_PER_CARD) return false;
+  if (claimEvents > (r.unwitnessed + r.dark) * MAX_DERIVED_PER_CARD) return false;
+  if (!Array.isArray(r.relationships) || r.relationships.length > allEvents.length) return false;
   const relationshipOrigins = new Set();
   const activePairs = new Set();
   if (!r.relationships.every(relationship => {
@@ -1124,14 +1172,11 @@ function sane(r) {
     if (relationship.status !== "active" && relationship.status !== "fulfilled") return false;
     if (typeof relationship.at !== "string" || !relationship.at) return false;
     if (relationship.slate !== undefined && !stampValid(relationship.slate)) return false;
-    const origin = relationship.origin;
-    if (!origin || typeof origin !== "object" || Array.isArray(origin)
-        || !exactKeys(origin, ["matchId", "commandIndex"])
-        || !matchIdValid(origin.matchId)
-        || !intIn(origin.commandIndex, 0, MAX_DERIVED_PER_CARD - 1)) return false;
-    const originKey = `${origin.matchId}@${origin.commandIndex}`;
-    if (relationshipOrigins.has(originKey)) return false;
-    relationshipOrigins.add(originKey);
+    if ((relationship.grade !== "certified" && relationship.grade !== "claim")
+        || !originValid(relationship.grade, relationship.origin)) return false;
+    const sourceKey = originKey(relationship.grade, relationship.origin);
+    if (relationshipOrigins.has(sourceKey)) return false;
+    relationshipOrigins.add(sourceKey);
     if (relationship.status === "active") {
       const pair = `${relationship.from}->${relationship.to}`;
       if (activePairs.has(pair)) return false;
@@ -1140,14 +1185,16 @@ function sane(r) {
         || !stampValid(relationship.fulfilledSlate)) return false;
 
     // A relationship is banking policy over a banked event, not an
-    // unsupported sentence. Its stable-id direction, certified pointer,
-    // time and slate stamp must all resolve to the extraction it names.
+    // unsupported sentence. Its stable-id direction, grade, pointer, time
+    // and slate stamp must all resolve to the extraction it names. Whether a
+    // claim log address still resolves to the named content is deliberately
+    // outside sane(): the chronicle is independent state over which RUN_V has
+    // no jurisdiction. The room checks that target when it renders the source.
     return allEvents.some(({ actor, event }) =>
       actor === relationship.to
       && event.kind === "extraction"
       && event.beneficiary === relationship.from
-      && event.grade.matchId === origin.matchId
-      && event.grade.commandIndex === origin.commandIndex
+      && sameOrigin(event.grade, event.origin, relationship.grade, relationship.origin)
       && event.at === relationship.at
       && (event.slate === undefined
         ? relationship.slate === undefined
@@ -1168,7 +1215,7 @@ function sane(r) {
     && (c.result === "win" || c.result === "loss")
     && intIn(c.rating, 0, MAX_RATING)
     && intIn(c.purse, 0, MAX_PURSE)
-    && ["certified", "unwitnessed", "struck"].includes(c.cert)
+    && ["certified", "dark", "unwitnessed", "struck"].includes(c.cert)
     // bounded because the mercy ledger is re-derived from them below —
     // a card carrying a string here would make that sum garbage
     && intIn(c.walked, 0, MAX_SIDE) && intIn(c.finished, 0, MAX_SIDE)
@@ -1178,11 +1225,13 @@ function sane(r) {
     && Array.isArray(c.derivedEvents) && c.derivedEvents.length <= MAX_DERIVED_PER_CARD
     && c.derivedEvents.every(event =>
       derivedEventValid(event) && ownedNames.has(event.actor) && ownedNames.has(event.beneficiary))
-    // Only a filed certificate gives an event a surviving source in this
-    // slice. applyCard writes an empty receipt for every other verdict.
-    && (c.cert === "certified" || c.derivedEvents.length === 0)
+    // A struck receipt never carries an event. Counted uncertified receipts
+    // may carry claim events, but only applyCard with a prior content-bound
+    // log reference writes them; sane() validates the corresponding ledger
+    // origin shape below.
+    && (c.cert !== "struck" || c.derivedEvents.length === 0)
     && (c.cert === "certified" ? matchIdValid(c.matchId)
-      : c.cert === "unwitnessed" ? c.matchId === null
+      : c.cert === "dark" || c.cert === "unwitnessed" ? c.matchId === null
       : c.matchId === null || matchIdValid(c.matchId))
     && (c.slate === undefined || stampValid(c.slate))
   )) return false;
@@ -1220,11 +1269,16 @@ function sane(r) {
   const sum = (list, of) => list.reduce((n, c) => n + of(c), 0);
   const wins = banked.filter(c => c.result === "win").length;
   const unwitnessed = banked.filter(c => c.cert === "unwitnessed").length;
+  const dark = banked.filter(c => c.cert === "dark").length;
   const recentCertifiedEvents = sum(banked.filter(c => c.cert === "certified"), c => c.derivedEvents.length);
+  const recentClaimEvents = sum(
+    banked.filter(c => c.cert === "dark" || c.cert === "unwitnessed"),
+    c => c.derivedEvents.length);
   if (r.cards + r.struck === r.recent.length) {
     if (banked.length !== r.cards) return false;
     if (wins !== r.wins) return false;
     if (unwitnessed !== r.unwitnessed) return false;
+    if (dark !== r.dark) return false;
     if (sum(banked, c => c.purse) !== r.purse) return false;
     // The mercy ledger is the run's actual thesis, so it gets the same
     // treatment: a forged rate buys nothing, but it is a lie about who
@@ -1232,17 +1286,19 @@ function sane(r) {
     if (sum(banked, c => c.walked) !== r.mercy.walked) return false;
     if (sum(banked, c => c.finished) !== r.mercy.finished) return false;
     if (certifiedEvents !== recentCertifiedEvents) return false;
+    if (claimEvents !== recentClaimEvents) return false;
   } else {
     // The only way an event can be missing is the buffer being full.
     if (r.cards + r.struck <= RECENT || r.recent.length !== RECENT) return false;
     const gone = r.cards - banked.length;
     if (gone < 0) return false;
     if (r.purse > sum(banked, c => c.purse) + gone * MAX_PURSE) return false;
-    if (r.wins < wins || r.unwitnessed < unwitnessed) return false;
+    if (r.wins < wins || r.unwitnessed < unwitnessed || r.dark < dark) return false;
     if (r.struck < r.recent.length - banked.length) return false;
     if (r.mercy.walked < sum(banked, c => c.walked)) return false;
     if (r.mercy.finished < sum(banked, c => c.finished)) return false;
     if (certifiedEvents < recentCertifiedEvents) return false;
+    if (claimEvents < recentClaimEvents) return false;
   }
   // The season, when there is one, all the way in — same reasoning as the
   // collections above: every field here reaches the room's surface or
@@ -1353,7 +1409,7 @@ function sane(r) {
       && pass.at === relationship.fulfilledAt
       && sameStamp(pass, relationship.fulfilledSlate)).length === 1)) return false;
     // Completeness matters as much as refusing invented entries. Walk every
-    // certified extraction through the relationship intervals it could have
+    // graded extraction through the relationship intervals it could have
     // observed: the first event in an inactive interval must be the source of
     // a relationship; later rescues are covered by that active debt until its
     // dedicated pass. Deleting the ledger (or moving its origin to a later
@@ -1362,7 +1418,7 @@ function sane(r) {
       if (relationship.from !== event.beneficiary || relationship.to !== actor) return false;
       const startsBefore = relationship.slate.idx < event.slate.idx
         || (relationship.slate.idx === event.slate.idx
-          && relationship.origin.commandIndex <= event.grade.commandIndex);
+          && relationship.origin.commandIndex <= event.origin.commandIndex);
       const stillActive = relationship.status === "active"
         || event.slate.idx < relationship.fulfilledSlate.idx;
       return startsBefore && stillActive;
@@ -1395,8 +1451,8 @@ function sane(r) {
         if (!r.relationships.some(relationship => {
           if (relationship.from !== event.beneficiary || relationship.to !== actor) return false;
           const sourceIndex = events.findIndex(candidate =>
-            candidate.grade.matchId === relationship.origin.matchId
-            && candidate.grade.commandIndex === relationship.origin.commandIndex);
+            sameOrigin(
+              candidate.grade, candidate.origin, relationship.grade, relationship.origin));
           return sourceIndex >= 0 && sourceIndex <= i;
         })) return false;
       }
@@ -1538,7 +1594,8 @@ export function summary(run) {
       beneficiary: event.beneficiary,
       underFire: event.underFire,
       reached: event.reached,
-      grade: { ...event.grade },
+      grade: event.grade,
+      origin: { ...event.origin },
       at: event.at,
       ...(event.slate ? { slate: { ...event.slate } } : {}),
     })));
@@ -1581,6 +1638,7 @@ export function summary(run) {
     wounded,
     struck: run.struck,
     unwitnessed: run.unwitnessed,
+    dark: run.dark,
     derivedEvents,
     relationships,
     drift: run.drift,

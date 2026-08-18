@@ -3,8 +3,8 @@
 What survives the door. The run layer for the walkable world's north
 door: it banks what a returned card **cost** — and, since season-lite,
 holds the slate: what the next card *means*, and whether the deal may
-happen at all. Since pairwise-ledger step 4 it also banks what one certified
-act now means between two owned people, and which room-layer pass that fact
+happen at all. Since integrity-verb step 5 it also banks what one graded act
+now means between two owned people, and which room-layer pass that fact
 makes legal.
 
 No DOM, no rules import, no clock of its own — it runs in Node, which is
@@ -84,34 +84,37 @@ the yard wire: it is a receipt, not another durable identity ledger.
 
 ## The durable moment
 
-Run schema v5 adds `eventLedger`, keyed by the actor's stable person id. The
-run never derives an event. On a filed certificate it accepts the Worker's
-replay-authored tactical event, translates `actor` and `beneficiary` through
-the lineup that was fielded for that card, and banks the stable ids once.
-`recent[].derivedEvents` remains the certified receipt in tactical names.
+Run schema v5 added `eventLedger`, keyed by the actor's stable person id; v7
+adds its second grade. The run never derives or replays an event. On a filed
+certificate it accepts the Worker's replay-authored tactical event. On a
+counted dark or accidentally unwitnessed card it accepts the yard rules core's
+event only when the caller maps the independent chronicle's returned `{id,key}`
+to `{logId:id,key}`. In either case it translates `actor` and `beneficiary`
+through the lineup fielded for that card and banks the stable ids once.
 
 The one event in this slice is `extraction`. A certified entry carries
-`grade: {kind:"certified", matchId, commandIndex}`; the 32-hex match id points
-to a filed Witness record and the command index points inside it. The ledger
-is certified-grade-only in this slice. An unwitnessed or unarchived card still
-counts as a card, and the yard may show its derived account for the current
-session, but the run retains no derived event from it. Claim grade is deferred
-until the append-only local event log exists: the rolling twelve-card receipt
-is not a durable target, and no pointer is minted before its target survives.
+`grade:"certified"` and `origin:{matchId,commandIndex}`; the 32-hex match id
+points to a filed Witness record. A claim entry carries `grade:"claim"` and
+`origin:{logId,commandIndex,key}`; the integer addresses the full local match in
+`sentinel.chronicle`, while the 8-hex key binds the pointer to that match's
+`seed + roster + record`. `recent[].derivedEvents` keeps the tactical receipt only
+when one of those origins survived. A log refusal still counts the ordinary
+card but leaves the receipt, event ledger and relationship ledger untouched.
 Season entries carry the same authored slate stamp as other banked facts.
 
 `sane()` validates the ledger all the way in: every key and beneficiary is an
-owned stable person id, nobody names themselves, grades have exact shapes,
-every grade is certified with a plausible filed id and command index,
-certified counts agree with the retained receipts, non-certified receipts
-carry no derived events, and slate stamps resolve to authored entries already
-passed. `eventLedger` remains the event ledger: it grants no permissions and
+owned stable person id, nobody names themselves, both grade/origin shapes are
+exact, grade counts agree with the retained receipts, and slate stamps resolve
+to authored entries already passed. It deliberately cannot ask whether a
+claim's independent log target still exists or still has the named content:
+RUN_V has no jurisdiction over the chronicle. The room resolves both address
+and key at render time and says when they disagree. `eventLedger` remains the event ledger: it grants no permissions and
 computes no bond state. The relationship policy consuming it is the next,
 separate run-owned layer.
 
 ## The pairwise mercy ledger
 
-Run schema v6 adds `relationships`, an append-only array of named directional
+Run schema v6 added `relationships`, an append-only array of named directional
 facts:
 
 ```js
@@ -119,7 +122,8 @@ facts:
   kind: "owes-a-life",
   from: "koa",                  // debtor: the extracted beneficiary
   to: "sable",                 // creditor: the extraction actor
-  origin: { matchId, commandIndex },
+  grade: "certified",           // or "claim"
+  origin: { matchId, commandIndex }, // claim uses {logId, commandIndex, key}
   status: "active",            // or "fulfilled"
   at,
   slate,                        // absent only on a plain run
@@ -129,9 +133,9 @@ facts:
 }
 ```
 
-The origin is the certified event's filed `{matchId, commandIndex}`, not a
-copy of prose or a rolling receipt. `sane()` requires that pointer, direction,
-time, and mint stamp to resolve to the stable-id extraction in `eventLedger`.
+The origin is the graded event's exact source, not a copy of prose or a
+rolling receipt. `sane()` requires its grade, pointer, direction, time, and
+mint stamp to resolve to the stable-id extraction in `eventLedger`.
 It also requires owned distinct people, the exact lifecycle shape, a unique
 origin, at most one active `owes-a-life` per directed pair, and — after
 repayment — a matching dedicated pass at the exact fulfillment stamp. On a
@@ -150,19 +154,21 @@ event and covering later same-pair events.
 These are implementation decisions recorded for designer veto at review:
 
 1. **THE FIRST NAMED RELATIONSHIP IS OWES A LIFE.** `applyCard` consumes a
-   certified extraction already derived by replay and applies run banking
+   graded extraction already derived by the rules core and applies run banking
    policy: beneficiary owes actor a life. The rules core derives the event;
    the run computes the relationship from that banked event. Those are
    deliberately different ownership claims. A second rescue while the same
    directed debt is active mints nothing, so the first source stands; a used
-   origin never mints twice.
+   origin never mints twice. The one-active-per-directed-pair rule spans
+   grades: a certified debt blocks a claim debt and vice versa.
 2. **THE FIRST OBLIGATION IS REPAY THE LIFE.** `applyPass(run, at,
    {kind:"repay-the-life", from, to})` is legal only for a real owned pair
    carrying an active debt whose named creditor has a running recovery clock.
    The dedicated pass advances that creditor by `DEDICATED_RECOVERY` (2)
    instead of 1, advances every other running clock by the ordinary 1, and
    fulfills the debt on the current slate stamp. The plain pass remains
-   legal. This is recovery economics: no purse, match input, certified
+   legal. Claim and certified debts have identical force. This is recovery
+   economics: no purse, match input, certified
    snapshot, or combat number changes.
 
 `summary()` exposes both the relationship history and only the dedicated
@@ -274,7 +280,7 @@ a Tier 1 run.
 is the run's own receipt, and every card pushes exactly one entry, so
 `cards + struck === recent.length` is precisely *nothing has scrolled
 off* — while that holds, every total that is a sum or a count must *be*
-that sum or count: cards, wins, struck, unwitnessed, purse, and the mercy
+that sum or count: cards, wins, struck, dark, unwitnessed, purse, and the mercy
 ledger. A hand-edited fresh run with `purse: 10000` used to restore and
 buy a hood with it.
 
@@ -288,21 +294,23 @@ purse; that is the honest limit of what a twelve-entry receipt proves.
 
 ## What counts
 
-Inherited verbatim from the session ledger this replaced — the policy was
-already right and only its lifetime was wrong.
+The v7 split preserves whether witness loss was chosen or accidental at the
+only moment the room knows for sure: banking time.
 
 | Verdict | Banked? | Surface says |
 |---------|---------|--------------|
 | `certified` | yes | CERTIFIED AT THE EDGE |
-| `unwitnessed` | yes | counted, and labelled `COUNTED UNWITNESSED` |
+| `dark` | yes | chosen, and labelled `CHOSE THE DARK` |
+| `unwitnessed` | yes | accident family, labelled `LOST THE FEED` / `COUNTED UNWITNESSED` |
 | `struck` | **no** | tallied separately as `BANKED BY NOBODY` |
 
 An unverified truth that says it is unverified beats a silent one. A card
 the edge *disputes* is not a card, but a run that quietly discarded
 disputes would look identical to one that never had any — so the count is
-kept. "Banked" in this table means the card's run consequences; only a
-certified card may also bank replay-derived events. Infrastructure failures
-never mint claim-grade events in this slice.
+kept. "Banked" in this table means the card's ordinary run consequences. A
+certified card may bank edge-authored events; any counted uncertified card
+is logged locally, and one with yard-derived events may bank claim grade after
+that append. A 422 dispute is struck and therefore logs and mints nothing.
 
 `applyCard` returns two different negatives on purpose:
 
@@ -364,6 +372,14 @@ Three keys, all under `sentinel.run`:
 | `sentinel.run.closed` | the last run the player closed |
 | `sentinel.run.orphan` | a stored run this schema could not read |
 
+The chronicle is deliberately outside that family. `log.js` owns the stable
+`sentinel.chronicle` key and its own injected `{read,write}` binding. It is a
+200-entry append-only array whose ids are monotonically assigned from 0.
+There is no update or delete API. A full, unwritable or damaged root refuses
+an append loudly and overwrites nothing; a malformed hand-tampered slot reads
+as `null` in place, so later ids never move. The log survives `closeRun`, run
+orphaning and every RUN_V bump because it is match history, not run state.
+
 **The live key is not versioned, and that is the point.** It was
 `sentinel.run.v${RUN_V}` at first, which made the orphan path below
 unreachable in the one situation it exists for: bumping `RUN_V` to 2 would
@@ -419,7 +435,9 @@ rosterValid(roster)                four stable people, origins, three owned ids
 personOf(run, id)                  the owned person behind a stable id
 fieldedRoster(run)                 exactly `{name, hp}` ×3 for the certified seam
 setLineup(run, ids)                → {run, accepted, why}; pure lineup choice
-applyCard(run, card)               → {run, accepted, counted, why}; pure
+applyCard(run, card, claimOrigin?)  → {run, accepted, counted, why}; pure;
+                                     `{logId,key}` must already resolve outside
+                                     the reducer before claim pointers mint
 applyPass(run, at, dedication?)    → {run, accepted, why}; decline the current
                                      entry — optional `{kind:"repay-the-life",
                                      from,to}` dedicates its recovery
@@ -439,6 +457,13 @@ closeRun(run, at)                  → {run, archived, closed, saved}; refuses
                                      to close what it could not archive
 readClosed()                       the archived run, or null
 summary(run)                       every number the surface renders
+
+log.js:
+LOG_KEY, LOG_CAP
+bindStore({read, write})           independent chronicle storage
+appendEntry(entry)                 → `{id,key}`; loud refusal on no write
+readEntry(id)                      → match entry or null
+entries()                          → chronological entries; damaged slots null
 ```
 
 `applyPass` returns no `counted` — there is no edge verdict to count. A
@@ -452,12 +477,13 @@ the stock, knows the balance, and knows what each fighter already wears,
 so an unaffordable purchase arriving here means the room offered
 something it should have refused.
 
-`RUN_V` is 6: the season joined the schema at 2, the purse at 3, the
+`RUN_V` is 7: the season joined the schema at 2, the purse at 3, the
 owned roster plus lineup at 4, replay-derived pairwise events at 5, and named
-relationship lifecycle at 6. A stored run of any older version takes the
+relationship lifecycle at 6; the dark verdict split and two provenance grades
+joined at 7. A stored run of any older version takes the
 orphan path below — moved aside and said so, which is the exact situation
-that path was built and tested for. Hydrating a v5 run with a made-up empty
-relationship ledger would be a silent migration wearing a default, so the
+that path was built and tested for. Hydrating a v6 run with invented dark
+counts or provenance would be a silent migration wearing defaults, so the
 older payload is set aside instead.
 
 `saveRun`'s return value is not decoration — the room raises a standing
