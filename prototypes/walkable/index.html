@@ -425,7 +425,7 @@
 /* ================================================================
    SENTINEL walkable-world toy — pure renderer, plus one door.
 
-   Still no tactical-core import, no rules. The room is exactly one room
+   Still no tactical match rules. The room is exactly one room
    and one walking body, with four run-owned people in the room — but the
    north door is now real: crossing it
    hands the feed to tactical3d in an iframe (the seam, below) and takes
@@ -434,7 +434,10 @@
    the audition only means anything when world, body, camera and display
    pass are the same machinery already under review.
 
-   It DOES import run-core, and that is not the same wall. run-core holds
+   It imports tactical-core's one pure `feedCut(record)` predicate because
+   every holder must make submission policy from the same fact; it imports
+   no match verbs and still cannot compute an outcome. It DOES import
+   run-core, and that is not the same wall. run-core holds
    no rules and decides no match: it banks what a returned card cost and
    which room-layer obligations that history makes legal. The room stays
    unable to compute an outcome, which is the property the no-rules wall
@@ -442,6 +445,7 @@
    ================================================================ */
 
 import * as THREE from "../tactical3d/vendor/three.module.js";
+import { feedCut } from "../tactical-core/rules.js";
 import {
   bindStore, loadRun, saveRun, applyCard, applyPass, applyBuy, closeRun,
   openSeason, slateValid, stockValid, rosterValid, fieldedRoster, setLineup,
@@ -2255,8 +2259,9 @@ window.addEventListener("blur", () => { held.clear(); locked = null; });   // no
    posts the outcome back when the player walks out. The contract is a
    function call — the world deals (seed) and receives (record, result,
    rating, purse, fingerprint). It never watches combat happen and never
-   shares state with it. Still no tactical-core import on this side of
-   the wall: what returns is the same shape the witness Worker certifies,
+   shares state with it. The one tactical-core import on this side of
+   the wall only recognizes deliberate darkness in a returned record;
+   what returns is otherwise the same shape the witness Worker certifies,
    and the room ENACTS that verification rather than narrating it — the
    returned seed must match the dealt one, the payload must be shaped
    like a replayable record, and the witness's own replay settles the
@@ -3185,6 +3190,7 @@ function filedReceiptValid(filed) {
 
 function endSeam(result) {
   const dealt = seamFielded;
+  const darkness = feedCut(result.record);
   clearTimeout(seamBootTimer);
   seamOpen = false;
   seamReady = false;
@@ -3222,7 +3228,9 @@ function endSeam(result) {
       ? `YARD DERIVED · ${result.derivedEvents.map(event =>
           `${esc(event.actor)} → ${esc(event.beneficiary)} / COMMAND ${event.commandIndex}`).join(" · ")}<br>`
       : "YARD DERIVED · NONE<br>") +
-    `<span id="seamcert">CERT · ASKING THE EDGE…</span><br>` +
+    `<span id="seamcert">CERT · ${darkness
+      ? `THE FEED WAS CUT BY CHOICE AT COMMAND ${darkness.commandIndex} — WITHHELD FROM THE EDGE`
+      : "ASKING THE EDGE…"}</span><br>` +
     `<span id="seamtotals">RUN · settling…</span>`;
   canvas.dataset.lastResult = result.result;
   // raised BEFORE the await starts, so there is no frame in which the card
@@ -3240,7 +3248,8 @@ function endSeam(result) {
   // here and keep seam state inside the seam lifecycle.
   seamFielded = null;
 
-  showCut("FEED RETURNED", "THE RECORD CAME BACK WITH YOU");
+  if (darkness) showCut("CHOSE THE DARK", "THE FEED WAS CUT BY CHOICE — THE LOCAL RECORD CAME BACK WITH YOU");
+  else showCut("FEED RETURNED", "THE RECORD CAME BACK WITH YOU");
   dropCut(900);
 }
 
@@ -3259,11 +3268,22 @@ async function certifySeam(d, dealt) {
   let derivedEvents = [];
   let matchId = null;
   let eventOriginNote = null;
-  try {
+  // Submission policy lives with every holder, all consulting the same
+  // tactical-core predicate. The local record still settles and remains
+  // available for later exposure; neither /certify nor /file sees it now.
+  const darkness = feedCut(d.record);
+  if (darkness) {
+    verdict = `<b>THE FEED WAS CUT BY CHOICE — COUNTED UNWITNESSED</b> · COMMAND ${darkness.commandIndex} · THE RECORD STAYED LOCAL`;
+    cert = "unwitnessed";
+    if (d.derivedEvents.length) {
+      eventOriginNote = "DERIVED EVENTS NOT BANKED — THE RECORD WAS WITHHELD BY CHOICE";
+    }
+  } else try {
     // RECORDED DESIGN DECISION — 2026-08-16, durable-moment step 3:
     // THE ROOM FILES WHAT IT CERTIFIES. /file is certify + durable archive,
     // idempotent by content key, so certified grade always has an origin the
-    // player can reopen. A future cut-feed card submits to neither endpoint.
+    // player can reopen. A dark card takes the explicit branch above and
+    // submits to neither endpoint.
     const r = await fetch(`${WITNESS}/file`, {
       method: "POST",
       headers: { "content-type": "application/json" },

@@ -139,6 +139,11 @@ The room does not take the yard's word for it:
   the room never asks the page to prove its own derivation. The aftermath is
   checked the same way the outcome always was: a page
   that misreports what a card cost is struck, not banked;
+- a returned record carrying `CUT THE FEED` is sent to neither `/certify`
+  nor `/file`. The panel says the feed was cut by choice and the local record
+  stayed local. Until the run-ledger vocabulary changes in the second half
+  of the integrity slice, it banks through the existing explicitly labelled
+  `unwitnessed` path;
 - the hand-off has a readiness handshake: the cut card holds until the
   yard proves it booted, with a 7s timeout and an <kbd>ESC</kbd> abort
   that put you back in the room if the far side never answers;
@@ -160,8 +165,9 @@ returned record to `POST /file`, not bare `/certify`. `/file` performs the same
 replay certification and archives idempotently by the record's content key, so
 every card the room calls certified has the filed match id required for a
 resolvable origin. This is a recorded implementation decision for designer
-review, not an attempt to settle the future feed-cut design. Deliberate
-darkness composes cleanly by submitting to neither endpoint.
+review. Deliberate darkness now composes with it by submitting to neither
+endpoint; the unchanged run schema counts that card as `unwitnessed` while
+the panel states that the loss of witness was chosen.
 
 On a successful filing, the card banks only the Worker's replay-authored
 `derivedEvents` and its returned id. The yard-computed array crosses the seam

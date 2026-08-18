@@ -27,12 +27,16 @@ the shared rules module and return the certified transcript: result,
 rating, purse, line count, the FNV-1a fingerprint, and the transcript
 itself. A certificate also carries `derivedEvents`, authored from the
 Worker's own completed replay; request bodies never supply this field for the
-edge to trust or cross-check. The grammar spans eight verbs — the player's seven and the house's
+edge to trust or cross-check, plus `aftermath.feedCut` (`null` or the cut's
+`{commandIndex}`). The grammar spans nine verbs — the player's eight and the house's
 `["twist", cardId]` (Circuit step 4), which certifies like any other hand
 on the record: legal only between rounds, budgeted by the rules, an
 illegally-timed card fails closed as an unfaithful replay. Extraction's
 `["drag", actorId, bodyId, x, y]` is likewise explicit on the record: who
 acted, for whom, and where all cross the wire together.
+`["cut", actorId]` also certifies normally. The Witness validates a record;
+it does not enforce the holders' submission policy. Refusing dark records
+here would make later exposure impossible and reward stripping the command.
 
 ## Certification policy
 
@@ -63,7 +67,7 @@ stamp alongside them and send it back as `rules` when certifying, so a
 record can never be silently reinterpreted by newer rules as if history
 had always been that way.
 
-The stamp hashes **four** playouts, each pinning an area the others
+The stamp hashes **five** playouts, each pinning an area the others
 cannot reach:
 
 | golden | pins | fingerprint |
@@ -72,6 +76,7 @@ cannot reach:
 | showrunner (`showrunner-golden.js`) | the twist grammar and card math | `6495eab3` |
 | roster (`roster-golden.js`) | how a fielded squad is carried in | `d44833c0` |
 | extraction (`drag-golden.js`) | the drag grammar, movement, reaction fire, and rating | `e9e0a018` |
+| darkness (`cut-golden.js`) | the cut grammar, frozen economics, and aftermath pointer | `3fd1ffac` |
 
 The second landed with twists (2026-07-29) because a no-input playout can
 never play a card: without it, a balance patch to a card's terms would
@@ -79,7 +84,9 @@ move nothing and old records would silently certify under new card math.
 The third landed with the roster doctrine (2026-08-13) for exactly the
 same reason — the other two both field the canonical three, so neither
 can stamp what a roster does. The fourth landed with extraction: none of
-the earlier records can exercise a two-person drag or its consequences.
+the earlier records can exercise a two-person drag or its consequences. The
+fifth lands with deliberate darkness because no earlier record can exercise
+the freeze or carry a non-null `aftermath.feedCut`.
 
 Each golden contributes its transcript fingerprint **and its outcome** —
 result, rating, purse — because rating is deliberately never a transcript
@@ -87,10 +94,12 @@ line, so payout behavior could otherwise change under an unchanged stamp
 (caught in review); the roster golden adds its canonical key and its
 `faithful` flag. Since durable-moment step 3, each also contributes its
 derived-event array: the first three contribute `[]`, while the drag golden
-contributes its pinned extraction predicate. Today's stamp is `b9a69b0c` =
-`fnv("39e8be71:loss:29:290:[]:6495eab3:win:92:920:[]:d44833c0:loss:35:350:VESPER:6|NIX:10|SABLE:3:true:[]:e9e0a018:loss:41:410:[{\"kind\":\"extraction\",\"actor\":\"SABLE\",\"beneficiary\":\"KOA\",\"commandIndex\":6,\"underFire\":true,\"reached\":true}]")`.
-The four transcript fingerprints stayed fixed; the stamp moved from
-`78c24d5a` because the derivation predicate is now stamped rules behavior.
+contributes its pinned extraction predicate. The cut golden then contributes
+its empty derived-event array and non-null aftermath. Today's stamp is
+`2d9b514b`; it extends the prior `b9a69b0c` input sequence with
+`3fd1ffac:win:80:800:[]:{"feedCut":{"commandIndex":6}}`.
+All four earlier transcript fingerprints stayed fixed; the stamp moved because
+the fifth behavior input was deliberately added.
 
 The roster golden runs through **`replayMatch(seed, record, roster)`**,
 not `restart` — the path certification actually takes. Stamping the
@@ -99,7 +108,7 @@ neighbouring path left the roster's *forwarding* unstamped: a
 fielding the canonical three (caught in review, executed as a mutation).
 
 Extending the stamp's *inputs* is the one legitimate way the stamp
-changes without behavior changing — it has happened four times now, each
+changes without behavior changing — it has happened five times now, each
 time deliberately. Records stamped under an older input set are correctly
 refused as claiming a different rules version, because they are.
 
@@ -129,8 +138,8 @@ neither inflate the ledger nor bump an old record to the top.
 walkable room's certified seam path calls `/file`, not bare `/certify`.
 Therefore every card that surface labels certified receives a durable match
 id in the same replay transaction. This is recorded for designer review and
-can be vetoed there. It does not pre-decide feed cutting: a future deliberate
-darkness path submits to neither endpoint. The tactical yard's explicit
+can be vetoed there. A deliberate-darkness path now submits to neither
+endpoint. The tactical yard's explicit
 **FILE THE RECORD** button also continues to call `/file` directly.
 
 `POST /file` and `/certify` also accept an optional **fingerprint claim**
@@ -142,7 +151,8 @@ archive a transcript the player never saw. The prototype always sends it.
 Certificates carry the **ledger** — walked / finished / lost — and
 `derivedEvents`, all derived from the replayed state, plus the **roster** the
 replay actually fielded with its own `rosterHash`, and the rules stamp,
-so a future rules version can refuse to silently reinterpret the archive.
+and `aftermath.feedCut`, so a future rules version can refuse to silently
+reinterpret the archive.
 The full stored certificate retains the derived array; the metadata-only
 archive listing does not need to duplicate it.
 
@@ -196,7 +206,8 @@ browser build *before the rules were extracted*, asserted in
 `rules.test.js`, and now served from the edge. The showrunner golden must
 certify to `6495eab3` with MERCY ODDS paid and an empty derived array, and the
 extraction golden must certify its drag-containing record to `e9e0a018` with
-the pinned extraction event. If the edge disagrees
+the pinned extraction event. The darkness golden must certify to `3fd1ffac`,
+rating and purse 80/800, with `aftermath.feedCut.commandIndex === 6`. If the edge disagrees
 with the goldens, the deploy is wrong, not the goldens.
 
 `witness_check.mjs` goes one further: it imports the rules core, *plays* a

@@ -630,6 +630,68 @@ try {
       check("an edge that predates the roster counts, and says so", false, "the door never re-dealt");
     }
     await page.unroute(/\/file$/);
+
+    // ---- a dark card settles locally and never reaches either endpoint
+    // This is seed 6's organic cut playout: the cut is command 5, play
+    // continues to a spare, and rating remains frozen at 78. Posting the
+    // real returned shape from the live iframe isolates the room policy
+    // without spending another minute replaying the already-core-tested
+    // record through animated combat.
+    const DARK_CARD = {
+      seed: "6",
+      record: [
+        ["move", 0, 2, 6], ["shoot", 0, 4], ["shoot", 1, 4], ["shoot", 2, 5], ["end"],
+        ["cut", 1], ["shoot", 2, 5], ["end"],
+        ["move", 1, 5, 6], ["ow", 1], ["shoot", 2, 5], ["end"],
+        ["move", 1, 3, 4], ["ow", 1], ["move", 2, 5, 7], ["ow", 2], ["end"],
+        ["move", 1, 2, 2], ["shoot", 1, 3], ["move", 2, 3, 5], ["ow", 2], ["end"],
+        ["move", 2, 2, 2], ["shoot", 2, 3], ["end"], ["shoot", 2, 3], ["spare"],
+      ],
+      result: "win", rating: 78, purse: 780,
+      ledger: { walked: 1, finished: 0, lost: 2 }, down: ["VESPER", "KOA"],
+      derivedEvents: [], roster: CANONICAL, fingerprint: "fce4bc15", lines: 44,
+    };
+    let darkSubmissions = 0;
+    await page.route(/\/(?:certify|file)$/, route => {
+      darkSubmissions++;
+      return route.fulfill({ status: 500, contentType: "application/json", body: "{}" });
+    });
+    await page.evaluate(() => localStorage.clear());
+    await page.goto(ROOM_URL);
+    await page.waitForFunction(() =>
+      ["ready", "error"].includes(document.getElementById("cv").dataset.sprites),
+      null, { timeout: 20000 });
+    await page.keyboard.down("Shift");
+    await page.keyboard.down("KeyW");
+    await page.keyboard.down("KeyD");
+    const darkDeal = await page.waitForFunction(() => !!document.getElementById("seamframe"),
+      null, { timeout: 30000 }).then(() => true, () => false);
+    await page.keyboard.up("KeyW");
+    await page.keyboard.up("KeyD");
+    await page.keyboard.up("Shift");
+    if (darkDeal) {
+      const darkFrame = await (await page.$("#seamframe")).contentFrame();
+      await darkFrame.evaluate(card => {
+        window.parent.postMessage({ type: "sentinel-seam-result", ...card }, location.origin);
+      }, DARK_CARD);
+      await page.waitForFunction(() =>
+        /THE FEED WAS CUT BY CHOICE/.test(document.getElementById("seaminfo").textContent),
+      null, { timeout: 20000 });
+      const darkVerdict = (await page.textContent("#seaminfo")).replace(/\s+/g, " ").trim();
+      check("the room submits a dark record to neither certify nor file",
+        darkSubmissions === 0, `${darkSubmissions} submissions`);
+      check("the room says chosen darkness and settles on the interim unwitnessed path",
+        /FEED WAS CUT BY CHOICE/.test(darkVerdict)
+          && /COUNTED UNWITNESSED/.test(darkVerdict)
+          && /RECORD STAYED LOCAL/.test(darkVerdict),
+        darkVerdict);
+      check("the interim dark card still counts on the unchanged run schema",
+        (await page.evaluate(() => document.getElementById("cv").dataset.run)).startsWith("1:"),
+        await page.evaluate(() => document.getElementById("cv").dataset.run));
+    } else {
+      check("the room submits a dark record to neither certify nor file", false, "the door never dealt");
+    }
+    await page.unroute(/\/(?:certify|file)$/);
   }
 
   // ---- the seam carries the OTHER body too ---------------------------

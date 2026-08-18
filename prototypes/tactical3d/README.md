@@ -77,6 +77,7 @@ Not spectacle. Two specific things:
 | `Tab` | cycle to next operative with AP |
 | `F` | toggle shoot mode (hit % over every hostile) |
 | `Y` | overwatch (ends unit's activation) |
+| `X` | cut the public feed (once per match; spends the untouched activation) |
 | `Enter` | end turn — or **spare them**, once every hostile has yielded |
 | `Q` / `E` | rotate camera 90° |
 | `P` | cycle display: LCD / crunch / clean |
@@ -178,6 +179,13 @@ back it. The local array is not the authority on a certified card. **FILE THE
 RECORD** calls `/file`, and after filing the post-match card replaces the local
 display with the Worker's own replay-authored array, rendering every event
 beside its durable `(match id, command index)` address.
+
+After **CUT THE FEED**, the rating bar visibly dies at its frozen value and
+the local record continues. On the post-match card both **FILE THE RECORD**
+and **COPY WITNESS RECORD** stay visible but disabled with the cause on their
+face; neither handler submits or copies a dark record. This is holder policy,
+not a replay limitation: the record keeps the cut command for possible later
+exposure.
 
 The deadline suite covers the case that tolerance was hiding. A witness
 that *refuses* has always landed in `certifySeam`'s catch and been

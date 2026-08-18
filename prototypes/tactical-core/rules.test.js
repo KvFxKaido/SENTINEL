@@ -16,12 +16,13 @@ import {
   los, coverBonus, solution, reachable, living, unitAt, W, H,
   mulberry32, MORALE, RATING, tryShoot, tryFinish, spare, setOverwatch, tryMove,
   downAt, dragReachable, tryDrag, derivePairwiseEvents,
-  replayMatch, TWISTS, playTwist, twistWindow,
+  replayMatch, TWISTS, playTwist, twistWindow, tryCut, feedCut,
   rosterValid, rosterKey, CANON_ROSTER, ROSTER_SLOTS, OP_MAX_HP,
 } from "./rules.js";
 import { SHOWRUNNER_GOLDEN } from "./showrunner-golden.js";
 import { ROSTER_GOLDEN } from "./roster-golden.js";
 import { DRAG_GOLDEN } from "./drag-golden.js";
+import { CUT_GOLDEN } from "./cut-golden.js";
 import { directorTick } from "./director.js";
 
 // FNV-1a, matching the fingerprint taken in the browser
@@ -348,6 +349,158 @@ test("replay and pairwise derivation agree across runs", async () => {
   assert.equal(second.faithful, true);
   assert.deepEqual(second.derivedEvents, firstEvents);
   assert.deepEqual(derivePairwiseEvents(), DRAG_GOLDEN.derived);
+});
+
+/* ---- deliberate darkness ---------------------------------------
+ * CUT is an instantaneous whole-activation verb. It changes no geometry,
+ * provokes no overwatch, and leaves the local record running. That one
+ * surviving command is both the once-per-match latch and the shared fact
+ * submission surfaces consult.
+ */
+
+test("cut spends the selected operative's whole activation and records darkness once", () => {
+  const cap = captureEvents();
+  restart(1);
+  const [actor, next] = living("op");
+  const positions = S.units.map(({ id, x, y }) => ({ id, x, y }));
+  const rating = S.rating;
+
+  assert.equal(tryCut(actor), true);
+  assert.deepEqual(S.record, [["cut", actor.id]]);
+  assert.deepEqual(feedCut(S.record), { commandIndex: 0 });
+  assert.equal(actor.ap, 0, "the untouched activation is the price");
+  assert.deepEqual(S.units.map(({ id, x, y }) => ({ id, x, y })), positions,
+    "an instantaneous broadcast verb moves nobody");
+  assert.equal(S.rating, rating, "the cut itself is not a crowd beat");
+  assert.ok(cap.lines.includes(`${actor.name} CUTS THE FEED — RATING ${rating} FROZEN. THE REST GOES DARK.`));
+  assert.equal(cap.events.some(event => event.type === "overwatch-trigger"), false,
+    "nothing moved, so no reaction cone was crossed");
+
+  const before = JSON.stringify(S.record);
+  assert.equal(tryCut(next), false, "the record refuses noise after the feed is already dead");
+  assert.equal(JSON.stringify(S.record), before);
+  assert.equal(cap.events.filter(event => event.type === "cut").length, 1);
+});
+
+test("cut needs normal op-turn authority and an untouched activation", () => {
+  captureEvents();
+  restart(1);
+  const actor = living("op")[0];
+  actor.ap = 1;
+  assert.equal(tryCut(actor), false);
+  actor.ap = 2;
+  S.turn = "ho";
+  assert.equal(tryCut(actor), false);
+  S.turn = "op";
+  S.busy = true;
+  assert.equal(tryCut(actor), false);
+  assert.deepEqual(S.record, []);
+  assert.equal(feedCut(S.record), null);
+  assert.equal(feedCut([["cut", 3]]), null,
+    "a command naming no operative does not acquire submission darkness");
+});
+
+test("post-cut rating changes at both clamp bounds move nothing and emit nothing", async () => {
+  const cap = captureEvents();
+  restart(1);
+  let [cutter, scorer] = living("op");
+  S.rating = 100;
+  assert.equal(tryCut(cutter), true);
+  let before = cap.events.length;
+  setOverwatch(scorer);   // negative at the upper bound would normally move
+  assert.equal(S.rating, 100);
+  assert.equal(cap.events.slice(before).some(event => event.type === "rating"), false);
+
+  restart(2);
+  const ops = living("op");
+  [cutter, scorer] = ops;
+  const body = ops[2];
+  scorer.x = 4; scorer.y = 5;
+  body.x = 4; body.y = 6; body.hp = 0; body.alive = false;
+  S.rating = 0;
+  assert.equal(tryCut(cutter), true);
+  before = cap.events.length;
+  assert.equal(await tryDrag(scorer, body, 4, 4), true,
+    "the post-cut action still happens even though its crowd beat does not");
+  assert.equal(S.rating, 0);
+  assert.equal(cap.events.slice(before).some(event => event.type === "rating"), false);
+});
+
+test("a cut as the final operative activation still closes with frozen purse and aftermath", () => {
+  const cap = captureEvents();
+  restart(1);
+  const [actor, ...others] = living("op");
+  for (const other of others) other.ap = 0;
+  S.rating = 73;
+  assert.equal(tryCut(actor), true);
+  S.decision = true;   // stage the already-settled choice after the final activation
+  spare();             // mercy is real after the cut, but it no longer changes rating
+
+  const end = cap.events.findLast(event => event.type === "end");
+  assert.equal(cap.events.at(-1), end, "the synchronous cut needs no drag ordering latch");
+  assert.deepEqual(end.feedCut, { commandIndex: 0 });
+  assert.equal(end.rating, 73);
+  assert.equal(end.purse, 73 * RATING.pursePerPoint);
+  assert.equal(S.rating, 73);
+});
+
+test("cut cannot interleave with a drag resolution", async () => {
+  let releaseStep;
+  bindIO({
+    sleep: () => new Promise(resolve => { releaseStep = resolve; }),
+    emit: () => {},
+    changed: () => {},
+  });
+  restart(1);
+  const [actor, body, cutter] = living("op");
+  actor.x = 4; actor.y = 5;
+  body.x = 4; body.y = 6; body.hp = 0; body.alive = false;
+
+  const dragging = tryDrag(actor, body, 4, 4);
+  assert.equal(S.busy, true, "the drag owns the one action-resolution lock");
+  assert.equal(tryCut(cutter), false,
+    "a command cannot enter the record in the middle of another command's resolution");
+  assert.equal(feedCut(S.record), null);
+  releaseStep();
+  await dragging;
+  assert.deepEqual(S.record.map(command => command[0]), ["drag"]);
+});
+
+test("restart clears deliberate darkness with the record", () => {
+  captureEvents();
+  restart(1);
+  assert.equal(tryCut(living("op")[0]), true);
+  assert.deepEqual(feedCut(S.record), { commandIndex: 0 });
+  restart(2);
+  assert.deepEqual(S.record, []);
+  assert.equal(feedCut(S.record), null);
+});
+
+test("the cut golden freezes post-cut scoring and replays its darkness faithfully", async () => {
+  const { seed, record, result, rating, purse, lines: lineCount, fingerprint, aftermath, ledger } = CUT_GOLDEN;
+  const cap = captureEvents();
+  const played = await replayMatch(seed, record);
+  const cutAt = cap.events.findIndex(event => event.type === "cut");
+
+  assert.equal(played.faithful, true);
+  assert.deepEqual(S.record, record);
+  assert.equal(S.gameOver, result);
+  assert.deepEqual(played.aftermath, aftermath);
+  assert.deepEqual(cap.events.findLast(event => event.type === "end").feedCut, aftermath.feedCut);
+  assert.equal(cap.events[cutAt].rating, rating, "the line records the last public rating");
+  assert.equal(S.rating, rating, "post-cut fire, overwatch, yield, and spare score nothing");
+  assert.equal(S.rating * RATING.pursePerPoint, purse);
+  assert.deepEqual({
+    walked: S.units.filter(unit => unit.side === "ho" && unit.alive && unit.yielded).length,
+    finished: S.units.filter(unit => unit.side === "ho" && !unit.alive && unit.yielded).length,
+    lost: S.units.filter(unit => unit.side === "op" && !unit.alive).length,
+  }, ledger);
+  assert.equal(cap.events.slice(cutAt + 1).some(event => event.type === "rating"), false);
+  assert.ok(cap.events.slice(cutAt + 1).some(event => event.type === "spared"),
+    "the record proves play continued after the public feed stopped");
+  assert.equal(cap.lines.length, lineCount);
+  assert.equal(fnv(cap.lines.join("\n")), fingerprint,
+    "the fifth golden pins the feed's last words and the unseen aftermath");
 });
 
 /* ---- yield states ----------------------------------------------

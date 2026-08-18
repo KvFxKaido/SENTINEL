@@ -63,6 +63,9 @@
   #ratingrow b { color: var(--amber); font-weight: normal; }
   #ratingbar { position: relative; height: 10px; background: #241d10; border: 1px solid var(--line); }
   #ratingbar b { position: absolute; top: 1px; bottom: 1px; left: 1px; background: var(--amber); transition: width 0.35s; }
+  #ratingrow.cut, #ratingrow.cut b { color: var(--text-dim); }
+  #ratingbar.cut { background: repeating-linear-gradient(135deg, #151a16 0 3px, #0a0e0b 3px 6px); }
+  #ratingbar.cut b { background: var(--text-dim); transition: none; opacity: 0.55; }
   #twistchip { display: none; margin-top: 6px; padding: 3px 6px; font-size: 11px; letter-spacing: 1px; color: var(--amber); border: 1px dashed var(--line); }
   #twistchip.pending { color: var(--text-dim); }
   .unitrow { display: flex; justify-content: space-between; font-size: 12px; padding: 3px 4px; cursor: pointer; border-left: 2px solid transparent; }
@@ -81,6 +84,7 @@
   }
   button:hover:not(:disabled) { border-color: var(--green-dim); color: var(--green); }
   button:disabled { opacity: 0.35; cursor: default; }
+  button.cause:disabled { opacity: 1; color: var(--text-dim); }
   button.armed { border-color: var(--amber); color: var(--amber); }
   #log { font-size: 11px; line-height: 1.7; height: 170px; overflow-y: auto; color: var(--text-dim); }
   #log .op { color: var(--cyan); } #log .ho { color: var(--red); }
@@ -198,7 +202,7 @@
   <div id="panel">
     <div class="box" id="turnbar"><span id="turnlabel"></span><span id="seed"></span></div>
     <div class="box">
-      <div id="ratingrow"><span>RATING</span><b id="ratingval">50</b></div>
+      <div id="ratingrow"><span id="ratinglabel">RATING</span><b id="ratingval">50</b></div>
       <div id="ratingbar"><b id="ratingfill" style="width:50%"></b></div>
       <div id="twistchip"></div>
     </div>
@@ -214,6 +218,7 @@
       <div id="actions">
         <button id="btnShoot">SHOOT [F]</button>
         <button id="btnOw">OVERWATCH [Y]</button>
+        <button id="btnCut">CUT THE FEED [X]</button>
         <button id="btnEnd">END TURN [⏎]</button>
       </div>
     </div>
@@ -227,7 +232,7 @@
       Lattice wants them gone before the grid sector browns out.
       No reinforcements. No extraction timer. Just the yard.<br><br>
       <kbd>click</kbd> select / move / drag a down teammate &nbsp; <kbd>tab</kbd> next unit &nbsp;
-      <kbd>F</kbd> shoot &nbsp; <kbd>Y</kbd> overwatch &nbsp; <kbd>⏎</kbd> end turn<br>
+      <kbd>F</kbd> shoot &nbsp; <kbd>Y</kbd> overwatch &nbsp; <kbd>X</kbd> cut the feed &nbsp; <kbd>⏎</kbd> end turn<br>
       <kbd>Q</kbd>/<kbd>E</kbd> rotate camera &nbsp; <kbd>P</kbd> display: LCD / crunch / clean &nbsp;
       <kbd>R</kbd>/<kbd>shift+R</kbd> new / replay seed<br>
       ▪ low crate = half cover (−20 to be hit) &nbsp; █ wall = full cover (−40, blocks sight)<br>
@@ -266,8 +271,8 @@ import {
   S, W, H, FLOOR, HALF, FULL, RATING, TWISTS,
   bindIO, restart as rulesRestart, formatEvent,
   selected, living, unitAt, downAt, solution, los, reachable, dragReachable, coveringTiles,
-  selectUnit, cycleSelect, tryMove, tryDrag, tryShoot, tryFinish, spare, setOverwatch, endPlayerTurn,
-  rosterValid, rosterKey, CANON_ROSTER, OP_MAX_HP, derivePairwiseEvents,
+  selectUnit, cycleSelect, tryMove, tryDrag, tryCut, tryShoot, tryFinish, spare, setOverwatch, endPlayerTurn,
+  rosterValid, rosterKey, CANON_ROSTER, OP_MAX_HP, derivePairwiseEvents, feedCut,
 } from "../tactical-core/rules.js";
 import { directorTick } from "../tactical-core/director.js";
 import {
@@ -380,6 +385,7 @@ const cardEl = document.getElementById("card");
 // for local worker dev (?witness=http://localhost:8787)
 const WITNESS = new URLSearchParams(location.search).get("witness")
   ?? "https://sentinel-witness.ishawnd.workers.dev";
+const DARK_RECORD_CAUSE = "THE FEED WAS CUT — NOBODY RECEIVED THE SHOW";
 
 // ?seam=1 marks this page as the far side of the walkable world's north
 // door. The parent dealt the seed in the URL and gets the outcome posted
@@ -837,15 +843,20 @@ function showEnd(ev) {
     `${spared} WALKED · ${finished} FINISHED · ${lost} OF YOURS DOWN`;
   document.getElementById("ovconseq").innerHTML =
     consequences(spared, finished, result, ev.rating).join("<br>");
+  const darkness = feedCut(S.record);
   document.getElementById("ovrecord").innerHTML =
-    `WITNESS RECORD &nbsp; seed <b>${S.seed.toString(16)}</b> · ` +
+    `${darkness ? "LOCAL RECORD · FEED CUT" : "WITNESS RECORD"} &nbsp; seed <b>${S.seed.toString(16)}</b> · ` +
     `<b>${S.record.length}</b> commands · <b>${matchLines.length}</b> lines · ` +
     `fingerprint <b>${fnv(matchLines.join("\n"))}</b>`;
   renderDerivedEvents(lastDerived);
-  document.getElementById("ovcopy").textContent = "COPY WITNESS RECORD";
+  const copyBtn = document.getElementById("ovcopy");
+  copyBtn.textContent = darkness ? DARK_RECORD_CAUSE : "COPY WITNESS RECORD";
+  copyBtn.disabled = darkness !== null;
+  copyBtn.classList.toggle("cause", darkness !== null);
   const fileBtn = document.getElementById("ovfile");
-  fileBtn.textContent = "FILE THE RECORD";
-  fileBtn.disabled = false;
+  fileBtn.textContent = darkness ? DARK_RECORD_CAUSE : "FILE THE RECORD";
+  fileBtn.disabled = darkness !== null;
+  fileBtn.classList.toggle("cause", darkness !== null);
   refreshCareer();
   ov.classList.add("show");
 }
@@ -1977,6 +1988,17 @@ function frame() {
 
 // ---- panel ------------------------------------------------------
 function syncPanel() {
+  const darkness = feedCut(S.record);
+  const ratingRow = document.getElementById("ratingrow");
+  const ratingBar = document.getElementById("ratingbar");
+  ratingRow.classList.toggle("cut", darkness !== null);
+  ratingBar.classList.toggle("cut", darkness !== null);
+  document.getElementById("ratinglabel").textContent = darkness
+    ? "FEED CUT · RATING FROZEN"
+    : "RATING";
+  ratingBar.setAttribute("aria-label", darkness
+    ? `Feed cut; rating frozen at ${S.rating}`
+    : `Rating ${S.rating}`);
   document.getElementById("ratingval").textContent = S.rating;
   document.getElementById("ratingfill").style.width = S.rating + "%";
   // the house's card, visible the moment it exists: dim while announced,
@@ -2014,6 +2036,7 @@ function syncPanel() {
   document.getElementById("btnShoot").disabled = !can;
   document.getElementById("btnShoot").className = S.targetMode ? "armed" : "";
   document.getElementById("btnOw").disabled = !can;
+  document.getElementById("btnCut").disabled = !u || !can || u.ap !== 2 || darkness !== null;
   // during the decision the end-turn button becomes the mercy button
   // the card's most important consumer is the choice itself: when the
   // house has priced mercy, the price sits ON the spare button — not in
@@ -2073,6 +2096,17 @@ function showDrag(att, body, tile = null) {
   el.innerHTML = `${name(att)} → ${name(body)} &nbsp; <span class="pct">DRAG</span><br>` +
     `<span class="dim">whole activation · range ${max} · overwatch fires on every step</span>` +
     (tile ? `<br><span class="${cost > 0 ? "op" : "dim"}">${cost > 0 ? "click to commit" : "destination out of drag range"}</span>` : "");
+}
+
+function showCutFeed(att) {
+  const el = document.getElementById("shotinfo");
+  const name = u => `<span class="${u.side}">${u.name}</span>`;
+  if (!att) {
+    el.innerHTML = '<span class="dim">select an operative to cut the feed</span>';
+    return;
+  }
+  el.innerHTML = `${name(att)} &nbsp; <span class="pct">CUT THE FEED</span><br>` +
+    '<span class="dim">whole activation · instantaneous · rating and purse freeze here</span>';
 }
 
 function armDrag(att, body) {
@@ -2186,6 +2220,9 @@ document.addEventListener("keydown", e => {
     case "y": case "Y":
       if (u && u.ap > 0) { clearDrag(); setOverwatch(u); }
       break;
+    case "x": case "X":
+      if (u) { clearDrag(); tryCut(u); }
+      break;
     case "Enter": clearDrag(); S.decision ? spare() : endPlayerTurn(); break;
     case "Escape": clearDrag(); S.targetMode = false; showSolution(null, null); draw(); syncPanel(); break;
   }
@@ -2193,11 +2230,22 @@ document.addEventListener("keydown", e => {
 
 document.getElementById("btnShoot").onclick = () => { if (cardOpen) return; clearDrag(); S.targetMode = !S.targetMode; draw(); syncPanel(); };
 document.getElementById("btnOw").onclick = () => { if (cardOpen) return; clearDrag(); const u = selected(); if (u) setOverwatch(u); };
+const btnCut = document.getElementById("btnCut");
+btnCut.onmouseenter = () => showCutFeed(selected());
+btnCut.onfocus = () => showCutFeed(selected());
+btnCut.onmouseleave = () => { const u = selected(), body = dragBody(); body && u ? showDrag(u, body) : showSolution(null, null); };
+btnCut.onblur = btnCut.onmouseleave;
+btnCut.onclick = () => { if (cardOpen) return; clearDrag(); const u = selected(); if (u) tryCut(u); };
 document.getElementById("btnEnd").onclick = () => { if (cardOpen) return; clearDrag(); S.decision ? spare() : endPlayerTurn(); };
 document.getElementById("ovnew").onclick = () => restart(true);
 document.getElementById("ovreplay").onclick = () => restart(false);
 document.getElementById("ovfile").onclick = async () => {
   const btn = document.getElementById("ovfile");
+  if (feedCut(S.record) !== null) {
+    btn.disabled = true;
+    btn.textContent = DARK_RECORD_CAUSE;
+    return;
+  }
   btn.disabled = true;
   btn.textContent = "FILING…";
   try {
@@ -2259,10 +2307,15 @@ document.getElementById("ovwalk").onclick = () => {
 };
 
 document.getElementById("ovcopy").onclick = async () => {
+  const btn = document.getElementById("ovcopy");
+  if (feedCut(S.record) !== null) {
+    btn.disabled = true;
+    btn.textContent = DARK_RECORD_CAUSE;
+    return;
+  }
   // the exact wire shape POST /certify takes — the button is the bridge
   // between a match you just played and the edge attesting to it
   const payload = JSON.stringify({ seed: S.seed.toString(16), record: S.record, roster: S.roster });
-  const btn = document.getElementById("ovcopy");
   try {
     await navigator.clipboard.writeText(payload);
     btn.textContent = "COPIED — POST TO /certify";
