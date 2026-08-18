@@ -11,6 +11,7 @@ import {
 import { SHOWRUNNER_GOLDEN } from "../../prototypes/tactical-core/showrunner-golden.js";
 import { ROSTER_GOLDEN } from "../../prototypes/tactical-core/roster-golden.js";
 import { DRAG_GOLDEN } from "../../prototypes/tactical-core/drag-golden.js";
+import { CUT_GOLDEN } from "../../prototypes/tactical-core/cut-golden.js";
 
 const BASE = process.argv[2] ?? "http://localhost:8787";
 // outcome constants (rating/purse) are pinned literals on purpose: they
@@ -129,11 +130,13 @@ check(cert.status === 200 && cert.body.certified === true &&
   `certify: edge fp=${cert.body.fingerprint} vs local ${local.fingerprint}, rating ${cert.body.rating} vs ${local.rating}, purse=${cert.body.purse}`);
 
 // ---- the rules stamp --------------------------------------------
-// Version-as-behavior, over FOUR playouts: the deadbeef golden pins the
+// Version-as-behavior, over FIVE playouts: the deadbeef golden pins the
 // base game, the showrunner golden pins the twist grammar and card math
 // a no-input playout never reaches, and the roster golden pins how a
 // fielded squad is carried in. The drag golden pins the two-person verb
-// and its board/rating consequences. Each contributes transcript AND
+// and its board/rating consequences; the cut golden pins deliberate
+// darkness, frozen economics, and its aftermath pointer. Each contributes
+// transcript AND
 // outcome —
 // rating is never a transcript line, so economics are stamped explicitly
 // (caught in review). The edge must derive the same stamp from the same
@@ -153,9 +156,11 @@ const STAMP = fnv([
   JSON.stringify([]),
   DRAG_GOLDEN.fingerprint, DRAG_GOLDEN.result, DRAG_GOLDEN.rating, DRAG_GOLDEN.purse,
   JSON.stringify(DRAG_GOLDEN.derived),
+  CUT_GOLDEN.fingerprint, CUT_GOLDEN.result, CUT_GOLDEN.rating, CUT_GOLDEN.purse,
+  JSON.stringify([]), JSON.stringify(CUT_GOLDEN.aftermath),
 ].join(":"));
 check(cert.body.rules === STAMP,
-  `certificate carries the four-golden rules stamp: ${cert.body.rules} (expected ${STAMP})`);
+  `certificate carries the five-golden rules stamp: ${cert.body.rules} (expected ${STAMP})`);
 const claimed = await post({ seed: "6", record: local.record, rules: STAMP });
 check(claimed.status === 200 && claimed.body.certified === true,
   `record claiming the current rules certifies: ${claimed.status}`);
@@ -195,6 +200,20 @@ check(dragCert.status === 200 && dragCert.body.certified === true &&
       dragCert.body.result === DRAG_GOLDEN.result &&
       JSON.stringify(dragCert.body.derivedEvents) === JSON.stringify(DRAG_GOLDEN.derived),
   `drag golden certifies at the edge: fp=${dragCert.body.fingerprint} rating=${dragCert.body.rating}`);
+
+// ---- deliberate darkness (`what_we_owe_each_other.md` §9) ----------
+// The Witness validates history; it does not decide whether a holder was
+// allowed to submit it. A complete dark record therefore certifies with its
+// command intact and carries the replay-authored aftermath pointer.
+const cutCert = await post({ seed: CUT_GOLDEN.seed.toString(16), record: CUT_GOLDEN.record });
+check(cutCert.status === 200 && cutCert.body.certified === true &&
+      cutCert.body.fingerprint === CUT_GOLDEN.fingerprint &&
+      cutCert.body.rating === CUT_GOLDEN.rating &&
+      cutCert.body.purse === CUT_GOLDEN.purse &&
+      cutCert.body.result === CUT_GOLDEN.result &&
+      JSON.stringify(cutCert.body.ledger) === JSON.stringify(CUT_GOLDEN.ledger) &&
+      JSON.stringify(cutCert.body.aftermath) === JSON.stringify(CUT_GOLDEN.aftermath),
+  `cut golden certifies at the edge: fp=${cutCert.body.fingerprint} aftermath=${JSON.stringify(cutCert.body.aftermath)}`);
 
 // ---- the roster: the match's second certified input ---------------
 // `architecture/roster_in_the_match.md`. The sharpest available form of
@@ -260,6 +279,7 @@ for (const [label, record] of [
   ["non-array command", ["move"]],
   ["twist wrong arity", [["twist", 1, 2]]],
   ["drag wrong arity", [["drag", 2, 1, 4]]],
+  ["cut wrong arity", [["cut", 0, 1]]],
 ]) {
   const r = await post({ seed: "6", record });
   check(r.status === 400, `malformed record (${label}) rejected at the wire: ${r.status}`);

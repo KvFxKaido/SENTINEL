@@ -45,6 +45,7 @@ restart(seed)         deal an encounter
 tryMove, tryShoot, setOverwatch, selectUnit, cycleSelect, endPlayerTurn
 tryDrag, dragReachable, downAt
                       extraction verb, its exact preview, and fallen bodies
+tryCut, feedCut       deliberate darkness and its shared record predicate
 tryFinish, spare      the two halves of the yield decision (see below)
 playTwist, twistWindow, TWISTS
                       the house's verb, its legality window, and the deck
@@ -61,7 +62,7 @@ derivePairwiseEvents()
 ```
 
 The rules never call the renderer. They emit events — `fire`, `shot`, `down`,
-`drag`, `overwatch-set`, `overwatch-trigger`, `turn`, `select`, `reset`, `end`,
+`drag`, `cut`, `overwatch-set`, `overwatch-trigger`, `turn`, `select`, `reset`, `end`,
 `yield`, `yield-decision`, `finish`, `spared`, `twist-announce`,
 `twist-resolve` — and the host decides what a shot looks and sounds like. `formatEvent` takes a `wrap(text, class)` so the
 browser gets coloured HTML and the test gets plain text from the same code
@@ -129,7 +130,7 @@ Every player verb that changes the match
 appends its canonical form to `S.record` at the moment its guards pass —
 `["move", id, x, y]`, `["drag", actor, body, x, y]`,
 `["shoot", att, def]`, `["finish", att, def]`,
-`["ow", id]`, `["spare"]`, `["end"]`. Rejected inputs never enter the
+`["ow", id]`, `["cut", id]`, `["spare"]`, `["end"]`. Rejected inputs never enter the
 record, and selection is deliberately absent: it rolls nothing, logs
 nothing, and every verb names its units explicitly, so it is
 presentation, not play. Shooting a kneeling fighter records the finish it
@@ -152,6 +153,27 @@ cannot check yet, and belongs to campaign wiring.)
 
 Recording draws nothing from the RNG and emits nothing — the fourth rules
 change in a row to land with the golden transcripts untouched.
+
+## Deliberate darkness
+
+`["cut", actorId]` spends one operative's untouched activation to kill the
+public feed. It moves nobody, crosses no overwatch cone, and is legal once
+per match. The local record keeps running. From that command onward
+`addRating` emits nothing and changes nothing, so the single visible meter
+freezes and the unchanged `rating × pursePerPoint` formula pays only for the
+aired portion.
+
+The command is the state. Exported `feedCut(record)` returns `null` or the
+cut's `{commandIndex}`; there is no parallel boolean or shadow crowd meter.
+The end event carries the same field, and `replayMatch` returns it under
+`aftermath.feedCut`. Submission surfaces consult the predicate and withhold
+dark records, while the Witness accepts the grammar and can certify one if
+it is exposed later.
+
+`cut-golden.js` pins seed 24's organic win: rating reaches 80, VESPER cuts at
+command 6, and post-cut fire, overwatch, yield, and spare all remain in the
+record without moving the meter. Its 21-line fingerprint is `3fd1ffac`; the
+other four stamp playouts remain byte-identical.
 
 ## Extraction
 

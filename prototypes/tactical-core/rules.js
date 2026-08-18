@@ -274,8 +274,24 @@ export const RATING = {
   pursePerPoint: 10,   // credits per rating point at match end
 };
 
+/* One source of truth for deliberate darkness. The record keeps running
+   after the broadcast dies, so the cut command itself is the durable fact:
+   renderers use this predicate to withhold submission, while the Witness
+   deliberately accepts and replays the same record. Exact command shape
+   matters here — malformed input must not acquire the privilege of going
+   dark instead of reaching the normal replay refusal. */
+export function feedCut(record) {
+  if (!Array.isArray(record)) return null;
+  const commandIndex = record.findIndex(command =>
+    Array.isArray(command) && command.length === 2 && command[0] === "cut"
+      && Number.isInteger(command[1]) && command[1] >= 0 && command[1] < ROSTER_SLOTS);
+  return commandIndex < 0 ? null : { commandIndex };
+}
+
 function addRating(delta) {
-  if (S.gameOver || delta === 0) return;
+  // The public meter is the only meter. Once the feed is cut, nothing
+  // scores and no shadow total or rating event survives off camera.
+  if (S.gameOver || feedCut(S.record) !== null || delta === 0) return;
   // emit what actually happened, not what was asked for: at the clamp
   // bounds the applied delta shrinks, and a change the clamp fully ate is
   // not an event — consumers that sum deltas must never drift from total
@@ -502,8 +518,13 @@ function checkEnd() {
 function endGame(result) {
   S.gameOver = result;
   // the payout: rating converts to purse whether you won or not — a
-  // watchable loss still sells (sentinel_circuit_design.md §5)
-  const event = { type: "end", result, rating: S.rating, purse: S.rating * RATING.pursePerPoint };
+  // watchable loss still sells (sentinel_circuit_design.md §5). A cut
+  // freezes rating, so the unchanged formula pays only for what aired.
+  const event = {
+    type: "end", result, rating: S.rating,
+    purse: S.rating * RATING.pursePerPoint,
+    feedCut: feedCut(S.record),
+  };
   const drag = activeDragResolution;
   if (drag && drag.gen === S.gen && !drag.resolved) drag.heldEnd = event;
   else io.emit(event);
@@ -628,6 +649,24 @@ export async function tryDrag(actor, body, x, y) {
     });
   }
   S.busy = false;
+  io.changed();
+  autoAdvance();
+  return true;
+}
+
+// Deliberate darkness: one operative spends their untouched activation to
+// kill the public broadcast. Nothing moves, so there is no geometry and no
+// overwatch check. The local record continues; submission policy belongs to
+// each surface holding that record, not to replay or the Witness.
+export function tryCut(actor) {
+  if (feedCut(S.record) !== null || S.decision || S.gameOver || S.busy || S.turn !== "op") return false;
+  if (!actor || !S.units.includes(actor) || !actor.alive || actor.side !== "op" || actor.ap !== 2) return false;
+  S.record.push(["cut", actor.id]);
+  const darkness = feedCut(S.record);
+  S.roundActed = true;
+  actor.ap = 0;
+  S.targetMode = false;
+  io.emit({ type: "cut", actor, rating: S.rating, feedCut: darkness });
   io.changed();
   autoAdvance();
   return true;
@@ -869,7 +908,7 @@ export function restart(seed, roster = null) {
 
 /* ---- the witness record -----------------------------------------
    Circuit roadmap step 5: a played match, as data. Every verb that
-   changes the match — the player's seven, and the house's one — appends
+   changes the match — the player's eight, and the house's one — appends
    its canonical form to S.record at the moment its guards pass;
    rejected inputs never enter the record, and selection is
    presentation, not play (no roll, no log line, and every verb names
@@ -899,6 +938,7 @@ async function applyCommand(cmd) {
   switch (verb) {
     case "move":   { const u = op(a); if (u) await tryMove(u, b, c); break; }
     case "drag":   { const u = op(a), t = body(b); if (u && t) await tryDrag(u, t, c, d); break; }
+    case "cut":    { const u = op(a); if (u) tryCut(u); break; }
     case "shoot":  { const u = op(a), t = ho(b); if (u && t && t.alive) await tryShoot(u, t); break; }
     case "finish": { const u = op(a), t = ho(b); if (u && t) await tryFinish(u, t); break; }
     case "ow":     { const u = op(a); if (u) setOverwatch(u); break; }
@@ -920,6 +960,7 @@ export async function replayMatch(seed, commands, roster = null) {
     faithful,
     applied: S.record.length,
     submitted: commands.length,
+    aftermath: { feedCut: feedCut(S.record) },
     // The replay is the author. A caller receives the rules core's facts;
     // it never supplies a derived event for the core to bless.
     derivedEvents: faithful ? derivePairwiseEvents() : [],
@@ -975,6 +1016,9 @@ export function formatEvent(ev, wrap = t => t) {
           `(${ev.from.body.join(",")}) → (${ev.to.body.join(",")})`
         : `${n(ev.actor)}'S ${wrap("DRAG", "sys")} OF ${n(ev.body)} ${wrap("STOPS", "hit")} — ` +
           `(${ev.from.body.join(",")}) → (${ev.to.body.join(",")})`;
+    case "cut":
+      return `${n(ev.actor)} ${wrap("CUTS THE FEED", "sys")} — ` +
+        wrap(`RATING ${ev.rating} FROZEN. THE REST GOES DARK.`, "sys");
     case "overwatch-set":
       return `${n(ev.unit)} sets ${wrap("overwatch", "sys")}`;
     case "overwatch-trigger":

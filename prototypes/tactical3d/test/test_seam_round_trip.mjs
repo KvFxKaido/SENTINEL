@@ -630,6 +630,120 @@ try {
       check("an edge that predates the roster counts, and says so", false, "the door never re-dealt");
     }
     await page.unroute(/\/file$/);
+
+    // ---- a dark card settles locally and never reaches either endpoint
+    // This is seed 6's organic cut playout: the cut is command 5, play
+    // continues to a spare, and rating remains frozen at 78. Posting the
+    // real returned shape from the live iframe isolates the room policy
+    // without spending another minute replaying the already-core-tested
+    // record through animated combat.
+    const DARK_CARD = {
+      seed: "6",
+      record: [
+        ["move", 0, 2, 6], ["shoot", 0, 4], ["shoot", 1, 4], ["shoot", 2, 5], ["end"],
+        ["cut", 1], ["shoot", 2, 5], ["end"],
+        ["move", 1, 5, 6], ["ow", 1], ["shoot", 2, 5], ["end"],
+        ["move", 1, 3, 4], ["ow", 1], ["move", 2, 5, 7], ["ow", 2], ["end"],
+        ["move", 1, 2, 2], ["shoot", 1, 3], ["move", 2, 3, 5], ["ow", 2], ["end"],
+        ["move", 2, 2, 2], ["shoot", 2, 3], ["end"], ["shoot", 2, 3], ["spare"],
+      ],
+      result: "win", rating: 78, purse: 780,
+      ledger: { walked: 1, finished: 0, lost: 2 }, down: ["VESPER", "KOA"],
+      derivedEvents: [], roster: CANONICAL, fingerprint: "fce4bc15", lines: 44,
+    };
+    let darkSubmissions = 0;
+    await page.route(/\/(?:certify|file)$/, route => {
+      darkSubmissions++;
+      return route.fulfill({ status: 500, contentType: "application/json", body: "{}" });
+    });
+    await page.evaluate(() => localStorage.clear());
+    await page.goto(ROOM_URL);
+    await page.waitForFunction(() =>
+      ["ready", "error"].includes(document.getElementById("cv").dataset.sprites),
+      null, { timeout: 20000 });
+    await page.keyboard.down("Shift");
+    await page.keyboard.down("KeyW");
+    await page.keyboard.down("KeyD");
+    const darkDeal = await page.waitForFunction(() => !!document.getElementById("seamframe"),
+      null, { timeout: 30000 }).then(() => true, () => false);
+    await page.keyboard.up("KeyW");
+    await page.keyboard.up("KeyD");
+    await page.keyboard.up("Shift");
+    if (darkDeal) {
+      const darkFrame = await (await page.$("#seamframe")).contentFrame();
+      await darkFrame.evaluate(card => {
+        window.parent.postMessage({ type: "sentinel-seam-result", ...card }, location.origin);
+      }, DARK_CARD);
+      await page.waitForFunction(() =>
+        /THE FEED WAS CUT BY CHOICE/.test(document.getElementById("seaminfo").textContent),
+      null, { timeout: 20000 });
+      const darkVerdict = (await page.textContent("#seaminfo")).replace(/\s+/g, " ").trim();
+      check("the room submits a dark record to neither certify nor file",
+        darkSubmissions === 0, `${darkSubmissions} submissions`);
+      check("the room says chosen darkness and settles on the interim unwitnessed path",
+        /FEED WAS CUT BY CHOICE/.test(darkVerdict)
+          && /COUNTED UNWITNESSED/.test(darkVerdict)
+          && /NOTHING KEPT/.test(darkVerdict),
+        darkVerdict);
+      check("the interim dark card still counts on the unchanged run schema",
+        (await page.evaluate(() => document.getElementById("cv").dataset.run)).startsWith("1:"),
+        await page.evaluate(() => document.getElementById("cv").dataset.run));
+    } else {
+      check("the room submits a dark record to neither certify nor file", false, "the door never dealt");
+    }
+
+    // ---- the trust boundary, asserted rather than assumed --------------
+    // feedCut is deliberately syntactic and the room has no rules engine,
+    // so a shape-valid record whose cut is ILLEGAL at replay (here: a
+    // second cut the rules would refuse) still takes the dark branch. The
+    // price is pinned, not ignored: the card banks at the same counted
+    // `unwitnessed` grade as an infrastructure failure — never certified,
+    // never a filed origin — and half B sharpens this for free, because
+    // claim-grade derivation replays the record and an unfaithful record
+    // derives nothing (caught in review). On its own fresh run: the dark
+    // card above put two fighters on recovery clocks, and the door
+    // correctly gates that lineup — re-dealing it would test the bench
+    // law, not this boundary.
+    const ILLEGAL_DARK_CARD = {
+      seed: "6",
+      record: [["cut", 1], ["cut", 2]],
+      result: "win", rating: 50, purse: 500,
+      ledger: { walked: 0, finished: 0, lost: 0 }, down: [],
+      derivedEvents: [], roster: CANONICAL, fingerprint: "smuggled", lines: 3,
+    };
+    await page.evaluate(() => localStorage.clear());
+    await page.goto(ROOM_URL);
+    await page.waitForFunction(() =>
+      ["ready", "error"].includes(document.getElementById("cv").dataset.sprites),
+      null, { timeout: 20000 });
+    await page.keyboard.down("Shift");
+    await page.keyboard.down("KeyW");
+    await page.keyboard.down("KeyD");
+    const smuggleDeal = await page.waitForFunction(() => !!document.getElementById("seamframe"),
+      null, { timeout: 30000 }).then(() => true, () => false);
+    await page.keyboard.up("KeyW");
+    await page.keyboard.up("KeyD");
+    await page.keyboard.up("Shift");
+    if (smuggleDeal) {
+      const smuggleFrame = await (await page.$("#seamframe")).contentFrame();
+      await smuggleFrame.evaluate(card => {
+        window.parent.postMessage({ type: "sentinel-seam-result", ...card }, location.origin);
+      }, ILLEGAL_DARK_CARD);
+      await page.waitForFunction(() =>
+        /^1:/.test(document.getElementById("cv").dataset.run),
+      null, { timeout: 20000 });
+      const smuggleVerdict = (await page.textContent("#seaminfo")).replace(/\s+/g, " ").trim();
+      check("an illegal-but-shaped cut still reaches no endpoint",
+        darkSubmissions === 0, `${darkSubmissions} submissions`);
+      check("smuggled darkness buys counted unwitnessed, never certification",
+        /FEED WAS CUT BY CHOICE/.test(smuggleVerdict)
+          && /COUNTED UNWITNESSED/.test(smuggleVerdict)
+          && (await page.evaluate(() => document.getElementById("cv").dataset.run)).startsWith("1:"),
+        smuggleVerdict);
+    } else {
+      check("an illegal-but-shaped cut still reaches no endpoint", false, "the door never dealt");
+    }
+    await page.unroute(/\/(?:certify|file)$/);
   }
 
   // ---- the seam carries the OTHER body too ---------------------------

@@ -36,10 +36,11 @@
    season progression as drift on every card.
    ============================================================ */
 
-import { S, bindIO, restart, endPlayerTurn, replayMatch, derivePairwiseEvents, formatEvent, RATING, rosterValid, rosterKey } from "../../prototypes/tactical-core/rules.js";
+import { S, bindIO, restart, endPlayerTurn, replayMatch, derivePairwiseEvents, formatEvent, RATING, rosterValid, rosterKey, feedCut } from "../../prototypes/tactical-core/rules.js";
 import { SHOWRUNNER_GOLDEN } from "../../prototypes/tactical-core/showrunner-golden.js";
 import { ROSTER_GOLDEN } from "../../prototypes/tactical-core/roster-golden.js";
 import { DRAG_GOLDEN } from "../../prototypes/tactical-core/drag-golden.js";
+import { CUT_GOLDEN } from "../../prototypes/tactical-core/cut-golden.js";
 
 // FNV-1a, mirroring rules.test.js — the certificate must be the same hash
 // the goldens assert or it certifies nothing.
@@ -68,11 +69,13 @@ function serialized(fn) {
 // carry it, and a record claiming a different stamp is refused before
 // replay — its faithfulness under these rules would be meaningless.
 //
-// FOUR playouts, one stamp: the deadbeef golden exercises the base game,
+// FIVE playouts, one stamp: the deadbeef golden exercises the base game,
 // the showrunner golden exercises the twist grammar and card math a
 // no-input playout can never reach, and the roster golden exercises the
 // second certified input. The drag golden exercises the first explicit
-// two-person record verb and its board/rating consequences — without
+// two-person record verb and its board/rating consequences. The cut golden
+// exercises deliberate darkness, its frozen economics, and the aftermath
+// pointer a no-cut playout can never reach — without
 // each of them, a change in that area would move nothing and old records
 // would silently certify under new terms. Each golden contributes its
 // transcript fingerprint AND its outcome (result, rating, purse): rating
@@ -80,7 +83,7 @@ function serialized(fn) {
 // transcript line, so payout behavior could otherwise change under an
 // unchanged stamp (caught in review). Extending the stamp's INPUTS is
 // the one legitimate way the stamp changes without behavior changing;
-// twists, roster handling, DRAG, and now its derived-event predicate each
+// twists, roster handling, DRAG, its derived-event predicate, and CUT each
 // extended them deliberately. Note what this does NOT do: the stamp covers
 // how a
 // roster is APPLIED, never which roster a given card fielded — that is
@@ -118,10 +121,17 @@ async function rulesFingerprint() {
       fnv(dragLines.join("\n")), S.gameOver, S.rating,
       S.rating * RATING.pursePerPoint, JSON.stringify(dragPlayed.derivedEvents),
     ];
+    const cutLines = captureLines();
+    const cutPlayed = await replayMatch(CUT_GOLDEN.seed, CUT_GOLDEN.record);
+    const cut = [
+      fnv(cutLines.join("\n")), S.gameOver, S.rating,
+      S.rating * RATING.pursePerPoint, JSON.stringify(cutPlayed.derivedEvents),
+      JSON.stringify(cutPlayed.aftermath),
+    ];
     rulesStamp = fnv([
       base.fingerprint, base.result, base.rating, base.purse,
       JSON.stringify(base.derivedEvents),
-      ...twist, ...roster, ...drag,
+      ...twist, ...roster, ...drag, ...cut,
     ].join(":"));
   }
   return rulesStamp;
@@ -149,6 +159,9 @@ function certificate(seed, lines, extra = {}) {
     result: S.gameOver,
     rating: S.rating,
     purse: S.rating * RATING.pursePerPoint,
+    // The settled replay carries deliberate darkness without asking every
+    // holder to rediscover it by scanning commands.
+    aftermath: { feedCut: feedCut(S.record) },
     // Pairwise events are authored here from this replay's rules facts.
     // A page never POSTs them for the Worker to trust or cross-check.
     derivedEvents: derivePairwiseEvents(),
@@ -245,7 +258,13 @@ const SEED_RE = /^[0-9a-fA-F]{1,8}$/;
 // gatekeeper stays the dispatcher in the rules core — if the grammar
 // grows a verb this table lags on, witness_check's played-match round
 // trip fails loudly at deploy time, not silently in production.
-const ARITY = { move: 4, drag: 5, shoot: 3, finish: 3, ow: 2, spare: 1, end: 1, twist: 2 };
+const ARITY = {
+  move: 4, drag: 5, shoot: 3, finish: 3, ow: 2, spare: 1, end: 1, twist: 2,
+  // Darkness is submission policy, not Witness policy. Accepting CUT here
+  // preserves the full record for later exposure; refusing it would teach
+  // surfaces to strip the command before certification.
+  cut: 2,
+};
 function validRecord(record) {
   return Array.isArray(record) && record.length <= 1024 &&
     record.every(c => Array.isArray(c) && c.length === ARITY[c[0]] &&
@@ -301,7 +320,7 @@ async function fileMatch(env, seed, record, roster, claimedRules, claimedFp) {
     at, seed: cert.seed, result: cert.result, rating: cert.rating,
     purse: cert.purse, fingerprint: cert.fingerprint, rules: cert.rules,
     rosterHash: cert.rosterHash,
-    commands: cert.commands, ledger: cert.ledger,
+    commands: cert.commands, ledger: cert.ledger, aftermath: cert.aftermath,
   };
   await env.RECORDS.put(key, JSON.stringify({ filed_at: at, record, certificate: cert }), { metadata: meta });
   return { status: 200, body: { filed: true, existing: false, id, filed_at: at, ...cert } };

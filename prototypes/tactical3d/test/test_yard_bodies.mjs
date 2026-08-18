@@ -232,6 +232,16 @@ try {
   browser = await launch();
   page = await browser.newPage();
   page.on("pageerror", e => { console.log("PAGEERROR " + e); failures++; });
+  // The dark-record case below calls the clipboard handler directly to
+  // prove policy, so give it a visible counter rather than depending on a
+  // headless browser's clipboard permissions.
+  await page.addInitScript(() => {
+    window.__clipboardWrites = 0;
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: async () => { window.__clipboardWrites++; } },
+    });
+  });
 
   // ---- the roster boots ---------------------------------------------
   gen("full");
@@ -395,6 +405,49 @@ try {
       "the driven match did not reach its post-match card");
   }
   await page.unroute("https://sentinel-witness.ishawnd.workers.dev/file");
+
+  // ---- deliberate darkness gates both yard submission surfaces ------
+  // Play a real cut card to its ordinary ending. The disabled controls
+  // are the player's truth; invoking their handlers directly as well
+  // proves the policy does not depend on HTML's disabled-click behavior.
+  let darkSubmissions = 0;
+  await page.route(/\/(?:file|certify)$/, route => {
+    darkSubmissions++;
+    return route.fulfill({ status: 500, contentType: "application/json", body: "{}" });
+  });
+  await boot();
+  await beginCard();
+  check("CUT THE FEED is available to the selected fresh operative",
+    !(await page.isDisabled("#btnCut")));
+  await page.click("#btnCut");
+  const darkRating = (await page.textContent("#ratingrow")).replace(/\s+/g, " ").trim();
+  const darkLog = (await page.textContent("#log")).replace(/\s+/g, " ").trim();
+  check("the announcer speaks the cut and the meter visibly freezes",
+    /CUTS THE FEED/.test(darkLog)
+      && /FEED CUT · RATING FROZEN/.test(darkRating)
+      && await page.locator("#ratingbar").evaluate(el => el.classList.contains("cut")),
+    `${darkRating} · ${darkLog.slice(-100)}`);
+
+  for (let round = 0; round < 40; round++) {
+    if (await ended()) break;
+    await page.keyboard.press("Enter");
+    await opTurn();
+  }
+  check("the dark card still reaches its ordinary post-match record", await ended());
+  const fileTruth = await page.textContent("#ovfile");
+  const copyTruth = await page.textContent("#ovcopy");
+  check("dark filing is disabled with the cause on its face",
+    await page.isDisabled("#ovfile") && /FEED WAS CUT/.test(fileTruth), fileTruth);
+  check("the certify-copy bridge is disabled with the same truth",
+    await page.isDisabled("#ovcopy") && /FEED WAS CUT/.test(copyTruth), copyTruth);
+  await page.evaluate(async () => {
+    await document.getElementById("ovfile").onclick();
+    await document.getElementById("ovcopy").onclick();
+  });
+  check("a dark yard record makes no submission and writes no certify payload",
+    darkSubmissions === 0 && (await page.evaluate(() => window.__clipboardWrites)) === 0,
+    `${darkSubmissions} network · ${await page.evaluate(() => window.__clipboardWrites)} clipboard`);
+  await page.unroute(/\/(?:file|certify)$/);
 
   // ---- a roster this yard cannot STAGE faults at the door -----------
   // Two different questions, and only one is the rules core's:
