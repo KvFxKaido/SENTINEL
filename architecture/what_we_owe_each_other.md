@@ -370,6 +370,36 @@ chronicle. The room imports no replay machinery: a forged seam post can bank a
 claim for an event that did not happen, but the preserved record makes that
 claim re-checkable and it never becomes certification.
 
+### The integrity decisions — ratified 2026-08-18
+
+The designer reviewed the slice's four integrity decisions and kept all four,
+two of them named foundational. Recorded here because the formulations are
+sharper than the implementation notes above:
+
+- **Grade and verdict answer different questions and must never merge.** The
+  verdict says *why* a card was not witnessed (`CHOSE THE DARK` versus `LOST
+  THE FEED`); the grade says *whose authority currently backs a fact*
+  (`certified` versus `claim`). A claim may be entirely true and remain a
+  claim until its source is exposed; a squad may lie and the ontology holds,
+  because the lie is honestly represented as their claim. A room that tried
+  to prevent false claims would quietly turn "claim" into certification-lite.
+- **The card happened; the evidence failed.** Counting a card whose chronicle
+  append was refused is the consciously-stamped designer choice, and it
+  encodes the broader rule: a durable-evidence failure constrains what may
+  later be *asserted* about reality, never whether reality *occurred*.
+  Provenance does not get freebies, and a busted localStorage is not a time
+  machine.
+- **`sane()` stays inside its jurisdiction.** Structural coherence of the run
+  is one job; whether an external target still exists and still matches is
+  source resolution's job at render time. Making run validity depend on
+  whatever happens to occupy storage at the moment of the check would turn an
+  invariant into an environmental audit — actively vetoed.
+- **Struck submissions stay outside the canonical chronicle.** The edge
+  proved they do not replay. If a disproven account someday becomes
+  interesting evidence in its own right, that is a separate forensic history
+  of rejected submissions — a possible future system, deliberately unbuilt,
+  and never a tenant of the chronicle that backs claims.
+
 ### Faction response — direction recorded 2026-08-18
 
 Cutting the feed also means the holding and sanctioning factions did not see
