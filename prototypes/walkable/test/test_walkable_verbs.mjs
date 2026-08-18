@@ -895,9 +895,9 @@ try {
   const activeDebt = certifiedRun?.relationships?.[0];
   check("the completed drag banks a certified stable-id event",
     certifiedEvent?.beneficiary === "koa"
-      && certifiedEvent?.grade?.kind === "certified"
-      && certifiedEvent?.grade?.matchId === DRAG_ID
-      && certifiedEvent?.grade?.commandIndex === 6,
+      && certifiedEvent?.grade === "certified"
+      && certifiedEvent?.origin?.matchId === DRAG_ID
+      && certifiedEvent?.origin?.commandIndex === 6,
     JSON.stringify(certifiedEvent));
   check("the run names the directional life debt from that exact source",
     certifiedRun?.relationships?.length === 1
@@ -972,6 +972,131 @@ try {
       && (await page.$$(".plain-pass")).length === 1,
     `${JSON.stringify(reloadedDebt?.relationships)} · ${fulfilledPanel}`);
 
+  // ---- the same relationship in chosen darkness ----------------------
+  // This is the §12 sentence with the author changed, not the fact: a
+  // faithful record cuts first, later completes the same under-fire DRAG,
+  // and the yard returns the rules core's extraction. The room submits
+  // nowhere. It appends the full local match, banks claim grade, reopens the
+  // pointed command from LOG 0, and gives repayment exactly the same force.
+  const DARK_DRAG = {
+    record: [["cut", 0], ...DRAG_GOLDEN.record],
+    derived: DRAG_GOLDEN.derived.map(event => ({ ...event, commandIndex: event.commandIndex + 1 })),
+    // carried across the evaluate boundary — the page closure cannot see
+    // node-side bindings like DRAG_GOLDEN
+    lines: DRAG_GOLDEN.lines,
+  };
+  const darkSeason = openSeason("2026-08-18T00:00:00Z", RELATIONSHIP_TOUR);
+  await page.evaluate(value => {
+    localStorage.setItem("sentinel.run", JSON.stringify(value));
+    localStorage.removeItem("sentinel.chronicle");
+  }, darkSeason);
+  await boot("?body=composed&deal=1");
+  let darkRequests = 0;
+  await page.unroute(/\/file$/);
+  await page.route(/\/file$/, route => {
+    darkRequests++;
+    return route.fulfill({ status: 500, contentType: "application/json", body: "{}" });
+  });
+  const darkFrame = await walkPlainDoor();
+  check("the room deals the dark extraction card", darkFrame !== null);
+  if (!darkFrame) throw new Error("the dark relationship door never dealt");
+  await darkFrame.evaluate(value => {
+    window.parent.postMessage({
+      type: "sentinel-seam-result", seed: "1", record: value.record,
+      result: "loss", rating: 50, purse: 500,
+      ledger: { walked: 0, finished: 0, lost: 3 },
+      down: ["VESPER", "KOA", "SABLE"], derivedEvents: value.derived,
+      roster: [{ name: "VESPER", hp: 10 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 }],
+      fingerprint: "dark-drag", lines: value.lines,
+    }, window.parent.location.origin);
+  }, DARK_DRAG);
+  await page.waitForFunction(() =>
+    /CLAIM EVENTS BANKED/.test(document.getElementById("seaminfo").textContent),
+  null, { timeout: 10000 });
+  const darkState = await page.evaluate(() => ({
+    run: JSON.parse(localStorage.getItem("sentinel.run") ?? "null"),
+    log: JSON.parse(localStorage.getItem("sentinel.chronicle") ?? "[]"),
+  }));
+  const darkEvent = darkState.run?.eventLedger?.sable?.[0];
+  const darkDebt = darkState.run?.relationships?.[0];
+  check("chosen darkness reaches neither edge endpoint and banks the verdict split",
+    darkRequests === 0 && darkState.run?.dark === 1 && darkState.run?.unwitnessed === 0,
+    `${darkRequests} requests · ${JSON.stringify(darkState.run)}`);
+  check("the full dark match survives before the claim points at it",
+    darkState.log?.length === 1
+      && darkState.log[0]?.id === 0 && darkState.log[0]?.cert === "dark"
+      && darkState.log[0]?.seed === "1"
+      && JSON.stringify(darkState.log[0]?.record) === JSON.stringify(DARK_DRAG.record)
+      && JSON.stringify(darkState.log[0]?.roster) === JSON.stringify([
+        { name: "VESPER", hp: 10 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 },
+      ])
+      && darkState.log[0]?.derivedEvents?.[0]?.commandIndex === 7
+      && darkState.log[0]?.aftermath?.feedCut?.commandIndex === 0
+      && darkState.log[0]?.slate?.venue === "RESCUE YARD",
+    JSON.stringify(darkState.log));
+  check("the dark extraction mints OWES A LIFE at claim grade",
+    darkEvent?.grade === "claim"
+      && darkEvent?.origin?.logId === 0 && darkEvent?.origin?.commandIndex === 7
+      && darkDebt?.grade === "claim"
+      && darkDebt?.origin?.logId === 0 && darkDebt?.origin?.commandIndex === 7
+      && darkDebt?.from === "koa" && darkDebt?.to === "sable"
+      && /CLAIM · THE SQUAD'S WORD · LOG 0/.test(await panelText())
+      && (await page.$$(".dedicated-pass")).length === 1,
+    `${JSON.stringify(darkEvent)} · ${JSON.stringify(darkDebt)} · ${await panelText()}`);
+
+  await page.click('.relationship-back[data-log-id="0"]');
+  await page.waitForFunction(() =>
+    document.getElementById("cv").dataset.source === "log:0:7",
+  null, { timeout: 10000 });
+  let darkSource = (await page.textContent("#sourceinfo")).replace(/\s+/g, " ").trim();
+  check("BACK TO LOG resolves the preserved drag command",
+    /LOG 0/.test(darkSource) && /POINTED COMMAND 7/.test(darkSource)
+      && darkSource.includes(JSON.stringify(DARK_DRAG.record[7])), darkSource);
+
+  await page.click(".dedicated-pass");
+  let repaidClaim = await page.evaluate(() => ({
+    run: JSON.parse(localStorage.getItem("sentinel.run") ?? "null"),
+    log: JSON.parse(localStorage.getItem("sentinel.chronicle") ?? "[]"),
+  }));
+  check("REPAY THE LIFE fulfills claim grade with the same recovery force",
+    repaidClaim.run?.relationships?.[0]?.status === "fulfilled"
+      && repaidClaim.run?.relationships?.[0]?.grade === "claim"
+      && repaidClaim.run?.relationships?.[0]?.fulfilledSlate?.venue === "REPAYMENT COURT"
+      && repaidClaim.run?.season?.clocks?.sable === undefined
+      && repaidClaim.run?.season?.clocks?.vesper === 1
+      && repaidClaim.run?.season?.clocks?.koa === 1,
+    JSON.stringify(repaidClaim.run));
+
+  await boot("?body=composed&deal=1");
+  repaidClaim = await page.evaluate(() => ({
+    run: JSON.parse(localStorage.getItem("sentinel.run") ?? "null"),
+    log: JSON.parse(localStorage.getItem("sentinel.chronicle") ?? "[]"),
+  }));
+  check("reload preserves the claimed source, fulfillment, and log target",
+    repaidClaim.run?.relationships?.[0]?.status === "fulfilled"
+      && repaidClaim.run?.relationships?.[0]?.origin?.logId === 0
+      && repaidClaim.log?.[0]?.record?.[7]?.[0] === "drag"
+      && /KOA OWES SABLE A LIFE · FULFILLED/.test(await panelText())
+      && /THE SQUAD'S WORD · LOG 0/.test(await panelText()),
+    `${JSON.stringify(repaidClaim)} · ${await panelText()}`);
+  await page.click('.relationship-back[data-log-id="0"]');
+  await page.waitForFunction(() =>
+    document.getElementById("cv").dataset.source === "log:0:7",
+  null, { timeout: 10000 });
+  darkSource = (await page.textContent("#sourceinfo")).replace(/\s+/g, " ").trim();
+  check("the claim source still resolves after reload",
+    /POINTED COMMAND 7/.test(darkSource)
+      && darkSource.includes(JSON.stringify(DARK_DRAG.record[7])), darkSource);
+  await page.evaluate(() => localStorage.removeItem("sentinel.chronicle"));
+  await page.click('.relationship-back[data-log-id="0"]');
+  await page.waitForFunction(() =>
+    document.getElementById("cv").dataset.source === "unresolved",
+  null, { timeout: 10000 });
+  const missingClaimSource = (await page.textContent("#sourceinfo")).replace(/\s+/g, " ").trim();
+  check("a missing claim target says the source does not resolve",
+    /THE SOURCE DOES NOT RESOLVE/.test(missingClaimSource), missingClaimSource);
+  await page.unroute(/\/file$/);
+
   // The other negative gate: the debt exists, but a fit creditor creates no
   // option. It is absent, not disabled, and the plain pass still exists.
   const fitDebt = applyCard(
@@ -979,8 +1104,10 @@ try {
     { ...card("b", []), derivedEvents: DRAG_GOLDEN.derived },
   );
   if (!fitDebt.accepted) throw new Error(`fit-debt fixture refused: ${fitDebt.why}`);
-  await page.evaluate(value =>
-    localStorage.setItem("sentinel.run", JSON.stringify(value)), fitDebt.run);
+  await page.evaluate(value => {
+    localStorage.setItem("sentinel.run", JSON.stringify(value));
+    localStorage.removeItem("sentinel.chronicle");
+  }, fitDebt.run);
   await boot("?body=composed&deal=1");
   const fitDebtPanel = await panelText();
   check("an active debt with a fit creditor offers no dedication and keeps plain pass",
@@ -989,12 +1116,13 @@ try {
       && (await page.$$(".plain-pass")).length === 1,
     fitDebtPanel);
 
-  // Same yard fact, no Witness: the yard may show its in-session account,
-  // but run-core banks no event. Claim grade waits for an append-only local
-  // origin rather than pointing into the twelve-card rolling receipt.
-  await page.evaluate(value =>
-    localStorage.setItem("sentinel.run", JSON.stringify(value)),
-    openRun("2026-08-16T00:00:00Z"));
+  // Same yard fact, no Witness: the accident family still appends the full
+  // local match first, then banks the yard's rules-derived account as the
+  // squad's claim. The room never upgrades that claim to certification.
+  await page.evaluate(value => {
+    localStorage.setItem("sentinel.run", JSON.stringify(value));
+    localStorage.removeItem("sentinel.chronicle");
+  }, openRun("2026-08-16T00:00:00Z"));
   await boot("?body=composed&deal=1");
   await page.unroute(/\/file$/);
   await page.route(/\/file$/, route => route.abort("failed"));
@@ -1013,19 +1141,123 @@ try {
     }, window.parent.location.origin);
   }, DRAG_GOLDEN);
   await page.waitForFunction(() =>
-    /UNCERTIFIED/.test(document.getElementById("seaminfo").textContent),
+    /LOST THE FEED/.test(document.getElementById("seaminfo").textContent),
   null, { timeout: 10000 });
   const unwitnessedRun = await page.evaluate(() =>
     JSON.parse(localStorage.getItem("sentinel.run") ?? "null"));
   const unwitnessedSeam = (await page.textContent("#seaminfo")).replace(/\s+/g, " ").trim();
   const allBankedEvents = Object.values(unwitnessedRun?.eventLedger ?? {}).flat();
-  check("the unwitnessed completed drag honestly banks no event or relationship",
-    allBankedEvents.length === 0
-      && unwitnessedRun?.relationships?.length === 0
+  const unwitnessedLog = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("sentinel.chronicle") ?? "[]"));
+  check("LOST THE FEED logs and banks a claim in the accident family",
+    allBankedEvents.length === 1
+      && allBankedEvents[0]?.grade === "claim"
+      && allBankedEvents[0]?.origin?.logId === 0
+      && unwitnessedRun?.relationships?.[0]?.grade === "claim"
+      && unwitnessedRun?.unwitnessed === 1
+      && unwitnessedRun?.dark === 0
+      && unwitnessedLog?.[0]?.cert === "unwitnessed"
+      && unwitnessedLog?.[0]?.aftermath?.feedCut === null
       && /YARD DERIVED · SABLE → KOA/.test(unwitnessedSeam)
-      && /DERIVED EVENTS NOT BANKED — NO DURABLE ORIGIN EXISTS YET/.test(unwitnessedSeam),
-    `${JSON.stringify(allBankedEvents)} · ${JSON.stringify(unwitnessedRun?.relationships)} · ${unwitnessedSeam}`);
+      && /LOST THE FEED/.test(unwitnessedSeam)
+      && /CLAIM EVENTS BANKED — THE SQUAD'S WORD · LOG 0/.test(unwitnessedSeam),
+    `${JSON.stringify(allBankedEvents)} · ${JSON.stringify(unwitnessedRun?.relationships)} · ${JSON.stringify(unwitnessedLog)} · ${unwitnessedSeam}`);
   await page.unroute(/\/file$/);
+
+  // A replay dispute is the hard boundary. Even when the page supplies a
+  // plausible extraction, 422 says the record diverged: no chronicle entry,
+  // no claim, no relationship, and no ordinary card consequences.
+  await page.evaluate(value => {
+    localStorage.setItem("sentinel.run", JSON.stringify(value));
+    localStorage.removeItem("sentinel.chronicle");
+  }, openRun("2026-08-18T00:00:00Z"));
+  await boot("?body=composed&deal=1");
+  await page.route(/\/file$/, route => route.fulfill({
+    status: 422,
+    contentType: "application/json",
+    body: JSON.stringify({
+      filed: false, certified: false, error: "record does not replay",
+      rules: "stub-rules", applied: 0, submitted: DRAG_GOLDEN.record.length,
+    }),
+  }));
+  const struckDragFrame = await walkPlainDoor();
+  check("the room deals the extraction claim to a disputing edge", struckDragFrame !== null);
+  if (!struckDragFrame) throw new Error("the struck-claim door never dealt");
+  await struckDragFrame.evaluate(value => {
+    window.parent.postMessage({
+      type: "sentinel-seam-result", seed: "1", record: value.record,
+      result: value.result, rating: value.rating, purse: value.purse,
+      ledger: { walked: 0, finished: 0, lost: 3 }, down: ["VESPER", "KOA", "SABLE"],
+      derivedEvents: value.derived,
+      roster: [{ name: "VESPER", hp: 10 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 }],
+      fingerprint: value.fingerprint, lines: value.lines,
+    }, window.parent.location.origin);
+  }, DRAG_GOLDEN);
+  await page.waitForFunction(() =>
+    /EDGE DISPUTES THE FEED — STRUCK/.test(document.getElementById("seaminfo").textContent),
+  null, { timeout: 10000 });
+  const struckClaim = await page.evaluate(() => ({
+    run: JSON.parse(localStorage.getItem("sentinel.run") ?? "null"),
+    log: JSON.parse(localStorage.getItem("sentinel.chronicle") ?? "[]"),
+  }));
+  check("a struck extraction logs and mints nothing",
+    struckClaim.run?.cards === 0 && struckClaim.run?.struck === 1
+      && Object.values(struckClaim.run?.eventLedger ?? {}).flat().length === 0
+      && struckClaim.run?.relationships?.length === 0
+      && struckClaim.log.length === 0,
+    JSON.stringify(struckClaim));
+  await page.unroute(/\/file$/);
+
+  // Capacity is a refusal, not an eviction policy. Fill the independent
+  // chronicle, return a real dark extraction, and prove the card still
+  // counts while its event and debt do not appear.
+  const fullLogSeed = Array.from({ length: 200 }, (_, id) => ({
+    id, kind: "match", cert: "unwitnessed", seed: "1",
+    roster: [
+      { name: "VESPER", hp: 10 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 },
+    ],
+    record: [["drag", 2, 1, 4, 9], ["end"]],
+    derivedEvents: [{
+      kind: "extraction", actor: "SABLE", beneficiary: "KOA",
+      commandIndex: 0, underFire: true, reached: true,
+    }],
+    aftermath: { result: "loss", rating: 1, purse: 10, feedCut: null },
+    at: "2026-08-18T00:00:00Z",
+  }));
+  await page.evaluate(({ run, log }) => {
+    localStorage.setItem("sentinel.run", JSON.stringify(run));
+    localStorage.setItem("sentinel.chronicle", JSON.stringify(log));
+  }, { run: openRun("2026-08-18T00:00:00Z"), log: fullLogSeed });
+  await boot("?body=composed&deal=1");
+  const fullLogFrame = await walkPlainDoor();
+  check("the room deals a dark extraction against a full local log", fullLogFrame !== null);
+  if (!fullLogFrame) throw new Error("the full-log door never dealt");
+  await fullLogFrame.evaluate(value => {
+    window.parent.postMessage({
+      type: "sentinel-seam-result", seed: "1", record: value.record,
+      result: "loss", rating: 50, purse: 500,
+      ledger: { walked: 0, finished: 0, lost: 3 }, down: ["VESPER", "KOA", "SABLE"],
+      derivedEvents: value.derived,
+      roster: [{ name: "VESPER", hp: 10 }, { name: "KOA", hp: 10 }, { name: "SABLE", hp: 10 }],
+      fingerprint: "dark-drag", lines: value.lines,
+    }, window.parent.location.origin);
+  }, DARK_DRAG);
+  await page.waitForFunction(() =>
+    /THE LOG IS FULL — NOTHING KEPT/.test(document.getElementById("seaminfo").textContent),
+  null, { timeout: 10000 });
+  const refusedClaim = await page.evaluate(() => ({
+    run: JSON.parse(localStorage.getItem("sentinel.run") ?? "null"),
+    log: JSON.parse(localStorage.getItem("sentinel.chronicle") ?? "[]"),
+    panel: document.getElementById("seaminfo").textContent.replace(/\s+/g, " ").trim(),
+  }));
+  check("a full log banks the dark card loudly and mints nothing",
+    refusedClaim.run?.cards === 1 && refusedClaim.run?.dark === 1
+      && Object.values(refusedClaim.run?.eventLedger ?? {}).flat().length === 0
+      && refusedClaim.run?.relationships?.length === 0
+      && refusedClaim.run?.recent?.[0]?.derivedEvents?.length === 0
+      && refusedClaim.log.length === 200
+      && /THE LOG IS FULL — NOTHING KEPT/.test(refusedClaim.panel),
+    JSON.stringify(refusedClaim));
   await page.unroute(new RegExp(`/matches/${DRAG_ID}$`));
 
   // and a FRESH room opens on the house slate — the front office is the

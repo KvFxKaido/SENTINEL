@@ -12,9 +12,9 @@
 // replays is rules data and has nothing to do with the art, so this runs
 // without the licensed pack.
 //
-// On the witness: CERTIFIED and UNCERTIFIED are both honest outcomes (the
-// Worker may be unreachable from CI, and the room says so out loud). The
-// verdict that must NEVER appear is STRUCK — the edge replaying the record
+// On the witness: CERTIFIED, LOST THE FEED, and CHOSE THE DARK are honest,
+// distinct outcomes (the Worker may be unreachable from CI, and the room
+// says so out loud). The verdict that must NEVER appear is STRUCK — the edge replaying the record
 // and disagreeing means the match we just played does not reproduce.
 //
 //
@@ -251,7 +251,7 @@ try {
   // tolerate (caught in review). The wait is bounded and says so when it
   // expires, instead of asserting against a half-written panel.
   const settled = await page.waitForFunction(
-    () => /CERTIFIED|UNCERTIFIED|STRUCK/.test(document.getElementById("seaminfo").textContent),
+    () => /CERTIFIED|LOST THE FEED|CHOSE THE DARK|STRUCK/.test(document.getElementById("seaminfo").textContent),
     null, { timeout: 25000 }).then(() => true, () => false);
   const verdict = (await page.textContent("#seaminfo")).replace(/\s+/g, " ").trim();
   check("the room takes the record back", /RATING|PURSE|SQUAD/.test(verdict), verdict);
@@ -553,7 +553,7 @@ try {
     }, roster);
     const settledVerdict = async () => {
       await page.waitForFunction(
-        () => /CERTIFIED|UNCERTIFIED|STRUCK|REFUSED/.test(
+        () => /CERTIFIED|LOST THE FEED|CHOSE THE DARK|STRUCK|REFUSED/.test(
           document.getElementById("seaminfo").textContent),
         null, { timeout: 20000 }).catch(() => {});
       return (await page.textContent("#seaminfo")).replace(/\s+/g, " ").trim();
@@ -680,12 +680,13 @@ try {
       const darkVerdict = (await page.textContent("#seaminfo")).replace(/\s+/g, " ").trim();
       check("the room submits a dark record to neither certify nor file",
         darkSubmissions === 0, `${darkSubmissions} submissions`);
-      check("the room says chosen darkness and settles on the interim unwitnessed path",
+      check("the room distinguishes chosen darkness at banking time",
         /FEED WAS CUT BY CHOICE/.test(darkVerdict)
-          && /COUNTED UNWITNESSED/.test(darkVerdict)
-          && /NOTHING KEPT/.test(darkVerdict),
+          && /CHOSE THE DARK/.test(darkVerdict)
+          && /COUNTED DARK/.test(darkVerdict)
+          && !/COUNTED UNWITNESSED/.test(darkVerdict),
         darkVerdict);
-      check("the interim dark card still counts on the unchanged run schema",
+      check("the dark card still counts on run schema v7",
         (await page.evaluate(() => document.getElementById("cv").dataset.run)).startsWith("1:"),
         await page.evaluate(() => document.getElementById("cv").dataset.run));
     } else {
@@ -696,11 +697,11 @@ try {
     // feedCut is deliberately syntactic and the room has no rules engine,
     // so a shape-valid record whose cut is ILLEGAL at replay (here: a
     // second cut the rules would refuse) still takes the dark branch. The
-    // price is pinned, not ignored: the card banks at the same counted
-    // `unwitnessed` grade as an infrastructure failure — never certified,
-    // never a filed origin — and half B sharpens this for free, because
-    // claim-grade derivation replays the record and an unfaithful record
-    // derives nothing (caught in review). On its own fresh run: the dark
+    // price is pinned, not ignored: the card banks `dark`, never certified
+    // and never filed. The room does NOT replay claim-grade events. A forged
+    // seam post can therefore bank the squad's claim; the local chronicle
+    // preserves the exact record that makes the lie falsifiable later. On
+    // its own fresh run: the dark
     // card above put two fighters on recovery clocks, and the door
     // correctly gates that lineup — re-dealing it would test the bench
     // law, not this boundary.
@@ -709,7 +710,11 @@ try {
       record: [["cut", 1], ["cut", 2]],
       result: "win", rating: 50, purse: 500,
       ledger: { walked: 0, finished: 0, lost: 0 }, down: [],
-      derivedEvents: [], roster: CANONICAL, fingerprint: "smuggled", lines: 3,
+      derivedEvents: [{
+        kind: "extraction", actor: "SABLE", beneficiary: "KOA",
+        commandIndex: 0, underFire: true, reached: true,
+      }],
+      roster: CANONICAL, fingerprint: "smuggled", lines: 3,
     };
     await page.evaluate(() => localStorage.clear());
     await page.goto(ROOM_URL);
@@ -735,11 +740,21 @@ try {
       const smuggleVerdict = (await page.textContent("#seaminfo")).replace(/\s+/g, " ").trim();
       check("an illegal-but-shaped cut still reaches no endpoint",
         darkSubmissions === 0, `${darkSubmissions} submissions`);
-      check("smuggled darkness buys counted unwitnessed, never certification",
+      const smuggled = await page.evaluate(() => ({
+        run: JSON.parse(localStorage.getItem("sentinel.run") ?? "null"),
+        log: JSON.parse(localStorage.getItem("sentinel.chronicle") ?? "[]"),
+      }));
+      const smuggledEvent = smuggled.run?.eventLedger?.sable?.[0];
+      check("smuggled darkness banks a falsifiable claim, never certification",
         /FEED WAS CUT BY CHOICE/.test(smuggleVerdict)
-          && /COUNTED UNWITNESSED/.test(smuggleVerdict)
+          && /COUNTED DARK/.test(smuggleVerdict)
+          && /CLAIM EVENTS BANKED/.test(smuggleVerdict)
+          && smuggledEvent?.grade === "claim"
+          && smuggledEvent?.origin?.logId === 0
+          && smuggled.run?.relationships?.[0]?.grade === "claim"
+          && JSON.stringify(smuggled.log?.[0]?.record) === JSON.stringify(ILLEGAL_DARK_CARD.record)
           && (await page.evaluate(() => document.getElementById("cv").dataset.run)).startsWith("1:"),
-        smuggleVerdict);
+        `${smuggleVerdict} · ${JSON.stringify(smuggled)}`);
     } else {
       check("an illegal-but-shaped cut still reaches no endpoint", false, "the door never dealt");
     }

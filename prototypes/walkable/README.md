@@ -140,11 +140,11 @@ The room does not take the yard's word for it:
   checked the same way the outcome always was: a page
   that misreports what a card cost is struck, not banked;
 - a returned record carrying `CUT THE FEED` is sent to neither `/certify`
-  nor `/file`. The panel says the feed was cut by choice — and says that
-  nothing keeps the record: until the local event log lands in the second
-  half of the integrity slice, a dark record is withheld AND discarded, and
-  claiming otherwise would be a retention lie (caught in review). The card
-  banks through the existing explicitly labelled `unwitnessed` path;
+  nor `/file`. The room calls it `dark`, not `unwitnessed`, at banking time.
+  When the yard returned derived events, the full `seed + roster + record`,
+  claimed events and aftermath are appended to the independent local
+  chronicle before run-core receives the returned `logId`. Only then may the
+  event and relationship bank at claim grade;
 - the hand-off has a readiness handshake: the cut card holds until the
   yard proves it booted, with a 7s timeout and an <kbd>ESC</kbd> abort
   that put you back in the room if the far side never answers;
@@ -166,9 +166,9 @@ returned record to `POST /file`, not bare `/certify`. `/file` performs the same
 replay certification and archives idempotently by the record's content key, so
 every card the room calls certified has the filed match id required for a
 resolvable origin. This is a recorded implementation decision for designer
-review. Deliberate darkness now composes with it by submitting to neither
-endpoint; the unchanged run schema counts that card as `unwitnessed` while
-the panel states that the loss of witness was chosen.
+review. Deliberate darkness composes with it by submitting to neither
+endpoint; run schema v7 counts that card as `dark`, separately from the
+accidental `unwitnessed` family.
 
 On a successful filing, the card banks only the Worker's replay-authored
 `derivedEvents` and its returned id. The yard-computed array crosses the seam
@@ -177,20 +177,42 @@ arrays are not adversarially compared because the certified path does not
 accept the page as an author at all.
 
 A filed certificate that lacks `derivedEvents` is counted unwitnessed with an
-explicit incomplete-attestation verdict; the room banks the card's ordinary
-run consequences but no derived event.
+explicit incomplete-attestation verdict. Like unreachable, 500 and 507, it
+may bank the yard's event only as a logged claim — never as certification.
 
-Run schema v5 translates each event's tactical actor and beneficiary through
-the fielded lineup at banking time. The panel renders the resulting stable-id
-ledger as readable text. A certified extraction offers **BACK TO FILE**: the
-room fetches `GET /matches/{id}`, shows the archived record without importing
-the rules, and highlights the raw command at the stored index. Claim grade is
-deferred: the append-only local event log does not exist, and
-the twelve-card recent buffer cannot serve as a durable origin. When a card is
-unwitnessed or could not be archived, the seam may still show `YARD DERIVED`
-for the current session, followed by the honest line `DERIVED EVENTS NOT
-BANKED — NO DURABLE ORIGIN EXISTS YET`. No relationship, permission,
-obligation or bond state was created by the step-3 surface.
+Run schema v7 translates each event's tactical actor and beneficiary through
+the fielded lineup at banking time and records the author explicitly. A
+certified extraction carries `grade:"certified"` with filed
+`{matchId,commandIndex}` and offers **BACK TO FILE**. A dark or accidentally
+unwitnessed extraction carries `grade:"claim"` with local
+`{logId,commandIndex}` and offers **BACK TO LOG**. Both source paths use the
+same raw-record view without importing replay rules. A missing or malformed
+claim target says **THE SOURCE DOES NOT RESOLVE** rather than crashing or
+silently hiding the entry.
+
+### Recorded integrity decisions — 2026-08-18, step 5
+
+**WHO VOUCHES IS THE GRADE.** Certified events are authored by the Worker's
+replay. Claim events are the squad's word: the yard rules core computed them
+in its completed session, but the room does not replay and therefore cannot
+promote them. A forged seam post can bank a falsifiable claim for something
+its preserved record disproves; it can never bank certification.
+
+**NO POINTER BEFORE ITS TARGET SURVIVES.** The local chronicle is append-only,
+independent of RUN_V, run close and run orphaning, and capped at 200 entries.
+On every counted uncertified card with yard-derived events, the room appends
+the full match first, banks the card second, then passes the returned id so
+run-core can bank claim events and mint relationships. A full, blocked or
+damaged log still banks purse, wounds, mercy and slate movement, but the panel
+says **THE LOG IS FULL — NOTHING KEPT** (or names the other refusal) and no
+event or debt appears. A struck 422 logs and mints nothing.
+
+**GRADES ARE NOT POWER TIERS.** `OWES A LIFE` records the same grade and origin
+as its extraction. One active debt per directed pair spans grades, and
+**REPAY THE LIFE** has identical recovery and fulfillment semantics for a
+claim or a certificate. The panel names `CHOSE THE DARK` separately from
+`LOST THE FEED`, renders the split counters, and names the squad's word beside
+each local log address.
 
 ### Recorded relationship decisions — 2026-08-17, pairwise-ledger step 4
 
@@ -212,6 +234,11 @@ These two implementation decisions are recorded for designer veto at review:
    other clock by one, and fulfills the debt at that pass's slate stamp. When
    either gate is false the dedicated option is absent, not mysteriously
    disabled; the plain pass never disappears while a stop remains.
+
+Step 5 extends both decisions across provenance grades without replacing
+them: claim events mint the same directional fact, a live debt in either
+grade blocks another for that directed pair, and repayment neither weakens
+nor strengthens because the source is local.
 
 This remains entirely on the run/room side of the door. Neither relationship
 state nor the dedication enters the yard, changes `{name, hp}`, touches the
@@ -321,12 +348,14 @@ What it does and deliberately does not touch:
   durations in-page against per-sheet frame counts. Real composed sheets
   for Cipher, VESPER, KOA and SABLE are backed up before the run and
   restored after.
-- The same harness carries §12's first-relationship acceptance sentence as
-  one continuous case: KOA goes down, SABLE's golden DRAG returns filed and
-  certified, the named debt appears, its archive pointer resolves to command
-  6, the gated dedicated pass clears SABLE's two-stop clock and fulfills the
-  debt, and reload preserves the source, lifecycle, pass stamp, clocks, and
-  visible history. Separate negatives prove no dedication without a debt or
+- The same harness carries §12's first-relationship acceptance sentence at
+  both grades. The certified golden DRAG resolves FILE command 6. Its faithful
+  dark parallel logs the full match before banking, resolves LOG command 7,
+  mints claim-grade `OWES A LIFE`, repays with the same two-stop recovery, and
+  survives reload. The accident family logs a lost-feed claim; a 422 logs
+  nothing; a 200-entry full log banks the card but no event or debt and names
+  the refusal; removing a claim target renders **THE SOURCE DOES NOT
+  RESOLVE**. Separate negatives still prove no dedication without a debt or
   with a fit creditor, while the plain pass remains offered.
 - The mold test runs the actual `scripts/roster_mold.py` twice against
   fake packs — **fully sandboxed in a temp dir** via the mold's

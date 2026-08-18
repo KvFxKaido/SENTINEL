@@ -451,6 +451,9 @@ import {
   openSeason, slateValid, stockValid, rosterValid, fieldedRoster, setLineup,
   personOf, kitOf, FLAIR_SLOTS, FULL_STRENGTH, summary,
 } from "../run-core/run.js";
+import {
+  bindStore as bindLogStore, appendEntry, readEntry,
+} from "../run-core/log.js";
 
 // The faction door is authored content, not a roster literal buried in this
 // renderer. Module evaluation waits for the one file the room needs; a bad or
@@ -2528,11 +2531,13 @@ const storageLive = (() => {
   } catch { return false; }
 })();
 if (storageLive) {
-  bindStore({
+  const storageBinding = {
     read: k => localStorage.getItem(k),
     write: (k, v) => localStorage.setItem(k, v),
     remove: k => localStorage.removeItem(k),
-  });
+  };
+  bindStore(storageBinding);
+  bindLogStore(storageBinding);
 }
 const bootAt = new Date().toISOString();
 const opened = rosterLoadError
@@ -2617,6 +2622,18 @@ const sourceLabel = person => person.origin.faction === null
   : (recruitmentFactions.get(person.origin.faction)?.name
       ?? person.origin.faction.replaceAll("_", " ")).toUpperCase();
 
+function sourceControl(grade, origin) {
+  if (grade === "certified") {
+    return `CERTIFIED · <button type="button" class="moment-back" data-source-kind="file"`
+      + ` data-match-id="${esc(origin.matchId)}" data-command-index="${origin.commandIndex}">`
+      + `BACK TO FILE ${esc(origin.matchId)} / COMMAND ${origin.commandIndex}</button>`;
+  }
+  return `CLAIM · THE SQUAD'S WORD · LOG ${origin.logId} · `
+    + `<button type="button" class="moment-back" data-source-kind="log"`
+    + ` data-log-id="${origin.logId}" data-command-index="${origin.commandIndex}">`
+    + `BACK TO LOG ${origin.logId} / COMMAND ${origin.commandIndex}</button>`;
+}
+
 function renderRun() {
   // Postures first: the bodies and the panel are drawn from one read of the
   // run, and this is what lets the panel report what the bodies could not
@@ -2667,10 +2684,11 @@ function renderRun() {
           return `${esc(name)}${count > 1 ? ` ×${count}` : ""}`;
         }).join(" · ")}`
       : `DOWN · NOBODY OF YOURS, YET`);
-    // Certified replay-derived events get panel text, not just a dataset.
+    // Graded rules-derived events get panel text, not just a dataset.
     // This is the kit-table lesson applied to history: a durable fact the
-    // room cannot show is not yet a usable fact. Claim grade is deliberately
-    // absent until an append-only local event can survive as its target.
+    // room cannot show is not yet a usable fact. Certified grade points to
+    // the public file; claim grade names the squad as author and points to
+    // the independent local chronicle.
     // This stanza stays the event receipt. The named relationship below is
     // run-core's banking policy, never an inference this renderer performs.
     if (s.derivedEvents.length) {
@@ -2680,11 +2698,7 @@ function renderRun() {
         const sentence = `<b>${esc(actor.name)}</b> EXTRACTED <b>${esc(beneficiary.name)}</b>`
           + (event.underFire ? " UNDER FIRE" : " CLEAR OF FIRE");
         const place = event.slate ? ` · AT ${esc(event.slate.venue)}` : "";
-        return sentence + place
-          + ` · CERTIFIED · <button type="button" class="moment-back"`
-          + ` data-match-id="${esc(event.grade.matchId)}"`
-          + ` data-command-index="${event.grade.commandIndex}">`
-          + `BACK TO FILE ${esc(event.grade.matchId)} / COMMAND ${event.grade.commandIndex}</button>`;
+        return sentence + place + ` · ${sourceControl(event.grade, event.origin)}`;
       }).join("<br>DERIVED EVENTS · "));
     } else {
       rows.push("DERIVED EVENTS · NONE BANKED YET");
@@ -2705,10 +2719,8 @@ function renderRun() {
           : "";
         return `<b>${esc(debtor.name)} OWES ${esc(creditor.name)} A LIFE</b>`
           + ` · ${relationship.status.toUpperCase()}${minted}${fulfilled}`
-          + ` · <button type="button" class="moment-back relationship-back"`
-          + ` data-match-id="${esc(relationship.origin.matchId)}"`
-          + ` data-command-index="${relationship.origin.commandIndex}">`
-          + `BACK TO FILE ${esc(relationship.origin.matchId)} / COMMAND ${relationship.origin.commandIndex}</button>`;
+          + ` · ${sourceControl(relationship.grade, relationship.origin)
+              .replace('class="moment-back"', 'class="moment-back relationship-back"')}`;
       }).join("<br>RELATIONSHIPS · "));
     } else {
       rows.push("RELATIONSHIPS · NONE BANKED YET");
@@ -2782,7 +2794,8 @@ function renderRun() {
   }
   // Caveats last and marked, so a run carrying them never reads clean.
   if (s.struck) rows.push(`<span class="warn">${s.struck} CARD${s.struck === 1 ? "" : "S"} STRUCK — BANKED BY NOBODY</span>`);
-  if (s.unwitnessed) rows.push(`<span class="warn">${s.unwitnessed} COUNTED UNWITNESSED</span>`);
+  if (s.dark) rows.push(`<span class="warn">${s.dark} CHOSE THE DARK</span>`);
+  if (s.unwitnessed) rows.push(`<span class="warn">${s.unwitnessed} COUNTED UNWITNESSED · ACCIDENT FAMILY</span>`);
   if (s.drift) {
     rows.push(
       `<span class="warn">RULES CHANGED MID-RUN</span> · earned under ` +
@@ -2866,8 +2879,24 @@ const sourceBox = document.getElementById("sourcebox");
 const sourceInfo = document.getElementById("sourceinfo");
 
 // BACK means the stored target, not a prose recap. The room deliberately
-// does not import tactical-core to interpret the command: it fetches the
-// archived record and shows the raw command at the certified index.
+// does not import tactical-core to interpret the command: public files and
+// local claims share this raw-record rendering and differ only in who keeps
+// the target and therefore who vouches for it.
+function renderSourceRecord(label, address, record, commandIndex, datasetAddress) {
+  if (!Array.isArray(record) || !Number.isInteger(commandIndex) || commandIndex < 0
+      || commandIndex >= record.length) {
+    throw new Error("the pointed command does not resolve");
+  }
+  const commands = record.map((command, index) =>
+    `<span class="command${index === commandIndex ? " pointed" : ""}">`
+    + `${index === commandIndex ? "→" : " "} ${index} · ${esc(JSON.stringify(command))}</span>`).join("");
+  sourceInfo.innerHTML =
+    `${label} <span class="fp">${esc(address)}</span> · ${record.length} COMMANDS<br>`
+    + `<b>POINTED COMMAND ${commandIndex}</b> · ${esc(JSON.stringify(record[commandIndex]))}`
+    + `<div id="source-record">${commands}</div>`;
+  canvas.dataset.source = datasetAddress;
+}
+
 async function showArchivedSource(matchId, commandIndex) {
   sourceBox.hidden = false;
   sourceInfo.innerHTML = `FILE <span class="fp">${esc(matchId)}</span> · FETCHING COMMAND ${commandIndex}…`;
@@ -2880,16 +2909,26 @@ async function showArchivedSource(matchId, commandIndex) {
         || commandIndex >= archived.record.length) {
       throw new Error(archived.error ?? "the filed command does not resolve");
     }
-    const commands = archived.record.map((command, index) =>
-      `<span class="command${index === commandIndex ? " pointed" : ""}">`
-      + `${index === commandIndex ? "→" : " "} ${index} · ${esc(JSON.stringify(command))}</span>`).join("");
-    sourceInfo.innerHTML =
-      `FILE <span class="fp">${esc(matchId)}</span> · ${archived.record.length} COMMANDS<br>`
-      + `<b>POINTED COMMAND ${commandIndex}</b> · ${esc(JSON.stringify(archived.record[commandIndex]))}`
-      + `<div id="source-record">${commands}</div>`;
-    canvas.dataset.source = `${matchId}:${commandIndex}`;
+    renderSourceRecord("FILE", matchId, archived.record, commandIndex, `${matchId}:${commandIndex}`);
   } catch (error) {
-    sourceInfo.innerHTML = `<span class="warn">SOURCE DID NOT RESOLVE</span> · ${esc(error.message)}`;
+    sourceInfo.innerHTML = `<span class="warn">THE SOURCE DOES NOT RESOLVE</span> · ${esc(error.message)}`;
+    canvas.dataset.source = "unresolved";
+  }
+}
+
+function showLoggedSource(logId, commandIndex) {
+  sourceBox.hidden = false;
+  sourceInfo.innerHTML = `LOG <span class="fp">${logId}</span> · FETCHING COMMAND ${commandIndex}…`;
+  canvas.dataset.source = "fetching";
+  try {
+    const logged = readEntry(logId);
+    if (!logged || logged.kind !== "match") {
+      throw new Error("the local log entry is missing or malformed");
+    }
+    renderSourceRecord("LOG", String(logId), logged.record, commandIndex,
+      `log:${logId}:${commandIndex}`);
+  } catch (error) {
+    sourceInfo.innerHTML = `<span class="warn">THE SOURCE DOES NOT RESOLVE</span> · ${esc(error.message)}`;
     canvas.dataset.source = "unresolved";
   }
 }
@@ -2897,8 +2936,12 @@ async function showArchivedSource(matchId, commandIndex) {
 runInfo.addEventListener("click", event => {
   const sourceButton = event.target.closest(".moment-back");
   if (sourceButton) {
-    showArchivedSource(
-      sourceButton.dataset.matchId, Number(sourceButton.dataset.commandIndex));
+    if (sourceButton.dataset.sourceKind === "log") {
+      showLoggedSource(Number(sourceButton.dataset.logId), Number(sourceButton.dataset.commandIndex));
+    } else {
+      showArchivedSource(
+        sourceButton.dataset.matchId, Number(sourceButton.dataset.commandIndex));
+    }
     return;
   }
   const passButton = event.target.closest(".run-option");
@@ -3005,8 +3048,8 @@ function buyItem(index) {
 
 // Bank a returned card and redraw. One place writes the run, so the
 // stored copy, the panel, and the squad aftermath cannot disagree.
-function bankCard(card) {
-  const { run: next, accepted, counted, why } = applyCard(run, card);
+function bankCard(card, claimLogId = null) {
+  const { run: next, accepted, counted, why } = applyCard(run, card, claimLogId);
   run = next;
   runNote = null;   // a card is newer news than whatever the note was about
   // the return value is the point: a save that failed and said nothing
@@ -3262,25 +3305,21 @@ async function certifySeam(d, dealt) {
   let verdict;
   let cert;
   let rules = null;
-  // Nothing from the yard enters the run's event ledger. The successful
-  // filed certificate below is the only path that replaces this empty set
-  // with replay-authored events.
+  // Nothing enters the run's event ledger without a surviving source. A
+  // filed certificate supplies certified events; a counted uncertified card
+  // may supply the yard's rules-derived events only after the local chronicle
+  // append below succeeds and returns their claim origin.
   let derivedEvents = [];
   let matchId = null;
   let eventOriginNote = null;
   // Submission policy lives with every holder, all consulting the same
-  // tactical-core predicate. Neither /certify nor /file sees a dark card —
-  // and until the local event log exists (integrity slice, half B), NOTHING
-  // retains it: this settlement banks the outcome and the record is gone.
-  // The panel says so rather than claiming a retention that does not exist
-  // (caught in review). Later exposure needs half B's surviving target.
+  // tactical-core predicate. Neither /certify nor /file sees a dark card.
+  // The chronicle does retain the full local identity before the run is
+  // allowed to point at it; that is preservation, not verification.
   const darkness = feedCut(d.record);
   if (darkness) {
-    verdict = `<b>THE FEED WAS CUT BY CHOICE — COUNTED UNWITNESSED</b> · COMMAND ${darkness.commandIndex} · NOTHING KEPT — THE DARK HAS NO LEDGER YET`;
-    cert = "unwitnessed";
-    if (d.derivedEvents.length) {
-      eventOriginNote = "DERIVED EVENTS NOT BANKED — THE RECORD WAS WITHHELD BY CHOICE";
-    }
+    verdict = `<b>CHOSE THE DARK — COUNTED DARK</b> · THE FEED WAS CUT BY CHOICE AT COMMAND ${darkness.commandIndex}`;
+    cert = "dark";
   } else try {
     // RECORDED DESIGN DECISION — 2026-08-16, durable-moment step 3:
     // THE ROOM FILES WHAT IT CERTIFIES. /file is certify + durable archive,
@@ -3337,9 +3376,6 @@ async function certifySeam(d, dealt) {
         ? '<b>CERTIFIED BUT NOT ARCHIVED — COUNTED UNWITNESSED</b> · THE ARCHIVE IS FULL'
         : `<b>WITNESS INFRASTRUCTURE FAILURE — COUNTED UNWITNESSED</b> · ${esc(error)}`;
       cert = "unwitnessed";
-      if (d.derivedEvents.length) {
-        eventOriginNote = "DERIVED EVENTS NOT BANKED — NO DURABLE ORIGIN EXISTS YET";
-      }
     } else {
       const factsAgree = !!out
         && out.result === d.result
@@ -3382,18 +3418,51 @@ async function certifySeam(d, dealt) {
           ? `<b>CERTIFICATE EVENT ATTESTATION INCOMPLETE — COUNTED UNWITNESSED</b> · derivedEvents ${missing ? "missing" : "unreadable"}`
           : "<b>WITNESS RESPONSE INCOMPLETE — COUNTED UNWITNESSED</b>";
         cert = "unwitnessed";
-        if (d.derivedEvents.length) {
-          eventOriginNote = receiptValid
-            ? "DERIVED EVENTS NOT BANKED — THE FILE HAS NO EVENT ATTESTATION"
-            : "DERIVED EVENTS NOT BANKED — NO DURABLE ORIGIN EXISTS YET";
-        }
       }
     }
   } catch {
-    verdict = "UNCERTIFIED — NO WITNESS REACHABLE · COUNTED UNWITNESSED";
+    verdict = "<b>LOST THE FEED — COUNTED UNWITNESSED</b> · NO WITNESS REACHABLE";
     cert = "unwitnessed";
-    if (d.derivedEvents.length) {
-      eventOriginNote = "DERIVED EVENTS NOT BANKED — NO DURABLE ORIGIN EXISTS YET";
+  }
+
+  // NO POINTER BEFORE ITS TARGET SURVIVES. Every counted uncertified card
+  // with a yard-derived event attempts this append before bankCard touches
+  // the run. Full, blocked, silently-dropping, or damaged storage leaves the
+  // ordinary card consequences intact but supplies no log id, so applyCard
+  // banks no event and mints no relationship. A forged seam post can still
+  // make a falsifiable claim: the room has no rules engine and does not
+  // replay. The log keeps the record that can expose it later.
+  const bankAt = new Date().toISOString();
+  let claimLogId = null;
+  if ((cert === "dark" || cert === "unwitnessed") && d.derivedEvents.length) {
+    const season = summary(run).season;
+    const slate = season && !season.complete
+      ? { idx: season.pos, venue: season.next.venue, host: season.next.host, sanction: season.next.sanction }
+      : undefined;
+    try {
+      claimLogId = appendEntry({
+        kind: "match",
+        cert,
+        seed: d.seed,
+        roster: dealt.map(person => ({ ...person })),
+        record: d.record.map(command => command.slice()),
+        derivedEvents: d.derivedEvents.map(event => ({ ...event })),
+        aftermath: {
+          result: d.result, rating: d.rating, purse: d.purse,
+          feedCut: darkness ? { ...darkness } : null,
+        },
+        at: bankAt,
+        ...(slate ? { slate } : {}),
+      });
+      derivedEvents = d.derivedEvents;
+      eventOriginNote = `CLAIM EVENTS BANKED — THE SQUAD'S WORD · LOG ${claimLogId}`;
+    } catch (error) {
+      derivedEvents = [];
+      eventOriginNote = error?.code === "full"
+        ? "THE LOG IS FULL — NOTHING KEPT"
+        : error?.code === "damaged"
+          ? "THE LOG IS DAMAGED — NOTHING KEPT"
+          : "THE LOG REFUSED THE WRITE — NOTHING KEPT";
     }
   }
   const certEl = document.getElementById("seamcert");
@@ -3421,8 +3490,8 @@ async function certifySeam(d, dealt) {
     matchId,
     cert,
     rules,
-    at: new Date().toISOString(),
-  });
+    at: bankAt,
+  }, claimLogId);
   // Do not clear seam state from this async settlement. A plain run may
   // already have its next card in the yard, and clearing seamFielded here
   // erases that card's honest roster (caught in review on PR #135).
