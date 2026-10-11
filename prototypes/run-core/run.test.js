@@ -10,7 +10,7 @@
  * refuses, and cards that arrive malformed.
  */
 
-import { test } from "node:test";
+import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
@@ -102,6 +102,10 @@ function funded(run, purse = 1000) {
   return applyCard(run, card({ purse, rating: 62 })).run;
 }
 
+let cardSequence = 0;
+beforeEach(() => { cardSequence = 0; });
+
+// Each fixture call is a new match unless the test supplies an identity.
 // A certified win, three hostiles yielded and walked, nobody of ours lost.
 function card(over = {}) {
   const out = {
@@ -117,7 +121,9 @@ function card(over = {}) {
     at: AT,
     ...over,
   };
-  if (!("matchId" in over)) out.matchId = out.cert === "certified" ? MATCH_ID : null;
+  if (!("matchId" in over)) out.matchId = out.cert === "certified"
+    ? (cardSequence++ === 0 ? MATCH_ID : cardSequence.toString(16).padStart(32, "0"))
+    : null;
   return out;
 }
 
@@ -131,6 +137,125 @@ function extraction(over = {}) {
 
 const lifeDedication = (over = {}) => ({
   kind: "repay-the-life", from: "koa", to: "sable", ...over,
+});
+
+test("a match banks once: card -> dedicated pass -> same card", () => {
+  const rescue = card({
+    derivedEvents: [extraction()],
+    ledger: { walked: 0, finished: 0, lost: 1 }, down: ["SABLE"],
+  });
+  let run = applyCard(openSeason(AT, slate()), rescue).run;
+  run = applyPass(run, "2026-08-05T13:00:00.000Z", lifeDedication()).run;
+  const again = applyCard(run, rescue);
+  assert.equal(again.accepted, false);
+  assert.equal(again.counted, false);
+  assert.match(again.why, /this match is already banked/);
+  assert.equal(again.run, run);
+  assert.deepEqual(run.bankedMatches, [rescue.matchId]);
+  memoryStore();
+  assert.equal(saveRun(again.run), true);
+  const restored = loadRun(AT);
+  assert.equal(restored.how, "restored");
+  assert.deepEqual(restored.run, run);
+  assert.equal(applyCard(restored.run, rescue).accepted, false);
+});
+
+for (const cert of ["dark", "unwitnessed"]) {
+  test(`a claim log banks once: ${cert} -> dedicated pass -> same log id`, () => {
+    const rescue = card({
+      cert, derivedEvents: [extraction()],
+      ledger: { walked: 0, finished: 0, lost: 1 }, down: ["SABLE"],
+    });
+    const origin = { logId: 7, key: CLAIM_KEY };
+    let run = applyCard(openSeason(AT, slate()), rescue, origin).run;
+    run = applyPass(run, "2026-08-05T13:00:00.000Z", lifeDedication()).run;
+    // A different content key or verdict cannot spend the same log id again.
+    const again = applyCard(run, { ...rescue, cert: cert === "dark" ? "unwitnessed" : "dark" },
+      { ...origin, key: "aaaaaaaa" });
+    assert.equal(again.accepted, false);
+    assert.equal(again.counted, false);
+    assert.match(again.why, /this claim log is already banked/);
+    assert.equal(again.run, run);
+    memoryStore();
+    assert.equal(saveRun(again.run), true);
+    const restored = loadRun(AT);
+    assert.equal(restored.how, "restored");
+    assert.deepEqual(restored.run, run);
+    assert.equal(applyCard(restored.run, rescue, origin).accepted, false);
+  });
+}
+
+test("eventless match identities survive receipt eviction; struck cards reserve nothing", () => {
+  const first = card();
+  let run = applyCard(openRun(AT), { ...first, cert: "struck" }).run;
+  assert.deepEqual(run.bankedMatches, []);
+  assert.equal(applyCard(run, first).accepted, true);
+  run = applyCard(run, first).run;
+  for (let i = 0; i < 13; i++) run = applyCard(run, card()).run;
+  assert.equal(run.recent.some(c => c.matchId === first.matchId), false);
+  memoryStore();
+  assert.equal(saveRun(run), true);
+  const restored = loadRun(AT);
+  assert.equal(restored.how, "restored");
+  const again = applyCard(restored.run, first);
+  assert.equal(again.accepted, false);
+  assert.equal(again.counted, false);
+  assert.equal(again.run, restored.run);
+});
+
+for (const [label, mutate] of [
+  ["missing register", r => { delete r.bankedMatches; }],
+  ["non-array register", r => { r.bankedMatches = {}; }],
+  ["invalid match id", r => { r.bankedMatches[0] = "short"; }],
+  ["duplicate match id", r => { r.bankedMatches[1] = r.bankedMatches[0]; }],
+  ["count mismatch", r => { r.bankedMatches.push(MATCH_ID_2); }],
+  ["certified recent id missing", r => { r.bankedMatches[1] = MATCH_ID_2; }],
+  ["certified event id missing", r => { r.bankedMatches[0] = MATCH_ID_2; }],
+  ["duplicate event origin across actors", r => {
+    r.eventLedger.vesper[0].origin = { ...r.eventLedger.sable[0].origin };
+  }],
+]) {
+  test(`restore refuses ${label}`, () => {
+    // The first event is older than recent, so its membership check cannot
+    // accidentally pass only because the recent receipt caught the forgery.
+    let run = applyCard(openRun(AT), card({ derivedEvents: [extraction()] })).run;
+    run = applyCard(run, card({ derivedEvents: [extraction({ actor: "VESPER" })] })).run;
+    for (let i = 0; i < 11; i++) run = applyCard(run, card()).run;
+    memoryStore();
+    saveRun(run);
+    assert.equal(loadRun(AT).how, "restored");
+    mutate(run);
+    saveRun(run);
+    assert.equal(loadRun(AT).how, "orphaned");
+  });
+}
+
+test("the match register bound refuses banking before it can write an orphan", () => {
+  let run = openRun(AT);
+  for (let i = 0; i < 4096; i++) run = applyCard(run, card()).run;
+  assert.equal(run.bankedMatches.length, 4096);
+  memoryStore();
+  saveRun(run);
+  assert.equal(loadRun(AT).how, "restored");
+  const extra = card();
+  const out = applyCard(run, extra);
+  assert.equal(out.accepted, false);
+  assert.equal(out.counted, false);
+  assert.equal(out.run, run);
+  assert.match(out.why, /register is full/);
+  run.bankedMatches.push(extra.matchId);
+  run.cards += 1;
+  memoryStore();
+  saveRun(run);
+  assert.equal(loadRun(AT).how, "orphaned");
+});
+
+test("a v7 stored run is orphaned without inventing a match register", () => {
+  const old = { ...openRun(AT), v: 7 };
+  delete old.bankedMatches;
+  const box = memoryStore({ [RUN_KEY]: JSON.stringify(old) });
+  assert.equal(loadRun(AT).how, "orphaned");
+  assert.deepEqual(JSON.parse(box[ORPHAN_KEY]), old);
 });
 
 // ---- shape ---------------------------------------------------------
@@ -1822,6 +1947,7 @@ test("a full receipt buffer is still a complete receipt", () => {
   // on the receipt is a floor.
   const inflated = JSON.parse(JSON.stringify(rich));
   inflated.cards = 13;
+  inflated.bankedMatches.push(MATCH_ID_2);
   memoryStore({ [RUN_KEY]: JSON.stringify(inflated) });
   assert.equal(loadRun(AT).how, "orphaned");
 });
