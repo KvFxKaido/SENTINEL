@@ -315,9 +315,16 @@ that append. A 422 dispute is struck and therefore logs and mints nothing.
 `applyCard` returns two different negatives on purpose:
 
 ```
-accepted:false   this is not a card — a caller bug or a tampered payload
-counted:false    this IS a card, and the edge struck it
+accepted:false                  refused untouched — a caller bug or tampered payload
+accepted:true, counted:false    this IS a card, and the edge struck it
 ```
+
+A match banks once. A certified `matchId` already in `bankedMatches`, or a
+claim `logId` already backing a claim event, is refused with `accepted:false`
+and `counted:false`: same run, no money, no new event, no struck tally.
+Struck cards bank nothing and reserve no identity. The certified register
+keeps banking order even after receipts leave `recent`; its 4096-entry bound
+also gates banking, so a full register cannot write an unrestorable run.
 
 Collapsing them would make a renderer bug indistinguishable from an
 honest dispute, which is the failure the whole certification chain exists
@@ -477,13 +484,13 @@ the stock, knows the balance, and knows what each fighter already wears,
 so an unaffordable purchase arriving here means the room offered
 something it should have refused.
 
-`RUN_V` is 7: the season joined the schema at 2, the purse at 3, the
+`RUN_V` is 8: the season joined the schema at 2, the purse at 3, the
 owned roster plus lineup at 4, replay-derived pairwise events at 5, and named
 relationship lifecycle at 6; the dark verdict split and two provenance grades
-joined at 7. A stored run of any older version takes the
+joined at 7; the permanent `bankedMatches` register joined at 8. A stored run of any older version takes the
 orphan path below — moved aside and said so, which is the exact situation
-that path was built and tested for. Hydrating a v6 run with invented dark
-counts or provenance would be a silent migration wearing defaults, so the
+that path was built and tested for. Hydrating a v7 run with invented match
+identities would be a silent migration wearing defaults, so the
 older payload is set aside instead.
 
 `saveRun`'s return value is not decoration — the room raises a standing

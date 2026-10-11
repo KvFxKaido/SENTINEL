@@ -147,12 +147,13 @@
 // 5: replay-derived pairwise events joined it (stable ids + certified source).
 // 6: named pairwise relationships joined it (lifecycle + room obligation).
 // 7: chosen darkness, the independent chronicle, and claim-grade provenance.
+// 8: the durable banked match register — a match happens once.
 // A stored run of any older
 // version takes the orphan path below — moved aside and said so, exactly
-// the situation that path was built and tested for. Hydrating a v6 run
-// with invented dark counts and provenance would be a silent migration
+// the situation that path was built and tested for. Hydrating a v7 run
+// with invented match identities would be a silent migration
 // wearing defaults, same as it was one version ago.
-export const RUN_V = 7;
+export const RUN_V = 8;
 // The live key is deliberately NOT versioned. It used to be
 // `sentinel.run.v${RUN_V}`, which made the orphan path below unreachable
 // in the only situation it exists for: bumping RUN_V to 2 would point
@@ -179,6 +180,7 @@ const MAX_WOUNDED = 8;     // the yard fields three; this is slack, not a plan
 const MAX_RATING = 100;    // rules.js clamps the crowd meter to 0..100
 const MAX_PURSE = 10000;   // 100 rating x pursePerPoint 10, with an order of slack
 const MAX_SIDE = 16;       // hostiles per card, generously
+const MAX_BANKED_MATCHES = 4096; // far beyond a tour; bounds the permanent identity register
 const RECENT = 12;         // cards kept in full on the run; older ones are totals only
 const MAX_SLATE = 32;      // entries per season slate — a tour, not a calendar
 const MAX_VENUE = 24;      // a venue name is a sign, not a paragraph
@@ -373,6 +375,7 @@ export function openRun(at, roster = DEFAULT_ROSTER) {
     v: RUN_V,
     opened: at,
     cards: 0,
+    bankedMatches: [], // certified match ids, in banking order; never aged out
     wins: 0,
     purse: 0,
     best: 0,            // best rating posted this run
@@ -670,6 +673,18 @@ export function applyCard(run, card, claimOrigin = null) {
       || card.derivedEvents.length === 0)) {
     return { run, accepted: false, counted: false, why: "claim origin does not belong to this card" };
   }
+  // Identity outlives the recent buffer and eventless cards leave no event
+  // trail. A certified match banks once; a claim's durable log id does too.
+  if (card.cert === "certified" && run.bankedMatches.includes(card.matchId)) {
+    return { run, accepted: false, counted: false, why: "this match is already banked — a match happens once" };
+  }
+  if (hasClaimOrigin && Object.values(run.eventLedger).some(events =>
+    events.some(event => event.grade === "claim" && event.origin.logId === claimOrigin.logId))) {
+    return { run, accepted: false, counted: false, why: "this claim log is already banked — a claim happens once" };
+  }
+  if (card.cert === "certified" && run.bankedMatches.length >= MAX_BANKED_MATCHES) {
+    return { run, accepted: false, counted: false, why: "the banked match register is full" };
+  }
   const dealt = fieldedRoster(run) ?? [];
   const idByDealtName = new Map(dealt.map((person, i) =>
     [person.name, run.roster.lineup[i]]));
@@ -704,6 +719,7 @@ export function applyCard(run, card, claimOrigin = null) {
 
   const next = {
     ...run,
+    bankedMatches: run.bankedMatches.slice(),
     mercy: { ...run.mercy },
     wounds: { ...run.wounds },
     eventLedger: Object.fromEntries(
@@ -814,16 +830,15 @@ export function applyCard(run, card, claimOrigin = null) {
        Direction matters: the rescued beneficiary owes the actor a life.
        While that directed debt is active, another rescue mints nothing —
        no repetition treadmill, and the first source remains the origin.
-       A source already used by a fulfilled debt cannot mint twice either;
-       a later debt needs a later rescue with its own origin. */
+       Duplicate match ids and claim log ids are refused before banking,
+       and command indices are unique within a card. A fulfilled source
+       therefore cannot return to mint a second debt. */
     const activeAlready = next.relationships.some(relationship =>
       relationship.kind === "owes-a-life"
       && relationship.from === beneficiary
       && relationship.to === actor
       && relationship.status === "active");
-    const originAlreadyUsed = next.relationships.some(relationship =>
-      sameOrigin(relationship.grade, relationship.origin, eventGrade, origin));
-    if (!activeAlready && !originAlreadyUsed) {
+    if (!activeAlready) {
       const relationship = {
         kind: "owes-a-life",
         from: beneficiary,
@@ -843,6 +858,7 @@ export function applyCard(run, card, claimOrigin = null) {
     }
   }
 
+  if (card.cert === "certified") next.bankedMatches.push(card.matchId);
   next.cards += 1;
   next.purse += card.purse;
   next.best = Math.max(next.best, card.rating);
@@ -1119,6 +1135,11 @@ export function loadRun(at, roster = DEFAULT_ROSTER) {
 function sane(r) {
   const ints = ["cards", "wins", "purse", "best", "streak", "longest", "struck", "unwitnessed", "dark"];
   if (!ints.every(k => Number.isInteger(r[k]) && r[k] >= 0)) return false;
+  if (!Array.isArray(r.bankedMatches) || r.bankedMatches.length > MAX_BANKED_MATCHES
+      || !r.bankedMatches.every(matchIdValid)) return false;
+  const bankedMatches = new Set(r.bankedMatches);
+  if (bankedMatches.size !== r.bankedMatches.length
+      || bankedMatches.size !== r.cards - r.dark - r.unwitnessed) return false;
   if (typeof r.opened !== "string") return false;
   if (!rosterValid(r.roster)) return false;
   const ownedIds = new Set(r.roster.people.map(person => person.id));
@@ -1149,6 +1170,14 @@ function sane(r) {
     if (typeof event.at !== "string" || !event.at) return false;
     return (event.grade === "certified" || event.grade === "claim")
       && originValid(event.grade, event.origin);
+  })) return false;
+  const eventOrigins = new Set();
+  if (!allEvents.every(({ event }) => {
+    if (event.grade === "certified" && !bankedMatches.has(event.origin.matchId)) return false;
+    const key = originKey(event.grade, event.origin);
+    if (eventOrigins.has(key)) return false;
+    eventOrigins.add(key);
+    return true;
   })) return false;
   const certifiedEvents = allEvents.filter(({ event }) => event.grade === "certified").length;
   const claimEvents = allEvents.length - certifiedEvents;
@@ -1230,7 +1259,7 @@ function sane(r) {
     // log reference writes them; sane() validates the corresponding ledger
     // origin shape below.
     && (c.cert !== "struck" || c.derivedEvents.length === 0)
-    && (c.cert === "certified" ? matchIdValid(c.matchId)
+    && (c.cert === "certified" ? bankedMatches.has(c.matchId)
       : c.cert === "dark" || c.cert === "unwitnessed" ? c.matchId === null
       : c.matchId === null || matchIdValid(c.matchId))
     && (c.slate === undefined || stampValid(c.slate))

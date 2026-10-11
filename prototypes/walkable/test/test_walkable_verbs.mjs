@@ -91,7 +91,7 @@ function card(seed, down, cert = "certified") {
     seed, result: "loss", rating: 1, purse: 10,
     ledger: { walked: 0, finished: 0, lost: down.length },
     down, derivedEvents: [], cert,
-    matchId: cert === "certified" ? "0123456789abcdef0123456789abcdef" : null,
+    matchId: cert === "certified" ? seed.padStart(32, "0") : null,
     rules: "test-rules", at: `2026-08-05T00:00:0${seed}Z`,
   };
 }
